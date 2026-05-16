@@ -32,13 +32,19 @@
 - Infra/runtime auditado: `docker compose ... config` OK y
   `infra/wait_for_services.sh` confirma Postgres/Redis/Weaviate/Neo4j healthy.
 - Backend amplio post-cambios: `uv run pytest -m 'not integration and not slow'
-  -q` -> **495 passed, 1 skipped, 20 deselected**; Ruff/format y `git diff
+  -q` -> **497 passed, 1 skipped, 20 deselected**; Ruff/format y `git diff
   --check` verdes.
+- Cuarto hallazgo corregido: Alembic autogenerate excluye tablas runtime de
+  LangGraph/PostgresSaver para que `alembic check` no proponga borrarlas.
+  Nueva cobertura: `tests/test_alembic_autogenerate.py` (**2 passed**).
+- `backend/scripts/verify_operator_ready.sh` ahora ejecuta tambien
+  `uv run alembic check`, para que el drift de autogenerate sea compuerta real.
 - Compuertas finales Fase 37 ejecutadas tras los commits:
   `bash scripts/full-qa.sh` -> OK; `uvx pre-commit run --all-files` -> OK;
   detect-secrets sobre `git ls-files` -> `results: {}`; `bash
   backend/scripts/verify_operator_ready.sh` -> OK con Alembic
-  `202605150002 == 202605150002`; Docker core sigue healthy en loopback.
+  `202605150002 == 202605150002` y `alembic check` sin drift; Docker core
+  sigue healthy en loopback.
 
 ## 2026-05-15 - Fase 36 pulido CI y QA completa
 

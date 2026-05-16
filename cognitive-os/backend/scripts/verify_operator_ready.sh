@@ -20,10 +20,11 @@ if [[ -z "${current_revision}" || -z "${head_revision}" || "${current_revision}"
   echo "Alembic no está en head. Ejecuta desde backend/: uv run alembic upgrade head" >&2
   exit 1
 fi
+uv run alembic check
 echo "=== frontend ==="
 pushd ../frontend >/dev/null
 npm ci
 npm run lint
 npm run build
 popd >/dev/null
-echo "OK: suite estática + migraciones en head"
+echo "OK: suite estática + migraciones en head sin drift"

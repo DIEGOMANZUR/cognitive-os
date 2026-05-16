@@ -12,7 +12,7 @@
 > subagentes, **15 skills** y 7 comandos slash. LLM por defecto:
 > **DeepSeek V4 Pro**. Fase 33 añade RBAC local explícito, cifrado Fernet de
 > `payload_executable` y persistencia Postgres configurable para research.
-> Snapshot QA verde (495 pytest passed, 1 skipped, 20 deselected;
+> Snapshot QA verde (497 pytest passed, 1 skipped, 20 deselected;
 > ruff/mypy/lint/build/Compose/Alembic OK). Sin commits aún en `master` —
 > queda pendiente completar variables `.env.local` que requieren input manual.
 
@@ -141,9 +141,11 @@ Backend (`cognitive-os/backend/`):
 
 - `uv sync` (con `--extra openharness` si vas a tocar el motor opcional).
 - `uv run pytest -m 'not integration and not slow'` (snapshot vigente:
-  **495 passed, 1 skipped, 20 deselected**).
-- `uv run ruff check .` y `uv run ruff format --check .` (201 archivos).
-- `uv run mypy src` (108 source files, success).
+  **497 passed, 1 skipped, 20 deselected**).
+- `uv run ruff check .` y `uv run ruff format --check .` (203 archivos).
+- `uv run mypy src` (109 source files, success).
+- `uv run alembic check` (sin operaciones nuevas esperadas; excluye tablas
+  runtime de LangGraph/PostgresSaver).
 
 Frontend (`cognitive-os/frontend/`):
 

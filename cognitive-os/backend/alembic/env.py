@@ -11,6 +11,7 @@ from alembic import context
 from cognitive_os.core.config import settings
 from cognitive_os.core.db import Base
 from cognitive_os.db import models  # noqa: F401
+from cognitive_os.migrations.autogenerate import include_name, include_object
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)
@@ -25,6 +26,8 @@ def run_migrations_offline() -> None:
     context.configure(
         url=settings.database_url,
         target_metadata=target_metadata,
+        include_name=include_name,
+        include_object=include_object,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
@@ -34,7 +37,12 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        include_name=include_name,
+        include_object=include_object,
+    )
 
     with context.begin_transaction():
         context.run_migrations()

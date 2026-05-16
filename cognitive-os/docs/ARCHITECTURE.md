@@ -20,7 +20,7 @@
 > `deepagent_mirror`. See `docs/OPENHARNESS_FUSION.md` for the canonical
 > contract. Phase 33 adds explicit local RBAC, encrypted executable ActionRequest
 > payloads in production, and Postgres-backed research run snapshots/events. QA
-> snapshot: **495 pytest passed, 1 skipped, 20 deselected**;
+> snapshot: **497 pytest passed, 1 skipped, 20 deselected**;
 > ruff/mypy/lint/build, Compose config and Alembic head green; `git diff --check` clean; no commits yet on
 > `master`.
 

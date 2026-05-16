@@ -14,7 +14,7 @@
 > operables sin writes directos y envío solo con aprobación humana (`MAIL_REQUIRE_APPROVAL_FOR_SEND=true`). Cockpit
 > `.opencode/` con **21 MCPs**, **15 skills**, 7 subagentes y 7 comandos
 > slash. Fase 33 añade RBAC local explícito, cifrado de payload ejecutable y
-> persistencia Postgres configurable para research. QA snapshot: **495 pytest
+> persistencia Postgres configurable para research. QA snapshot: **497 pytest
 > passed, 1 skipped, 20 deselected**; ruff/mypy/lint/build verdes.
 
 ## En Una Frase

@@ -7,8 +7,8 @@
 > ElevenLabs (STT/TTS), vista `AssistView` para tareas/notas personales y
 > `GoogleOpsView` para operar Maps/Calendar/Drive.
 > Snapshot QA persistente (Fase 37):
-> **495 pytest passed, 1 skipped, 20 deselected**; ruff/ruff format/mypy
-> (108 source files), frontend lint/build, Compose config, Alembic head y `git diff --check` verdes; sin commits aún en
+> **497 pytest passed, 1 skipped, 20 deselected**; ruff/ruff format/mypy
+> (109 source files), frontend lint/build, Compose config, Alembic head y `git diff --check` verdes; sin commits aún en
 > `master`. Los snapshots con fecha por-fase más abajo son **históricos**:
 > para reverificar QA hoy ejecuta `bash scripts/full-qa.sh`.
 
@@ -17,10 +17,10 @@ infraestructura local real, credenciales o aprobacion manual.
 
 ## Verificado Automaticamente - 2026-05-16 (Fase 37 auditoria integral)
 
-- [x] `uv run pytest -m 'not integration and not slow'` → **495 passed, 1 skipped, 20 deselected**.
+- [x] `uv run pytest -m 'not integration and not slow'` → **497 passed, 1 skipped, 20 deselected**.
 - [x] `uv run ruff check .` → All checks passed.
-- [x] `uv run ruff format --check .` → 201 files already formatted.
-- [x] `uv run mypy src` → Success: no issues found in 108 source files.
+- [x] `uv run ruff format --check .` → 203 files already formatted.
+- [x] `uv run mypy src` → Success: no issues found in 109 source files.
 - [x] `npm run lint` → pass.
 - [x] `npm run build` → Next.js 16.2.6 (Turbopack), build estática OK.
 - [x] `docker compose --env-file .env.example -f infra/docker-compose.yml config --quiet` → pass.
