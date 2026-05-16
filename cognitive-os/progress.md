@@ -66,6 +66,16 @@
 - Verificacion focalizada Kimi/config: `uv run pytest tests/test_kimi_webbridge.py
   tests/test_config.py -q` -> **31 passed**; Ruff/format focalizados y mypy en
   `kimi_webbridge.py`/`config.py` verdes.
+- Hardening ActionRequest/workers: dispatch aprobado ahora bloquea la fila con
+  `FOR UPDATE`; workers duplicados que encuentran el request ya `running` salen
+  sin marcar el job como `failed`; estados terminales `cancelled`/`rejected` se
+  preservan en el job en vez de colapsar a fallo generico.
+- Verificacion focalizada ActionRequest: `uv run pytest
+  tests/test_action_request_workers.py
+  tests/test_actions.py::test_queue_approved_action_request_locks_row_before_queue
+  tests/test_actions.py::test_dispatch_action_request_enqueues_worker
+  tests/test_actions.py::test_dispatch_action_request_does_not_enqueue_non_queued_status
+  tests/test_celery_config.py -q` -> **8 passed**; Ruff focalizado verde.
 - Compuertas finales Fase 37 ejecutadas tras los commits:
   `bash scripts/full-qa.sh` -> OK; `uvx pre-commit run --all-files` -> OK;
   detect-secrets sobre `git ls-files` -> `results: {}`; `bash

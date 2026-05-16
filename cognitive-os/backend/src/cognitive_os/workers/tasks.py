@@ -37,6 +37,12 @@ from cognitive_os.mail.service import PersonalMailService
 from cognitive_os.workers.celery_app import celery_app
 
 TRANSIENT_EXCEPTIONS = (ConnectionError, TimeoutError, httpx.TimeoutException)
+_ACTION_REQUEST_TERMINAL_JOB_STATUS = {
+    "completed": "completed",
+    "failed": "failed",
+    "cancelled": "cancelled",
+    "rejected": "rejected",
+}
 
 
 def _run[T](coro: Coroutine[Any, Any, T]) -> T:
@@ -475,7 +481,25 @@ def run_action_request_task_async(action_request_id: str, job_id: str) -> dict[s
             )
         )
         result = _run(ActionRequestService().execute_action_request(active_action_request_id))
-        terminal_status = "completed" if result.status == "completed" else "failed"
+        terminal_status = _ACTION_REQUEST_TERMINAL_JOB_STATUS.get(result.status)
+        if terminal_status is None:
+            _run(
+                _update_job(
+                    active_job_id,
+                    status=result.status,
+                    progress=None,
+                    event_type="action_request_not_executed",
+                    message=(
+                        "Action request worker exited without terminal update because "
+                        f"request is {result.status}"
+                    ),
+                    metadata_json={
+                        "action_request_id": action_request_id,
+                        "result": result.model_dump(mode="json"),
+                    },
+                )
+            )
+            return result.model_dump(mode="json")
         _run(
             _update_job(
                 active_job_id,

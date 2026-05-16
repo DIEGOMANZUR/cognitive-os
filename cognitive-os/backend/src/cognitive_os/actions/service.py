@@ -864,7 +864,10 @@ class ActionRequestService:
 
     async def queue_approved_action_request(self, action_request_id: UUID) -> ActionRequestView:
         async with session_scope() as session:
-            action_request = await session.get(ActionRequest, action_request_id)
+            stmt = (
+                select(ActionRequest).where(ActionRequest.id == action_request_id).with_for_update()
+            )
+            action_request = (await session.execute(stmt)).scalar_one_or_none()
             if action_request is None:
                 msg = f"Action request not found: {action_request_id}"
                 raise ActionRequestError(msg)

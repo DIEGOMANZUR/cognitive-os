@@ -175,6 +175,27 @@ Hallazgo 37.8 - Kimi WebBridge mutaba navegador real sin aprobacion efectiva:
 - Verificacion: `uv run pytest tests/test_kimi_webbridge.py tests/test_config.py
   -q` -> **31 passed**; Ruff/format focalizados y mypy en Kimi/config verdes.
 
+Hallazgo 37.9 - Dispatch duplicado podia marcar un job como fallido:
+
+- Severidad: P1 operacional/concurrencia.
+- Evidencia: `ActionRequestService.execute_action_request` devuelve `running`
+  cuando otro worker ya tomo la fila con `FOR UPDATE`, pero
+  `run_action_request_task_async` interpretaba cualquier estado distinto de
+  `completed` como `failed`. Un worker duplicado podia marcar el `Job` como
+  fallido mientras el worker real seguia ejecutando.
+- Correccion: el task Celery ahora distingue estados terminales
+  (`completed`, `failed`, `cancelled`, `rejected`) de estados no terminales
+  (`running`, etc.). Si detecta que no debe ejecutar, registra
+  `action_request_not_executed` sin convertir el job a `failed`.
+- Hardening adicional: `queue_approved_action_request` usa `SELECT ... FOR
+  UPDATE` antes de pasar de `pending_approval` a `queued`, reduciendo el riesgo
+  de doble encolado por doble click concurrente.
+- Verificacion: `uv run pytest tests/test_action_request_workers.py
+  tests/test_actions.py::test_queue_approved_action_request_locks_row_before_queue
+  tests/test_actions.py::test_dispatch_action_request_enqueues_worker
+  tests/test_actions.py::test_dispatch_action_request_does_not_enqueue_non_queued_status
+  tests/test_celery_config.py -q` -> **8 passed**; Ruff focalizado verde.
+
 ## 2026-05-15 - Pulido CI post-baseline
 
 - El workflow CI estaba versionado bajo `cognitive-os/.github/workflows/ci.yml`.

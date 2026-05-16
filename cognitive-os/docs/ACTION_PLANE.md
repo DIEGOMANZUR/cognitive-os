@@ -64,8 +64,10 @@ Toda accion se modela en un ciclo controlado:
    con payload redactado, preview, estado, idempotency key y metadata.
 4. **Approve**: acciones reales requieren `HumanApproval`.
 5. **Dispatch**: una aprobacion aceptada se encola como job Celery.
-6. **Execute/Audit**: el worker ejecuta el executor permitido, guarda resultado
-   o error, y registra `AuditEvent`.
+6. **Execute/Audit**: el worker toma el `ActionRequest` con transicion atomica
+   a `running`, ejecuta el executor permitido, guarda resultado o error, y
+   registra `AuditEvent`. Si llega un worker duplicado y la fila ya esta
+   `running`, sale sin marcar el job como fallido.
 
 ## Endpoints
 

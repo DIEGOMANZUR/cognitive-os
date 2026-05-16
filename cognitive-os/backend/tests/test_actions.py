@@ -839,6 +839,79 @@ async def test_dispatch_action_request_does_not_enqueue_non_queued_status(
 
 
 @pytest.mark.asyncio
+async def test_queue_approved_action_request_locks_row_before_queue(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    action_request_id = UUID("12121212-1212-1212-1212-121212121212")
+    approval_id = UUID("34343434-3434-3434-3434-343434343434")
+    job_id = UUID("56565656-5656-5656-5656-565656565656")
+    now = datetime.now(UTC)
+    action_request = ActionRequest(
+        id=action_request_id,
+        action_type="browser_preview",
+        status="pending_approval",
+        requested_by="operator-1",
+        approval_id=approval_id,
+        job_id=job_id,
+        idempotency_key="idem",
+        payload_redacted={},
+        payload_executable={},
+        preview={},
+        result={},
+        metadata_json={},
+        created_at=now,
+        updated_at=now,
+    )
+    approval = HumanApproval(
+        id=approval_id,
+        status="approved",
+        action="execute_action_request",
+        requested_action=f"execute_action_request:{action_request_id}",
+        args_redacted={},
+        requested_by="operator-1",
+        job_id=job_id,
+    )
+    job = Job(
+        id=job_id,
+        job_type="external_action",
+        status="waiting_approval",
+        progress=0,
+        created_at=now,
+        updated_at=now,
+    )
+    captured: dict[str, object] = {}
+
+    class _Scalar:
+        def scalar_one_or_none(self) -> ActionRequest:
+            return action_request
+
+    class _Session(_FakeActionRequestSession):
+        async def execute(self, stmt: object) -> _Scalar:
+            captured["for_update"] = getattr(stmt, "_for_update_arg", None) is not None
+            return _Scalar()
+
+        async def get(self, model: type[object], row_id: UUID) -> object | None:
+            if model is HumanApproval and row_id == approval_id:
+                return approval
+            if model is Job and row_id == job_id:
+                return job
+            return None
+
+    @asynccontextmanager
+    async def fake_session_scope():
+        yield _Session()
+
+    monkeypatch.setattr(action_service_module, "session_scope", fake_session_scope)
+
+    view = await ActionRequestService().queue_approved_action_request(action_request_id)
+
+    assert captured["for_update"] is True
+    assert view.status == "queued"
+    assert action_request.status == "queued"
+    assert job.status == "queued"
+
+
+@pytest.mark.asyncio
 async def test_approval_decision_is_immutable(monkeypatch: pytest.MonkeyPatch) -> None:
     now = datetime.now(UTC)
     approval_id = UUID("33333333-3333-3333-3333-333333333333")
