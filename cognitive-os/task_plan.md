@@ -9,7 +9,7 @@
 > credenciales que requieren input manual del operador. Las tablas de "Resultado De
 > Verificacion" más abajo son **snapshots históricos** por fase: para
 > conocer el verdadero estado de QA hoy ejecuta `bash scripts/full-qa.sh` y
-> revisa la salida. Snapshot QA persistente: **492 pytest passed, 1
+> revisa la salida. Snapshot QA persistente: **495 pytest passed, 1
 > skipped, 20 deselected**, ruff/ruff format/mypy/lint/build, Compose config,
 > Alembic head y `git diff --check` verdes. Documentación de producto autoritativa:
 > `docs/COGNITIVE_OS_GUIDE.md`, `docs/PROJECT_GUIDE.md`,

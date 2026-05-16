@@ -12,21 +12,21 @@ Arranque:
   en evidencia: cero P0/P1 abiertos, QA reproducible, contratos alineados y
   riesgos residuales explicitos.
 - Baseline vigente: rama `codex/fase-34-baseline-hardening`, commits hasta
-  `ca742d4`, full QA/readiness/pre-commit verdes, runtime core healthy.
+  `b5f13db`, full QA/readiness/pre-commit verdes previos, runtime core healthy.
 
 Matriz de auditoria:
 
 | Capa | Pregunta critica | Estado |
 |---|---|---|
 | Docs/claims | Lo que se promete coincide con codigo y comandos reales | in_progress: drift de Celery detectado y corregido |
-| Backend/API | Endpoints, schemas, auth y errores son consistentes | pending |
+| Backend/API | Endpoints, schemas, auth y errores son consistentes | in_progress: auth coverage script sin rutas privadas expuestas |
 | DB/migraciones | Modelos y Alembic estan en head y sin drift obvio | pending |
 | Action Plane | Writes externos solo via approval + audit | in_progress: approvals inmutables corregido |
-| Agents/memory | LangGraph/DeepAgents/research/memoria no rompen contratos | pending |
-| Frontend | Vistas/tipos/API client soportan estados reales | pending |
-| Infra/runtime | Compose/scripts/health conectan sin exposicion accidental | pending |
+| Agents/memory | LangGraph/DeepAgents/research/memoria no rompen contratos | in_progress: OpenShell HITL dispatch corregido |
+| Frontend | Vistas/tipos/API client soportan estados reales | in_progress: lint/build y PublicConfig 66/66 verdes |
+| Infra/runtime | Compose/scripts/health conectan sin exposicion accidental | in_progress: Compose config y core services healthy |
 | Seguridad | Secret hygiene, redaccion, cifrado, SSRF/path/RBAC | pending |
-| QA/CI | Local y CI cubren lo que dicen cubrir | in_progress: test dirigido Celery verde |
+| QA/CI | Local y CI cubren lo que dicen cubrir | in_progress: backend amplio 495/1/20 + frontend build verdes |
 
 Hallazgo 37.1 - Celery docs/runtime y rutas de tareas largas:
 
@@ -74,6 +74,18 @@ Hallazgo 37.3 - Lifecycle incompleto en approvals con job vinculado:
   tests/test_actions.py::test_rejected_approval_closes_linked_job_and_action_request
   tests/test_actions.py::test_dispatch_action_request_enqueues_worker -q` ->
   **4 passed**; Ruff verde; `uv run mypy src` -> success en 108 source files.
+
+Checks de capa sin hallazgo nuevo:
+
+- Frontend: `npm run lint` y `npm run build` verdes con Next.js 16.2.6; contrato
+  `/config/public` alineado con TypeScript (**66 backend / 66 frontend**, sin
+  faltantes).
+- Infra: `docker compose -f cognitive-os/infra/docker-compose.yml --env-file
+  cognitive-os/.env config` OK; `bash cognitive-os/infra/wait_for_services.sh`
+  -> all services healthy.
+- Backend amplio: `uv run pytest -m 'not integration and not slow' -q` ->
+  **495 passed, 1 skipped, 20 deselected**; Ruff/format y `git diff --check`
+  verdes.
 
 ## 2026-05-15 - Pulido CI post-baseline
 

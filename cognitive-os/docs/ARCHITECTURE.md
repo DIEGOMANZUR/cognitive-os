@@ -2,7 +2,7 @@
 
 > **Status (2026-05-15, Phase 33 RBAC + encryption + durable research):** stack operational at commercial
 > grade. Verified counts (no inflation): **118 REST endpoints** (92
-> Cognitive-OS-owned + 26 orchestration), **11 Celery tasks** across **5
+> Cognitive-OS-owned + 26 orchestration), **14 Celery tasks** across **5
 > queues** (`default`, `ingestion`, `agent_longrun`, `maintenance`, `mail`),
 > **14 Alembic migrations**, **18 Next.js views** under
 > `frontend/app/views/*.tsx` (including `AssistView` and `GoogleOpsView`),
@@ -20,7 +20,7 @@
 > `deepagent_mirror`. See `docs/OPENHARNESS_FUSION.md` for the canonical
 > contract. Phase 33 adds explicit local RBAC, encrypted executable ActionRequest
 > payloads in production, and Postgres-backed research run snapshots/events. QA
-> snapshot: **492 pytest passed, 1 skipped, 20 deselected**;
+> snapshot: **495 pytest passed, 1 skipped, 20 deselected**;
 > ruff/mypy/lint/build, Compose config and Alembic head green; `git diff --check` clean; no commits yet on
 > `master`.
 

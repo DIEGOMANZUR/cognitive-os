@@ -55,7 +55,7 @@ rsync -a --exclude node_modules --exclude .next --exclude .venv --exclude '__pyc
 - Python ≥ 3.12 y [uv](https://docs.astral.sh/uv/)
 - Node.js ≥ 22 y npm
 - Verificación reproducible: `bash scripts/full-qa.sh` (`uv sync --extra openharness` + `pytest` + `ruff check` + `ruff format --check` + `mypy` + `npm ci` + `npm run lint` + `npm run build`). Estrés: `bash scripts/stress-qa.sh` (3 pasadas de pytest por defecto).
-- Snapshot QA vigente (2026-05-15, Fase 33): **492 pytest passed, 1 skipped, 20 deselected** (513 tests recogidos); ruff/ruff format/mypy (108 source files), frontend lint/build, Compose config, Alembic head y `git diff --check` verdes.
+- Snapshot QA vigente (2026-05-16, Fase 37): **495 pytest passed, 1 skipped, 20 deselected** (516 tests recogidos); ruff/ruff format/mypy (108 source files), frontend lint/build, Compose config, Alembic head y `git diff --check` verdes.
 
 ## Backend
 

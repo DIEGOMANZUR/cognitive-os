@@ -11,7 +11,7 @@
 > por defecto `prelude_merge`, workspace `deepagent_mirror`. Documento
 > canónico de la fusión: `OPENHARNESS_FUSION.md`. El runtime local usa
 > **DeepSeek V4 Pro** (`deepseek-v4-pro`) como LLM base; secundario Kimi
-> K2.6-code-preview; vision GLM-4.6v. QA: **492 pytest passed, 1 skipped,
+> K2.6-code-preview; vision GLM-4.6v. QA: **495 pytest passed, 1 skipped,
 > 20 deselected**; ruff/mypy/lint/build, Compose config, Alembic head y diff verdes.
 
 Este directorio contiene la documentacion estable del proyecto. Los archivos

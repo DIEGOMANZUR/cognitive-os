@@ -8,7 +8,7 @@
 > opera Maps/Calendar/Drive. La queue
 > Celery `mail` ya queda integrada en `scripts/dev_worker.sh` y los
 > ejecutables de escritorio. Calendar/Drive writes reales quedan bajo
-> `ActionRequest` + aprobación. QA actual: **492 passed, 1 skipped, 20
+> `ActionRequest` + aprobación. QA actual: **495 passed, 1 skipped, 20
 > deselected**; ruff/ruff format/mypy/frontend lint/build verdes. La ruta
 > `research` sigue fusionada con OpenHarness opcional y puede persistir runs
 > en Postgres. Pendiente para

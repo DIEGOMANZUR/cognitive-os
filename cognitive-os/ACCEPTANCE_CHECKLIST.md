@@ -6,8 +6,8 @@
 > (Maps con tráfico/link, Calendar/Drive read + writes solo por `ActionRequest`), voz
 > ElevenLabs (STT/TTS), vista `AssistView` para tareas/notas personales y
 > `GoogleOpsView` para operar Maps/Calendar/Drive.
-> Snapshot QA persistente (Fase 33):
-> **492 pytest passed, 1 skipped, 20 deselected**; ruff/ruff format/mypy
+> Snapshot QA persistente (Fase 37):
+> **495 pytest passed, 1 skipped, 20 deselected**; ruff/ruff format/mypy
 > (108 source files), frontend lint/build, Compose config, Alembic head y `git diff --check` verdes; sin commits aún en
 > `master`. Los snapshots con fecha por-fase más abajo son **históricos**:
 > para reverificar QA hoy ejecuta `bash scripts/full-qa.sh`.
@@ -15,9 +15,9 @@
 Este checklist separa lo verificado por pruebas automaticas de lo que requiere
 infraestructura local real, credenciales o aprobacion manual.
 
-## Verificado Automaticamente - 2026-05-15 (Fase 33 RBAC + cifrado + research durable)
+## Verificado Automaticamente - 2026-05-16 (Fase 37 auditoria integral)
 
-- [x] `uv run pytest -m 'not integration and not slow'` → **492 passed, 1 skipped, 20 deselected**.
+- [x] `uv run pytest -m 'not integration and not slow'` → **495 passed, 1 skipped, 20 deselected**.
 - [x] `uv run ruff check .` → All checks passed.
 - [x] `uv run ruff format --check .` → 201 files already formatted.
 - [x] `uv run mypy src` → Success: no issues found in 108 source files.

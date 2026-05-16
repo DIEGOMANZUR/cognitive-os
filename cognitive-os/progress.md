@@ -27,6 +27,13 @@
   protegido en metadata del job.
 - Verificacion dirigida ampliada: **4 passed**, Ruff verde, `mypy src` verde en
   108 source files.
+- Frontend auditado: `npm run lint` y `npm run build` verdes; contrato
+  `PublicConfigResponse` vs `PublicConfig` calza **66/66 campos**.
+- Infra/runtime auditado: `docker compose ... config` OK y
+  `infra/wait_for_services.sh` confirma Postgres/Redis/Weaviate/Neo4j healthy.
+- Backend amplio post-cambios: `uv run pytest -m 'not integration and not slow'
+  -q` -> **495 passed, 1 skipped, 20 deselected**; Ruff/format y `git diff
+  --check` verdes.
 
 ## 2026-05-15 - Fase 36 pulido CI y QA completa
 
