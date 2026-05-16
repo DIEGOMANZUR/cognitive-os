@@ -196,6 +196,21 @@ Hallazgo 37.9 - Dispatch duplicado podia marcar un job como fallido:
   tests/test_actions.py::test_dispatch_action_request_does_not_enqueue_non_queued_status
   tests/test_celery_config.py -q` -> **8 passed**; Ruff focalizado verde.
 
+Hallazgo 37.13 - full-qa.sh no incluia alembic check ni git diff --check:
+
+- Severidad: P2 operacional.
+- Evidencia: `scripts/full-qa.sh` corria pytest+ruff+mypy+lint+build, pero el
+  drift de Alembic y los warnings de whitespace solo eran detectables por
+  `verify_operator_ready.sh` o pre-commit. Un operador que solo corriera
+  `full-qa.sh` antes del commit podia introducir migraciones huerfanas o
+  conflictos de merge sin verlo.
+- Correccion: el script ahora corre `uv run alembic check` cuando hay
+  `DATABASE_URL`/`.env*` disponible (con tolerancia a Postgres apagado) y
+  fuerza `git diff --check` como compuerta dura al final cuando estamos en un
+  repo git. Ambas compuertas reportan claramente si se saltan.
+- Verificacion: `bash -n scripts/full-qa.sh` -> sintaxis valida; ejecucion
+  real cubierta por el siguiente smoke al cierre del bloque.
+
 Hallazgo 37.12 - Idempotency sin garantia transaccional contra carreras:
 
 - Severidad: P1 datos/concurrencia.
