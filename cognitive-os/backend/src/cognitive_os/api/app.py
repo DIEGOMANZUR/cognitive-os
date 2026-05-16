@@ -293,6 +293,20 @@ class HealthResponse(BaseModel):
     service: str
 
 
+class SystemInfoResponse(BaseModel):
+    service: str
+    environment: str
+    python_version: str
+    fastapi_version: str
+    pytest_marker_default: str
+    require_human_approval_for_external_actions: bool
+    approval_require_four_eyes: bool
+    approval_pending_max_hours: int
+    action_payload_encryption_required: bool
+    research_persistence_backend: str
+    started_at: datetime
+
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1)
     thread_id: str | None = None
@@ -603,6 +617,42 @@ class LangSmithStatusView(BaseModel):
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     return HealthResponse(status="ok", service="cognitive-os")
+
+
+_SYSTEM_STARTED_AT = datetime.now(UTC)
+
+
+@app.get("/system/info", response_model=SystemInfoResponse)
+async def system_info(
+    user: AuthenticatedUser = _auth_dependency,
+) -> SystemInfoResponse:
+    """Ops-facing snapshot of the live runtime: versions and policy defaults.
+
+    Operators read this to confirm the API really restarted with the policy
+    flags they expect (encryption required, four-eyes, approval TTL, research
+    persistence backend). Cheaper than a full health dashboard and safe to
+    poll from the operator console.
+    """
+    del user
+    import sys
+
+    import fastapi
+
+    return SystemInfoResponse(
+        service="cognitive-os",
+        environment=settings.environment,
+        python_version=sys.version.split()[0],
+        fastapi_version=fastapi.__version__,
+        pytest_marker_default="not integration and not slow",
+        require_human_approval_for_external_actions=(
+            settings.require_human_approval_for_external_actions
+        ),
+        approval_require_four_eyes=settings.approval_require_four_eyes,
+        approval_pending_max_hours=settings.approval_pending_max_hours,
+        action_payload_encryption_required=settings.action_payload_encryption_required,
+        research_persistence_backend=settings.research_persistence_backend,
+        started_at=_SYSTEM_STARTED_AT,
+    )
 
 
 @app.get("/health/dashboard", response_model=HealthDashboard)
