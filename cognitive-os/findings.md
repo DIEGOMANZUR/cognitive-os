@@ -196,6 +196,31 @@ Hallazgo 37.9 - Dispatch duplicado podia marcar un job como fallido:
   tests/test_actions.py::test_dispatch_action_request_does_not_enqueue_non_queued_status
   tests/test_celery_config.py -q` -> **8 passed**; Ruff focalizado verde.
 
+Hallazgo 37.17 - HumanApproval sin indice sobre (status, created_at):
+
+- Severidad: P2 performance.
+- Evidencia: la vista de aprobaciones (`ORDER BY created_at DESC` filtrando por
+  `status='pending'`) y el reaper (`WHERE status='pending' AND created_at <
+  cutoff`) escaneaban toda la tabla. Aceptable hoy, pero crece linealmente.
+- Correccion: migracion `202605160002_human_approvals_status_created_at_index`
+  agrega `ix_human_approvals_status_created_at(status, created_at)`. El modelo
+  declara el mismo Index para que autogenerate quede limpio.
+- Verificacion: `uv run alembic upgrade head` aplicado; `uv run alembic
+  check` -> "No new upgrade operations detected"; suite **517 passed**.
+
+Hallazgo 37.16 - Sin endpoint operativo para versionado/policy snapshot:
+
+- Severidad: P2 observabilidad.
+- Evidencia: `/health/dashboard` cubre conectividad pero no expone las
+  policy flags vigentes (cifrado requerido, four-eyes, TTL de approval,
+  backend de research). Un operador no tenia forma rapida de validar que el
+  API arrancara con los defaults endurecidos.
+- Correccion: nuevo `GET /system/info` retorna `service`, `environment`,
+  `python_version`, `fastapi_version`, defaults de policy y `started_at`.
+  Requiere auth; sin admin-gate porque no expone secretos.
+- Verificacion: `tests/test_system_info.py` -> **2 passed**; suite
+  **517 passed**.
+
 Hallazgo 37.15 - Approvals pending sin TTL: riesgo de accion obsoleta:
 
 - Severidad: P1 operacional/seguridad.

@@ -108,6 +108,20 @@
   tests/test_config.py -q` -> **28 passed**; suite amplia
   `uv run pytest -m 'not integration and not slow' -q` -> **512 passed,
   1 skipped, 20 deselected**; Ruff/format/mypy focalizados verdes.
+- Revision desde cero post-Fase 37: cerrados tres hallazgos nuevos
+  (P1 approval-expiry, P2 system/info, P2 indice approvals).
+  - **37.15** Reaper Celery `cognitive_os.reap_stale_approvals` agendado en
+    beat cada hora; `APPROVAL_PENDING_MAX_HOURS=48` por defecto; cascada
+    expired -> rejected en Job/ActionRequest ligados con AuditEvent y
+    JobEvent.
+  - **37.16** Nuevo `GET /system/info` con policy snapshot (cifrado,
+    four-eyes, TTL approval, research backend, python/fastapi versions,
+    started_at).
+  - **37.17** Indice composito `ix_human_approvals_status_created_at` para
+    listado y reaper. Conteo de migraciones a 16.
+  - Suite final tras revision: **517 passed, 1 skipped, 20 deselected**;
+    Ruff/format/mypy verdes; full-qa, verify_operator_ready, pre-commit y
+    detect-secrets verdes.
 - Cierre Fase 37 bloques 5-9 (runtime/frontend/observabilidad/stress/cert):
   - `full-qa.sh` reforzado con `alembic check` (tolerante a Postgres apagado)
     y `git diff --check` como compuerta dura. Ejecucion real verde con git
