@@ -1,0 +1,113 @@
+# DeepAgents Skills and Memory
+
+> **Estado actual (2026-05-15, 04:47 hora Chile):** skills core en
+> `backend/src/cognitive_os/deepagents/skills/core/` (8 SKILL.md, todos con
+> nota OpenHarness consistente); user skills en
+> `storage/deepagents/skills/user/`; memoria gobernada por
+> `DeepAgentMemoryService` con propuestas → aprobación humana → activa.
+> Tools de skills/memoria expuestas a DeepAgents:
+> `list_available_skills`, `read_skill`, `get_relevant_memory`,
+> `propose_memory_update`. La memoria persiste vía migración Alembic
+> `202604300004_deepagents_skills_memory` y soporta `kind: episodic` desde
+> `202605120005_deepagent_memory_episodic`. La consolidación corre como
+> tareas Celery `cognitive_os.consolidate_deepagent_memory` (individual) y
+> `cognitive_os.consolidate_all_deepagent_memory` (global). El mail
+> personal no se convierte en memoria activa ni tool de envío para
+> DeepAgents — el carril `/mail/*` opera fuera del runtime DeepAgent.
+
+## Skills vs Memory
+
+Skills are read-only procedures stored as `SKILL.md` folders. They tell a DeepAgent how to perform
+a bounded capability such as RAG research, evidence matrices, timelines, or careful drafting.
+
+Memory is reviewed operational knowledge about preferences, procedures, warnings, lessons, style,
+or tool feedback. Memory is not evidence and never replaces citations from documents.
+
+With DeepAgents 0.6.x, approved startup memory is also written into each task
+workspace as `./.cognitive_os/AGENTS.md` so native DeepAgents memory loading can
+read it. Cognitive OS still injects a compact summary in the system prompt for
+backward compatibility.
+
+Para la ruta Chat **research**, el orquestador puede haber añadido un preludio OpenHarness
+antes de invocar DeepAgents (`openharness_prelude` → mensaje de usuario). Eso no altera
+esta guía: la memoria sigue sin ser evidencia. Ver [`OPENHARNESS_FUSION.md`](./OPENHARNESS_FUSION.md).
+
+## Locations
+
+- Core skills: `backend/src/cognitive_os/deepagents/skills/core`
+- User skills: `storage/deepagents/skills/user`
+- Memory exports: `storage/deepagents/memory`
+- Persistent records: Postgres tables `deepagent_memory_records`,
+  `deepagent_memory_proposals`, and `deepagent_skill_usage`
+
+## Add A Core Skill
+
+Create a folder with `SKILL.md`, include YAML frontmatter, and keep `risk_level: read_only` unless
+the skill is explicitly approval-gated.
+
+```markdown
+---
+name: evidence-matrix
+description: Build a claim/evidence/citation matrix from local documents.
+version: 1.0.0
+risk_level: read_only
+allowed_tools:
+  - search_local_docs
+  - read_document_pages
+---
+```
+
+Core skills are versioned with the backend and must not be edited by agents.
+
+## Add A User Skill
+
+Place user skills under `storage/deepagents/skills/user/<user_id>/<skill-name>/SKILL.md`.
+The registry validates frontmatter and blocks dangerous tools such as shell, browser automation,
+email, social posting, delete, or project-file edits.
+
+## Approve Memory
+
+Agents call `propose_memory_update`. The proposal is stored as pending and may create a
+`HumanApproval`. The API exposes:
+
+- `GET /deepagents/memory/proposals`
+- `POST /deepagents/memory/proposals/{proposal_id}/approve`
+- `POST /deepagents/memory/proposals/{proposal_id}/reject`
+
+Los registros **episodicos** (`kind='episodic'`) pueden anexarse por API sin propuesta cuando
+solo se necesita cronologia operativa: `POST /deepagents/memory/episodic` (JWT). Emiten auditoria
+`deepagents.memory.episodic_append`. Preferencias duraderas siguen via `propose_memory_update`.
+
+Approval creates active memory. Rejection does not create memory.
+
+Consolidation deduplicates proposed lessons by normalized content before
+creating a new proposal. This prevents the daily beat and manual consolidation
+from producing the same pending lesson repeatedly.
+
+## Export Or Archive Memory
+
+- Export: `POST /deepagents/memory/export`
+- Archive: service method `archive_memory(memory_id)`
+
+Archives keep auditability without exposing memory to startup prompts.
+
+## What Cannot Be Stored
+
+- Secrets or secret-shaped strings.
+- API keys, tokens, passwords, private keys, or `.env` content.
+- Full sensitive case documents in global memory.
+- Unredacted personal data when memory redaction is enabled.
+- Legal or factual assertions as a replacement for citations.
+
+## Debugging
+
+- Check `AuditEvent` rows for `deepagents.memory.*`.
+- Check proposal status before expecting memory in startup prompts.
+- Verify core skills with `DeepAgentSkillsRegistry.discover_core_skills()`.
+- If a DeepAgents version does not support `skills=` or `memory=`, Cognitive OS injects a
+  compatibility summary into the system prompt and exposes `read_skill`.
+
+## Risks
+
+Memory can bias future answers. Cognitive OS therefore keeps critical memory read-only, requires
+approval for proposals, redacts content, and preserves review/export/archive paths.

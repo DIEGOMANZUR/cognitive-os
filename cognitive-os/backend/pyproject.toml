@@ -1,0 +1,101 @@
+[project]
+name = "cognitive-os-backend"
+version = "0.1.0"
+description = "Backend bootstrap for Cognitive OS."
+readme = "../README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]",
+    "pydantic>=2",
+    "pydantic-settings>=2",
+    "structlog",
+    "python-dotenv",
+    "sqlalchemy[asyncio]>=2",
+    "asyncpg",
+    "alembic",
+    "httpx",
+    "tenacity",
+    "pypdf>=6.10.2",
+    "pymupdf>=1.27.2.3",
+    "pillow>=12.2.0",
+    "pytesseract>=0.3.13",
+    "langchain-text-splitters>=1.1.2",
+    "reportlab>=4.5.0",
+    "celery[redis]>=5.4",
+    "langgraph>=1.1.10",
+    "langchain-openai>=1.2.1",
+    "langgraph-checkpoint-postgres>=3.0.5",
+    "psycopg[binary,pool]>=3.3",
+    "deepagents>=0.6.1,<0.7.0",
+    "langchain-core>=1.3.2",
+    "python-docx>=1.2.0",
+    "markdown-it-py>=4.0.0",
+    "openpyxl>=3.1.5",
+    "python-pptx>=1.0.2",
+    "cryptography>=42",
+]
+
+[project.scripts]
+cognitive-os = "cognitive_os.__main__:main"
+
+[project.optional-dependencies]
+openharness = [
+  "openharness-ai>=0.1.9,<0.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio",
+    "pytest-cov",
+    "ruff",
+    "mypy",
+    "pre-commit",
+    "detect-secrets",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cognitive_os"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_test_loop_scope = "session"
+addopts = "-m 'not integration and not slow'"
+markers = [
+    "integration: tests that require local Docker infrastructure",
+    "slow: slow tests that may require optional local models",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "RET"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "src"
+exclude = ["^alembic/", "^migrations/"]
+
+[[tool.mypy.overrides]]
+module = ["openharness", "openharness.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["celery", "celery.*", "kombu", "openpyxl", "openpyxl.*", "pptx", "pptx.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["cognitive_os.workers.tasks"]
+disallow_untyped_decorators = false

@@ -1,0 +1,36 @@
+# Plantilla segura inicial para OpenShell.
+# Ajustar segun los comandos reales de OpenShell y exportar la policy real con:
+# uv run openshell policy get cognitive-os-sandbox --full > policy.yaml
+---
+filesystem_policy:
+  read:
+    allow:
+      - /sandbox/input/**
+      - /sandbox/work/**
+    deny:
+      - /home/**
+      - /root/**
+      - /**/.env
+      - /**/*.pem
+      - /**/*.key
+      - /**/*.p12
+  write:
+    allow:
+      - /sandbox/output/**
+      - /sandbox/work/**
+    deny:
+      - /home/**
+      - /root/**
+      - /**/.env
+      - /**/*.pem
+      - /**/*.key
+      - /**/*.p12
+network_policies:
+  default: deny
+process_policy:
+  max_processes: 32
+  max_runtime_seconds: 300
+mounts:
+  input: /sandbox/input
+  output: /sandbox/output
+  work: /sandbox/work

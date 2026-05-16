@@ -1,0 +1,42 @@
+.env
+.env.*
+!.env.example
+!.env.local.example
+.venv/
+node_modules/
+.opencode/node_modules/
+.opencode/package-lock.json
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+data/
+models/
+storage/
+*.sqlite
+*.db
+*.pem
+*.key
+
+# OpenCode local overrides and ephemeral state
+opencode.local.json
+# Mantener la configuración real local fuera de commits; si se versiona una
+# plantilla, debe usar {env:VAR} y vivir en un archivo example saneado.
+opencode.json
+opencode.jsonc
+.opencode/local/
+memory-bank/
+task_plan.local.md
+findings.local.md
+progress.local.md
+*.bak-*
+
+# Project snapshots/backups are read-only recovery material, never source.
+cognitive-os-backup-*/
+cognitive-os-snapshot-*/
+
+# Local tool settings can include machine-specific permissions or paths.
+**/.claude/settings.local.json
+
+# Recovered transcripts may contain pasted credentials or private context.
+conversacion_recuperada_codex_claude.md
+sesion_14_15_mayo_completa.md

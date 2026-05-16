@@ -1,0 +1,60 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any, Literal
+
+from pydantic import BaseModel, Field
+
+DeepAgentMemoryScope = Literal["global", "user", "case", "thread", "agent"]
+DeepAgentMemoryKind = Literal[
+    "preference",
+    "procedure",
+    "lesson",
+    "warning",
+    "fact",
+    "style",
+    "tool_feedback",
+    "episodic",
+]
+DeepAgentMemorySource = Literal["human", "agent_proposed", "consolidated", "system"]
+DeepAgentMemorySensitivity = Literal["public", "internal", "sensitive", "secret"]
+DeepAgentMemoryStatus = Literal["active", "pending_approval", "rejected", "archived"]
+
+
+class DeepAgentMemoryItem(BaseModel):
+    memory_id: str
+    scope: DeepAgentMemoryScope
+    user_id: str | None = None
+    case_id: str | None = None
+    thread_id: str | None = None
+    agent_name: str
+    kind: DeepAgentMemoryKind
+    content: str
+    source: DeepAgentMemorySource
+    confidence: float = Field(ge=0.0, le=1.0)
+    sensitivity: DeepAgentMemorySensitivity
+    status: DeepAgentMemoryStatus
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class DeepAgentMemoryProposal(BaseModel):
+    proposal_id: str
+    proposed_by_agent: str
+    scope: DeepAgentMemoryScope
+    reason: str
+    proposed_content: str
+    sensitivity: DeepAgentMemorySensitivity
+    source_task_id: str | None = None
+    requires_approval: bool = True
+
+
+class DeepAgentSkillDescriptor(BaseModel):
+    name: str
+    description: str
+    path: str
+    version: str
+    risk_level: str
+    allowed_tools: list[str]
+    enabled: bool = True
