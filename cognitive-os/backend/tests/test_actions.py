@@ -838,6 +838,235 @@ async def test_dispatch_action_request_does_not_enqueue_non_queued_status(
     assert calls == []
 
 
+@pytest.mark.asyncio
+async def test_approval_decision_is_immutable(monkeypatch: pytest.MonkeyPatch) -> None:
+    now = datetime.now(UTC)
+    approval_id = UUID("33333333-3333-3333-3333-333333333333")
+    approval = HumanApproval(
+        id=approval_id,
+        status="approved",
+        action="execute_action_request",
+        requested_action="execute_action_request:abc",
+        args_redacted={},
+        requested_by="operator",
+        approver_user_id="1",
+        approved_by="1",
+        created_at=now,
+        updated_at=now,
+        decided_at=now,
+    )
+
+    class FakeSession:
+        async def get(self, model: type[object], obj_id: UUID) -> object | None:
+            assert model is HumanApproval
+            assert obj_id == approval_id
+            return approval
+
+        async def flush(self) -> None:
+            raise AssertionError("decided approvals must not be mutated")
+
+    @asynccontextmanager
+    async def fake_session_scope():
+        yield FakeSession()
+
+    monkeypatch.setattr(api_app, "session_scope", fake_session_scope)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            f"/approvals/{approval_id}/reject",
+            headers=_headers(),
+        )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Approval already decided: approved"
+    assert approval.status == "approved"
+
+
+@pytest.mark.asyncio
+async def test_openshell_approval_dispatches_queued_job(monkeypatch: pytest.MonkeyPatch) -> None:
+    now = datetime.now(UTC)
+    approval_id = UUID("33333333-3333-3333-3333-333333333333")
+    job_id = UUID("44444444-4444-4444-4444-444444444444")
+    task_payload = {
+        "task_id": "task-1",
+        "thread_id": "thread-1",
+        "user_id": "1",
+        "purpose": "other",
+        "instruction": "Run a safe smoke command",
+        "input_files": [],
+        "allow_network": False,
+        "max_runtime_seconds": 300,
+        "max_output_bytes": 200000,
+        "require_human_approval": True,
+        "metadata": {},
+    }
+    approval = HumanApproval(
+        id=approval_id,
+        status="pending",
+        action="run_sandboxed_code_task",
+        requested_action="run_sandboxed_code_task",
+        args_redacted={"instruction": "Run a safe smoke command"},
+        requested_by="operator",
+        job_id=job_id,
+        created_at=now,
+        updated_at=now,
+    )
+    job = Job(
+        id=job_id,
+        job_type="openshell_sandbox",
+        status="waiting_approval",
+        progress=0,
+        metadata_json={
+            "task_id": "task-1",
+            "thread_id": "thread-1",
+            "requested_by": "operator",
+            "task_payload_executable": task_payload,
+            "task_payload_redacted": {"instruction": "Run a safe smoke command"},
+        },
+        created_at=now,
+        updated_at=now,
+    )
+    added: list[object] = []
+    calls: list[dict[str, object]] = []
+
+    class FakeSession:
+        async def get(self, model: type[object], obj_id: UUID) -> object | None:
+            if model is HumanApproval:
+                assert obj_id == approval_id
+                return approval
+            if model is Job:
+                assert obj_id == job_id
+                return job
+            raise AssertionError(f"Unexpected model: {model}")
+
+        def add(self, obj: object) -> None:
+            added.append(obj)
+
+        async def flush(self) -> None:
+            return None
+
+    class FakeTask:
+        @staticmethod
+        def apply_async(*, args: list[object], queue: str) -> None:
+            calls.append({"args": args, "queue": queue})
+
+    @asynccontextmanager
+    async def fake_session_scope():
+        yield FakeSession()
+
+    monkeypatch.setattr(api_app, "session_scope", fake_session_scope)
+    monkeypatch.setattr(api_app, "run_openshell_task_async", FakeTask)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            f"/approvals/{approval_id}/approve",
+            headers=_headers(),
+        )
+
+    assert response.status_code == 200
+    assert approval.status == "approved"
+    assert job.status == "queued"
+    assert any(
+        isinstance(item, JobEvent) and item.event_type == "openshell_approval_approved"
+        for item in added
+    )
+    assert calls == [{"args": [task_payload, str(job_id)], "queue": "agent_longrun"}]
+
+
+@pytest.mark.asyncio
+async def test_rejected_approval_closes_linked_job_and_action_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime.now(UTC)
+    approval_id = UUID("33333333-3333-3333-3333-333333333333")
+    job_id = UUID("44444444-4444-4444-4444-444444444444")
+    action_request_id = UUID("55555555-5555-5555-5555-555555555555")
+    approval = HumanApproval(
+        id=approval_id,
+        status="pending",
+        action="execute_action_request",
+        requested_action=f"execute_action_request:{action_request_id}",
+        args_redacted={},
+        requested_by="operator",
+        job_id=job_id,
+        created_at=now,
+        updated_at=now,
+    )
+    job = Job(
+        id=job_id,
+        job_type="action_request",
+        status="waiting_approval",
+        progress=0,
+        metadata_json={},
+        created_at=now,
+        updated_at=now,
+    )
+    action_request = ActionRequest(
+        id=action_request_id,
+        action_type="computer_organize",
+        status="pending_approval",
+        requested_by="operator",
+        approval_id=approval_id,
+        job_id=job_id,
+        payload_redacted={},
+        payload_executable={},
+        preview={},
+        result={},
+        created_at=now,
+        updated_at=now,
+    )
+    added: list[object] = []
+
+    class FakeResult:
+        @staticmethod
+        def scalar_one_or_none() -> ActionRequest:
+            return action_request
+
+    class FakeSession:
+        async def get(self, model: type[object], obj_id: UUID) -> object | None:
+            if model is HumanApproval:
+                assert obj_id == approval_id
+                return approval
+            if model is Job:
+                assert obj_id == job_id
+                return job
+            raise AssertionError(f"Unexpected model: {model}")
+
+        async def execute(self, _stmt: object) -> FakeResult:
+            return FakeResult()
+
+        def add(self, obj: object) -> None:
+            added.append(obj)
+
+        async def flush(self) -> None:
+            return None
+
+    @asynccontextmanager
+    async def fake_session_scope():
+        yield FakeSession()
+
+    monkeypatch.setattr(api_app, "session_scope", fake_session_scope)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            f"/approvals/{approval_id}/reject",
+            headers=_headers(),
+        )
+
+    assert response.status_code == 200
+    assert approval.status == "rejected"
+    assert job.status == "rejected"
+    assert job.progress == 100
+    assert action_request.status == "rejected"
+    assert action_request.error == "Human approval rejected"
+    assert any(
+        isinstance(item, JobEvent) and item.event_type == "approval_rejected" for item in added
+    )
+
+
 def _action_request_view(
     *,
     status: str,

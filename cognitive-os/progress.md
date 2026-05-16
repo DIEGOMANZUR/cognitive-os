@@ -18,6 +18,15 @@
 - Verificacion dirigida: `uv run pytest tests/test_celery_config.py -q` -> **3
   passed**; `uv run ruff check src/cognitive_os/workers/celery_app.py
   tests/test_celery_config.py` -> verde.
+- Segundo hallazgo corregido: approvals humanas ahora son inmutables despues de
+  salir de `pending`; intento de re-decidir devuelve 409.
+- Verificacion dirigida de approvals/dispatch: **3 passed** y Ruff verde para
+  `api/app.py` + `tests/test_actions.py`.
+- Tercer hallazgo corregido: rechazo de approvals cierra `Job`/`ActionRequest`
+  vinculados, y OpenShell aprobado se despacha realmente con payload ejecutable
+  protegido en metadata del job.
+- Verificacion dirigida ampliada: **4 passed**, Ruff verde, `mypy src` verde en
+  108 source files.
 
 ## 2026-05-15 - Fase 36 pulido CI y QA completa
 

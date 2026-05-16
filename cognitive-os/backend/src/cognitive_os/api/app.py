@@ -76,6 +76,7 @@ from cognitive_os.actions.maps import (
     RoutePlan,
     RouteRequest,
 )
+from cognitive_os.actions.payload_crypto import protect_payload, reveal_payload
 from cognitive_os.actions.schemas import (
     ActionCapabilityStatus,
     ActionDispatchResponse,
@@ -137,7 +138,15 @@ from cognitive_os.core.db import session_scope
 from cognitive_os.core.health import HealthDashboard, check_health_dashboard
 from cognitive_os.core.observability import configure_langsmith, disable_langsmith
 from cognitive_os.core.path_policy import IngestPathPolicyError, resolve_ingest_document_path
-from cognitive_os.db.models import AuditEvent, Document, DocumentChunk, HumanApproval, Job, JobEvent
+from cognitive_os.db.models import (
+    ActionRequest,
+    AuditEvent,
+    Document,
+    DocumentChunk,
+    HumanApproval,
+    Job,
+    JobEvent,
+)
 from cognitive_os.deepagents.document_analysis.schemas import (
     DocumentAnalysisResult,
     DocumentAnalysisTask,
@@ -2962,6 +2971,7 @@ async def _decide_approval(
     status_value: str,
     approver_user_id: str,
 ) -> ApprovalResponse:
+    openshell_dispatch: tuple[dict[str, Any], str] | None = None
     async with session_scope() as session:
         approval = await session.get(HumanApproval, approval_id)
         if approval is None:
@@ -2969,12 +2979,91 @@ async def _decide_approval(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Approval not found",
             )
+        if approval.status != "pending":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Approval already decided: {approval.status}",
+            )
         approval.status = status_value
         approval.approver_user_id = approver_user_id
         approval.approved_by = approver_user_id if status_value == "approved" else None
         approval.decided_at = datetime.now(UTC)
+        job = await session.get(Job, approval.job_id) if approval.job_id is not None else None
+        if status_value == "rejected":
+            if job is not None and job.status not in {"completed", "failed", "cancelled"}:
+                job.status = "rejected"
+                job.progress = 100
+                session.add(
+                    JobEvent(
+                        job_id=job.id,
+                        event_type="approval_rejected",
+                        status="rejected",
+                        message="Human approval rejected",
+                        metadata_json={"approval_id": str(approval.id)},
+                    )
+                )
+            action_request_result = await session.execute(
+                select(ActionRequest).where(ActionRequest.approval_id == approval.id)
+            )
+            action_request = action_request_result.scalar_one_or_none()
+            if action_request is not None and action_request.status not in {
+                "completed",
+                "failed",
+                "cancelled",
+                "rejected",
+            }:
+                action_request.status = "rejected"
+                action_request.error = "Human approval rejected"
+        elif (
+            status_value == "approved"
+            and job is not None
+            and job.job_type == "openshell_sandbox"
+            and job.status == "waiting_approval"
+        ):
+            task_payload = _openshell_task_payload_from_job(job)
+            job.status = "queued"
+            job.progress = 0
+            session.add(
+                JobEvent(
+                    job_id=job.id,
+                    event_type="openshell_approval_approved",
+                    status="queued",
+                    message="OpenShell sandbox approval accepted; task queued",
+                    metadata_json={"approval_id": str(approval.id)},
+                )
+            )
+            openshell_dispatch = (task_payload, str(job.id))
         await session.flush()
-        return _approval_response(approval)
+        response = _approval_response(approval)
+    if openshell_dispatch is not None:
+        task_payload, job_id = openshell_dispatch
+        run_openshell_task_async.apply_async(
+            args=[task_payload, job_id],
+            queue="agent_longrun",
+        )
+    return response
+
+
+def _openshell_task_payload_from_job(job: Job) -> dict[str, Any]:
+    metadata = job.metadata_json or {}
+    stored_payload = metadata.get("task_payload_executable")
+    redacted_payload = metadata.get("task_payload_redacted")
+    if not isinstance(stored_payload, dict):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="OpenShell approval is missing executable task payload",
+        )
+    if not isinstance(redacted_payload, dict):
+        redacted_payload = {}
+    try:
+        payload = reveal_payload(stored_payload, redacted_payload, settings)
+        task = OpenShellTask.model_validate(payload)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="OpenShell approval payload is not executable",
+        ) from exc
+    return task.model_dump(mode="json")
 
 
 async def _create_openshell_job(task: OpenShellTask, requested_by: str) -> UUID:
@@ -3007,6 +3096,7 @@ async def _create_openshell_approval_job(
     task: OpenShellTask,
     requested_by: str,
 ) -> tuple[UUID, UUID]:
+    task_payload = task.model_dump(mode="json")
     async with session_scope() as session:
         job = Job(
             job_type="openshell_sandbox",
@@ -3016,6 +3106,8 @@ async def _create_openshell_approval_job(
                 "task_id": task.task_id,
                 "thread_id": task.thread_id,
                 "requested_by": requested_by,
+                "task_payload_executable": protect_payload(task_payload, settings),
+                "task_payload_redacted": redact_openshell_payload(task_payload),
             },
         )
         session.add(job)

@@ -21,7 +21,7 @@ Matriz de auditoria:
 | Docs/claims | Lo que se promete coincide con codigo y comandos reales | in_progress: drift de Celery detectado y corregido |
 | Backend/API | Endpoints, schemas, auth y errores son consistentes | pending |
 | DB/migraciones | Modelos y Alembic estan en head y sin drift obvio | pending |
-| Action Plane | Writes externos solo via approval + audit | pending |
+| Action Plane | Writes externos solo via approval + audit | in_progress: approvals inmutables corregido |
 | Agents/memory | LangGraph/DeepAgents/research/memoria no rompen contratos | pending |
 | Frontend | Vistas/tipos/API client soportan estados reales | pending |
 | Infra/runtime | Compose/scripts/health conectan sin exposicion accidental | pending |
@@ -41,6 +41,39 @@ Hallazgo 37.1 - Celery docs/runtime y rutas de tareas largas:
 - Verificacion: `uv run pytest tests/test_celery_config.py -q` -> **3 passed**;
   `uv run ruff check src/cognitive_os/workers/celery_app.py
   tests/test_celery_config.py` -> verde.
+
+Hallazgo 37.2 - Aprobaciones humanas mutables:
+
+- Severidad: P1 seguridad/operacion.
+- Evidencia: `_decide_approval` permitia cambiar una aprobacion ya decidida
+  (`approved`, `rejected`, `edited`, `expired`) con una llamada posterior al
+  endpoint contrario. En acciones externas esto rompe la inmutabilidad esperada
+  del rastro humano.
+- Correccion: solo approvals en `pending` pueden decidirse; cualquier estado
+  terminal devuelve `409 Approval already decided`.
+- Verificacion: `uv run pytest
+  tests/test_actions.py::test_approval_decision_is_immutable
+  tests/test_actions.py::test_dispatch_action_request_enqueues_worker
+  tests/test_actions.py::test_dispatch_action_request_does_not_enqueue_non_queued_status
+  -q` -> **3 passed**; `uv run ruff check src/cognitive_os/api/app.py
+  tests/test_actions.py` -> verde.
+
+Hallazgo 37.3 - Lifecycle incompleto en approvals con job vinculado:
+
+- Severidad: P1 operacional.
+- Evidencia: rechazar una approval no cerraba inmediatamente el `Job` ni el
+  `ActionRequest` vinculado; ademas, OpenShell podia crear una approval
+  (`needs_approval`) sin payload ejecutable durable para despachar la tarea tras
+  aprobarla desde la UI.
+- Correccion: `_decide_approval` propaga `rejected` a job/action request,
+  registra `JobEvent`; OpenShell guarda payload ejecutable protegido en el job y
+  al aprobar encola `run_openshell_task_async` en `agent_longrun`.
+- Verificacion: `uv run pytest
+  tests/test_actions.py::test_approval_decision_is_immutable
+  tests/test_actions.py::test_openshell_approval_dispatches_queued_job
+  tests/test_actions.py::test_rejected_approval_closes_linked_job_and_action_request
+  tests/test_actions.py::test_dispatch_action_request_enqueues_worker -q` ->
+  **4 passed**; Ruff verde; `uv run mypy src` -> success en 108 source files.
 
 ## 2026-05-15 - Pulido CI post-baseline
 
