@@ -14,7 +14,7 @@
 
 ## Ejecutables de escritorio
 
-En este PC hay wrappers ya probados:
+En este PC hay wrappers ya probados (versión endurecida 2026-05-16):
 
 - `/home/jgonz/Escritorio/Levantar Cognitive OS.sh`
 - `/home/jgonz/Escritorio/Reiniciar Cognitive OS.sh`
@@ -23,9 +23,21 @@ En este PC hay wrappers ya probados:
 
 También hay accesos `.desktop` equivalentes en el Escritorio. El script maestro
 `/home/jgonz/Escritorio/cognitive-os.sh` acepta `start`, `restart`, `stop`,
-`status` y `logs <api|frontend|worker|beat|telegram|kimi|docker|migrate>`.
-Arranca Docker, migraciones, FastAPI, Celery worker con queue `mail`, Celery
-beat, frontend Next.js y Kimi WebBridge si está instalado.
+`status`, **`doctor`** y `logs <api|frontend|worker|beat|telegram|kimi|docker|migrate>`.
+Arranca Docker, migraciones (skip si current==head), FastAPI, Celery worker con
+queue `mail`, Celery beat, frontend Next.js y Kimi WebBridge si está instalado.
+
+Garantías:
+
+- **Lock global con `flock`** impide doble-arranque simultáneo.
+- **Preflight** verifica `docker`/`uv`/`lsof`/`curl`/`npm`/`.env`/`compose`
+  antes de cambiar estado.
+- **Anti PID-recycle**: cada PID se valida contra el cmdline esperado.
+- **Kill graceful** SIGTERM → SIGKILL si sobrevive.
+- **`pkill` restringido** a `-u $USER` y patrones específicos del stack.
+- **Rotación de logs** >10 MB, retiene últimas 5 rotaciones por componente.
+- **Header de sesión** por arranque en cada log.
+- Detalles completos en `~/Escritorio/cognitive-os-launchers-README.md`.
 
 ## Levantar
 
