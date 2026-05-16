@@ -118,6 +118,14 @@ Hallazgo 37.5 - Integracion OCR no estaba compatible con batch insert:
 - Verificacion: `uv run pytest -m integration -q` -> **18 passed, 1 skipped,
   499 deselected**; Ruff/format del test verde.
 
+Smoke operativo autenticado:
+
+- JWT local generado con roles `admin`/`operator`.
+- Endpoints vivos respondieron **200**: `/config/public`, `/health/dashboard`,
+  `/actions/capabilities`, `/jobs`, `/approvals`.
+- Estado runtime: API, Celery worker, Celery beat, frontend y Kimi corriendo;
+  Telegram queda apagado por configuracion (`TELEGRAM_ENABLED=false`).
+
 ## 2026-05-15 - Pulido CI post-baseline
 
 - El workflow CI estaba versionado bajo `cognitive-os/.github/workflows/ci.yml`.

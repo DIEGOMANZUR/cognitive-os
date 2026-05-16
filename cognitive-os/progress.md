@@ -43,6 +43,10 @@
   detecto incompatibilidad del fake OCR con `batch_insert_chunks`; corregido y
   verificado con `uv run pytest -m integration -q` -> **18 passed, 1 skipped,
   499 deselected**.
+- Smoke autenticado final con JWT local admin/operator contra API viva:
+  `/config/public`, `/health/dashboard`, `/actions/capabilities`, `/jobs` y
+  `/approvals` respondieron **200**. Stack vivo: API, frontend, worker, beat y
+  Kimi; Telegram omitido por `TELEGRAM_ENABLED=false`.
 - Compuertas finales Fase 37 ejecutadas tras los commits:
   `bash scripts/full-qa.sh` -> OK; `uvx pre-commit run --all-files` -> OK;
   detect-secrets sobre `git ls-files` -> `results: {}`; `bash
