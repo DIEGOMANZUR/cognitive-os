@@ -1,7 +1,8 @@
 # Cognitive OS Hardening And Action Plane Plan
 
-> **Estado actual (2026-05-15, Fase 33 RBAC + cifrado + research durable):** las fases 1–28,
-> 30, 31, 32 y 33 tienen sus bloques P0/P1 cerrados. La Fase 33 aplica el núcleo
+> **Estado actual (2026-05-16, Fase 37 auditoria integral):** las fases 1–33
+> tienen sus bloques P0/P1 cerrados; Fase 34–36 dejaron runtime, baseline git y CI
+> localmente verificables. La Fase 33 aplica el núcleo
 > de Fase 29: admin explícito/RBAC local, cifrado at-rest de `payload_executable`
 > y backend Postgres configurable para snapshots/eventos del Research Orchestrator.
 > Queda fuera del código completar variables `.env.local` reales y operar
@@ -58,10 +59,14 @@ pruebas/documentacion que sostengan evolucion futura.
 | 27. Normalización documental 2026-05-14 | complete | Todos los Markdown activos reflejan DeepSeek V4 Pro, Weaviate 1.29.0, 89 endpoints propios, **17 vistas (incluida `Assist`)**, mail personal y ejecutables escritorio |
 | 28. Revisión integral y optimización comercial | in_progress (P0/P1 done) | Auditoría desde cero ejecutada (arquitectura/backend/frontend/seguridad/tests); P0/P1 aplicados: secret hygiene, mail timeouts/redacción, `/config/public` ampliado, contratos frontend, AssistView, tests mail/config/no-secret. **Pendientes P2 → mover a Fase 29**: auth/RBAC, cifrado payload, persistencia research, bind DB privado |
 | 29. Endurecimiento comercial multi-usuario | in_progress (code closed, env manual) | Auth/RBAC con roles, cifrado at-rest de `payload_executable` en `action_requests`, persistencia durable configurable del orquestador de research en Postgres; queda completar variables `.env.local` faltantes con input del operador |
-| 30. Barrido documental 2026-05-15 | complete | Auditoría con subagente `Explore` + sincronización de 25 markdowns principales con conteos verificados (115 endpoints, 17 vistas, 11 workers, 5 queues, 13 migraciones, 21 MCPs, 15 skills, 7 agentes, 7 comandos), fecha unificada 2026-05-15 04:47 hora Chile |
+| 30. Barrido documental 2026-05-15 | complete | Snapshot histórico con conteos de ese momento (115 endpoints, 17 vistas, 11 workers, 5 queues, 13 migraciones); reemplazado por Fase 37 para estado vigente |
 | 31. Google Maps/Drive/Calendar operables | complete | Maps con tráfico/link, Drive carpeta de entregables, Calendar/Drive writes vía `ActionRequest`, `/actions/capabilities` y `/config/public` con flags Google, `GoogleOpsView`, tests focalizados y QA amplio verde |
 | 32. Hardening comercial seguridad/PWA/QA | complete | Google direct writes preview-only, producción exige aprobación humana, errores sensibles redactados, reaper en beat, infra loopback, PWA con headers/update/offline, tests high-value y QA amplio verde |
 | 33. Fase 29 aplicada: RBAC + cifrado + research durable | complete | Admin explícito sin fallback implícito, roles en JWT local, cifrado Fernet de payload ejecutable, backend Postgres opcional para runs de research, tests y docs |
+| 34. Reconciliacion operativa local | complete | Alembic en head, Compose loopback, backups/snapshots ignorados y runtime core healthy |
+| 35. Baseline git seguro | complete | Primer baseline versionado sin secretos ni material local, pre-commit/gitleaks verdes |
+| 36. Pulido CI y QA completa | complete | CI efectivo en `.github/workflows`, full QA y readiness verdes |
+| 37. Auditoria integral por capas | in_progress | Conteos vigentes verificados: 118 endpoints, 18 vistas, 14 tareas Celery, 14 migraciones; primer P1 worker/docs corregido |
 
 ## Fase 33 - Plan de implementacion activo
 
@@ -1203,3 +1208,48 @@ ejecutable desde la raiz real del repositorio.
 - `backend/scripts/verify_operator_ready.sh` queda como compuerta operacional:
   sync deps, lint, format, typecheck, pytest, settings registry, Alembic
   current=head, `npm ci`, lint y build frontend.
+
+## Fase 37 - Auditoria integral por capas y preparacion de conexion total
+
+### Objetivo
+
+Revisar Cognitive OS parte por parte, no solo por scripts, para dejarlo listo
+para conectar el stack completo en una ventana operativa corta. No se promete
+infalibilidad absoluta; el criterio comercial es cerrar P0/P1, corregir P2 de
+bajo riesgo, documentar riesgos residuales y sostener cada afirmacion con
+evidencia reproducible.
+
+### Alcance
+
+- Documentacion activa y claims: conteos, estado, runbooks, checklists,
+  variables, comandos y promesas de producto.
+- Backend: configuracion, auth/RBAC, DB/modelos/migraciones, Action Plane,
+  mail, Google, captcha/maps/browser, agentes, research, memoria, workers,
+  observabilidad y errores.
+- Frontend: vistas, tipos, API client, estados vacios/error/loading, PWA,
+  contratos con `/config/public` y endpoints reales.
+- Infra/runtime: Docker Compose, healthchecks, puertos, Alembic, Celery
+  worker/beat, Redis, Postgres, Weaviate, Neo4j y scripts de arranque.
+- Seguridad: secretos, logs, redaccion, approval gates, write flags, SSRF,
+  path policy, cifrado, production validators.
+- QA: full QA, readiness, pre-commit/gitleaks/detect-secrets, tests dirigidos
+  por cada hallazgo y smoke runtime sin writes externos.
+
+### Metodo
+
+1. Congelar baseline: confirmar rama, commits, git limpio, runtime healthy.
+2. Inventariar archivos activos excluyendo backups/snapshots/vendor/cache.
+3. Contrastar documentacion contra codigo real y registrar discrepancias.
+4. Auditar por capas con listas de invariantes y comandos de verificacion.
+5. Corregir hallazgos en orden P0/P1/P2, con commits pequenos.
+6. Ejecutar validacion final y dejar checklist de conexion total.
+
+### Criterios De Cierre
+
+- Git limpio en rama de trabajo.
+- Cero secretos en archivos versionables (`detect-secrets` + `gitleaks`).
+- CI efectivo en root y comandos locales equivalentes verdes.
+- Alembic current=head y contenedores core healthy en loopback.
+- Backend/frontend/build/typecheck/test verdes tras cambios.
+- Ningun write externo directo sin approval gate.
+- Riesgos residuales documentados sin esconderlos ni sobreprometer.

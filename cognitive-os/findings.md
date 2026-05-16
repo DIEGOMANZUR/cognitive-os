@@ -2,6 +2,46 @@
 
 > Bitácora viva. Para producto: ver `docs/`.
 
+## 2026-05-16 - Fase 37 auditoria integral por capas
+
+Arranque:
+
+- El operador pidio no limitarse a scripts y revisar el proyecto entero parte
+  por parte antes de conectar todo.
+- Criterio epistemico: no prometer "no hay nada mas por mejorar"; convertirlo
+  en evidencia: cero P0/P1 abiertos, QA reproducible, contratos alineados y
+  riesgos residuales explicitos.
+- Baseline vigente: rama `codex/fase-34-baseline-hardening`, commits hasta
+  `ca742d4`, full QA/readiness/pre-commit verdes, runtime core healthy.
+
+Matriz de auditoria:
+
+| Capa | Pregunta critica | Estado |
+|---|---|---|
+| Docs/claims | Lo que se promete coincide con codigo y comandos reales | in_progress: drift de Celery detectado y corregido |
+| Backend/API | Endpoints, schemas, auth y errores son consistentes | pending |
+| DB/migraciones | Modelos y Alembic estan en head y sin drift obvio | pending |
+| Action Plane | Writes externos solo via approval + audit | pending |
+| Agents/memory | LangGraph/DeepAgents/research/memoria no rompen contratos | pending |
+| Frontend | Vistas/tipos/API client soportan estados reales | pending |
+| Infra/runtime | Compose/scripts/health conectan sin exposicion accidental | pending |
+| Seguridad | Secret hygiene, redaccion, cifrado, SSRF/path/RBAC | pending |
+| QA/CI | Local y CI cubren lo que dicen cubrir | in_progress: test dirigido Celery verde |
+
+Hallazgo 37.1 - Celery docs/runtime y rutas de tareas largas:
+
+- Severidad: P1 operacional.
+- Evidencia: el runtime registra 14 tareas `cognitive_os.*`, pero la
+  documentacion viva todavia declaraba 11. Ademas,
+  `cognitive_os.run_deepagent_task` y `cognitive_os.run_action_request`
+  quedaban sin ruta explicita y por defecto podian caer en `default`, mezclando
+  trabajo largo/externo con tareas rapidas.
+- Correccion: documentacion principal sincronizada a 14 tareas; ambas tareas
+  quedan ruteadas a `agent_longrun`.
+- Verificacion: `uv run pytest tests/test_celery_config.py -q` -> **3 passed**;
+  `uv run ruff check src/cognitive_os/workers/celery_app.py
+  tests/test_celery_config.py` -> verde.
+
 ## 2026-05-15 - Pulido CI post-baseline
 
 - El workflow CI estaba versionado bajo `cognitive-os/.github/workflows/ci.yml`.
@@ -99,6 +139,9 @@ Hallazgos P0/P1 cerrados tras Google operativo:
   20 deselected`; ruff, format, mypy, frontend lint/build y Compose config verdes.
 
 ## 2026-05-15 04:47 (hora Chile) — Verificación de auditoría documental
+
+Nota Fase 37: esta sección queda como snapshot histórico de ese instante. Los
+conteos vigentes se verifican en la sección 2026-05-16.
 
 Sweep autónomo no destructivo (solo docs). Conteos verificados contra
 código real, no contra documentación previa:

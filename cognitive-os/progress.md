@@ -2,6 +2,23 @@
 
 > Bitácora viva. La documentación estable de producto vive en `docs/`.
 
+## 2026-05-16 - Fase 37 auditoria integral por capas iniciada
+
+- Activada auditoria por capas solicitada por el operador para preparar la
+  conexion total del stack en una ventana corta.
+- Plan registrado en `task_plan.md` con alcance, metodo y criterios de cierre.
+- `findings.md` inicializado con matriz de capas y estado pendiente.
+- Baseline de entrada: rama `codex/fase-34-baseline-hardening`, git limpio antes
+  de iniciar Fase 37, ultimo commit `ca742d4`, runtime core healthy.
+- Auditoria documental inicial: 61 markdowns versionados activos (10.156
+  lineas), excluyendo backups/snapshots/transcripciones ignoradas.
+- Primer hallazgo corregido: Celery registra 14 tareas, no 11; se sincronizaron
+  los claims vivos y se ruteo `run_deepagent_task` + `run_action_request` a la
+  queue `agent_longrun`.
+- Verificacion dirigida: `uv run pytest tests/test_celery_config.py -q` -> **3
+  passed**; `uv run ruff check src/cognitive_os/workers/celery_app.py
+  tests/test_celery_config.py` -> verde.
+
 ## 2026-05-15 - Fase 36 pulido CI y QA completa
 
 - `bash cognitive-os/scripts/full-qa.sh` ejecutado completo desde baseline:

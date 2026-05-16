@@ -40,6 +40,14 @@ celery_app.conf.update(
             "routing_key": "maintenance",
         },
         "cognitive_os.debug_fast": {"queue": "default", "routing_key": "default"},
+        "cognitive_os.run_deepagent_task": {
+            "queue": "agent_longrun",
+            "routing_key": "agent_longrun",
+        },
+        "cognitive_os.run_action_request": {
+            "queue": "agent_longrun",
+            "routing_key": "agent_longrun",
+        },
         "cognitive_os.run_openshell_task": {
             "queue": "agent_longrun",
             "routing_key": "agent_longrun",

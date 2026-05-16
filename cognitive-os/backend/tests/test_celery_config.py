@@ -15,6 +15,8 @@ def test_celery_routes_commercial_tasks_to_expected_queues() -> None:
     routes = cast("dict[str, dict[str, str]]", celery_app.conf.task_routes)
 
     assert routes["cognitive_os.ingest_pdf"]["queue"] == "ingestion"
+    assert routes["cognitive_os.run_deepagent_task"]["queue"] == "agent_longrun"
+    assert routes["cognitive_os.run_action_request"]["queue"] == "agent_longrun"
     assert routes["cognitive_os.run_openshell_task"]["queue"] == "agent_longrun"
     assert routes["cognitive_os.run_document_analysis"]["queue"] == "agent_longrun"
     assert routes["cognitive_os.sync_personal_mail"]["queue"] == "mail"

@@ -2,7 +2,7 @@
 
 > **Estado actual (2026-05-15, Fase 33 RBAC + cifrado + research durable):** monorepo en grado comercial
 > operativo. Backend FastAPI 0.115+ con **118 endpoints REST** (92 propios + 26
-> de orquestación), 11 tareas Celery distribuidas en 5 colas
+> de orquestación), 14 tareas Celery distribuidas en 5 colas
 > (`default`, `ingestion`, `agent_longrun`, `maintenance`, `mail`), 14
 > migraciones Alembic, integración LangGraph 1.1.10 + DeepAgents 0.6.x +
 > OpenHarness opcional, mail multicuenta GoDaddy/Gmail con aprobación humana

@@ -1,7 +1,7 @@
 # Documentacion De Cognitive OS
 
 > **Estado actual (2026-05-15, Fase 33 RBAC + cifrado + research durable):** producto en grado comercial
-> operativo con backend FastAPI 0.115+ (**118 endpoints REST**, **11 tareas
+> operativo con backend FastAPI 0.115+ (**118 endpoints REST**, **14 tareas
 > Celery** en **5 queues**, **14 migraciones Alembic**) + LangGraph 1.1.10 +
 > DeepAgents 0.6.x + Action Plane, correo personal multicuenta GoDaddy/Gmail
 > con aprobación humana (`MAIL_REQUIRE_APPROVAL_FOR_SEND=true`), Google

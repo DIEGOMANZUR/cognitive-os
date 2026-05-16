@@ -2,7 +2,7 @@
 
 > **Estado actual (2026-05-15, Fase 33 RBAC + cifrado + research durable):** producto en grado comercial
 > operativo. Backend FastAPI 0.115+ con **118 endpoints REST** (92
-> propios + 26 orquestación), **11 tareas Celery** distribuidas en **5
+> propios + 26 orquestación), **14 tareas Celery** distribuidas en **5
 > queues** (`default`, `ingestion`, `agent_longrun`, `maintenance`, `mail`),
 > **14 migraciones Alembic** persistidas. Frontend Next.js 16.2.6 con **18
 > vistas** (incluidas `AssistView` y `GoogleOpsView`). La ruta `research` está fusionada con
