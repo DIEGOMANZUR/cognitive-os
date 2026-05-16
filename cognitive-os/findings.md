@@ -2,6 +2,174 @@
 
 > Bitácora viva. Para producto: ver `docs/`.
 
+## 2026-05-16 - Fase 38 revision personal desde cero post-37
+
+Operador pidio revision personal completa, sin agentes intermediarios, con
+plan de perfeccionamiento en 7 fases (A-G). Cada bloque revisado dos veces
+antes de commit y verificado contra suite completa.
+
+Hallazgo 38.1 - Documents sin escritura atomica:
+
+- Severidad: P2 datos/durabilidad.
+- Evidencia: `DocumentActionService.execute` escribia DOCX/XLSX/PPTX directo
+  sobre el output_path. Un crash de proceso a mitad de `Document.save()`
+  dejaba un archivo corrupto en el output_root visible al operador como
+  documento "real".
+- Correccion: nuevo flujo staged-rename. Se escribe en `.{name}.tmp`,
+  se valida tamano, se hace `Path.replace` atomico al final. Si el writer
+  crashea, el `finally` borra el tmp; el final path nunca queda
+  parcial-escrito. Sin re-escaneo del filesystem.
+- Verificacion: nuevo `tests/test_atomic_doc_write.py` ->
+  `test_successful_write_leaves_no_tmp_files` y
+  `test_writer_failure_does_not_corrupt_existing_final` pasan; suite
+  amplia 535 passed.
+
+Hallazgo 38.2 - Sin correlation IDs trazables a logs:
+
+- Severidad: P2 observabilidad.
+- Evidencia: cada request generaba logs sin un id estable. Encadenar un
+  error reportado por el usuario con sus logs requeria buscar por timestamp.
+- Correccion: middleware FastAPI honra `X-Request-ID` (cap 64 chars) o
+  genera uuid4, lo bindea a `structlog.contextvars` y lo echa de vuelta en
+  la respuesta. `core/logging.py` ahora incluye `merge_contextvars` como
+  primer processor, asi cada log heredado dentro del request carga
+  `request_id` sin instrumentacion manual.
+- Verificacion: `tests/test_correlation_id.py` (4 casos: echo, generacion,
+  truncado, endpoint autenticado) -> verde.
+
+Hallazgo 38.3 - Sin rate limiting por usuario en endpoints sensibles:
+
+- Severidad: P1 operacional/abuso.
+- Evidencia: una loop de UI o script malintencionado podia martillar
+  `/approvals/{id}/approve` o un creator de ActionRequest. Solo
+  idempotency dedupaba pero no protegia de DOS local.
+- Correccion: `core/rate_limit.py` con sliding-window in-proc por
+  `(user_id, bucket)`, expuesto como dependencia FastAPI. Aplicado a:
+  approve/reject (30/min), dispatch (60/min) y los 8 creators de
+  ActionRequest (30/min). 429 incluye header `Retry-After`.
+- Verificacion: `tests/test_rate_limit.py` (4 casos: allow, block,
+  isolation por user/bucket, singleton) -> verde.
+
+Hallazgo 38.4 - /system/info sin commit SHA ni Alembic head:
+
+- Severidad: P2 observabilidad.
+- Evidencia: un operador no podia confirmar a 1 click que build esta
+  corriendo (cual commit) ni en que migracion. Solo `/health/dashboard`
+  daba un acercamiento por componente, no por release.
+- Correccion: `_resolve_git_commit` corre una vez en startup, lee
+  `git rev-parse --short=12 HEAD` con timeout 2s, devuelve None fuera de
+  repo. `_resolve_alembic_head` walks la carpeta `alembic/versions` sin
+  abrir Alembic CLI. Ambos se exponen en `SystemInfoResponse`.
+- Verificacion: `tests/test_system_info.py` actualizado para verificar
+  presencia de `git_commit` y `alembic_head`.
+
+Hallazgo 38.5 - Celery retry overwrite de job ya terminal:
+
+- Severidad: P1 datos/idempotency.
+- Evidencia: si un worker crasheaba *despues* del DB commit pero *antes*
+  del ACK Celery, el broker reenviaba la task. La logica de
+  `run_action_request_task_async` re-entraba y sobrescribia el outcome
+  ya escrito (potencialmente `completed` -> `failed`).
+- Correccion: el task lee `_read_job_status` antes de tocar nada. Si el
+  job ya esta `completed|failed|cancelled|rejected`, retorna inmediatamente
+  con `skipped=true` y la razon.
+- Verificacion:
+  `test_run_action_request_short_circuits_when_job_already_terminal` ->
+  verde; los dos tests historicos siguen pasando con el nuevo monkeypatch
+  de `_read_job_status`.
+
+Hallazgo 38.6 - Frontend sin error boundary global:
+
+- Severidad: P2 UX/resiliencia.
+- Evidencia: una excepcion en cualquier view (race condition, contrato
+  roto, render error) blanqueaba todo el cockpit. El operador no podia
+  recuperar sin recargar manualmente.
+- Correccion: `app/components/ErrorBoundary.tsx` envuelve children en
+  `layout.tsx`. Una excepcion deja arriba el cockpit y muestra un
+  fallback recoverable con boton Reintentar y mensaje legible.
+- Mejora adicional: 429 ahora propaga `Retry-After` al mensaje del Error
+  thrown por `ApiClient`, y `statusClass` reconoce `expired` como badge
+  gris (no danger rojo).
+
+Hallazgo 38.7 - Idempotency key sin contrato testeado:
+
+- Severidad: P2 cobertura.
+- Evidencia: `_idempotency_key` es el hinge del dedup story (aplicativo +
+  UNIQUE index + worker short-circuit) pero no tenia tests propios.
+- Correccion: `tests/test_idempotency_key.py` con 7 properties:
+  estabilidad, independencia de orden de keys, distincion por action_type,
+  distincion por payload, manejo de unicode/emoji, list-ordering importa,
+  formato sha256 hex.
+
+Capacidades agregadas en Fase 38:
+
+- Setting `APPROVAL_PENDING_MAX_HOURS` (default 48) + Celery beat
+  `approval-reaper` que transiciona pending -> expired tras el cap.
+- Endpoint `GET /system/info` con `git_commit`, `alembic_head`, defaults
+  de policy.
+- Rate limiting per-(user, bucket) sliding window.
+- Correlation IDs propagados a logs y respuesta.
+- Atomic writes en document generation.
+- Index parcial UNIQUE para idempotency a nivel BD.
+- Index composito `(status, created_at)` en human_approvals.
+- ErrorBoundary frontend global.
+- RUNBOOK con matriz de 21 credenciales y comandos de bootstrap desde cero.
+
+Cierre Fase 38 - certificacion final personal:
+
+- `bash scripts/full-qa.sh` -> OK con alembic check + git diff guards.
+- `bash backend/scripts/verify_operator_ready.sh` -> OK head
+  `202605160002`.
+- `uvx pre-commit run --all-files` -> Passed (large-files, merge-conflict,
+  EOF, trailing whitespace, gitleaks/detect-secrets).
+- `uvx --from detect-secrets detect-secrets scan` -> `"results": {}`.
+- `bash scripts/stress-qa.sh 3` -> 3 corridas de 535 passed sin
+  flakiness, ~25-26s cada una.
+- `git diff --check` -> clean.
+
+Suite snapshot final: **535 passed, 1 skipped, 20 deselected**.
+Migraciones vigentes: **16** (head `202605160002`).
+Ruta git: rama `codex/fase-34-baseline-hardening`, 20 commits limpios
+desde el snapshot de entrada.
+
+Declaracion de grado comercial:
+
+- Lifecycle ActionRequest completo (previewed -> running -> terminal),
+  protegido contra dispatch duplicado, idempotency a nivel aplicativo +
+  DB, four-eyes en approvals, reaper de pending stale, audit symetrico
+  entre REST y Telegram.
+- RBAC explicito (no admin implicito), encryption at-rest opcional
+  exigida en produccion, secret redaction global, SSRF check para
+  browser y Kimi.
+- Observabilidad: correlation IDs, AuditEvent por decision, JobEvent por
+  transicion, health dashboard con componentes redactados, /system/info
+  con commit y head.
+- Resiliencia: error boundary frontend, atomic writes documents, retry
+  Celery short-circuit, circuit breakers LLM/embeddings, timeouts HTTP.
+- QA: 535 passed, 0 flaky, alembic sin drift, ruff/format/mypy verdes,
+  pre-commit + detect-secrets verdes, frontend lint/build verdes.
+
+Riesgos residuales (declarados, no ocultos):
+
+1. **OAuth Google manual**: `GOOGLE_TOKEN_DIR/token.json` no se fabrica
+   por codigo; requiere browser una sola vez. Inherente al flujo Desktop
+   OAuth.
+2. **Rate limit in-proc**: si despliegan multiples replicas del API,
+   el limiter no comparte estado. Mitigacion ya disenada: la interfaz
+   `RateLimiter` admite swap a Redis sin tocar callers.
+3. **Telegram /approve**: registra AuditEvent pero no cascadea
+   `rejected` a ActionRequest ligado. Recomendado decidir desde el panel
+   REST que si cascadea.
+4. **Credenciales pendientes manuales**: 21 variables externas no
+   prepopulables (Gmail/Google/Maps/DeepSeek/Tavily/Brave/Exa/HF/LangSmith/
+   Telegram/Supermemory/Context7/Github/GoDaddy/ElevenLabs). RUNBOOK
+   seccion "Bootstrap desde cero" indica donde obtener cada una.
+5. **Stack opcional**: OpenChamber/OpenCode son cockpit, no runtime.
+   No requieren exposicion externa.
+
+Sin P0/P1 conocidos pendientes. Sistema listo para completar credenciales
+y comenzar uso real.
+
 ## 2026-05-16 - Fase 37 auditoria integral por capas
 
 Arranque:

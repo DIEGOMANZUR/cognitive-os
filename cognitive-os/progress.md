@@ -2,6 +2,41 @@
 
 > Bitácora viva. La documentación estable de producto vive en `docs/`.
 
+## 2026-05-16 - Fase 38 cerrada: revision personal de grado comercial
+
+7 fases ejecutadas sin esperar intervencion (mapeo, hardening, capacidades,
+frontend, tests, runbook, certificacion):
+
+- **Fase A — Mapeo personal**: lectura directa de 14k LOC backend +
+  frontend + workers + integraciones, sin agentes intermediarios.
+- **Fase B — Hardening por capa** (commit 4073adf): atomic writes
+  documents, correlation IDs trazables a logs via structlog contextvars,
+  rate limit sliding-window per-(user, bucket) aplicado a 10 endpoints
+  sensibles.
+- **Fase C — Capacidades** (c24f2ea): `/system/info` enriquecido con
+  `git_commit` y `alembic_head`; Celery `run_action_request` short-circuit
+  en jobs ya terminales para evitar overwrite en retries.
+- **Fase D — Frontend** (1833f32): ErrorBoundary global, `Retry-After`
+  propagado a mensajes de error 429, badge `expired` reconocido.
+- **Fase E — Tests** (97cc876): property-based en `_idempotency_key` (7
+  contratos) + regresion atomic doc write (sin tmp lingering + crash no
+  corrompe final).
+- **Fase F — RUNBOOK** (fca1e2f): seccion "Bootstrap desde cero" con
+  matriz de 21 credenciales externas, pre-requisitos host, smoke
+  autenticado, compuertas pre-prod y declaracion de riesgos residuales.
+- **Fase G — Certificacion**: full-qa, verify_operator_ready, pre-commit,
+  detect-secrets, stress 3x = 535 passed sin flakiness, todas verdes.
+
+Suite final: **535 passed, 1 skipped, 20 deselected** (+10 vs 525 del
+arranque de Fase 38).
+Migraciones: **16** (head `202605160002`).
+Compuertas: full-qa OK con guardas alembic + git diff; pre-commit Passed;
+detect-secrets `results: {}`; verify_operator_ready OK.
+
+Declaracion: sin P0/P1 conocidos pendientes. Lista de riesgos residuales
+declarada explicitamente en `findings.md` Fase 38. Sistema listo para
+completar credenciales y comenzar uso real.
+
 ## 2026-05-16 - Fase 37 auditoria integral por capas iniciada
 
 - Activada auditoria por capas solicitada por el operador para preparar la
