@@ -108,6 +108,18 @@
   tests/test_config.py -q` -> **28 passed**; suite amplia
   `uv run pytest -m 'not integration and not slow' -q` -> **512 passed,
   1 skipped, 20 deselected**; Ruff/format/mypy focalizados verdes.
+- Cierre Fase 37 bloques 5-9 (runtime/frontend/observabilidad/stress/cert):
+  - `full-qa.sh` reforzado con `alembic check` (tolerante a Postgres apagado)
+    y `git diff --check` como compuerta dura. Ejecucion real verde con git
+    diff sin warnings.
+  - Frontend: lint+build verdes, todos los estados (`blocked|pending|queued|
+    running|failed|rejected|completed`) ya cubiertos por `statusClass`.
+  - Observabilidad: `_decide_approval` emite `AuditEvent`
+    `approval.{status_value}` con actor + metadata, simetrico con Telegram.
+  - Stress 3 corridas seguidas -> 513 passed cada una, sin flakiness, ~25-26s.
+  - Cierre: `bash scripts/full-qa.sh` -> OK; `verify_operator_ready.sh` -> OK
+    con head Alembic `202605160001`; `uvx pre-commit run --all-files` -> OK;
+    `detect-secrets scan` -> `"results": {}`.
 - Compuertas finales Fase 37 ejecutadas tras los commits:
   `bash scripts/full-qa.sh` -> OK; `uvx pre-commit run --all-files` -> OK;
   detect-secrets sobre `git ls-files` -> `results: {}`; `bash
