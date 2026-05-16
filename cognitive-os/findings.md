@@ -86,6 +86,11 @@ Checks de capa sin hallazgo nuevo:
 - Backend amplio: `uv run pytest -m 'not integration and not slow' -q` ->
   **495 passed, 1 skipped, 20 deselected**; Ruff/format y `git diff --check`
   verdes.
+- Cierre de compuertas: `bash scripts/full-qa.sh`, `uvx pre-commit run
+  --all-files`, detect-secrets sobre versionados y
+  `backend/scripts/verify_operator_ready.sh` verdes. Alembic current=head:
+  `202605150002`. Docker core: Postgres, Redis, Weaviate y Neo4j healthy en
+  `127.0.0.1`.
 
 ## 2026-05-15 - Pulido CI post-baseline
 

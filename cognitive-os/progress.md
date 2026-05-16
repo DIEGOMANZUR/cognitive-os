@@ -34,6 +34,11 @@
 - Backend amplio post-cambios: `uv run pytest -m 'not integration and not slow'
   -q` -> **495 passed, 1 skipped, 20 deselected**; Ruff/format y `git diff
   --check` verdes.
+- Compuertas finales Fase 37 ejecutadas tras los commits:
+  `bash scripts/full-qa.sh` -> OK; `uvx pre-commit run --all-files` -> OK;
+  detect-secrets sobre `git ls-files` -> `results: {}`; `bash
+  backend/scripts/verify_operator_ready.sh` -> OK con Alembic
+  `202605150002 == 202605150002`; Docker core sigue healthy en loopback.
 
 ## 2026-05-15 - Fase 36 pulido CI y QA completa
 
