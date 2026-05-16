@@ -119,17 +119,37 @@ class DocumentActionService:
                 reason=str(exc),
             )
 
+        # Atomic write: stage the document in a `.tmp` sibling, validate size, then
+        # rename onto the final path. A crash mid-write leaves the tmp file behind
+        # (cleaned up below) instead of a corrupted document under the operator
+        # output root. Same-filesystem rename keeps the swap atomic on POSIX.
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        staging_path = output_path.with_name(f".{output_path.name}.tmp")
         try:
-            output_path.parent.mkdir(parents=True, exist_ok=True)
+            if staging_path.exists():
+                staging_path.unlink()
             if request.format == "docx":
-                _write_docx(request, output_path, self._settings)
+                _write_docx(request, staging_path, self._settings)
             elif request.format == "xlsx":
-                _write_xlsx(request, output_path)
+                _write_xlsx(request, staging_path)
             elif request.format == "pptx":
-                _write_pptx(request, output_path, self._settings)
+                _write_pptx(request, staging_path, self._settings)
             else:  # pragma: no cover - exhaustive Literal
                 msg = f"Unsupported document format: {request.format}"
                 raise ActionPolicyViolation(msg)
+
+            bytes_written = staging_path.stat().st_size
+            if bytes_written > self._settings.document_max_size_bytes:
+                return DocumentGenerateExecutionResult(
+                    status="blocked",
+                    format=request.format,
+                    output_path=str(output_path),
+                    reason=(
+                        f"Document exceeds DOCUMENT_MAX_SIZE_BYTES "
+                        f"({bytes_written} > {self._settings.document_max_size_bytes})."
+                    ),
+                )
+            staging_path.replace(output_path)
         except ActionPolicyViolation as exc:
             return DocumentGenerateExecutionResult(
                 status="blocked",
@@ -144,25 +164,16 @@ class DocumentActionService:
                 output_path=str(output_path),
                 reason=f"{type(exc).__name__}: {exc}",
             )
-
-        bytes_written = output_path.stat().st_size
-        if bytes_written > self._settings.document_max_size_bytes:
-            output_path.unlink(missing_ok=True)
-            return DocumentGenerateExecutionResult(
-                status="blocked",
-                format=request.format,
-                output_path=str(output_path),
-                reason=(
-                    f"Document exceeds DOCUMENT_MAX_SIZE_BYTES "
-                    f"({bytes_written} > {self._settings.document_max_size_bytes})."
-                ),
-            )
+        finally:
+            # `staging_path` should not exist at this point unless the writer threw
+            # before the rename. Either way: make sure no half-written tmp lingers.
+            staging_path.unlink(missing_ok=True)
 
         return DocumentGenerateExecutionResult(
             status="completed",
             format=request.format,
             output_path=str(output_path),
-            bytes_written=bytes_written,
+            bytes_written=output_path.stat().st_size,
             reason=None,
         )
 

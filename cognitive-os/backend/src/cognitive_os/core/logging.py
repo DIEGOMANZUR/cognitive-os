@@ -35,6 +35,10 @@ def configure_logging(log_level: str = "INFO") -> None:
     logging.basicConfig(level=level, format="%(message)s")
     structlog.configure(
         processors=[
+            # `merge_contextvars` pulls request-scoped data bound by the FastAPI
+            # correlation_id_middleware so every log inside the request inherits
+            # `request_id` without any caller having to thread it through.
+            structlog.contextvars.merge_contextvars,
             redact_secrets,
             structlog.processors.add_log_level,
             structlog.processors.TimeStamper(fmt="iso", utc=True),

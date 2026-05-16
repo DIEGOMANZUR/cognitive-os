@@ -139,6 +139,7 @@ from cognitive_os.core.db import session_scope
 from cognitive_os.core.health import HealthDashboard, check_health_dashboard
 from cognitive_os.core.observability import configure_langsmith, disable_langsmith
 from cognitive_os.core.path_policy import IngestPathPolicyError, resolve_ingest_document_path
+from cognitive_os.core.rate_limit import rate_limit_dependency
 from cognitive_os.db.models import (
     ActionRequest,
     AuditEvent,
@@ -279,6 +280,20 @@ app = FastAPI(title="Cognitive OS API", lifespan=lifespan)
 _auth_dependency = Depends(require_authenticated_user)
 _admin_auth_dependency = Depends(require_admin_user)
 _langsmith_auth_dependency = Depends(require_langsmith_api_access)
+
+# Rate limit policies for hot endpoints. Defaults assume one human operator per
+# user_id: 30 approval decisions per minute is generous, 60 dispatch attempts
+# protects against a buggy frontend loop, 30 request creations per minute
+# bounds idempotency-fanout abuse.
+_RL_APPROVAL_DECISION = Depends(
+    rate_limit_dependency("approval_decision", max_events=30, window_seconds=60.0)
+)
+_RL_ACTION_DISPATCH = Depends(
+    rate_limit_dependency("action_dispatch", max_events=60, window_seconds=60.0)
+)
+_RL_ACTION_REQUEST_CREATE = Depends(
+    rate_limit_dependency("action_request_create", max_events=30, window_seconds=60.0)
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_allow_origins,
@@ -286,6 +301,29 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def correlation_id_middleware(request: Any, call_next: Any) -> Any:
+    """Attach a request-scoped correlation id to logs and the response.
+
+    Honors an incoming `X-Request-ID` header (truncated to 64 chars to bound the
+    surface) or generates a fresh uuid4. The id is bound to structlog's
+    contextvars so any logger inside the request inherits it, and echoed back
+    on the response so callers can correlate failures with server-side logs.
+    """
+    import structlog as _structlog
+
+    incoming = (request.headers.get("X-Request-ID") or "").strip()[:64]
+    request_id = incoming or str(uuid4())
+    _structlog.contextvars.clear_contextvars()
+    _structlog.contextvars.bind_contextvars(request_id=request_id)
+    try:
+        response = await call_next(request)
+    finally:
+        _structlog.contextvars.clear_contextvars()
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 
 class HealthResponse(BaseModel):
@@ -1554,7 +1592,11 @@ async def list_approvals(
         return [_approval_response(approval) for approval in result.scalars().all()]
 
 
-@app.post("/approvals/{approval_id}/approve", response_model=ApprovalResponse)
+@app.post(
+    "/approvals/{approval_id}/approve",
+    response_model=ApprovalResponse,
+    dependencies=[_RL_APPROVAL_DECISION],
+)
 async def approve_approval(
     approval_id: UUID,
     user: AuthenticatedUser = _auth_dependency,
@@ -1566,7 +1608,11 @@ async def approve_approval(
     )
 
 
-@app.post("/approvals/{approval_id}/reject", response_model=ApprovalResponse)
+@app.post(
+    "/approvals/{approval_id}/reject",
+    response_model=ApprovalResponse,
+    dependencies=[_RL_APPROVAL_DECISION],
+)
 async def reject_approval(
     approval_id: UUID,
     user: AuthenticatedUser = _auth_dependency,
@@ -1895,7 +1941,11 @@ async def preview_computer_organize(
     return ComputerActionService().build_organize_plan(request)
 
 
-@app.post("/actions/computer/organize/request", response_model=ActionRequestView)
+@app.post(
+    "/actions/computer/organize/request",
+    response_model=ActionRequestView,
+    dependencies=[_RL_ACTION_REQUEST_CREATE],
+)
 async def request_computer_organize(
     request: ComputerOrganizeRequest,
     user: AuthenticatedUser = _auth_dependency,
@@ -1948,7 +1998,11 @@ async def get_action_request(
     return action_request
 
 
-@app.post("/actions/requests/{action_request_id}/dispatch", response_model=ActionDispatchResponse)
+@app.post(
+    "/actions/requests/{action_request_id}/dispatch",
+    response_model=ActionDispatchResponse,
+    dependencies=[_RL_ACTION_DISPATCH],
+)
 async def dispatch_action_request(
     action_request_id: UUID,
     user: AuthenticatedUser = _auth_dependency,
@@ -2163,7 +2217,11 @@ async def calendar_events_create(
         ) from exc
 
 
-@app.post("/actions/calendar/events/request", response_model=ActionRequestView)
+@app.post(
+    "/actions/calendar/events/request",
+    response_model=ActionRequestView,
+    dependencies=[_RL_ACTION_REQUEST_CREATE],
+)
 async def calendar_events_request(
     request: EventCreateRequest,
     user: AuthenticatedUser = _auth_dependency,
@@ -2263,7 +2321,11 @@ async def drive_ensure_folder(
         ) from exc
 
 
-@app.post("/actions/drive/files/upload/request", response_model=ActionRequestView)
+@app.post(
+    "/actions/drive/files/upload/request",
+    response_model=ActionRequestView,
+    dependencies=[_RL_ACTION_REQUEST_CREATE],
+)
 async def drive_upload_file_request(
     request: DriveUploadRequest,
     user: AuthenticatedUser = _auth_dependency,
@@ -2517,7 +2579,11 @@ async def approve_personal_mail_send(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
-@app.post("/actions/browser/request", response_model=ActionRequestView)
+@app.post(
+    "/actions/browser/request",
+    response_model=ActionRequestView,
+    dependencies=[_RL_ACTION_REQUEST_CREATE],
+)
 async def request_browser_navigation(
     request: BrowserNavigationRequest,
     user: AuthenticatedUser = _auth_dependency,
@@ -2528,7 +2594,11 @@ async def request_browser_navigation(
     )
 
 
-@app.post("/actions/browser/preview/request", response_model=ActionRequestView)
+@app.post(
+    "/actions/browser/preview/request",
+    response_model=ActionRequestView,
+    dependencies=[_RL_ACTION_REQUEST_CREATE],
+)
 async def request_browser_preview(
     request: BrowserPreviewRequest,
     user: AuthenticatedUser = _auth_dependency,
@@ -2539,7 +2609,11 @@ async def request_browser_preview(
     )
 
 
-@app.post("/actions/browser/interactive/request", response_model=ActionRequestView)
+@app.post(
+    "/actions/browser/interactive/request",
+    response_model=ActionRequestView,
+    dependencies=[_RL_ACTION_REQUEST_CREATE],
+)
 async def request_browser_interactive(
     request: BrowserInteractiveRequest,
     user: AuthenticatedUser = _auth_dependency,
@@ -2562,7 +2636,11 @@ async def request_gmail_query(
     )
 
 
-@app.post("/actions/godaddy/dns/request", response_model=ActionRequestView)
+@app.post(
+    "/actions/godaddy/dns/request",
+    response_model=ActionRequestView,
+    dependencies=[_RL_ACTION_REQUEST_CREATE],
+)
 async def request_godaddy_dns_change(
     request: GoDaddyDnsRecordChange,
     user: AuthenticatedUser = _auth_dependency,
@@ -2621,7 +2699,11 @@ async def preview_document_generate(
     return DocumentActionService().build_preview(request)
 
 
-@app.post("/actions/documents/request", response_model=ActionRequestView)
+@app.post(
+    "/actions/documents/request",
+    response_model=ActionRequestView,
+    dependencies=[_RL_ACTION_REQUEST_CREATE],
+)
 async def request_document_generate(
     request: DocumentGenerateRequest,
     user: AuthenticatedUser = _auth_dependency,
