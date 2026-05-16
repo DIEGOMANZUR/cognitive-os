@@ -3054,6 +3054,19 @@ async def _decide_approval(
                 )
             )
             openshell_dispatch = (task_payload, str(job.id))
+        session.add(
+            AuditEvent(
+                actor_id=approver_user_id,
+                action=f"approval.{status_value}",
+                resource_type="human_approval",
+                resource_id=str(approval.id),
+                metadata_json={
+                    "requested_action": approval.requested_action,
+                    "requested_by": approval.requested_by,
+                    "job_id": str(approval.job_id) if approval.job_id else None,
+                },
+            )
+        )
         await session.flush()
         response = _approval_response(approval)
     if openshell_dispatch is not None:

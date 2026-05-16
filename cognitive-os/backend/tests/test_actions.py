@@ -1138,6 +1138,11 @@ async def test_openshell_approval_dispatches_queued_job(monkeypatch: pytest.Monk
         isinstance(item, JobEvent) and item.event_type == "openshell_approval_approved"
         for item in added
     )
+    audit_events = [item for item in added if isinstance(item, AuditEvent)]
+    assert len(audit_events) == 1
+    assert audit_events[0].action == "approval.approved"
+    assert audit_events[0].resource_id == str(approval_id)
+    assert audit_events[0].actor_id == "1"
     assert calls == [{"args": [task_payload, str(job_id)], "queue": "agent_longrun"}]
 
 

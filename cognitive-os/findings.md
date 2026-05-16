@@ -196,6 +196,21 @@ Hallazgo 37.9 - Dispatch duplicado podia marcar un job como fallido:
   tests/test_actions.py::test_dispatch_action_request_does_not_enqueue_non_queued_status
   tests/test_celery_config.py -q` -> **8 passed**; Ruff focalizado verde.
 
+Hallazgo 37.14 - Decisiones de approval API no emitian AuditEvent:
+
+- Severidad: P2 observabilidad.
+- Evidencia: el carril Telegram (`telegram_bot._decide`) ya emitia
+  `approval.{status_value}` como `AuditEvent`, pero el endpoint REST
+  `/approvals/{id}/approve|reject` solo grababa `JobEvent` (cuando habia job).
+  El registro de quien aprobo/rechazo y desde donde quedaba implicito.
+- Correccion: `_decide_approval` ahora agrega un `AuditEvent` con
+  `actor_id=approver_user_id`, `action="approval.{status_value}"`,
+  `resource_type="human_approval"` y metadata `(requested_action, requested_by,
+  job_id)`. El test
+  `test_openshell_approval_dispatches_queued_job` exige el AuditEvent.
+- Verificacion: `uv run pytest tests/test_actions.py -q` -> **50 passed**;
+  Ruff/format focal verdes.
+
 Hallazgo 37.13 - full-qa.sh no incluia alembic check ni git diff --check:
 
 - Severidad: P2 operacional.
