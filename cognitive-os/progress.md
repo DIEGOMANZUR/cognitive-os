@@ -2,6 +2,20 @@
 
 > Bitácora viva. La documentación estable de producto vive en `docs/`.
 
+## 2026-05-15 - Fase 36 pulido CI y QA completa
+
+- `bash cognitive-os/scripts/full-qa.sh` ejecutado completo desde baseline:
+  backend **492 passed, 1 skipped, 20 deselected**, ruff/format/mypy verdes,
+  `npm ci`, lint y build frontend verdes.
+- Workflow CI movido a `.github/workflows/ci.yml` en la raiz real del repo para
+  que GitHub Actions lo ejecute; antes estaba en `cognitive-os/.github` y no era
+  efectivo para este monorepo.
+- CI ajustado al layout real (`cognitive-os/backend`, `cognitive-os/frontend`),
+  cache paths correctos y `uv sync --frozen --extra openharness --group dev`
+  alineado con `scripts/full-qa.sh`.
+- Workflow parseado con PyYAML y `uvx pre-commit run --all-files` verde tras el
+  movimiento.
+
 ## 2026-05-15 - Fase 35 baseline git seguro
 
 - Creada rama `codex/fase-34-baseline-hardening` para primer baseline

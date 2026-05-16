@@ -2,6 +2,16 @@
 
 > Bitácora viva. Para producto: ver `docs/`.
 
+## 2026-05-15 - Pulido CI post-baseline
+
+- El workflow CI estaba versionado bajo `cognitive-os/.github/workflows/ci.yml`.
+  En el repo real, GitHub solo descubre workflows bajo `.github/workflows` en la
+  raiz, por lo que ese CI no corria.
+- Se movio a `.github/workflows/ci.yml` y se mantuvieron los working directories
+  apuntando a `cognitive-os/backend` y `cognitive-os/frontend`.
+- El job backend ahora instala con `--extra openharness`, igual que el full QA
+  local, para evitar divergencia entre CI y operador.
+
 ## 2026-05-15 - Baseline git seguro
 
 - `detect-secrets --all-files` sobre todo el workspace incluye tambien archivos

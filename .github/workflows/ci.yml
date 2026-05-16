@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, "codex/**"]
   pull_request:
 
 jobs:
@@ -10,15 +10,15 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: backend
+        working-directory: cognitive-os/backend
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
-          cache-dependency-glob: "backend/uv.lock"
+          cache-dependency-glob: "cognitive-os/backend/uv.lock"
       - name: Sync dependencies
-        run: uv sync --frozen --group dev
+        run: uv sync --frozen --extra openharness --group dev
       - name: Lint (ruff)
         run: |
           uv run ruff check src tests
@@ -32,14 +32,14 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: frontend
+        working-directory: cognitive-os/frontend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: cognitive-os/frontend/package-lock.json
       - name: Install dependencies
         run: npm ci
       - name: Lint

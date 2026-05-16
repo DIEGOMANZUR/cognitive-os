@@ -1186,3 +1186,17 @@ archivos locales o ruido de hooks.
 - `uvx pre-commit run --all-files` quedo verde, incluyendo `gitleaks`.
 - Se corrigieron falsos positivos de fixtures de tests y se ajusto el umbral de
   lockfiles a 1024 KB para permitir `uv.lock`.
+
+## Fase 36 - Pulido CI y QA completa
+
+### Objetivo
+
+Garantizar que el baseline no solo pasa localmente, sino que tambien tiene un CI
+ejecutable desde la raiz real del repositorio.
+
+### Resultado 2026-05-15
+
+- Full QA local paso completa con backend, lint, typecheck y frontend build.
+- CI movido desde `cognitive-os/.github/workflows/ci.yml` a
+  `.github/workflows/ci.yml`.
+- CI alineado con el layout del monorepo y con `scripts/full-qa.sh`.
