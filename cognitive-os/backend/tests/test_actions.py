@@ -48,9 +48,25 @@ def _headers() -> dict[str, str]:
 class _FakeActionRequestSession:
     def __init__(self) -> None:
         self.added: list[object] = []
+        self.executed_stmts: list[object] = []
 
     def add(self, obj: object) -> None:
         self.added.append(obj)
+
+    async def execute(self, stmt: object) -> object:
+        """Default fake: every SELECT returns no rows.
+
+        Tests that need to simulate an existing ActionRequest (idempotency dedup)
+        should subclass and override.
+        """
+        self.executed_stmts.append(stmt)
+
+        class _EmptyResult:
+            @staticmethod
+            def scalar_one_or_none() -> None:
+                return None
+
+        return _EmptyResult()
 
     async def flush(self) -> None:
         now = datetime.now(UTC)
@@ -687,6 +703,83 @@ async def test_action_request_payload_executable_is_encrypted_when_key_configure
     )
     assert revealed["summary"] == "Reunion cifrada"
     assert revealed["dry_run"] is False
+
+
+@pytest.mark.asyncio
+async def test_calendar_action_request_dedups_repeat_submissions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Same (action_type, requester, payload) within an active state -> no duplicate."""
+    sessions: list[_FakeActionRequestSession] = []
+    now = datetime.now(UTC)
+    existing_request = ActionRequest(
+        id=UUID("99999999-9999-9999-9999-999999999999"),
+        action_type="calendar_create_event",
+        status="pending_approval",
+        requested_by="operator-1",
+        idempotency_key=None,
+        approval_id=UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+        job_id=UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+        payload_redacted={},
+        payload_executable={},
+        preview={"status": "preview"},
+        result={},
+        created_at=now,
+        updated_at=now,
+    )
+
+    class _DedupSession(_FakeActionRequestSession):
+        async def execute(self, stmt: object) -> object:
+            self.executed_stmts.append(stmt)
+
+            class _Result:
+                @staticmethod
+                def scalar_one_or_none() -> ActionRequest:
+                    return existing_request
+
+            return _Result()
+
+    @asynccontextmanager
+    async def fake_session_scope():
+        session = _DedupSession()
+        sessions.append(session)
+        yield session
+
+    monkeypatch.setattr(action_service_module, "session_scope", fake_session_scope)
+
+    class FakeCalendarService:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            del args, kwargs
+
+        def create_event(self, request: EventCreateRequest) -> EventCreatePreview:
+            return EventCreatePreview(status="preview", payload={"summary": request.summary})
+
+        def status(self) -> CalendarStatus:
+            return CalendarStatus(status="ready", write_enabled=True)
+
+    monkeypatch.setattr(action_service_module, "CalendarService", FakeCalendarService)
+    service = ActionRequestService(
+        Settings(
+            enable_google_calendar=True,
+            enable_google_calendar_write=True,
+            google_client_id="client-id",
+            google_client_secret="client-secret",  # pragma: allowlist secret
+        )
+    )
+
+    view = await service.create_calendar_event_request(
+        EventCreateRequest(
+            summary="Reunion repetida",
+            start=datetime(2026, 6, 1, 10, tzinfo=UTC),
+            end=datetime(2026, 6, 1, 11, tzinfo=UTC),
+        ),
+        requested_by="operator-1",
+    )
+
+    assert view.id == existing_request.id
+    assert view.status == "pending_approval"
+    # No new ActionRequest/HumanApproval/Job rows were inserted.
+    assert sessions[0].added == []
 
 
 @pytest.mark.asyncio

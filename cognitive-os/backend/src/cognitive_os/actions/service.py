@@ -37,6 +37,13 @@ from cognitive_os.core.db import session_scope
 from cognitive_os.db.models import ActionRequest, AuditEvent, HumanApproval, Job, JobEvent
 from cognitive_os.tools.policy import redact_tool_args
 
+_ACTIVE_STATUSES: tuple[str, ...] = (
+    "previewed",
+    "pending_approval",
+    "queued",
+    "running",
+)
+
 
 class ActionRequestError(RuntimeError):
     """Raised when an action request cannot progress through its lifecycle."""
@@ -45,6 +52,36 @@ class ActionRequestError(RuntimeError):
 class ActionRequestService:
     def __init__(self, app_settings: Settings = settings) -> None:
         self._settings = app_settings
+
+    async def _find_active_idempotent_request(
+        self,
+        session: object,
+        *,
+        action_type: str,
+        requested_by: str,
+        idempotency_key: str,
+    ) -> ActionRequest | None:
+        """Return an active ActionRequest matching (type, requester, key) if any.
+
+        Acts as a fast-path dedup for double-clicks or retried POSTs: the row is
+        unique up to a (action_type, requested_by, idempotency_key) tuple while
+        the prior request has not reached a terminal state. Same payload from a
+        different user is intentionally treated as an independent intent.
+        """
+        if not idempotency_key:
+            return None
+        stmt = (
+            select(ActionRequest)
+            .where(ActionRequest.action_type == action_type)
+            .where(ActionRequest.idempotency_key == idempotency_key)
+            .where(ActionRequest.requested_by == requested_by)
+            .where(ActionRequest.status.in_(_ACTIVE_STATUSES))
+            .order_by(desc(ActionRequest.created_at))
+            .limit(1)
+        )
+        result = await session.execute(stmt)  # type: ignore[attr-defined]
+        row = result.scalar_one_or_none()
+        return cast("ActionRequest | None", row)
 
     async def create_computer_organize_request(
         self,
@@ -60,13 +97,22 @@ class ActionRequestService:
             blocked=plan.status == "blocked",
             dry_run_only=plan.dry_run_only,
         )
+        idempotency_key = _idempotency_key("computer_organize", payload_redacted)
 
         async with session_scope() as session:
+            existing = await self._find_active_idempotent_request(
+                session,
+                action_type="computer_organize",
+                requested_by=requested_by,
+                idempotency_key=idempotency_key,
+            )
+            if existing is not None:
+                return _view(existing)
             action_request = ActionRequest(
                 action_type="computer_organize",
                 status=action_status,
                 requested_by=requested_by,
-                idempotency_key=_idempotency_key("computer_organize", payload_redacted),
+                idempotency_key=idempotency_key,
                 payload_redacted=payload_redacted,
                 payload_executable=protect_payload(payload_executable, self._settings),
                 preview=preview,
@@ -186,13 +232,22 @@ class ActionRequestService:
         preview = preview_model.model_dump(mode="json")
         blocked = preview_model.status == "blocked"
         action_status = _initial_status(blocked=blocked, dry_run_only=preview_model.dry_run_only)
+        idempotency_key = _idempotency_key("godaddy_dns_change", payload_redacted)
 
         async with session_scope() as session:
+            existing = await self._find_active_idempotent_request(
+                session,
+                action_type="godaddy_dns_change",
+                requested_by=requested_by,
+                idempotency_key=idempotency_key,
+            )
+            if existing is not None:
+                return _view(existing)
             action_request = ActionRequest(
                 action_type="godaddy_dns_change",
                 status=action_status,
                 requested_by=requested_by,
-                idempotency_key=_idempotency_key("godaddy_dns_change", payload_redacted),
+                idempotency_key=idempotency_key,
                 payload_redacted=payload_redacted,
                 payload_executable=protect_payload(payload_executable, self._settings),
                 preview=preview,
@@ -278,13 +333,22 @@ class ActionRequestService:
         preview = preview_model.model_dump(mode="json")
         blocked = preview_model.status == "blocked"
         action_status = "blocked" if blocked else "pending_approval"
+        idempotency_key = _idempotency_key("document_generate", payload_redacted)
 
         async with session_scope() as session:
+            existing = await self._find_active_idempotent_request(
+                session,
+                action_type="document_generate",
+                requested_by=requested_by,
+                idempotency_key=idempotency_key,
+            )
+            if existing is not None:
+                return _view(existing)
             action_request = ActionRequest(
                 action_type="document_generate",
                 status=action_status,
                 requested_by=requested_by,
-                idempotency_key=_idempotency_key("document_generate", payload_redacted),
+                idempotency_key=idempotency_key,
                 payload_redacted=payload_redacted,
                 payload_executable=protect_payload(payload_executable, self._settings),
                 preview=preview,
@@ -466,13 +530,22 @@ class ActionRequestService:
         payload_executable = request.model_dump(mode="json")
         payload_redacted = redact_tool_args(payload_executable)
         action_status = "blocked" if blocked_reason else "pending_approval"
+        idempotency_key = _idempotency_key("browser_preview", payload_redacted)
 
         async with session_scope() as session:
+            existing = await self._find_active_idempotent_request(
+                session,
+                action_type="browser_preview",
+                requested_by=requested_by,
+                idempotency_key=idempotency_key,
+            )
+            if existing is not None:
+                return _view(existing)
             action_request = ActionRequest(
                 action_type="browser_preview",
                 status=action_status,
                 requested_by=requested_by,
-                idempotency_key=_idempotency_key("browser_preview", payload_redacted),
+                idempotency_key=idempotency_key,
                 payload_redacted=payload_redacted,
                 payload_executable=protect_payload(payload_executable, self._settings),
                 preview=preview,
@@ -577,13 +650,22 @@ class ActionRequestService:
         payload_executable = request.model_dump(mode="json")
         payload_redacted = redact_tool_args(payload_executable)
         action_status = "blocked" if blocked_reason else "pending_approval"
+        idempotency_key = _idempotency_key("browser_interactive", payload_redacted)
 
         async with session_scope() as session:
+            existing = await self._find_active_idempotent_request(
+                session,
+                action_type="browser_interactive",
+                requested_by=requested_by,
+                idempotency_key=idempotency_key,
+            )
+            if existing is not None:
+                return _view(existing)
             action_request = ActionRequest(
                 action_type="browser_interactive",
                 status=action_status,
                 requested_by=requested_by,
-                idempotency_key=_idempotency_key("browser_interactive", payload_redacted),
+                idempotency_key=idempotency_key,
                 payload_redacted=payload_redacted,
                 payload_executable=protect_payload(payload_executable, self._settings),
                 preview=preview,
@@ -668,12 +750,21 @@ class ActionRequestService:
         requested_by: str,
     ) -> ActionRequestView:
         action_status = "blocked" if blocked else "previewed"
+        idempotency_key = _idempotency_key(action_type, payload_redacted)
         async with session_scope() as session:
+            existing = await self._find_active_idempotent_request(
+                session,
+                action_type=action_type,
+                requested_by=requested_by,
+                idempotency_key=idempotency_key,
+            )
+            if existing is not None:
+                return _view(existing)
             action_request = ActionRequest(
                 action_type=action_type,
                 status=action_status,
                 requested_by=requested_by,
-                idempotency_key=_idempotency_key(action_type, payload_redacted),
+                idempotency_key=idempotency_key,
                 payload_redacted=payload_redacted,
                 preview=preview,
                 error=reason if blocked else None,
@@ -715,12 +806,21 @@ class ActionRequestService:
         metadata: dict[str, object],
     ) -> ActionRequestView:
         action_status = "blocked" if blocked else "pending_approval"
+        idempotency_key = _idempotency_key(action_type, payload_redacted)
         async with session_scope() as session:
+            existing = await self._find_active_idempotent_request(
+                session,
+                action_type=action_type,
+                requested_by=requested_by,
+                idempotency_key=idempotency_key,
+            )
+            if existing is not None:
+                return _view(existing)
             action_request = ActionRequest(
                 action_type=action_type,
                 status=action_status,
                 requested_by=requested_by,
-                idempotency_key=_idempotency_key(action_type, payload_redacted),
+                idempotency_key=idempotency_key,
                 payload_redacted=payload_redacted,
                 payload_executable=protect_payload(payload_executable, self._settings),
                 preview=preview,

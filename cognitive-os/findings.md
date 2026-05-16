@@ -196,6 +196,26 @@ Hallazgo 37.9 - Dispatch duplicado podia marcar un job como fallido:
   tests/test_actions.py::test_dispatch_action_request_does_not_enqueue_non_queued_status
   tests/test_celery_config.py -q` -> **8 passed**; Ruff focalizado verde.
 
+Hallazgo 37.11 - Idempotency key declarada pero no aplicada:
+
+- Severidad: P1 operacional.
+- Evidencia: cada `create_*_request` computa `_idempotency_key(action_type,
+  payload_redacted)` y lo persiste, pero ninguna lectura preexistente impide
+  duplicados. Un doble-click o un retry POST creaba un nuevo `ActionRequest` +
+  `HumanApproval` + `Job` por cada submit, ensuciando la cola de aprobaciones y
+  fragmentando el audit trail.
+- Correccion: nuevo helper `ActionRequestService._find_active_idempotent_request`
+  busca filas activas (`previewed|pending_approval|queued|running`) con la
+  misma tupla `(action_type, requested_by, idempotency_key)`. Cada
+  `create_*_request` (computer_organize, godaddy_dns_change, document_generate,
+  browser_preview, browser_interactive) y los wrappers `_persist_preview_request`
+  y `_persist_executable_request` retornan la fila existente sin escribir.
+- Verificacion: `uv run pytest tests/test_actions.py -q` -> **50 passed**;
+  nuevo test `test_calendar_action_request_dedups_repeat_submissions` cubre el
+  carril completo; suite amplia `uv run pytest -m 'not integration and not slow'
+  -q` -> **513 passed, 1 skipped, 20 deselected**; Ruff/format/mypy focalizados
+  verdes.
+
 Hallazgo 37.10 - RBAC: aprobacion propia y mutaciones de memoria sin admin:
 
 - Severidad: P1 seguridad/HITL.

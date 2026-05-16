@@ -76,6 +76,16 @@
   tests/test_actions.py::test_dispatch_action_request_enqueues_worker
   tests/test_actions.py::test_dispatch_action_request_does_not_enqueue_non_queued_status
   tests/test_celery_config.py -q` -> **8 passed**; Ruff focalizado verde.
+- Hardening Action Plane idempotency: nuevo helper
+  `ActionRequestService._find_active_idempotent_request` aplica dedup en la
+  creacion para los 7 carriles `create_*_request` y los wrappers
+  `_persist_preview_request`/`_persist_executable_request`. Un POST repetido
+  con la misma tupla `(action_type, requested_by, idempotency_key)` mientras
+  exista una fila activa devuelve esa fila sin crear duplicados.
+- Verificacion focalizada idempotency: `uv run pytest tests/test_actions.py -q`
+  -> **50 passed** (incluye nuevo
+  `test_calendar_action_request_dedups_repeat_submissions`); suite amplia ->
+  **513 passed, 1 skipped, 20 deselected**.
 - Hardening RBAC: nuevo `APPROVAL_REQUIRE_FOUR_EYES` (default True) impide
   self-approval en `/approvals/{id}/approve|reject`. Mutaciones de memoria
   (`/deepagents/memory/proposals/{id}/approve|reject`,
