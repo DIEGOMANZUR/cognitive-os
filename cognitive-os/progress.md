@@ -76,6 +76,16 @@
   tests/test_actions.py::test_dispatch_action_request_enqueues_worker
   tests/test_actions.py::test_dispatch_action_request_does_not_enqueue_non_queued_status
   tests/test_celery_config.py -q` -> **8 passed**; Ruff focalizado verde.
+- Hardening DB idempotency: nueva migracion
+  `202605160001_action_request_idempotency_unique_index` agrega indice parcial
+  UNIQUE `uq_action_requests_active_idempotency` para enforcement transaccional
+  de la tupla `(action_type, requested_by, idempotency_key)` en estados
+  activos. El modelo refleja el indice con `postgresql_where`.
+- Verificacion DB: `uv run alembic upgrade head` aplica; `uv run alembic check`
+  -> "No new upgrade operations detected"; `uv run pytest
+  tests/test_alembic_autogenerate.py tests/test_actions.py -q` -> **52 passed**.
+  Conteo vivo de migraciones actualizado a 15 en README/COGNITIVE_OS_GUIDE/
+  PROJECT_GUIDE/docs/README.
 - Hardening Action Plane idempotency: nuevo helper
   `ActionRequestService._find_active_idempotent_request` aplica dedup en la
   creacion para los 7 carriles `create_*_request` y los wrappers

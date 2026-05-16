@@ -239,6 +239,22 @@ class ActionRequest(UUIDPrimaryKeyMixin, TimestampMixin, MetadataMixin, Base):
         ),
         Index("ix_action_requests_status_created_at", "status", "created_at"),
         Index("ix_action_requests_action_type", "action_type"),
+        # Partial unique index enforced at the DB layer so racing creators cannot
+        # both win past the application-level SELECT in
+        # `ActionRequestService._find_active_idempotent_request`. Only active rows
+        # participate: terminal states (completed/failed/cancelled/rejected/blocked)
+        # are excluded so historical idempotency keys can be reused safely.
+        Index(
+            "uq_action_requests_active_idempotency",
+            "action_type",
+            "requested_by",
+            "idempotency_key",
+            unique=True,
+            postgresql_where=sql_text(
+                "idempotency_key IS NOT NULL AND requested_by IS NOT NULL "
+                "AND status IN ('previewed', 'pending_approval', 'queued', 'running')"
+            ),
+        ),
     )
 
     action_type: Mapped[str] = mapped_column(String(100), nullable=False)

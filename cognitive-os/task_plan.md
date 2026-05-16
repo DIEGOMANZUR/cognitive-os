@@ -66,7 +66,7 @@ pruebas/documentacion que sostengan evolucion futura.
 | 34. Reconciliacion operativa local | complete | Alembic en head, Compose loopback, backups/snapshots ignorados y runtime core healthy |
 | 35. Baseline git seguro | complete | Primer baseline versionado sin secretos ni material local, pre-commit/gitleaks verdes |
 | 36. Pulido CI y QA completa | complete | CI efectivo en `.github/workflows`, full QA y readiness verdes |
-| 37. Auditoria integral por capas | in_progress | Conteos vigentes verificados: 118 endpoints, 18 vistas, 14 tareas Celery, 14 migraciones; primer P1 worker/docs corregido |
+| 37. Auditoria integral por capas | in_progress | Conteos vigentes verificados: 118 endpoints, 18 vistas, 14 tareas Celery, 15 migraciones; bloques 1-4 cerrados (workers, RBAC, idempotency, DB) |
 
 ## Fase 33 - Plan de implementacion activo
 

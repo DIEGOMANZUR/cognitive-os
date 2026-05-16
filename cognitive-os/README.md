@@ -2,7 +2,7 @@
 
 > **Estado actual (2026-05-15, Fase 33 RBAC + cifrado + research durable):** monorepo en grado comercial
 > operativo con backend FastAPI 0.115+ (118 endpoints REST verificados,
-> 14 tareas Celery distribuidas en 5 colas, 14 migraciones Alembic) +
+> 14 tareas Celery distribuidas en 5 colas, 15 migraciones Alembic) +
 > LangGraph 1.1.10 + DeepAgents 0.6.x + Celery 5.4 + Postgres 16+pgvector +
 > Redis 7 + Weaviate 1.29.0 + Neo4j 5 (servicios de datos ligados a
 > `127.0.0.1`) y consola Next.js 16.2.6 con **18 vistas** en `app/views/*.tsx` (incluidas

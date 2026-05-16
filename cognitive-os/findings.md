@@ -196,6 +196,24 @@ Hallazgo 37.9 - Dispatch duplicado podia marcar un job como fallido:
   tests/test_actions.py::test_dispatch_action_request_does_not_enqueue_non_queued_status
   tests/test_celery_config.py -q` -> **8 passed**; Ruff focalizado verde.
 
+Hallazgo 37.12 - Idempotency sin garantia transaccional contra carreras:
+
+- Severidad: P1 datos/concurrencia.
+- Evidencia: el helper aplicativo `_find_active_idempotent_request` (Fase 37.11)
+  cubre el doble-click serializable, pero dos POSTs llegando al mismo tick
+  podian saltar la verificacion y dejar dos `ActionRequest` activos con la
+  misma `(action_type, requested_by, idempotency_key)`.
+- Correccion: nueva migracion `202605160001_action_request_idempotency_unique_index`
+  agrega un indice parcial UNIQUE
+  `uq_action_requests_active_idempotency(action_type, requested_by,
+  idempotency_key) WHERE status IN ('previewed','pending_approval','queued',
+  'running')`. El modelo SQLAlchemy refleja el mismo Index con
+  `postgresql_where` para evitar drift en autogenerate.
+- Verificacion: `uv run alembic upgrade head` aplica sin error; `uv run alembic
+  check` -> "No new upgrade operations detected"; `uv run pytest
+  tests/test_alembic_autogenerate.py tests/test_actions.py -q` -> **52
+  passed**; suite amplia **513 passed, 1 skipped, 20 deselected**.
+
 Hallazgo 37.11 - Idempotency key declarada pero no aplicada:
 
 - Severidad: P1 operacional.
