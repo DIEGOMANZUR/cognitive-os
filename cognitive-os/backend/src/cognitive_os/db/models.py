@@ -194,6 +194,9 @@ class HumanApproval(UUIDPrimaryKeyMixin, TimestampMixin, StatusMixin, MetadataMi
             "status IN ('pending', 'approved', 'rejected', 'edited', 'expired')",
             name="human_approvals_status_allowed",
         ),
+        # The approvals view sorts pending rows newest-first; the reaper looks
+        # them up by `(status, created_at)`. Both queries hit the same index.
+        Index("ix_human_approvals_status_created_at", "status", "created_at"),
     )
 
     status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False)

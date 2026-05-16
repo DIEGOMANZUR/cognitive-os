@@ -4,7 +4,7 @@
 > operativo. Backend FastAPI 0.115+ con **118 endpoints REST** (92
 > propios + 26 orquestación), **14 tareas Celery** distribuidas en **5
 > queues** (`default`, `ingestion`, `agent_longrun`, `maintenance`, `mail`),
-> **15 migraciones Alembic** persistidas. Frontend Next.js 16.2.6 con **18
+> **16 migraciones Alembic** persistidas. Frontend Next.js 16.2.6 con **18
 > vistas** (incluidas `AssistView` y `GoogleOpsView`). La ruta `research` está fusionada con
 > **OpenHarness** opcional (extra `openharness-ai>=0.1.9,<0.2`,
 > `prelude_merge` por defecto). El runtime local usa **DeepSeek V4 Pro**
