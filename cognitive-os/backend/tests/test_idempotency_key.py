@@ -21,9 +21,7 @@ def test_idempotency_key_is_stable_for_same_inputs() -> None:
 def test_idempotency_key_is_independent_of_key_ordering() -> None:
     a = {"alpha": 1, "beta": 2, "gamma": 3}
     b = {"gamma": 3, "alpha": 1, "beta": 2}
-    assert _idempotency_key("computer_organize", a) == _idempotency_key(
-        "computer_organize", b
-    )
+    assert _idempotency_key("computer_organize", a) == _idempotency_key("computer_organize", b)
 
 
 def test_idempotency_key_changes_when_action_type_changes() -> None:
@@ -36,9 +34,7 @@ def test_idempotency_key_changes_when_action_type_changes() -> None:
 def test_idempotency_key_changes_when_payload_changes() -> None:
     a = {"alpha": 1}
     b = {"alpha": 2}
-    assert _idempotency_key("computer_organize", a) != _idempotency_key(
-        "computer_organize", b
-    )
+    assert _idempotency_key("computer_organize", a) != _idempotency_key("computer_organize", b)
 
 
 def test_idempotency_key_handles_unicode_and_special_chars() -> None:
