@@ -2,6 +2,11 @@ import type { ChatResponse, StreamEvent } from "./types";
 
 async function throwResponseError(response: Response): Promise<never> {
   const detail = await parseErrorDetail(response);
+  if (response.status === 429) {
+    const retryAfter = response.headers.get("Retry-After");
+    const suffix = retryAfter ? ` (reintenta en ${retryAfter}s)` : "";
+    throw new Error(`429 Too Many Requests: ${detail}${suffix}`);
+  }
   throw new Error(`${response.status} ${response.statusText}: ${detail}`);
 }
 
@@ -211,7 +216,8 @@ export function statusClass(status: string): string {
   if (["ok", "completed", "approved", "active", "ready", "sent", "normal"].includes(status)) {
     return "badge ok";
   }
-  if (["configured", "disabled", "unknown", "not_enabled"].includes(status)) return "badge configured";
+  if (["configured", "disabled", "unknown", "not_enabled", "expired"].includes(status))
+    return "badge configured";
   if (
     [
       "running",
