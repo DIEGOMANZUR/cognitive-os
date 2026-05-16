@@ -166,6 +166,7 @@ def test_solve_token_rejects_non_token_kind() -> None:
 
 
 def test_redact_strips_capsolver_key() -> None:
+    # pragma: allowlist nextline secret
     capsolver_like = "CAP-" + "FD160D382D9BC71A86225E11A269D71229AE972EA6"
     leaked = f"fail clientKey={capsolver_like}"
     assert capsolver_like not in _redact(leaked)
