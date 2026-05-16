@@ -17,6 +17,7 @@ from cognitive_os.actions.schemas import GmailDigestRequest
 from cognitive_os.api.app import app
 from cognitive_os.core.auth import create_access_token
 from cognitive_os.core.config import Settings
+from cognitive_os.mail.gmail_label_reader import GmailLabelReader
 
 
 def _headers() -> dict[str, str]:
@@ -384,10 +385,27 @@ def test_gmail_rest_reader_refreshes_and_persists_token(tmp_path: Path) -> None:
 
 
 def test_gmail_rest_reader_missing_token_raises_clear_error(tmp_path: Path) -> None:
-    reader = GmailRestReader(token_path=tmp_path / "missing-token.json")
+    token_path = tmp_path / "missing-token.json"
+    reader = GmailRestReader(token_path=token_path)
 
-    with pytest.raises(GmailReaderError, match="token not found"):
+    with pytest.raises(GmailReaderError, match="token not found") as exc_info:
         reader.fetch_recent(lookback_hours=1, max_messages=1, labels=[])
+
+    message = str(exc_info.value)
+    assert str(tmp_path) not in message
+    assert str(token_path) not in message
+
+
+def test_gmail_label_reader_missing_token_does_not_expose_path(tmp_path: Path) -> None:
+    token_path = tmp_path / "missing-token.json"
+    reader = GmailLabelReader(token_path=token_path, label_name="TODOS")
+
+    with pytest.raises(GmailReaderError, match="token not found") as exc_info:
+        reader.fetch_recent(max_messages=1)
+
+    message = str(exc_info.value)
+    assert str(tmp_path) not in message
+    assert str(token_path) not in message
 
 
 def test_digest_reader_errors_are_blocked_and_redacted() -> None:

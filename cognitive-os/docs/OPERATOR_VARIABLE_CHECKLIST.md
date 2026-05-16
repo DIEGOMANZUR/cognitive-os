@@ -100,6 +100,14 @@ Para un cambio concreto: buscar en el repo el **nombre del atributo Python**
 4. **Integración**: tras editar `config.py`, regenerar la tabla y ejecutar tests (`uv run pytest`).
 5. **Despliegue**: volver a correr `scripts/verify_operator_ready.sh` desde `backend/` antes de promover.
 
+### Semaforo runtime de Google Calendar/Drive
+
+Si `ENABLE_GOOGLE_CALENDAR=true` o `ENABLE_GOOGLE_DRIVE=true` pero falta
+`GOOGLE_TOKEN_DIR/token.json`, `/health/dashboard` debe quedar `degraded` con
+`google_calendar`/`google_drive` en `blocked`. Ese estado es correcto: evita un
+falso verde antes de ejecutar `cd backend && uv run python scripts/auth_google.py`
+con el operador y guardar el token OAuth local ignorado por git.
+
 ## Documento hermano
 
 Plan de mejoras y estado de ejecución: [`IMPROVEMENT_EXECUTION_PLAN.md`](./IMPROVEMENT_EXECUTION_PLAN.md). Fusión OpenHarness: [`OPENHARNESS_FUSION.md`](./OPENHARNESS_FUSION.md).

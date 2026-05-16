@@ -7,7 +7,7 @@ from typing import Any, cast
 
 import httpx
 
-from cognitive_os.actions.gmail_digest import GmailReaderError
+from cognitive_os.actions.gmail_digest import GmailReaderError, redact_gmail_reader_error
 from cognitive_os.mail.imap_client import RawMailMessage
 
 GMAIL_API_BASE_URL = "https://gmail.googleapis.com/gmail/v1/users/me"
@@ -60,7 +60,7 @@ class GmailLabelReader:
 
     def _load_credentials(self) -> Any:
         if not self._token_path.exists():
-            raise GmailReaderError(f"Gmail token not found at {self._token_path}")
+            raise GmailReaderError("Gmail token not found in configured token directory.")
         from google.oauth2.credentials import Credentials
 
         loader = cast(Any, Credentials.from_authorized_user_file)
@@ -73,7 +73,11 @@ class GmailLabelReader:
             from google.auth.transport.requests import Request
 
             credentials.refresh(Request())
-            self._token_path.write_text(credentials.to_json(), encoding="utf-8")
+            try:
+                self._token_path.write_text(credentials.to_json(), encoding="utf-8")
+            except OSError as exc:
+                msg = f"Could not persist refreshed Gmail token: {type(exc).__name__}"
+                raise GmailReaderError(msg) from exc
         if not bool(getattr(credentials, "valid", False)) or not getattr(
             credentials, "token", None
         ):
@@ -101,9 +105,16 @@ class GmailLabelReader:
         headers: dict[str, str],
         params: list[tuple[str, str]],
     ) -> dict[str, object]:
-        response = client.get(url, headers=headers, params=cast(Any, params))
-        response.raise_for_status()
-        data = response.json()
+        try:
+            response = client.get(url, headers=headers, params=cast(Any, params))
+            response.raise_for_status()
+            data = response.json()
+        except httpx.HTTPError as exc:
+            msg = f"Gmail API request failed: {redact_gmail_reader_error(str(exc))}"
+            raise GmailReaderError(msg) from exc
+        except ValueError as exc:
+            msg = "Gmail API returned invalid JSON."
+            raise GmailReaderError(msg) from exc
         if not isinstance(data, dict):
             raise GmailReaderError("Gmail API returned an unexpected JSON shape.")
         return data

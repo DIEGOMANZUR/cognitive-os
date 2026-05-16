@@ -126,6 +126,36 @@ Smoke operativo autenticado:
 - Estado runtime: API, Celery worker, Celery beat, frontend y Kimi corriendo;
   Telegram queda apagado por configuracion (`TELEGRAM_ENABLED=false`).
 
+Hallazgo 37.6 - Runtime healthy con bloqueo OAuth Google explicito:
+
+- Severidad: P2 operacional/manual.
+- Evidencia: `/health/dashboard` en runtime vivo devuelve `status=degraded`
+  porque `google_calendar` y `google_drive` estan `blocked` con
+  `No token.json found; run scripts/auth_google.py once.`. Postgres, Redis,
+  Weaviate, Neo4j, workers, checkpointer, LLM/embeddings, LangSmith, voice,
+  maps, Kimi y captcha estan operativos/configurados.
+- Decision: no ocultar este estado como `ok`; si Calendar/Drive estan
+  habilitados, falta OAuth real del operador y debe seguir degradando el
+  dashboard hasta generar `GOOGLE_TOKEN_DIR/token.json`.
+- Mejora aplicada: los tests de health separan ahora estados no fallidos
+  (`disabled`, `configured`, `ready`) del estado `blocked`, para prevenir
+  falsos verdes en integraciones habilitadas pero incompletas.
+
+Hallazgo 37.7 - Gmail podia exponer rutas locales en errores de OAuth:
+
+- Severidad: P2 seguridad/privacidad operacional.
+- Evidencia: `GmailRestReader` y `GmailLabelReader` construian errores con la
+  ruta absoluta de `token.json` cuando el token faltaba o al persistir refresh.
+  Ese dato no es un secreto criptografico, pero revela estructura local del
+  host y contradice la politica de redaccion ya aplicada en health/Google.
+- Correccion: errores de token faltante usan mensajes genericos; fallos de
+  persistencia reportan solo el tipo de excepcion; errores HTTP/JSON del lector
+  label pasan por el mismo redactor de Gmail digest, que ahora redacta secretos
+  y paths absolutos.
+- Verificacion: `uv run pytest tests/test_gmail_digest.py
+  tests/test_health_dashboard.py -q` -> **19 passed**; Ruff focalizado y
+  `git diff --check` verdes.
+
 ## 2026-05-15 - Pulido CI post-baseline
 
 - El workflow CI estaba versionado bajo `cognitive-os/.github/workflows/ci.yml`.

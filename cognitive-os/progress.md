@@ -47,6 +47,18 @@
   `/config/public`, `/health/dashboard`, `/actions/capabilities`, `/jobs` y
   `/approvals` respondieron **200**. Stack vivo: API, frontend, worker, beat y
   Kimi; Telegram omitido por `TELEGRAM_ENABLED=false`.
+- Revision runtime ampliada: `/health/dashboard` queda `degraded` solo por
+  `google_calendar`/`google_drive` en `blocked` al faltar
+  `GOOGLE_TOKEN_DIR/token.json`; servicios core, workers y Kimi estan OK. Se
+  mantuvo como bloqueo real (requiere OAuth manual del operador) y se ajustaron
+  tests para impedir falsos verdes cuando una integracion habilitada esta
+  incompleta.
+- Hardening Gmail OAuth: `GmailRestReader` y `GmailLabelReader` ya no exponen
+  paths locales del `token.json` en errores; el lector label tambien normaliza
+  errores HTTP/JSON con redaccion de secretos y paths.
+- Verificacion focalizada nueva: `uv run pytest tests/test_gmail_digest.py
+  tests/test_health_dashboard.py -q` -> **19 passed**; Ruff focalizado y
+  `git diff --check` verdes.
 - Compuertas finales Fase 37 ejecutadas tras los commits:
   `bash scripts/full-qa.sh` -> OK; `uvx pre-commit run --all-files` -> OK;
   detect-secrets sobre `git ls-files` -> `results: {}`; `bash

@@ -51,7 +51,7 @@ async def test_health_dashboard_degrades_on_component_failure(
 
 
 @pytest.mark.asyncio
-async def test_health_dashboard_treats_optional_states_as_non_failure(
+async def test_health_dashboard_treats_non_failure_states_as_ok(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _install_checks(
@@ -59,18 +59,30 @@ async def test_health_dashboard_treats_optional_states_as_non_failure(
         {
             "voice": "disabled",
             "maps": "ready",
-            "google_calendar": "blocked",
             "google_drive": "configured",
         },
     )
 
     dashboard = await check_health_dashboard()
 
-    assert dashboard.status == "degraded"
+    assert dashboard.status == "ok"
     statuses = {component.name: component.status for component in dashboard.components}
     assert statuses["voice"] == "disabled"
     assert statuses["maps"] == "ready"
     assert statuses["google_drive"] == "configured"
+
+
+@pytest.mark.asyncio
+async def test_health_dashboard_degrades_on_blocked_enabled_integration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_checks(monkeypatch, {"google_calendar": "blocked"})
+
+    dashboard = await check_health_dashboard()
+
+    assert dashboard.status == "degraded"
+    statuses = {component.name: component.status for component in dashboard.components}
+    assert statuses["google_calendar"] == "blocked"
 
 
 @pytest.mark.asyncio

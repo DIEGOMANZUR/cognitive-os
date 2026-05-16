@@ -28,6 +28,7 @@ SECRET_TEXT_RE = re.compile(
     r"(?i)\b(?:authorization|bearer|access_token|refresh_token|client_secret|token)"
     r"\b\s*[:=]?\s*[A-Za-z0-9._~+/=-]+"
 )
+ABS_PATH_RE = re.compile(r"(?:/[A-Za-z0-9._ -]+){2,}")
 
 
 class GmailReaderError(RuntimeError):
@@ -146,7 +147,7 @@ class GmailRestReader:
     def _load_credentials(self) -> Any:
         if not self._token_path.exists():
             msg = (
-                f"Gmail token not found at {self._token_path}. Create token.json "
+                "Gmail token not found in configured token directory. Create token.json "
                 "with the readonly scope before enabling Gmail digest."
             )
             raise GmailReaderError(msg)
@@ -179,7 +180,7 @@ class GmailRestReader:
         try:
             self._token_path.write_text(credentials.to_json(), encoding="utf-8")
         except OSError as exc:
-            msg = f"Could not persist refreshed Gmail token: {exc}"
+            msg = f"Could not persist refreshed Gmail token: {type(exc).__name__}"
             raise GmailReaderError(msg) from exc
 
     def _default_http_client_factory(self) -> httpx.Client:
@@ -198,7 +199,7 @@ class GmailRestReader:
             response.raise_for_status()
             data = response.json()
         except httpx.HTTPError as exc:
-            msg = f"Gmail API request failed: {_redact_reader_error(str(exc))}"
+            msg = f"Gmail API request failed: {redact_gmail_reader_error(str(exc))}"
             raise GmailReaderError(msg) from exc
         except ValueError as exc:
             msg = "Gmail API returned invalid JSON."
@@ -224,8 +225,9 @@ def _redact_address(raw: str) -> tuple[str, str]:
     return (domain, f"{redacted_local}@{domain}")
 
 
-def _redact_reader_error(value: str) -> str:
-    return SECRET_TEXT_RE.sub("[REDACTED]", value)
+def redact_gmail_reader_error(value: str) -> str:
+    redacted = SECRET_TEXT_RE.sub("[REDACTED]", value)
+    return ABS_PATH_RE.sub("[PATH]", redacted)
 
 
 def _truncate(text: str | None, limit: int) -> str | None:
@@ -335,7 +337,7 @@ class GmailDigestService:
                 scopes=scopes,
                 requires_approval=False,
                 dry_run_only=True,
-                reason=f"Gmail reader failed: {_redact_reader_error(str(exc))}",
+                reason=f"Gmail reader failed: {redact_gmail_reader_error(str(exc))}",
             )
 
         cutoff = datetime.now(tz=UTC) - timedelta(hours=request.lookback_hours)
