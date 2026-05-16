@@ -47,6 +47,11 @@
 - `APPROVAL_REQUIRE_FOUR_EYES=true` es el default y exige que el usuario que
   decide una `HumanApproval` sea distinto del que la solicitó. Solo el
   modo dev/test puede bajarlo a `false`.
+- `APPROVAL_PENDING_MAX_HOURS=48` (default) controla el reaper periódico
+  `cognitive_os.reap_stale_approvals`: las approvals `pending` mayores al
+  umbral pasan a `expired`, cierran el Job/`ActionRequest` ligado y dejan
+  `AuditEvent approval.expired`. Evita que una aprobación olvidada dispare
+  una acción obsoleta días después.
 - Mutaciones de memoria DeepAgent (`/deepagents/memory/proposals/{id}/approve`,
   `/deepagents/memory/proposals/{id}/reject`,
   `/deepagents/memory/consolidate/run`) requieren rol admin: alteran memoria

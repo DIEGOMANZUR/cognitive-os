@@ -39,6 +39,10 @@ celery_app.conf.update(
             "queue": "maintenance",
             "routing_key": "maintenance",
         },
+        "cognitive_os.reap_stale_approvals": {
+            "queue": "maintenance",
+            "routing_key": "maintenance",
+        },
         "cognitive_os.debug_fast": {"queue": "default", "routing_key": "default"},
         "cognitive_os.run_deepagent_task": {
             "queue": "agent_longrun",
@@ -116,6 +120,10 @@ if settings.mail_enabled:
 beat_schedule["action-request-reaper"] = {
     "task": "cognitive_os.reap_stuck_action_requests",
     "schedule": crontab(minute="*/10"),
+}
+beat_schedule["approval-reaper"] = {
+    "task": "cognitive_os.reap_stale_approvals",
+    "schedule": crontab(minute=15),
 }
 if beat_schedule:
     celery_app.conf.beat_schedule = beat_schedule

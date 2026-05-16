@@ -258,6 +258,18 @@ class Settings(BaseSettings):
             "contract; set False only for single-operator dev/test setups."
         ),
     )
+    approval_pending_max_hours: int = Field(
+        default=48,
+        ge=1,
+        le=24 * 14,
+        alias="APPROVAL_PENDING_MAX_HOURS",
+        description=(
+            "Hours a HumanApproval may stay 'pending' before the reaper flips it "
+            "to 'expired'. Linked Jobs and ActionRequests transition to "
+            "'rejected' so the audit trail stays coherent. Prevents a stale "
+            "approval from being decided long after the operator forgot it."
+        ),
+    )
     http_timeout_seconds: float = Field(default=15.0, alias="HTTP_TIMEOUT_SECONDS")
     http_max_retries: int = Field(default=2, alias="HTTP_MAX_RETRIES")
     circuit_breaker_failure_threshold: int = Field(

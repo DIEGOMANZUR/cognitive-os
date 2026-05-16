@@ -1227,6 +1227,78 @@ class ActionRequestService:
                 reaped += 1
         return reaped
 
+    async def reap_stale_pending_approvals(self, *, max_hours: int | None = None) -> int:
+        """Flip `pending` HumanApproval rows older than the cap to `expired`.
+
+        A pending approval that never got decided is a liability: if the operator
+        approves it tomorrow, an action that made sense yesterday may execute now
+        against stale state. The reaper closes the loop by aging out stale rows
+        and cascading the rejection to any linked Job/ActionRequest.
+        """
+        threshold = max_hours or self._settings.approval_pending_max_hours
+        cutoff = datetime.now(UTC) - timedelta(hours=max(1, threshold))
+        reaped = 0
+        async with session_scope() as session:
+            stmt = (
+                select(HumanApproval)
+                .where(HumanApproval.status == "pending")
+                .where(HumanApproval.created_at < cutoff)
+            )
+            stale = (await session.execute(stmt)).scalars().all()
+            for approval in stale:
+                approval.status = "expired"
+                approval.decided_at = datetime.now(UTC)
+                if approval.job_id is not None:
+                    job = await session.get(Job, approval.job_id)
+                    if job is not None and job.status not in {
+                        "completed",
+                        "failed",
+                        "cancelled",
+                        "rejected",
+                    }:
+                        job.status = "rejected"
+                        job.progress = 100
+                        session.add(
+                            JobEvent(
+                                job_id=job.id,
+                                event_type="approval_expired",
+                                status="rejected",
+                                message="Approval expired by reaper",
+                                metadata_json={
+                                    "approval_id": str(approval.id),
+                                    "threshold_hours": threshold,
+                                },
+                            )
+                        )
+                action_request_row = (
+                    await session.execute(
+                        select(ActionRequest).where(ActionRequest.approval_id == approval.id)
+                    )
+                ).scalar_one_or_none()
+                if action_request_row is not None and action_request_row.status not in {
+                    "completed",
+                    "failed",
+                    "cancelled",
+                    "rejected",
+                }:
+                    action_request_row.status = "rejected"
+                    action_request_row.error = "Approval expired before decision"
+                session.add(
+                    AuditEvent(
+                        actor_id="system.reaper",
+                        action="approval.expired",
+                        resource_type="human_approval",
+                        resource_id=str(approval.id),
+                        metadata_json={
+                            "requested_action": approval.requested_action,
+                            "requested_by": approval.requested_by,
+                            "threshold_hours": threshold,
+                        },
+                    )
+                )
+                reaped += 1
+        return reaped
+
     async def _mark_failed(self, action_request_id: UUID, detail: str) -> None:
         async with session_scope() as session:
             action_request = await session.get(ActionRequest, action_request_id)

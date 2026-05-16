@@ -27,3 +27,11 @@ def test_action_request_reaper_is_scheduled_on_maintenance_beat() -> None:
     schedule = cast("dict[str, Any]", beat_schedule["action-request-reaper"])
 
     assert schedule["task"] == "cognitive_os.reap_stuck_action_requests"
+
+
+def test_approval_reaper_is_routed_and_scheduled() -> None:
+    routes = cast("dict[str, dict[str, str]]", celery_app.conf.task_routes)
+    assert routes["cognitive_os.reap_stale_approvals"]["queue"] == "maintenance"
+
+    schedule = cast("dict[str, Any]", beat_schedule["approval-reaper"])
+    assert schedule["task"] == "cognitive_os.reap_stale_approvals"

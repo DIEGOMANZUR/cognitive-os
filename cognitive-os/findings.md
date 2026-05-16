@@ -196,6 +196,24 @@ Hallazgo 37.9 - Dispatch duplicado podia marcar un job como fallido:
   tests/test_actions.py::test_dispatch_action_request_does_not_enqueue_non_queued_status
   tests/test_celery_config.py -q` -> **8 passed**; Ruff focalizado verde.
 
+Hallazgo 37.15 - Approvals pending sin TTL: riesgo de accion obsoleta:
+
+- Severidad: P1 operacional/seguridad.
+- Evidencia: las `HumanApproval` quedaban en `pending` indefinidamente. Una
+  aprobacion solicitada hace dias y aprobada hoy ejecuta una accion con
+  contexto stale (filesystem, DNS, calendario movido). El modelo declaraba
+  `expired` como estado posible pero ningun reaper lo aplicaba.
+- Correccion: nuevo setting `APPROVAL_PENDING_MAX_HOURS=48`, metodo
+  `ActionRequestService.reap_stale_pending_approvals`, task Celery
+  `cognitive_os.reap_stale_approvals` ruteado a `maintenance` y agendado en
+  beat `approval-reaper` (minuto 15 cada hora). El reaper transiciona
+  approval -> `expired`, cierra job/ActionRequest ligados como `rejected` y
+  emite `AuditEvent approval.expired` + `JobEvent approval_expired`.
+- Verificacion: `uv run pytest tests/test_approval_reaper.py
+  tests/test_celery_config.py -q` -> **5 passed**; suite amplia ->
+  **515 passed, 1 skipped, 20 deselected**; Ruff/format/mypy focalizados
+  verdes; `SETTINGS_REGISTRY_TABLE.md` regenerado.
+
 Hallazgo 37.14 - Decisiones de approval API no emitian AuditEvent:
 
 - Severidad: P2 observabilidad.

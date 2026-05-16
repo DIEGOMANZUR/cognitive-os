@@ -430,6 +430,40 @@ def run_openshell_task_async(task_dict: dict[str, Any], job_id: str) -> dict[str
         raise
 
 
+@celery_app.task(name="cognitive_os.reap_stale_approvals")
+def reap_stale_approvals_task() -> dict[str, Any]:
+    """Reap HumanApproval rows stuck in `pending` past
+    `approval_pending_max_hours`.
+
+    Safe to schedule on Celery beat: idempotent, emits AuditEvent and rejects
+    any linked Job/ActionRequest.
+    """
+    job_id = _run(
+        _create_job(
+            job_type="reap_stale_approvals",
+            status="running",
+            progress=0,
+            metadata_json={"max_hours": settings.approval_pending_max_hours},
+        )
+    )
+    try:
+        reaped = _run(ActionRequestService().reap_stale_pending_approvals())
+        _run(
+            _update_job(
+                job_id,
+                status="completed",
+                progress=100,
+                event_type="reap_completed",
+                message=f"Reaped {reaped} stale pending approval(s)",
+                metadata_json={"reaped": reaped},
+            )
+        )
+        return {"job_id": str(job_id), "reaped": reaped}
+    except Exception as exc:
+        _run(_mark_job_failed(job_id, exc))
+        raise
+
+
 @celery_app.task(name="cognitive_os.reap_stuck_action_requests")
 def reap_stuck_action_requests_task() -> dict[str, Any]:
     """Reap ActionRequests stuck in `running` past `action_request_running_max_minutes`.
