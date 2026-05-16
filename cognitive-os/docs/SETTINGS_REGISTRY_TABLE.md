@@ -11,6 +11,7 @@
 | `allow_dangerous_tools` | `ALLOW_DANGEROUS_TOOLS` | bool |
 | `app_host` | `APP_HOST` | str |
 | `app_port` | `APP_PORT` | int |
+| `approval_require_four_eyes` | `APPROVAL_REQUIRE_FOUR_EYES` | bool |
 | `auth_admin_roles` | `AUTH_ADMIN_ROLES` | list[str] |
 | `auth_default_roles` | `AUTH_DEFAULT_ROLES` | list[str] |
 | `backup_dir` | `BACKUP_DIR` | str |

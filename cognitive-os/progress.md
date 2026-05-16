@@ -76,6 +76,18 @@
   tests/test_actions.py::test_dispatch_action_request_enqueues_worker
   tests/test_actions.py::test_dispatch_action_request_does_not_enqueue_non_queued_status
   tests/test_celery_config.py -q` -> **8 passed**; Ruff focalizado verde.
+- Hardening RBAC: nuevo `APPROVAL_REQUIRE_FOUR_EYES` (default True) impide
+  self-approval en `/approvals/{id}/approve|reject`. Mutaciones de memoria
+  (`/deepagents/memory/proposals/{id}/approve|reject`,
+  `/deepagents/memory/consolidate/run`) ahora exigen `require_admin_user`.
+  `SETTINGS_REGISTRY_TABLE.md` regenerado para incluir el nuevo flag.
+- Verificacion focalizada RBAC: `uv run pytest
+  tests/test_actions.py::test_approval_self_decision_blocked_by_four_eyes
+  tests/test_actions.py::test_approval_self_decision_allowed_when_four_eyes_disabled
+  tests/test_admin_gated_endpoints.py tests/test_langsmith_access.py
+  tests/test_config.py -q` -> **28 passed**; suite amplia
+  `uv run pytest -m 'not integration and not slow' -q` -> **512 passed,
+  1 skipped, 20 deselected**; Ruff/format/mypy focalizados verdes.
 - Compuertas finales Fase 37 ejecutadas tras los commits:
   `bash scripts/full-qa.sh` -> OK; `uvx pre-commit run --all-files` -> OK;
   detect-secrets sobre `git ls-files` -> `results: {}`; `bash

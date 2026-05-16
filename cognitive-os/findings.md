@@ -196,6 +196,32 @@ Hallazgo 37.9 - Dispatch duplicado podia marcar un job como fallido:
   tests/test_actions.py::test_dispatch_action_request_does_not_enqueue_non_queued_status
   tests/test_celery_config.py -q` -> **8 passed**; Ruff focalizado verde.
 
+Hallazgo 37.10 - RBAC: aprobacion propia y mutaciones de memoria sin admin:
+
+- Severidad: P1 seguridad/HITL.
+- Evidencia: cualquier usuario autenticado podia ejecutar
+  `POST /approvals/{id}/approve|reject` sobre una aprobacion que el mismo
+  habia originado, anulando la contract human-in-the-loop. Ademas,
+  `POST /deepagents/memory/proposals/{id}/approve|reject` y
+  `POST /deepagents/memory/consolidate/run` ejecutaban con solo
+  `require_authenticated_user`, aunque mutan memoria persistente que moldea
+  futuros runs.
+- Correccion: nuevo flag `APPROVAL_REQUIRE_FOUR_EYES` (default True). En
+  `_decide_approval`, si el approver coincide con el requester, devuelve `403`
+  con detalle four-eyes. Los tres endpoints de memoria ahora dependen de
+  `require_admin_user`. `SETTINGS_REGISTRY_TABLE.md` regenerado para incluir
+  el nuevo flag.
+- Verificacion: `uv run pytest
+  tests/test_actions.py::test_approval_self_decision_blocked_by_four_eyes
+  tests/test_actions.py::test_approval_self_decision_allowed_when_four_eyes_disabled
+  tests/test_actions.py::test_approval_decision_is_immutable
+  tests/test_actions.py::test_openshell_approval_dispatches_queued_job
+  tests/test_actions.py::test_rejected_approval_closes_linked_job_and_action_request
+  tests/test_admin_gated_endpoints.py tests/test_config.py
+  tests/test_langsmith_access.py -q` -> **28 passed**; suite amplia
+  `uv run pytest -m 'not integration and not slow' -q` -> **512 passed,
+  1 skipped, 20 deselected**; Ruff/format/mypy focalizados verdes.
+
 ## 2026-05-15 - Pulido CI post-baseline
 
 - El workflow CI estaba versionado bajo `cognitive-os/.github/workflows/ci.yml`.

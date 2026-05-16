@@ -44,6 +44,13 @@
   concede por `AUTH_ADMIN_ROLES` o por `ADMIN_USER_IDS`.
 - `LANGSMITH_ENDPOINTS_REQUIRE_ADMIN=true` es el default para que las rutas de
   observabilidad requieran admin salvo override consciente.
+- `APPROVAL_REQUIRE_FOUR_EYES=true` es el default y exige que el usuario que
+  decide una `HumanApproval` sea distinto del que la solicitó. Solo el
+  modo dev/test puede bajarlo a `false`.
+- Mutaciones de memoria DeepAgent (`/deepagents/memory/proposals/{id}/approve`,
+  `/deepagents/memory/proposals/{id}/reject`,
+  `/deepagents/memory/consolidate/run`) requieren rol admin: alteran memoria
+  persistente que moldea futuros runs.
 - `ActionRequest.payload_redacted` sigue siendo la superficie de UI/audit.
   `payload_executable` se guarda como sobre cifrado Fernet cuando
   `ACTION_PAYLOAD_ENCRYPTION_KEY` está configurado.

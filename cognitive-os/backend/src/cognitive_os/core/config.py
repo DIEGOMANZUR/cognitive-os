@@ -248,6 +248,16 @@ class Settings(BaseSettings):
             "legacy plaintext payloads are rejected at execution time."
         ),
     )
+    approval_require_four_eyes: bool = Field(
+        default=True,
+        alias="APPROVAL_REQUIRE_FOUR_EYES",
+        description=(
+            "When True, the user that approves or rejects a HumanApproval must "
+            "be different from the user that requested the underlying action. "
+            "Default True enforces the standard commercial human-in-the-loop "
+            "contract; set False only for single-operator dev/test setups."
+        ),
+    )
     http_timeout_seconds: float = Field(default=15.0, alias="HTTP_TIMEOUT_SECONDS")
     http_max_retries: int = Field(default=2, alias="HTTP_MAX_RETRIES")
     circuit_breaker_failure_threshold: int = Field(

@@ -1140,6 +1140,114 @@ async def test_rejected_approval_closes_linked_job_and_action_request(
     )
 
 
+@pytest.mark.asyncio
+async def test_approval_self_decision_blocked_by_four_eyes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The user that requested an action cannot approve their own approval."""
+    now = datetime.now(UTC)
+    approval_id = UUID("66666666-6666-6666-6666-666666666666")
+    approval = HumanApproval(
+        id=approval_id,
+        status="pending",
+        action="execute_action_request",
+        requested_action="execute_action_request:demo",
+        args_redacted={},
+        requested_by="1",  # same identity as the JWT used in _headers()
+        created_at=now,
+        updated_at=now,
+    )
+
+    class FakeSession:
+        async def get(self, model: type[object], obj_id: UUID) -> object | None:
+            assert model is HumanApproval
+            assert obj_id == approval_id
+            return approval
+
+        async def flush(self) -> None:
+            raise AssertionError("self-approval must not mutate state")
+
+    @asynccontextmanager
+    async def fake_session_scope():
+        yield FakeSession()
+
+    monkeypatch.setattr(api_app, "session_scope", fake_session_scope)
+    monkeypatch.setattr(api_app.settings, "approval_require_four_eyes", True)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        approve_response = await client.post(
+            f"/approvals/{approval_id}/approve",
+            headers=_headers(),
+        )
+        reject_response = await client.post(
+            f"/approvals/{approval_id}/reject",
+            headers=_headers(),
+        )
+
+    assert approve_response.status_code == 403
+    assert "four-eyes" in approve_response.json()["detail"].lower()
+    assert reject_response.status_code == 403
+    assert approval.status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_approval_self_decision_allowed_when_four_eyes_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Single-operator dev/test setups can disable the four-eyes contract."""
+    now = datetime.now(UTC)
+    approval_id = UUID("77777777-7777-7777-7777-777777777777")
+    approval = HumanApproval(
+        id=approval_id,
+        status="pending",
+        action="execute_action_request",
+        requested_action="execute_action_request:demo",
+        args_redacted={},
+        requested_by="1",
+        created_at=now,
+        updated_at=now,
+    )
+
+    class FakeSession:
+        async def get(self, model: type[object], obj_id: UUID) -> object | None:
+            if model is HumanApproval:
+                return approval
+            return None
+
+        async def execute(self, _stmt: object) -> object:
+            class _Result:
+                @staticmethod
+                def scalar_one_or_none() -> None:
+                    return None
+
+            return _Result()
+
+        def add(self, _obj: object) -> None:
+            return None
+
+        async def flush(self) -> None:
+            return None
+
+    @asynccontextmanager
+    async def fake_session_scope():
+        yield FakeSession()
+
+    monkeypatch.setattr(api_app, "session_scope", fake_session_scope)
+    monkeypatch.setattr(api_app.settings, "approval_require_four_eyes", False)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            f"/approvals/{approval_id}/approve",
+            headers=_headers(),
+        )
+
+    assert response.status_code == 200
+    assert approval.status == "approved"
+    assert approval.approver_user_id == "1"
+
+
 def _action_request_view(
     *,
     status: str,

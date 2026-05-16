@@ -130,6 +130,7 @@ from cognitive_os.assist.schemas import (
 from cognitive_os.assist.service import PersonalAssistDisabledError, PersonalAssistService
 from cognitive_os.core.auth import (
     AuthenticatedUser,
+    require_admin_user,
     require_authenticated_user,
     require_langsmith_api_access,
 )
@@ -276,6 +277,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="Cognitive OS API", lifespan=lifespan)
 _auth_dependency = Depends(require_authenticated_user)
+_admin_auth_dependency = Depends(require_admin_user)
 _langsmith_auth_dependency = Depends(require_langsmith_api_access)
 app.add_middleware(
     CORSMiddleware,
@@ -1227,8 +1229,9 @@ async def list_deepagent_memory_proposals(
 @app.post("/deepagents/memory/proposals/{proposal_id}/approve", response_model=dict[str, Any])
 async def approve_deepagent_memory_proposal(
     proposal_id: str,
-    user: AuthenticatedUser = _auth_dependency,
+    user: AuthenticatedUser = _admin_auth_dependency,
 ) -> dict[str, Any]:
+    """Admin-gated: memory mutations permanently shape future agent runs."""
     item = await DeepAgentMemoryService().approve_memory_proposal(proposal_id, user.user_id)
     return item.model_dump(mode="json")
 
@@ -1239,8 +1242,9 @@ async def approve_deepagent_memory_proposal(
 async def reject_deepagent_memory_proposal(
     proposal_id: str,
     request: MemoryRejectRequest,
-    user: AuthenticatedUser = _auth_dependency,
+    user: AuthenticatedUser = _admin_auth_dependency,
 ) -> None:
+    """Admin-gated counterpart of approve."""
     await DeepAgentMemoryService().reject_memory_proposal(
         proposal_id,
         user.user_id,
@@ -2580,9 +2584,14 @@ async def request_document_generate(
 
 @app.post("/deepagents/memory/consolidate/run", response_model=dict[str, Any])
 async def trigger_memory_consolidation(
-    user: AuthenticatedUser = _auth_dependency,
+    user: AuthenticatedUser = _admin_auth_dependency,
 ) -> dict[str, Any]:
-    """Dispatch the per-agent memory consolidation Celery task immediately."""
+    """Dispatch the per-agent memory consolidation Celery task immediately.
+
+    Admin-gated: the task rewrites long-term agent memory; only operators with
+    admin role or `ADMIN_USER_IDS` membership should be able to trigger it
+    out-of-band.
+    """
     del user
     async_result = consolidate_all_deepagent_memory_task.apply_async(queue="maintenance")
     return {"task_id": str(async_result.id), "status": "dispatched"}
@@ -2983,6 +2992,18 @@ async def _decide_approval(
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Approval already decided: {approval.status}",
+            )
+        if (
+            settings.approval_require_four_eyes
+            and approval.requested_by
+            and approval.requested_by == approver_user_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "Approver must differ from requester: human-in-the-loop "
+                    "requires four-eyes review."
+                ),
             )
         approval.status = status_value
         approval.approver_user_id = approver_user_id
