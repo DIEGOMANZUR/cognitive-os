@@ -34,3 +34,6 @@ def test_system_info_returns_policy_snapshot(client: TestClient) -> None:
     assert body["approval_require_four_eyes"] is True
     assert body["approval_pending_max_hours"] >= 1
     assert body["require_human_approval_for_external_actions"] is True
+    # New runtime metadata fields (may be None when running outside a git tree).
+    assert "git_commit" in body
+    assert "alembic_head" in body

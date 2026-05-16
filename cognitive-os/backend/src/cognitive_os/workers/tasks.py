@@ -98,6 +98,17 @@ async def _update_job(
         )
 
 
+async def _read_job_status(job_id: UUID) -> str | None:
+    """Return the current status string for `job_id`, or None when missing.
+
+    Used by Celery tasks to short-circuit retries on jobs that already reached
+    a terminal state (worker crashed between DB commit and Celery ACK).
+    """
+    async with session_scope() as session:
+        job = await session.get(Job, job_id)
+        return None if job is None else job.status
+
+
 async def _mark_job_failed(job_id: UUID, exc: Exception) -> None:
     await _update_job(
         job_id,
@@ -503,6 +514,19 @@ def reap_stuck_action_requests_task() -> dict[str, Any]:
 def run_action_request_task_async(action_request_id: str, job_id: str) -> dict[str, Any]:
     active_job_id = UUID(job_id)
     active_action_request_id = UUID(action_request_id)
+    # Celery may retry a task that already crossed a terminal boundary (worker
+    # crashed after the DB update but before ACK). Re-entering on a job already
+    # in a terminal state would overwrite the real outcome — short-circuit
+    # instead and return the existing row.
+    existing_status = _run(_read_job_status(active_job_id))
+    if existing_status in {"completed", "failed", "cancelled", "rejected"}:
+        return {
+            "id": str(active_action_request_id),
+            "job_id": str(active_job_id),
+            "status": existing_status,
+            "skipped": True,
+            "reason": "Worker re-entry on a job already in a terminal state.",
+        }
     try:
         _run(
             _update_job(

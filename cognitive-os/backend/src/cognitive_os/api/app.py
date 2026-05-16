@@ -342,6 +342,8 @@ class SystemInfoResponse(BaseModel):
     approval_pending_max_hours: int
     action_payload_encryption_required: bool
     research_persistence_backend: str
+    git_commit: str | None = None
+    alembic_head: str | None = None
     started_at: datetime
 
 
@@ -660,6 +662,76 @@ async def health() -> HealthResponse:
 _SYSTEM_STARTED_AT = datetime.now(UTC)
 
 
+def _resolve_git_commit() -> str | None:
+    """Capture the current commit at startup if running inside a git checkout.
+
+    Returns short SHA on success, `None` when git is unreachable or the source
+    tree was not built from a git clone (e.g. container with only the wheel).
+    """
+    import subprocess  # noqa: PLC0415 - localized to startup helper
+
+    candidates = [
+        Path(__file__).resolve().parent.parent.parent.parent,
+        Path(__file__).resolve().parent.parent.parent.parent.parent,
+    ]
+    for repo in candidates:
+        if not (repo / ".git").exists():
+            continue
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--short=12", "HEAD"],
+                cwd=str(repo),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=2.0,
+            )
+        except (subprocess.SubprocessError, OSError):
+            return None
+        if result.returncode == 0:
+            return result.stdout.strip() or None
+    return None
+
+
+def _resolve_alembic_head() -> str | None:
+    """Read the latest Alembic revision directly from the versions directory.
+
+    Avoids importing the Alembic CLI at request time: we glob the version
+    files and walk the down_revision chain to find the tip. Returns `None`
+    when the directory is missing (e.g. running tests against an installed
+    wheel).
+    """
+    import re  # noqa: PLC0415 - small helper localized to startup
+
+    versions_dir = Path(__file__).resolve().parent.parent.parent.parent / "alembic" / "versions"
+    if not versions_dir.exists():
+        return None
+    revision_re = re.compile(r"^revision[^=]*=\s*[\"']([0-9a-fA-F]+)[\"']", re.MULTILINE)
+    down_re = re.compile(r"^down_revision[^=]*=\s*(?:[\"']([0-9a-fA-F]+)[\"']|None)", re.MULTILINE)
+    children: set[str] = set()
+    revisions: set[str] = set()
+    for entry in versions_dir.glob("*.py"):
+        try:
+            text = entry.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        rev_match = revision_re.search(text)
+        down_match = down_re.search(text)
+        if rev_match:
+            revisions.add(rev_match.group(1))
+        if down_match and down_match.group(1):
+            children.add(down_match.group(1))
+    tips = revisions - children
+    if not tips:
+        return None
+    # Multiple heads should never happen in this repo; pick lexicographic max.
+    return sorted(tips)[-1]
+
+
+_SYSTEM_GIT_COMMIT = _resolve_git_commit()
+_SYSTEM_ALEMBIC_HEAD = _resolve_alembic_head()
+
+
 @app.get("/system/info", response_model=SystemInfoResponse)
 async def system_info(
     user: AuthenticatedUser = _auth_dependency,
@@ -689,6 +761,8 @@ async def system_info(
         approval_pending_max_hours=settings.approval_pending_max_hours,
         action_payload_encryption_required=settings.action_payload_encryption_required,
         research_persistence_backend=settings.research_persistence_backend,
+        git_commit=_SYSTEM_GIT_COMMIT,
+        alembic_head=_SYSTEM_ALEMBIC_HEAD,
         started_at=_SYSTEM_STARTED_AT,
     )
 
