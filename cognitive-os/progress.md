@@ -15,6 +15,10 @@
   alineado con `scripts/full-qa.sh`.
 - Workflow parseado con PyYAML y `uvx pre-commit run --all-files` verde tras el
   movimiento.
+- `backend/scripts/verify_operator_ready.sh` reforzado para sincronizar deps con
+  OpenHarness, comprobar `ruff format`, ejecutar `npm ci` y fallar si Alembic no
+  está en head. Verificación real del script: **492 passed, 1 skipped,
+  20 deselected**, Alembic `202605150002 == 202605150002`, frontend lint/build OK.
 
 ## 2026-05-15 - Fase 35 baseline git seguro
 

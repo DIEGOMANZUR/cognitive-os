@@ -1200,3 +1200,6 @@ ejecutable desde la raiz real del repositorio.
 - CI movido desde `cognitive-os/.github/workflows/ci.yml` a
   `.github/workflows/ci.yml`.
 - CI alineado con el layout del monorepo y con `scripts/full-qa.sh`.
+- `backend/scripts/verify_operator_ready.sh` queda como compuerta operacional:
+  sync deps, lint, format, typecheck, pytest, settings registry, Alembic
+  current=head, `npm ci`, lint y build frontend.

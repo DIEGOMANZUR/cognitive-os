@@ -11,6 +11,10 @@
   apuntando a `cognitive-os/backend` y `cognitive-os/frontend`.
 - El job backend ahora instala con `--extra openharness`, igual que el full QA
   local, para evitar divergencia entre CI y operador.
+- `verify_operator_ready.sh` era una verificacion parcial: no sincronizaba deps,
+  no revisaba `ruff format`, no hacia `npm ci` y mostraba Alembic como dato
+  informativo aunque estuviera detras de head. Ahora esas comprobaciones son
+  compuertas reales.
 
 ## 2026-05-15 - Baseline git seguro
 
