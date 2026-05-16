@@ -39,6 +39,10 @@
   Nueva cobertura: `tests/test_alembic_autogenerate.py` (**2 passed**).
 - `backend/scripts/verify_operator_ready.sh` ahora ejecuta tambien
   `uv run alembic check`, para que el drift de autogenerate sea compuerta real.
+- Tests de integracion ejecutados con Docker/Tesseract disponibles: primer pase
+  detecto incompatibilidad del fake OCR con `batch_insert_chunks`; corregido y
+  verificado con `uv run pytest -m integration -q` -> **18 passed, 1 skipped,
+  499 deselected**.
 - Compuertas finales Fase 37 ejecutadas tras los commits:
   `bash scripts/full-qa.sh` -> OK; `uvx pre-commit run --all-files` -> OK;
   detect-secrets sobre `git ls-files` -> `results: {}`; `bash

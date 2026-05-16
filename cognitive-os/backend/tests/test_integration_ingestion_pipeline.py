@@ -47,6 +47,16 @@ class RecordingStore:
         self.chunks.append(chunk)
         return chunk.chunk_id
 
+    def batch_insert_chunks(
+        self,
+        chunks: list[ChunkRecord],
+        *,
+        batch_size: int = 50,
+    ) -> list[str]:
+        del batch_size
+        self.chunks.extend(chunks)
+        return [chunk.chunk_id for chunk in chunks]
+
 
 def _docker_is_available() -> bool:
     if shutil.which("docker") is None:

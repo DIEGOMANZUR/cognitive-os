@@ -106,6 +106,18 @@ Checks de capa sin hallazgo nuevo:
   `202605150002`. Docker core: Postgres, Redis, Weaviate y Neo4j healthy en
   `127.0.0.1`.
 
+Hallazgo 37.5 - Integracion OCR no estaba compatible con batch insert:
+
+- Severidad: P2 cobertura/integracion.
+- Evidencia: `uv run pytest -m integration -q` fallaba en
+  `test_ingests_image_pdf_with_tesseract_when_available` cuando Tesseract esta
+  instalado: el fake `RecordingStore` solo implementaba `insert_chunk`, pero el
+  pipeline real usa `batch_insert_chunks`.
+- Correccion: `RecordingStore` soporta `batch_insert_chunks`, preservando la
+  semantica del fake y cubriendo el camino OCR real.
+- Verificacion: `uv run pytest -m integration -q` -> **18 passed, 1 skipped,
+  499 deselected**; Ruff/format del test verde.
+
 ## 2026-05-15 - Pulido CI post-baseline
 
 - El workflow CI estaba versionado bajo `cognitive-os/.github/workflows/ci.yml`.
