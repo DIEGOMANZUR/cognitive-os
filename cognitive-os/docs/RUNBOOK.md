@@ -336,3 +336,109 @@ antes de extraer el backup.
   cierra jobs terminados con > 30 días.
 * `OpenShellPolicyViolation` → la tarea pidió acciones bloqueadas por
   política. Revisa `args_redacted` antes de aprobar.
+
+## Bootstrap desde cero (operador nuevo)
+
+Esta sección asume que el operador clona el repo fresh y necesita levantar
+Cognitive OS para uso real. Cubre solo los pasos que requieren input manual.
+
+### 0. Pre-requisitos del host
+
+- Linux con Docker + Docker Compose v2.
+- Python 3.12+ via `uv` (`curl -LsSf https://astral.sh/uv/install.sh | sh`).
+- Node.js 20+ y `npm` ≥ 10 para el frontend.
+- 8 GB RAM libres recomendados (Postgres + Weaviate + Neo4j en local).
+
+### 1. Variables locales: `.env.local`
+
+```bash
+cd cognitive-os
+cp .env.example .env       # secretos generados automáticamente
+cp .env.local.example .env.local
+chmod 600 .env .env.local
+```
+
+`init_env.sh` se ejecuta al levantar la primera vez y completa los secretos
+de infra (`JWT_SECRET`, `POSTGRES_PASSWORD`, `WEAVIATE_API_KEY`,
+`NEO4J_PASSWORD`).
+
+### 2. Credenciales externas — cómo obtener cada una
+
+| Variable | Cómo se obtiene | Necesaria para |
+|---|---|---|
+| `PRIMARY_LLM_API_KEY` | Cuenta en DeepSeek (`https://platform.deepseek.com`) → API keys | Chat, research, analysis |
+| `EMBEDDINGS_API_KEY` | Google AI Studio (`https://aistudio.google.com/apikey`) → generar API key Gemini | Búsqueda semántica, RAG |
+| `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` | Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 client (Desktop app). Habilita la API "Gmail API" | Digest Gmail read-only |
+| `GMAIL_TOKEN_DIR/token.json` | Ejecuta `uv run python backend/scripts/auth_google.py gmail` y completa el flujo OAuth en el navegador | Gmail digest real |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Mismo client de Cloud Console (puedes reutilizar el de Gmail si scopes lo permiten) | Calendar/Drive |
+| `GOOGLE_TOKEN_DIR/token.json` | `uv run python backend/scripts/auth_google.py google` con scopes calendar.events + drive | Calendar create + Drive upload |
+| `GOOGLE_MAPS_API_KEY` | Google Cloud Console → APIs & Services → Maps API + Routes API habilitadas | `/actions/maps/route` |
+| `ELEVENLABS_API_KEY` | `https://elevenlabs.io/app/settings/api-keys` | `/voice/speak`, `/voice/transcribe` |
+| `GODADDY_API_KEY` / `GODADDY_API_SECRET` | `developer.godaddy.com` → Production keys (empezar con OTE) | `/actions/godaddy/dns/*` |
+| `MAIL_GODADDY_USERNAME` / `MAIL_GODADDY_PASSWORD` | Webmail de GoDaddy → IMAP/SMTP creds. **Activa "Allow less-secure apps" o usa app password** | Mail personal |
+| `TAVILY_API_KEY` | `https://app.tavily.com` → API keys | Web search |
+| `BRAVE_SEARCH_API_KEY` | `https://api.search.brave.com/app/keys` | Web search fallback |
+| `EXA_API_KEY` | `https://dashboard.exa.ai/api-keys` | Web search semántico |
+| `HF_TOKEN` | `https://huggingface.co/settings/tokens` (read scope) | Reranker Hugging Face |
+| `LANGSMITH_API_KEY` | `https://smith.langchain.com/settings` | Trazas runtime (opcional) |
+| `TELEGRAM_BOT_TOKEN` | `@BotFather` → /newbot | Bot Telegram |
+| `TELEGRAM_AUTHORIZED_USER_IDS` | `@userinfobot` te devuelve tu id numérico | Bot Telegram |
+| `SUPERMEMORY_API_KEY` / `SUPERMEMORY_PROJECT` | `https://app.supermemory.ai/dashboard` | Memoria personal cross-sesión |
+| `CONTEXT7_API_KEY` | `https://context7.com/dashboard` | MCP Context7 |
+| `GITHUB_PERSONAL_ACCESS_TOKEN` | `https://github.com/settings/tokens?type=beta` con `repo` read | MCP GitHub remoto |
+| `ACTION_PAYLOAD_ENCRYPTION_KEY` | `python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"` | Cifrado payload ejecutable (producción exige `ACTION_PAYLOAD_ENCRYPTION_REQUIRED=true`) |
+
+Si una credencial no aparece, la capacidad asociada queda en `blocked` o
+`disabled` en `/health/dashboard` — el resto del sistema sigue operativo.
+
+### 3. Levantar y verificar
+
+```bash
+# desde la raíz del workspace
+bash cognitive-os/scripts/dev_up.sh                # infra Docker
+cd cognitive-os/backend
+uv sync --extra openharness
+uv run alembic upgrade head
+uv run uvicorn cognitive_os.api.app:app --host 127.0.0.1 --port 8000  &
+bash ../scripts/dev_worker.sh &
+bash ../scripts/dev_beat.sh &
+cd ../frontend && npm ci && npm run dev &
+```
+
+Smoke autenticado:
+
+```bash
+TOKEN=$(uv run python -c "from cognitive_os.core.auth import create_access_token;print(create_access_token(user_id='1', roles=['admin']))")
+curl -s -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8000/system/info | jq
+curl -s -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8000/health/dashboard | jq '.status'
+```
+
+`/system/info` debe mostrar `approval_require_four_eyes=true`,
+`action_payload_encryption_required=true` (producción) y el `git_commit`
+actual.
+
+### 4. Compuertas pre-producción
+
+Antes de mover el cockpit fuera de tu host:
+
+1. `bash cognitive-os/scripts/full-qa.sh` → backend + frontend verdes, alembic
+   sin drift, `git diff --check` clean.
+2. `bash cognitive-os/backend/scripts/verify_operator_ready.sh` → Alembic en
+   head, frontend lint/build, sin drift.
+3. `uvx pre-commit run --all-files` → secrets/format/whitespace verdes.
+4. `uvx --from detect-secrets detect-secrets scan` → `results: {}`.
+5. `bash cognitive-os/scripts/stress-qa.sh 3` → 3 pasadas pytest verdes.
+
+### 5. Riesgos residuales conocidos
+
+- **OAuth Google manual**: `GOOGLE_TOKEN_DIR/token.json` no se puede
+  generar sin un operador frente al navegador la primera vez. Es OAuth de
+  desktop por diseño; renovaciones son automáticas con refresh token.
+- **Rate limit en proceso**: el limiter es local. Si despliegas múltiples
+  réplicas del API necesitas un store compartido (Redis) — el módulo
+  `core/rate_limit.py` expone la interfaz lista para ser sustituida.
+- **Telegram approve**: el comando `/approve` del bot Telegram registra
+  `AuditEvent` pero no cascadea `rejected` a `ActionRequest` ligados; el
+  flujo recomendado es aprobar desde el panel REST que sí cascadea.
+- **OpenChamber / OpenCode**: son cockpit-only y no parte del runtime
+  productivo. No hace falta exponerlos hacia internet.
