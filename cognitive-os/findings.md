@@ -156,6 +156,25 @@ Hallazgo 37.7 - Gmail podia exponer rutas locales en errores de OAuth:
   tests/test_health_dashboard.py -q` -> **19 passed**; Ruff focalizado y
   `git diff --check` verdes.
 
+Hallazgo 37.8 - Kimi WebBridge mutaba navegador real sin aprobacion efectiva:
+
+- Severidad: P1 seguridad/operacion.
+- Evidencia: `KIMI_WEBBRIDGE_REQUIRE_APPROVAL` declaraba que las mutaciones del
+  navegador real requerian aprobacion, pero los endpoints directos
+  `/actions/webbridge/click|fill|evaluate|close_session` ejecutaban con solo
+  `KIMI_WEBBRIDGE_ALLOW_MUTATIONS=true`. Ademas, la navegacion Kimi no heredaba
+  la defensa DNS/SSRF ya existente para browser automation aislado.
+- Riesgo: una configuracion con mutaciones activas podia operar sesiones reales
+  del usuario sin `ActionRequest`/`HumanApproval`; con wildcard o dominios
+  engañosos tambien podia navegar a IPs internas resueltas via DNS.
+- Correccion: mutaciones directas quedan bloqueadas mientras
+  `KIMI_WEBBRIDGE_REQUIRE_APPROVAL=true`; produccion rechaza
+  `KIMI_WEBBRIDGE_ALLOW_MUTATIONS=true` con aprobacion deshabilitada; Kimi
+  navigation usa `ENABLE_BROWSER_SSRF_CHECK` y rechaza IPs privadas/loopback/
+  reservadas tras resolver DNS.
+- Verificacion: `uv run pytest tests/test_kimi_webbridge.py tests/test_config.py
+  -q` -> **31 passed**; Ruff/format focalizados y mypy en Kimi/config verdes.
+
 ## 2026-05-15 - Pulido CI post-baseline
 
 - El workflow CI estaba versionado bajo `cognitive-os/.github/workflows/ci.yml`.

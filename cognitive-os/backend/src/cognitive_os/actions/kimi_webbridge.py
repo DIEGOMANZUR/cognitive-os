@@ -27,6 +27,11 @@ import httpx
 import structlog
 from pydantic import BaseModel, Field
 
+from cognitive_os.actions.policy import (
+    ActionPolicyViolation,
+    HostnameResolver,
+    validate_browser_target_ip,
+)
 from cognitive_os.core.config import Settings, settings
 from cognitive_os.core.resilience import retry_transient_http
 from cognitive_os.tools.policy import ToolAuditRecord, ToolRiskLevel, record_audit_event
@@ -249,9 +254,11 @@ class KimiWebBridgeService:
         self,
         provider: WebBridgeProvider | None = None,
         app_settings: Settings = settings,
+        hostname_resolver: HostnameResolver | None = None,
     ) -> None:
         self._settings = app_settings
         self._provider = provider
+        self._hostname_resolver = hostname_resolver
 
     def _resolve_provider(self) -> WebBridgeProvider:
         if self._provider is None:
@@ -321,6 +328,12 @@ class KimiWebBridgeService:
                 "set KIMI_WEBBRIDGE_ALLOW_MUTATIONS=true to enable."
             )
             raise KimiWebBridgeError(msg)
+        if action in MUTATING_ACTIONS and self._settings.kimi_webbridge_require_approval:
+            msg = (
+                f"WebBridge action {action!r} is a mutation and requires human approval; "
+                "direct execution is disabled while KIMI_WEBBRIDGE_REQUIRE_APPROVAL=true."
+            )
+            raise KimiWebBridgeError(msg)
         if action not in READ_ONLY_ACTIONS and action not in MUTATING_ACTIONS:
             msg = f"Unknown WebBridge action {action!r}."
             raise KimiWebBridgeError(msg)
@@ -333,6 +346,14 @@ class KimiWebBridgeService:
             raise KimiWebBridgeError(f"Could not parse host from URL {url!r}.")
         if not _domain_allowed(host, list(self._settings.kimi_webbridge_allowed_domains)):
             raise KimiWebBridgeError(f"Host {host!r} is not in KIMI_WEBBRIDGE_ALLOWED_DOMAINS.")
+        if getattr(self._settings, "enable_browser_ssrf_check", True):
+            try:
+                if self._hostname_resolver is None:
+                    validate_browser_target_ip(host)
+                else:
+                    validate_browser_target_ip(host, resolver=self._hostname_resolver)
+            except ActionPolicyViolation as exc:
+                raise KimiWebBridgeError(str(exc)) from exc
 
     def navigate(
         self,

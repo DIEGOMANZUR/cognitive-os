@@ -27,15 +27,18 @@ def _settings(
     enabled: bool = True,
     domains: list[str] | None = None,
     mutations: bool = False,
+    require_approval: bool = True,
+    ssrf_check: bool = False,
     url: str = "http://127.0.0.1:10086",
 ) -> Settings:
     return Settings.model_construct(
         enable_kimi_webbridge=enabled,
         kimi_webbridge_url=url,
-        kimi_webbridge_require_approval=True,
+        kimi_webbridge_require_approval=require_approval,
         kimi_webbridge_allowed_domains=domains or [],
         kimi_webbridge_allow_mutations=mutations,
         kimi_webbridge_request_timeout_seconds=5,
+        enable_browser_ssrf_check=ssrf_check,
         http_timeout_seconds=5.0,
     )
 
@@ -139,6 +142,30 @@ def test_navigate_accepts_subdomain_of_allowed_root() -> None:
     ]
 
 
+def test_navigate_rejects_private_ip_when_ssrf_check_enabled() -> None:
+    service = KimiWebBridgeService(
+        provider=FakeWebBridgeProvider(),
+        app_settings=_settings(domains=["example.com"], ssrf_check=True),
+        hostname_resolver=lambda _: ["10.0.0.5"],
+    )
+
+    with pytest.raises(KimiWebBridgeError, match="non-public address"):
+        service.navigate(NavigateRequest(url="https://example.com/private"))
+
+
+def test_navigate_accepts_public_ip_when_ssrf_check_enabled() -> None:
+    fake = FakeWebBridgeProvider()
+    service = KimiWebBridgeService(
+        provider=fake,
+        app_settings=_settings(domains=["example.com"], ssrf_check=True),
+        hostname_resolver=lambda _: ["93.184.216.34"],
+    )
+
+    result = service.navigate(NavigateRequest(url="https://example.com/page"))
+
+    assert result.status == "ok"
+
+
 def test_snapshot_and_screenshot_are_read_only_and_pass_through() -> None:
     fake = FakeWebBridgeProvider(responses={"snapshot": {"tree": "fake-tree", "url": "x"}})
     service = KimiWebBridgeService(
@@ -165,11 +192,20 @@ def test_mutating_ops_blocked_without_allow_mutations_flag() -> None:
         service.evaluate(EvaluateRequest(code="1+1"))
 
 
-def test_mutating_ops_work_when_flag_enabled() -> None:
+def test_mutating_ops_blocked_when_approval_is_required() -> None:
+    service = KimiWebBridgeService(
+        provider=FakeWebBridgeProvider(),
+        app_settings=_settings(domains=["google.com"], mutations=True, require_approval=True),
+    )
+    with pytest.raises(KimiWebBridgeError, match="requires human approval"):
+        service.click(ClickRequest(selector="#submit"))
+
+
+def test_mutating_ops_work_when_flag_enabled_and_direct_approval_gate_disabled() -> None:
     fake = FakeWebBridgeProvider(responses={"click": {"success": True}})
     service = KimiWebBridgeService(
         provider=fake,
-        app_settings=_settings(domains=["google.com"], mutations=True),
+        app_settings=_settings(domains=["google.com"], mutations=True, require_approval=False),
     )
     result = service.click(ClickRequest(selector="#submit"))
     assert result.payload == {"success": True}

@@ -59,6 +59,13 @@
 - Verificacion focalizada nueva: `uv run pytest tests/test_gmail_digest.py
   tests/test_health_dashboard.py -q` -> **19 passed**; Ruff focalizado y
   `git diff --check` verdes.
+- Hardening Kimi WebBridge: navegacion del navegador real hereda
+  `ENABLE_BROWSER_SSRF_CHECK`; mutaciones directas se bloquean si
+  `KIMI_WEBBRIDGE_REQUIRE_APPROVAL=true`; produccion rechaza mutaciones Kimi con
+  aprobacion deshabilitada.
+- Verificacion focalizada Kimi/config: `uv run pytest tests/test_kimi_webbridge.py
+  tests/test_config.py -q` -> **31 passed**; Ruff/format focalizados y mypy en
+  `kimi_webbridge.py`/`config.py` verdes.
 - Compuertas finales Fase 37 ejecutadas tras los commits:
   `bash scripts/full-qa.sh` -> OK; `uvx pre-commit run --all-files` -> OK;
   detect-secrets sobre `git ls-files` -> `results: {}`; `bash
@@ -1612,14 +1619,19 @@ Kimi WebBridge (navegación con el navegador real del usuario):
 - `actions/kimi_webbridge.py`: servicio gateado por 3 capas (enable +
   allow-list de dominios + flag de mutaciones), provider HTTP al daemon local
   127.0.0.1:10086, FakeWebBridgeProvider para tests, audit EXTERNAL_ACTION.
-- Validador de config rechaza KIMI_WEBBRIDGE_URL no-localhost (anti-SSRF).
+- Validador de config rechaza KIMI_WEBBRIDGE_URL no-localhost; navegacion
+  hereda el DNS/SSRF check del browser aislado cuando
+  `ENABLE_BROWSER_SSRF_CHECK=true`.
+- Las mutaciones directas se bloquean mientras
+  `KIMI_WEBBRIDGE_REQUIRE_APPROVAL=true`; produccion rechaza mutaciones Kimi con
+  aprobacion deshabilitada.
 - 8 endpoints `/actions/webbridge/*` (status/navigate/snapshot/screenshot/
   click/fill/evaluate/list_tabs/close_session) todos JWT.
 - 3 tools DeepAgents read-only (`browse_real_navigate/snapshot/screenshot`)
   con policy flag `allow_kimi_webbridge` (default OFF) + screenshot trunca
   base64 para no inundar el contexto.
 - Health dashboard: componente `kimi_webbridge`.
-- 13 tests `tests/test_kimi_webbridge.py`.
+- 17 tests `tests/test_kimi_webbridge.py`.
 
 QA: **447 passed, 1 skipped, 20 deselected**; ruff/format/mypy strict verdes
 (105 source files); frontend lint/build verdes; SETTINGS_REGISTRY_TABLE

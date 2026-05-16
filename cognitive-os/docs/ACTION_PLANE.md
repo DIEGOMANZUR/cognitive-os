@@ -47,6 +47,11 @@ Hechos verificables (1:1 con `backend/src/cognitive_os/actions/` y `api/app.py`)
 - GoDaddy: `dns/preview` y `dns/request` aplican rate limit local; ejecución
   real solo si `GODADDY_DNS_DRY_RUN_ONLY=false` + dominio allow-listed +
   aprobación; producción exige `GODADDY_ALLOW_PRODUCTION_WRITES=true`.
+- Kimi WebBridge: opera el navegador real del usuario mediante daemon local.
+  Navegación exige `KIMI_WEBBRIDGE_ALLOWED_DOMAINS` y hereda
+  `ENABLE_BROWSER_SSRF_CHECK`; mutaciones directas (`click/fill/evaluate/close`)
+  se rechazan mientras `KIMI_WEBBRIDGE_REQUIRE_APPROVAL=true`. En producción no
+  se permite activar mutaciones con esa aprobación deshabilitada.
 
 ## Principio central
 
@@ -110,6 +115,10 @@ Todos requieren JWT.
 | `POST /actions/documents/request` | Crea `ActionRequest` persistente para generar un documento | No directamente |
 | `POST /actions/browser/preview/request` | Crea `ActionRequest` persistente para `browser_preview` headless (titulo + screenshot, sin login) | No directamente |
 | `POST /actions/browser/interactive/request` | Plan interactivo (click/fill/scroll/screenshot/analyze) con vision LLM opcional | No directamente |
+| `GET /actions/webbridge/status` | Estado de Kimi WebBridge local | No |
+| `POST /actions/webbridge/navigate` | Navega el navegador real a dominio allow-listed y con SSRF check | No, pero cambia estado del navegador |
+| `POST /actions/webbridge/snapshot` / `screenshot` / `list_tabs` | Lee estado visual/tabs del navegador real | No |
+| `POST /actions/webbridge/click` / `fill` / `evaluate` / `close_session` | Mutaciones directas en navegador real; bloqueadas por defecto si requieren aprobación | Sí solo si `KIMI_WEBBRIDGE_ALLOW_MUTATIONS=true` y `KIMI_WEBBRIDGE_REQUIRE_APPROVAL=false` |
 
 ## Estados de `ActionRequest`
 

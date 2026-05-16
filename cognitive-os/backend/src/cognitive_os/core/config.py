@@ -813,8 +813,9 @@ class Settings(BaseSettings):
         alias="KIMI_WEBBRIDGE_REQUIRE_APPROVAL",
         description=(
             "When True, every mutating WebBridge call (click/fill/evaluate/upload/"
-            "close) produces a HumanApproval row before execution. Default True is "
-            "the safe stance because the daemon drives the user's real browser."
+            "close) must go through an approved ActionRequest path; direct mutation "
+            "endpoints are refused while this is true. Default True is the safe stance "
+            "because the daemon drives the user's real browser."
         ),
     )
     kimi_webbridge_allowed_domains: StringList = Field(
@@ -1014,6 +1015,15 @@ class Settings(BaseSettings):
             if not self.browser_headless_default:
                 msg = "Production browser automation must default to headless."
                 raise ValueError(msg)
+        if (
+            self.enable_kimi_webbridge
+            and self.kimi_webbridge_allow_mutations
+            and not self.kimi_webbridge_require_approval
+        ):
+            msg = (
+                "Production Kimi WebBridge mutations require KIMI_WEBBRIDGE_REQUIRE_APPROVAL=true."
+            )
+            raise ValueError(msg)
         if self.enable_computer_actions and not self.require_human_approval_for_external_actions:
             msg = "Production computer actions require human approval."
             raise ValueError(msg)

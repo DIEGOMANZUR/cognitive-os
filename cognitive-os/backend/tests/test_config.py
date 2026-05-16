@@ -114,6 +114,37 @@ def test_production_google_writes_require_human_approval() -> None:
         )
 
 
+def test_production_kimi_webbridge_mutations_require_approval() -> None:
+    production_secrets = {
+        "environment": "production",
+        "jwt_secret": "x" * 32,
+        "primary_llm_api_key": "primary-key",  # pragma: allowlist secret
+        "secondary_llm_api_key": "secondary-key",  # pragma: allowlist secret
+        "fallback_llm_api_key": "fallback-key",  # pragma: allowlist secret
+        "vision_llm_api_key": "vision-key",  # pragma: allowlist secret
+        "embeddings_api_key": "embeddings-key",  # pragma: allowlist secret
+        "langsmith_api_key": "langsmith-key",  # pragma: allowlist secret
+        "postgres_password": "postgres-password",  # pragma: allowlist secret
+        "database_url": "postgresql+asyncpg://cogos:postgres-password@localhost:5432/cognitive_os",  # noqa: E501  # pragma: allowlist secret
+        "weaviate_api_key": "weaviate-key",  # pragma: allowlist secret
+        "neo4j_password": "neo4j-password",  # pragma: allowlist secret
+        "tavily_api_key": "tavily-key",  # pragma: allowlist secret
+        "telegram_bot_token": "telegram-token",  # pragma: allowlist secret
+        "action_payload_encryption_key": "action-payload-key",
+        "action_payload_encryption_required": True,
+        "research_persistence_backend": "postgres",
+    }
+
+    with pytest.raises(ValidationError, match="Kimi WebBridge mutations require"):
+        Settings(
+            **production_secrets,
+            enable_kimi_webbridge=True,
+            kimi_webbridge_allowed_domains="google.com",
+            kimi_webbridge_allow_mutations=True,
+            kimi_webbridge_require_approval=False,
+        )
+
+
 def test_action_payload_encryption_required_needs_key() -> None:
     with pytest.raises(ValidationError, match="ACTION_PAYLOAD_ENCRYPTION_KEY"):
         Settings(action_payload_encryption_required=True)
