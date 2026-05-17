@@ -492,12 +492,17 @@ def default_registry() -> AdapterRegistry:
     `is_available()` on each, so an adapter whose binary/stack is missing
     is reported (not crashed) and the operator is told before approving.
     """
+    from cognitive_os.code_director.adapters.claude_code import ClaudeCodeAdapter
+    from cognitive_os.code_director.adapters.codex import CodexAdapter
     from cognitive_os.code_director.adapters.deepagent import DeepAgentAdapter
+    from cognitive_os.code_director.adapters.kimi import KimiAdapter
 
     registry: AdapterRegistry = {
         "deepagent": DeepAgentAdapter(),
+        "claude_code": ClaudeCodeAdapter(),
+        "codex": CodexAdapter(),
+        "kimi": KimiAdapter(),
     }
-    # F3 adds: claude_code, codex, kimi (subprocess adapters).
     return registry
 
 
