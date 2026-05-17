@@ -31,7 +31,7 @@ Suite final: **535 passed, 1 skipped, 20 deselected** (+10 vs 525 del
 arranque de Fase 38).
 Migraciones: **16** (head `202605160002`).
 Compuertas: full-qa OK con guardas alembic + git diff; pre-commit Passed;
-detect-secrets `results: {}`; verify_operator_ready OK.
+detect-secrets sin findings versionados; verify_operator_ready OK.
 
 Declaracion: sin P0/P1 conocidos pendientes. Lista de riesgos residuales
 declarada explicitamente en `findings.md` Fase 38. Sistema listo para

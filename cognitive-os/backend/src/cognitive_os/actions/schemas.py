@@ -390,3 +390,67 @@ class ActionDispatchResponse(BaseModel):
     action_request: ActionRequestView
     dispatched: bool
     reason: str | None = None
+
+
+# --- workflow.v1: exportable / importable ActionRequest plans ------------
+
+# Subset of ActionType that the workflow document supports. Read-only carriles
+# (`browser_navigation`, `gmail_query`) are intentionally excluded — they have
+# no payload that survives serialization in a useful way.
+WorkflowActionType = Literal[
+    "computer_organize",
+    "godaddy_dns_change",
+    "document_generate",
+    "browser_preview",
+    "browser_interactive",
+    "calendar_create_event",
+    "drive_upload_file",
+]
+
+
+class WorkflowSource(BaseModel):
+    """Provenance of a workflow document.
+
+    Optional; lets the importer trace a `workflow.v1` JSON back to the original
+    `ActionRequest` and the operator that exported it.
+    """
+
+    exported_at: datetime
+    exported_by: str | None = None
+    source_action_request_id: UUID | None = None
+
+
+class WorkflowDocument(BaseModel):
+    """Versioned, declarative export of an ActionRequest plan.
+
+    Stable on-disk format so operators can clone, edit, version-control and
+    re-submit plans. The redacted payload is the public surface; if the
+    original request had executable secrets (encrypted at rest), they are
+    intentionally NOT included — the importer recomputes a fresh payload from
+    user-supplied fields.
+
+    Schema versioning: `workflow_version` starts at `1.0`. Future breaking
+    changes bump the major; additive changes bump the minor.
+    """
+
+    workflow_version: Literal["1.0"] = "1.0"
+    action_type: WorkflowActionType
+    payload: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Redacted payload (no secret values).",
+    )
+    preview: dict[str, Any] | None = Field(
+        default=None,
+        description="Optional read-only preview snapshot for the operator UI.",
+    )
+    source: WorkflowSource | None = None
+    notes: str | None = Field(default=None, max_length=2000)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class WorkflowImportResult(BaseModel):
+    """Result of a `POST /actions/requests/from-workflow` call."""
+
+    action_request: ActionRequestView
+    dry_run: bool
+    notes: str | None = None

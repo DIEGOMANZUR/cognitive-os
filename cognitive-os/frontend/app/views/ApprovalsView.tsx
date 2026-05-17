@@ -1,17 +1,98 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type { ApiClient } from "../lib/api";
 import { errorMessage, statusClass } from "../lib/api";
 import { usePolledFetch } from "../lib/hooks";
 import { useToast } from "../lib/toasts";
-import type { ActionDispatchResponse, ApprovalResponse } from "../lib/types";
+import type {
+  ActionDispatchResponse,
+  ApprovalResponse,
+  WorkflowDocument,
+  WorkflowImportResult
+} from "../lib/types";
+
+const ACTION_REQUEST_PREFIX = "execute_action_request:";
+
+function extractActionRequestId(requestedAction: string): string | null {
+  if (!requestedAction.startsWith(ACTION_REQUEST_PREFIX)) return null;
+  const id = requestedAction.slice(ACTION_REQUEST_PREFIX.length).trim();
+  return id || null;
+}
+
+function downloadJson(filename: string, payload: unknown): void {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: "application/json"
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
 
 export function ApprovalsView({ client }: { client: ApiClient }) {
   const approvals = usePolledFetch<ApprovalResponse[]>(client, "/approvals", 5000);
   const [decidingId, setDecidingId] = useState<string | null>(null);
+  const [busyWorkflowId, setBusyWorkflowId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const toast = useToast();
+
+  async function exportWorkflow(actionRequestId: string) {
+    if (busyWorkflowId) return;
+    setBusyWorkflowId(actionRequestId);
+    try {
+      const doc = await client.get<WorkflowDocument>(
+        `/actions/requests/${actionRequestId}/workflow`
+      );
+      downloadJson(`workflow-${actionRequestId.slice(0, 8)}.json`, doc);
+      toast.push("Workflow exportado.", "success");
+    } catch (caught) {
+      toast.push(errorMessage(caught), "error");
+    } finally {
+      setBusyWorkflowId(null);
+    }
+  }
+
+  function triggerImport() {
+    fileInputRef.current?.click();
+  }
+
+  async function handleImportFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    // Reset the input so the same file can be re-selected later if needed.
+    event.target.value = "";
+    if (!file) return;
+    let parsed: WorkflowDocument;
+    try {
+      const text = await file.text();
+      parsed = JSON.parse(text) as WorkflowDocument;
+    } catch (caught) {
+      toast.push(`Archivo inválido: ${errorMessage(caught)}`, "error");
+      return;
+    }
+    if (parsed.workflow_version !== "1.0") {
+      toast.push(`workflow_version no soportado: ${String(parsed.workflow_version)}`, "error");
+      return;
+    }
+    try {
+      const result = await client.post<WorkflowImportResult>(
+        "/actions/requests/from-workflow",
+        parsed
+      );
+      toast.push(
+        `Workflow importado → ActionRequest ${result.action_request.id.slice(0, 8)}`,
+        "success"
+      );
+      void approvals.refetch();
+    } catch (caught) {
+      toast.push(errorMessage(caught), "error");
+    }
+  }
 
   async function decide(id: string, action: "approve" | "reject") {
     if (decidingId) return;
@@ -56,6 +137,21 @@ export function ApprovalsView({ client }: { client: ApiClient }) {
           <span className="muted small">
             {(approvals.data ?? []).filter((a) => a.status === "pending").length} pendientes
           </span>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            style={{ display: "none" }}
+            onChange={handleImportFile}
+          />
+          <button
+            className="ghost"
+            type="button"
+            onClick={triggerImport}
+            title="Importar workflow.v1 JSON"
+          >
+            Importar workflow
+          </button>
           <button className="ghost" onClick={() => approvals.refetch()} type="button">
             Refrescar
           </button>
@@ -102,7 +198,7 @@ export function ApprovalsView({ client }: { client: ApiClient }) {
                   )}
                 </td>
                 <td>
-                  <div className="row">
+                  <div className="row" style={{ flexWrap: "wrap", gap: 6 }}>
                     <button
                       className="primary"
                       disabled={approval.status !== "pending" || decidingId !== null}
@@ -119,6 +215,21 @@ export function ApprovalsView({ client }: { client: ApiClient }) {
                     >
                       Rechazar
                     </button>
+                    {(() => {
+                      const actionRequestId = extractActionRequestId(approval.requested_action);
+                      if (!actionRequestId) return null;
+                      return (
+                        <button
+                          className="ghost"
+                          type="button"
+                          disabled={busyWorkflowId !== null}
+                          onClick={() => void exportWorkflow(actionRequestId)}
+                          title="Exportar como workflow.v1 JSON"
+                        >
+                          Exportar
+                        </button>
+                      );
+                    })()}
                   </div>
                 </td>
               </tr>

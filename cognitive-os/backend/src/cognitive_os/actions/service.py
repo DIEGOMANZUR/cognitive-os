@@ -31,6 +31,9 @@ from cognitive_os.actions.schemas import (
     DocumentGenerateRequest,
     GmailQueryPreviewRequest,
     GoDaddyDnsRecordChange,
+    WorkflowActionType,
+    WorkflowDocument,
+    WorkflowSource,
 )
 from cognitive_os.core.config import Settings, settings
 from cognitive_os.core.db import session_scope
@@ -42,6 +45,20 @@ _ACTIVE_STATUSES: tuple[str, ...] = (
     "pending_approval",
     "queued",
     "running",
+)
+
+# action_type values supported by the workflow.v1 export/import contract. Must
+# stay in sync with `WorkflowActionType` in `actions/schemas.py`.
+WORKFLOW_EXPORTABLE_TYPES: frozenset[str] = frozenset(
+    {
+        "computer_organize",
+        "godaddy_dns_change",
+        "document_generate",
+        "browser_preview",
+        "browser_interactive",
+        "calendar_create_event",
+        "drive_upload_file",
+    }
 )
 
 
@@ -961,6 +978,93 @@ class ActionRequestService:
         async with session_scope() as session:
             action_request = await session.get(ActionRequest, action_request_id)
             return _view(action_request) if action_request is not None else None
+
+    async def export_workflow(
+        self,
+        action_request_id: UUID,
+        *,
+        exported_by: str | None,
+    ) -> WorkflowDocument | None:
+        """Serialize an ActionRequest into a `workflow.v1` document.
+
+        The export uses the **redacted** payload as the public surface; any
+        encrypted-at-rest secrets stay server-side. Returns None when the row
+        does not exist; raises `ActionRequestError` when the action type is
+        not exportable as a workflow.
+        """
+        async with session_scope() as session:
+            row = await session.get(ActionRequest, action_request_id)
+            if row is None:
+                return None
+            if row.action_type not in WORKFLOW_EXPORTABLE_TYPES:
+                msg = f"action_type {row.action_type!r} is not exportable as workflow.v1"
+                raise ActionRequestError(msg)
+            return WorkflowDocument(
+                action_type=cast("WorkflowActionType", row.action_type),
+                payload=dict(row.payload_redacted or {}),
+                preview=dict(row.preview or {}) or None,
+                source=WorkflowSource(
+                    exported_at=datetime.now(UTC),
+                    exported_by=exported_by,
+                    source_action_request_id=row.id,
+                ),
+            )
+
+    async def create_from_workflow(
+        self,
+        document: WorkflowDocument,
+        *,
+        requested_by: str,
+    ) -> ActionRequestView:
+        """Re-create an ActionRequest from a `workflow.v1` document.
+
+        Dispatches by `action_type` to the existing `create_*_request` carrils
+        so all guardrails (allow-lists, approval, idempotency, encryption)
+        apply exactly as if the operator had submitted the request through
+        the standard endpoint.
+        """
+        if document.workflow_version != "1.0":
+            msg = f"Unsupported workflow version: {document.workflow_version!r}"
+            raise ActionRequestError(msg)
+        payload = dict(document.payload or {})
+        action_type = document.action_type
+        if action_type == "computer_organize":
+            return await self.create_computer_organize_request(
+                ComputerOrganizeRequest.model_validate(payload),
+                requested_by=requested_by,
+            )
+        if action_type == "godaddy_dns_change":
+            return await self.create_godaddy_dns_change_request(
+                GoDaddyDnsRecordChange.model_validate(payload),
+                requested_by=requested_by,
+            )
+        if action_type == "document_generate":
+            return await self.create_document_generate_request(
+                DocumentGenerateRequest.model_validate(payload),
+                requested_by=requested_by,
+            )
+        if action_type == "browser_preview":
+            return await self.create_browser_preview_request(
+                BrowserPreviewRequest.model_validate(payload),
+                requested_by=requested_by,
+            )
+        if action_type == "browser_interactive":
+            return await self.create_browser_interactive_request(
+                BrowserInteractiveRequest.model_validate(payload),
+                requested_by=requested_by,
+            )
+        if action_type == "calendar_create_event":
+            return await self.create_calendar_event_request(
+                EventCreateRequest.model_validate(payload),
+                requested_by=requested_by,
+            )
+        if action_type == "drive_upload_file":
+            return await self.create_drive_upload_request(
+                DriveUploadRequest.model_validate(payload),
+                requested_by=requested_by,
+            )
+        msg = f"Unsupported workflow action_type: {action_type!r}"
+        raise ActionRequestError(msg)
 
     async def queue_approved_action_request(self, action_request_id: UUID) -> ActionRequestView:
         async with session_scope() as session:

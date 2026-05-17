@@ -99,6 +99,8 @@ from cognitive_os.actions.schemas import (
     GmailQueryPreviewRequest,
     GoDaddyDnsChangePreview,
     GoDaddyDnsRecordChange,
+    WorkflowDocument,
+    WorkflowImportResult,
 )
 from cognitive_os.actions.service import ActionRequestError, ActionRequestService
 from cognitive_os.agents.graph import (
@@ -2106,6 +2108,61 @@ async def dispatch_action_request(
         queue="agent_longrun",
     )
     return ActionDispatchResponse(action_request=action_request, dispatched=True)
+
+
+@app.get("/actions/requests/{action_request_id}/workflow", response_model=WorkflowDocument)
+async def export_action_request_workflow(
+    action_request_id: UUID,
+    user: AuthenticatedUser = _auth_dependency,
+) -> WorkflowDocument:
+    """Export an ActionRequest as a portable `workflow.v1` document.
+
+    The export uses the redacted payload — encrypted secrets stay server-side.
+    Operators can edit the document and re-submit via
+    `POST /actions/requests/from-workflow` to clone the plan.
+    """
+    try:
+        document = await ActionRequestService().export_workflow(
+            action_request_id,
+            exported_by=user.user_id,
+        )
+    except ActionRequestError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    if document is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Action request not found",
+        )
+    return document
+
+
+@app.post(
+    "/actions/requests/from-workflow",
+    response_model=WorkflowImportResult,
+    dependencies=[_RL_ACTION_REQUEST_CREATE],
+)
+async def create_action_request_from_workflow(
+    document: WorkflowDocument,
+    user: AuthenticatedUser = _auth_dependency,
+) -> WorkflowImportResult:
+    """Re-create an ActionRequest from a `workflow.v1` document.
+
+    The importer routes the document through the same `create_*_request`
+    carrils the standard endpoints use, so allow-lists, approval gating,
+    idempotency dedup and payload encryption all apply unchanged.
+    """
+    try:
+        view = await ActionRequestService().create_from_workflow(
+            document,
+            requested_by=user.user_id,
+        )
+    except ActionRequestError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return WorkflowImportResult(
+        action_request=view,
+        dry_run=False,
+        notes=document.notes,
+    )
 
 
 @app.get("/actions/gmail/status", response_model=ActionCapabilityStatus)

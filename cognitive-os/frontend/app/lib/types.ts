@@ -667,3 +667,40 @@ export type ResearchEvent = {
   payload?: Record<string, unknown>;
   detail?: string;
 };
+
+// ---- workflow.v1 contract -----------------------------------------------
+
+export type WorkflowActionType =
+  | "computer_organize"
+  | "godaddy_dns_change"
+  | "document_generate"
+  | "browser_preview"
+  | "browser_interactive"
+  | "calendar_create_event"
+  | "drive_upload_file";
+
+export type WorkflowSource = {
+  exported_at: string;
+  exported_by: string | null;
+  source_action_request_id: string | null;
+};
+
+export type WorkflowDocument = {
+  workflow_version: "1.0";
+  action_type: WorkflowActionType;
+  payload: Record<string, unknown>;
+  preview?: Record<string, unknown> | null;
+  source?: WorkflowSource | null;
+  notes?: string | null;
+  metadata?: Record<string, unknown>;
+};
+
+export type WorkflowImportResult = {
+  action_request: {
+    id: string;
+    action_type: string;
+    status: string;
+  };
+  dry_run: boolean;
+  notes: string | null;
+};
