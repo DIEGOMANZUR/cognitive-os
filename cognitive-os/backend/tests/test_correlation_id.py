@@ -52,3 +52,35 @@ def test_correlation_id_on_authenticated_endpoint(client: TestClient) -> None:
     response = client.get("/system/info", headers=_headers("req-system-1"))
     assert response.status_code == 200
     assert response.headers.get("X-Request-ID") == "req-system-1"
+
+
+def test_correlation_id_survives_401_response(client: TestClient) -> None:
+    """The middleware must echo X-Request-ID even when auth rejects the request."""
+    rid = "req-noauth-42"
+    response = client.get("/system/info", headers={"X-Request-ID": rid})
+    assert response.status_code == 401
+    assert response.headers.get("X-Request-ID") == rid
+
+
+def test_correlation_id_generated_on_anonymous_401(client: TestClient) -> None:
+    """When no client id is supplied, the server still mints one for the 401."""
+    response = client.get("/system/info")
+    assert response.status_code == 401
+    rid = response.headers.get("X-Request-ID", "")
+    assert len(rid) >= 8
+
+
+def test_correlation_id_survives_non_2xx_response(client: TestClient) -> None:
+    """The middleware echoes X-Request-ID on documented error paths.
+
+    Uses a malformed UUID against an authenticated endpoint to trigger a
+    validation error (422). Same middleware contract as 401/500: the
+    correlation id stays on the response.
+    """
+    rid = "req-validation-9"
+    response = client.get(
+        "/jobs/not-a-uuid",
+        headers={**_headers(), "X-Request-ID": rid},
+    )
+    assert response.status_code in (404, 422)
+    assert response.headers.get("X-Request-ID") == rid
