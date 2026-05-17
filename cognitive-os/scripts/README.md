@@ -1,6 +1,6 @@
 # Scripts
 
-> **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):**
+> **Estado actual (2026-05-17, Fase 41 Code Director F9 cerrada):**
 > scripts shell verificados. `dev_worker.sh` escucha **5 queues**:
 > `default,ingestion,agent_longrun,maintenance,mail`. `full-qa.sh` y
 > `stress-qa.sh` instalan el extra OpenHarness; `full-qa.sh` además

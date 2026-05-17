@@ -1,6 +1,6 @@
 # Documentacion De Cognitive OS
 
-> **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):**
+> **Estado actual (2026-05-17, Fase 41 Code Director F9 cerrada):**
 > producto en grado comercial operativo con backend FastAPI 0.115+
 > (**126 endpoints REST**, **16 tareas Celery** en **5 queues**,
 > **16 migraciones Alembic** head `202605160002`) + LangGraph 1.1.10 +
@@ -15,12 +15,19 @@
 > `OPENHARNESS_FUSION.md`. Runtime local: **DeepSeek V4 Pro**
 > (`deepseek-v4-pro`).
 >
-> Fase 39 cerró todos los residual risks técnicos: rate limiter pluggable
-> memory/Redis, `/system/credentials-status` (admin) con inventario vivo
-> de las 21 credenciales operador, `workflow.v1` export/import,
-> OAuth Google self-healing, wizard `init_credentials.sh`, correlation
-> IDs `X-Request-ID`, approval reaper, four-eyes, AuditEvent simétrico
-> REST↔Telegram. QA: **566 pytest passed, 1 skipped, 20 deselected**;
+> Fase 40 (2026-05-17) añadió el **Code Director**: meta-agente que
+> delega builds a coding agents externos (Claude Code / Codex / Kimi CLI
+> o DeepAgents in-process) bajo aprobación humana + budget caps + audit.
+> Fase 41 lo llevó a "máximo nivel F9": **planner LLM-driven** que
+> descompone objetivos en subtareas reales con fallback heurístico
+> determinista, y **prompts con contexto vivo** del workspace +
+> reintentos dirigidos por el error previo. Fase 39 cerró los residual
+> risks técnicos: rate limiter pluggable memory/Redis,
+> `/system/credentials-status` (admin) con inventario vivo de las 21
+> credenciales operador, `workflow.v1` export/import, OAuth Google
+> self-healing, wizard `init_credentials.sh`, correlation IDs
+> `X-Request-ID`, approval reaper, four-eyes, AuditEvent simétrico
+> REST↔Telegram. QA: **632 pytest passed, 1 skipped, 20 deselected**;
 > ruff/mypy/lint/build, Compose config, Alembic head, `git diff --check`,
 > `pre-commit run --all-files` (6 hooks) y `detect-secrets scan` verdes.
 
@@ -30,22 +37,24 @@ producto: son bitacora de trabajo de la sesion actual.
 
 ## Leer Primero
 
-1. **`COGNITIVE_OS_GUIDE.md` — guía maestra "desde cero" con todo: arquitectura, frontend (20 vistas, incluidas `Assist` y `Google Ops`), mail multicuenta, Google Ops, Telegram, ejecutables de escritorio, credenciales por capacidad, casos de uso y troubleshooting. Empieza aquí si nunca habías visto el proyecto.**
-2. `../README.md` - entrada principal, comandos basicos y mapa rapido.
-3. `PROJECT_GUIDE.md` - explicacion simple y tecnica del producto completo.
-4. `ARCHITECTURE.md` - arquitectura interna y flujo entre componentes.
-5. `OPENHARNESS_FUSION.md` - fusión actual OpenHarness + LangGraph + DeepAgents en la ruta **research**.
-6. `RUNBOOK.md` - como operar, levantar, apagar, respaldar y restaurar.
-7. `SECURITY.md` - reglas de seguridad y controles obligatorios.
-8. `OPERATOR_VARIABLE_CHECKLIST.md` — variables de entorno ↔ `Settings` (auditoría operador).
-9. `SETTINGS_REGISTRY_TABLE.md` — tabla generada 1:1 desde `config.py` (no editar a mano).
-10. `IMPROVEMENT_EXECUTION_PLAN.md` — plan de mejoras continuas (config y docs).
+1. **`USER_GUIDE.md` — Guía de Usuario comercial: qué es Cognitive OS de principio a fin, frontend vista por vista (qué cambia cada acción), pipelines internos, uso desde Telegram, ejemplos impresionantes, "qué hace / qué no hace", "cómo NO usar el sistema". Empieza aquí.**
+2. `COGNITIVE_OS_GUIDE.md` — guía maestra técnica "desde cero" con arquitectura detallada, mail multicuenta, ejecutables de escritorio y troubleshooting profundo. Complementa la `USER_GUIDE.md`.
+3. `../README.md` - entrada principal, comandos basicos y mapa rapido.
+4. `PROJECT_GUIDE.md` - explicacion simple y tecnica del producto completo.
+5. `ARCHITECTURE.md` - arquitectura interna y flujo entre componentes.
+6. `OPENHARNESS_FUSION.md` - fusión actual OpenHarness + LangGraph + DeepAgents en la ruta **research**.
+7. `RUNBOOK.md` - como operar, levantar, apagar, respaldar y restaurar.
+8. `SECURITY.md` - reglas de seguridad y controles obligatorios.
+9. `OPERATOR_VARIABLE_CHECKLIST.md` — variables de entorno ↔ `Settings` (auditoría operador).
+10. `SETTINGS_REGISTRY_TABLE.md` — tabla generada 1:1 desde `config.py` (no editar a mano).
+11. `IMPROVEMENT_EXECUTION_PLAN.md` — plan de mejoras continuas (config y docs).
 
 ## Documentacion Por Area
 
 | Archivo | Para que sirve |
 |---|---|
-| `COGNITIVE_OS_GUIDE.md` | Guía maestra "desde cero": qué es, para qué sirve y para qué no, frontend, mail, Telegram, escritorio, credenciales, casos de uso, troubleshooting |
+| `USER_GUIDE.md` | Guía de Usuario comercial: estado actual, principio a fin, frontend vista por vista, pipelines, Telegram, ejemplos impresionantes, qué hace / qué no, cómo NO usar |
+| `COGNITIVE_OS_GUIDE.md` | Guía maestra técnica "desde cero": arquitectura detallada, mail multicuenta, escritorio, credenciales, troubleshooting profundo |
 | `ACTION_PLANE.md` | Browser, computador local, Gmail, Google Maps/Calendar/Drive, mail personal GoDaddy/Gmail, GoDaddy DNS y generación de documentos Office en modo seguro |
 | `OPENHARNESS_FUSION.md` | Fusión OpenHarness (QueryEngine) con LangGraph y DeepAgents en **research** |
 | `PERSONAL_ASSISTANT_ROADMAP.md` | Brechas y fases para convertir Cognitive OS en asistente personal |

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-> **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):**
+> **Estado actual (2026-05-17, Fase 41 Code Director F9 cerrada):**
 > monorepo en grado comercial operativo. Backend FastAPI 0.115+ con
 > **126 endpoints REST** (100 propios + 26 de orquestación), **16 tareas
 > Celery** distribuidas en 5 colas (`default`, `ingestion`,

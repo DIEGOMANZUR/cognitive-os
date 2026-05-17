@@ -1,6 +1,6 @@
 # Action Plane
 
-> **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):** capa **preview-first con
+> **Estado actual (2026-05-17, Fase 41 Code Director F9 cerrada):** capa **preview-first con
 > `ActionRequest` persistente** y carril activo de **mail personal aprobado**.
 > Hay ejecución real para `computer_organize`, `document_generate`,
 > `browser_preview`, `browser_interactive`, GoDaddy DNS (solo con dry-run

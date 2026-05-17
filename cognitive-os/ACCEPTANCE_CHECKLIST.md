@@ -1,13 +1,17 @@
 # ACCEPTANCE CHECKLIST
 
-> **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):** matriz de aceptación
-> vigente. Incluye OpenHarness opcional en *Chat / orquestación*, mail
-> personal GoDaddy/Gmail-label con envío aprobado, integraciones Google
-> (Maps con tráfico/link, Calendar/Drive read + writes solo por `ActionRequest`), voz
-> ElevenLabs (STT/TTS), vista `AssistView` para tareas/notas personales y
-> `GoogleOpsView` para operar Maps/Calendar/Drive.
-> Snapshot QA persistente (Fase 39):
-> **566 pytest passed, 1 skipped, 20 deselected**; ruff/ruff format/mypy
+> **Estado actual (2026-05-17, Fase 41 Code Director F9 cerrada):** matriz
+> de aceptación vigente. Incluye OpenHarness opcional en *Chat /
+> orquestación*, mail personal GoDaddy/Gmail-label con envío aprobado,
+> integraciones Google (Maps con tráfico/link, Calendar/Drive read +
+> writes solo por `ActionRequest`), voz ElevenLabs (STT/TTS), vista
+> `AssistView` para tareas/notas personales, `GoogleOpsView` para operar
+> Maps/Calendar/Drive y **`CodeDirectorView`** para delegar builds a
+> coding agents externos (Claude Code/Codex/Kimi/DeepAgents) bajo
+> HumanApproval + budget caps + audit; con planner LLM-driven y prompts
+> con contexto vivo del workspace (F9).
+> Snapshot QA persistente (Fase 41):
+> **632 pytest passed, 1 skipped, 20 deselected**; ruff/ruff format/mypy
 > (111 source files), frontend lint/build (20 vistas), Compose config,
 > Alembic head `202605160002` sin drift, `git diff --check`,
 > `pre-commit run --all-files` (6 hooks) y `detect-secrets scan` verdes.
@@ -17,10 +21,10 @@
 Este checklist separa lo verificado por pruebas automaticas de lo que requiere
 infraestructura local real, credenciales o aprobacion manual.
 
-## Verificado Automaticamente - 2026-05-17 (Fase 39 cierre de riesgos residuales)
+## Verificado Automaticamente - 2026-05-17 (Fase 41 Code Director F9 cerrada)
 
-- [x] `uv run pytest -m 'not integration and not slow'` → **566 passed, 1 skipped, 20 deselected**.
-- [x] Stress 3 corridas idénticas → 566 passed cada una.
+- [x] `uv run pytest -m 'not integration and not slow'` → **632 passed, 1 skipped, 20 deselected**.
+- [x] Stress 3 corridas idénticas → 632 passed cada una.
 - [x] `uv run ruff check .` → All checks passed.
 - [x] `uv run ruff format --check .` → 220 files already formatted.
 - [x] `uv run mypy src` → Success: no issues found in 111 source files.

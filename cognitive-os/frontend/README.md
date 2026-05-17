@@ -1,6 +1,6 @@
 # Cognitive OS Frontend
 
-> **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):**
+> **Estado actual (2026-05-17, Fase 41 Code Director F9 cerrada):**
 > Next.js 16.2.6 (Turbopack), React 19, ESLint 9.39.4, TypeScript 5.8.
 > **20 vistas** confirmadas en `app/views/*.tsx`: `ChatView`,
 > `DashboardView`, `SettingsView`, `ApprovalsView` (con import/export
@@ -8,8 +8,10 @@
 > `DocumentsView`, `DocumentAnalysisView`, `ConfigurationView`,
 > `MailInboxView`, `LangSmithView`, `AgentsView`, `SkillsView`,
 > `HealthView`, `AuditView`, `AssistView` (tareas/notas personales),
-> `GoogleOpsView` (Maps/Calendar/Drive) y **`ResearchView`** (plan animado
-> sobre SSE de `/research/runs/{id}/events`). Componentes principales:
+> `GoogleOpsView` (Maps/Calendar/Drive), **`ResearchView`** (plan animado
+> sobre SSE de `/research/runs/{id}/events`) y **`CodeDirectorView`**
+> (delegación de builds a coding agents externos con plan LLM-driven,
+> aprobación humana y descarga `tar.gz`). Componentes principales:
 > `Sidebar.tsx`, `TopBar.tsx`, `CommandPalette.tsx`, `PWA.tsx`,
 > `ErrorBoundary.tsx` (recovery global). Las respuestas **research**
 > pueden combinar en backend OpenHarness + DeepAgents sin cambiar la UI (ver

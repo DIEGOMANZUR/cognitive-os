@@ -1,6 +1,6 @@
 # Cognitive OS
 
-> **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):** monorepo en grado comercial
+> **Estado actual (2026-05-17, Fase 41 Code Director F9 cerrada):** monorepo en grado comercial
 > operativo con backend FastAPI 0.115+ (126 endpoints REST verificados,
 > 16 tareas Celery distribuidas en 5 colas, 16 migraciones Alembic) +
 > LangGraph 1.1.10 + DeepAgents 0.6.x + Celery 5.4 + Postgres 16+pgvector +
@@ -20,6 +20,31 @@
 > levantan/reinician/detienen el stack completo —incluido el worker Celery
 > de la queue `mail` y Kimi WebBridge—. Sin commits aún en `master`; estado
 > reproducible vía `bash scripts/full-qa.sh`.
+
+### Novedades Fase 41 (2026-05-17) — Code Director F9
+
+- **`code_director/planner.py`** — `LLMPlanner` descompone el objetivo
+  vía LLM primario en subtareas reales, con `HeuristicPlanner`
+  determinista como fallback ante **cualquier** fallo (sin key, JSON
+  malformado, deps alucinadas, etc.). Un build nunca muere por el
+  planner.
+- **`code_director/prompt_builder.py`** — cada subtarea recibe un
+  prompt estructurado y acotado con árbol vivo del workspace, contenido
+  de archivos relevantes y resumen de upstream. En un reintento se
+  inyecta el error del intento anterior con "arregla esto, no empieces
+  de cero" → `iterate_until_tests_pass` converge en vez de repetir el
+  mismo fallo.
+- **Suite QA**: **632 passed, 1 skipped, 20 deselected**. Cero tokens
+  reales gastados en tests.
+
+### Novedades Fase 40 (2026-05-17) — Code Director
+
+- **Vista `Code Director`** + 4 endpoints REST + Celery task
+  `cognitive_os.run_code_build` + `tar.gz` descargable con manifest.
+- **Adapters**: `claude_code`, `codex`, `kimi` (subprocess, STDIN-only,
+  SIGTERM→SIGKILL del process group) y `deepagent` (in-process).
+- **HITL completo**: `HumanApproval` antes de gastar un token; budget
+  caps duros; `partial` entrega lo construido si se exceden.
 
 ### Novedades Fase 39 (2026-05-17)
 
@@ -52,7 +77,8 @@ acciones sensibles requieren aprobación humana y quedan auditadas. Ver
 
 ## Leer Primero
 
-- **`docs/COGNITIVE_OS_GUIDE.md`: guía maestra "desde cero" — empieza aquí si nunca viste el proyecto. Incluye arquitectura, las 20 vistas del frontend (incluidas `Assist` y `Google Ops`), correo multicuenta, Google Ops, ejecutables de escritorio, credenciales por capacidad, casos de uso reales y troubleshooting.**
+- **`docs/USER_GUIDE.md`: Guía de Usuario comercial — empieza aquí. Estado, frontend vista por vista, pipelines, Telegram, ejemplos impresionantes, qué hace / qué no hace, cómo NO usar el sistema.**
+- `docs/COGNITIVE_OS_GUIDE.md`: guía maestra técnica "desde cero" — complementa la USER_GUIDE con arquitectura detallada, mail multicuenta, escritorio, credenciales, troubleshooting profundo.
 - `docs/PROJECT_GUIDE.md`: explicacion simple y tecnica del producto.
 - `docs/README.md`: indice completo de documentacion.
 - `docs/OPENHARNESS_FUSION.md`: cómo encaja OpenHarness con LangGraph + DeepAgents (pipelines, presets, workspace).
@@ -74,7 +100,7 @@ rsync -a --exclude node_modules --exclude .next --exclude .venv --exclude '__pyc
 - Python ≥ 3.12 y [uv](https://docs.astral.sh/uv/)
 - Node.js ≥ 22 y npm
 - Verificación reproducible: `bash scripts/full-qa.sh` (`uv sync --extra openharness` + `pytest` + `ruff check` + `ruff format --check` + `mypy` + `npm ci` + `npm run lint` + `npm run build`). Estrés: `bash scripts/stress-qa.sh` (3 pasadas de pytest por defecto).
-- Snapshot QA vigente (2026-05-17, Fase 39): **566 pytest passed, 1 skipped, 20 deselected**; ruff/ruff format/mypy (111 source files), frontend lint/build, Compose config, Alembic head (`202605160002`) y `git diff --check` verdes. Stress 3 corridas estables.
+- Snapshot QA vigente (2026-05-17, Fase 41 F9 cerrada): **632 pytest passed, 1 skipped, 20 deselected**; ruff/ruff format/mypy (111 source files), frontend lint/build, Compose config, Alembic head (`202605160002`) y `git diff --check` verdes. Stress 3 corridas estables.
 
 ## Backend
 

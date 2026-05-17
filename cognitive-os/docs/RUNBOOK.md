@@ -1,6 +1,6 @@
 # RUNBOOK Cognitive OS
 
-> **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):**
+> **Estado actual (2026-05-17, Fase 41 Code Director F9 cerrada):**
 > la ruta `research` está fusionada con OpenHarness opcional; el runtime
 > local usa **DeepSeek V4 Pro** (`deepseek-v4-pro`); el stack incluye mail
 > personal GoDaddy/Gmail-label con queue Celery `mail` integrada en
@@ -16,7 +16,7 @@
 > `bash scripts/init_credentials.sh` para checklist REQ/OPT/OK con
 > instrucciones específicas. Snapshot QA reproducible vía
 > `bash scripts/full-qa.sh` y `bash scripts/stress-qa.sh` (3 pasadas
-> pytest por defecto). QA actual: **566 passed, 1 skipped, 20
+> pytest por defecto). QA actual: **632 passed, 1 skipped, 20
 > deselected**, head Alembic `202605160002`.
 
 ## Ejecutables de escritorio

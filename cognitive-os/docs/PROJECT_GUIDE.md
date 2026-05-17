@@ -1,23 +1,31 @@
 # Cognitive OS - Guia Simple Y Tecnica
 
-> **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):**
-> producto en grado comercial operativo. Backend FastAPI 0.115+ con **122
-> endpoints REST** (100 propios + 26 orquestación), **16 tareas Celery**
-> distribuidas en **5 queues** (`default`, `ingestion`, `agent_longrun`,
-> `maintenance`, `mail`), **16 migraciones Alembic** (head
-> `202605160002`). Frontend Next.js 16.2.6 con **20 vistas** (incluidas
-> `AssistView`, `GoogleOpsView` y `ResearchView` con plan animado sobre
-> SSE). La ruta `research` está fusionada con **OpenHarness** opcional
-> (extra `openharness-ai>=0.1.9,<0.2`, `prelude_merge` por defecto).
-> Runtime local: **DeepSeek V4 Pro** (`deepseek-v4-pro`).
+> **Estado actual (2026-05-17, Fase 41 Code Director F9 cerrada):**
+> producto en grado comercial operativo. Backend FastAPI 0.115+ con **126
+> endpoints REST**, **16 tareas Celery** distribuidas en **5 queues**
+> (`default`, `ingestion`, `agent_longrun`, `maintenance`, `mail`), **16
+> migraciones Alembic** (head `202605160002`). Frontend Next.js 16.2.6
+> con **20 vistas** (incluidas `AssistView`, `GoogleOpsView`,
+> `ResearchView` con plan animado sobre SSE, y `CodeDirectorView`). La
+> ruta `research` está fusionada con **OpenHarness** opcional (extra
+> `openharness-ai>=0.1.9,<0.2`, `prelude_merge` por defecto). Runtime
+> local: **DeepSeek V4 Pro** (`deepseek-v4-pro`).
 >
-> Fase 39 cerró los residual risks técnicos: rate limiter pluggable
-> memory/Redis, `/system/credentials-status` con inventario vivo,
-> `workflow.v1` export/import, OAuth Google self-healing,
-> `init_credentials.sh` wizard, correlation IDs, approval reaper,
-> four-eyes, AuditEvent simétrico REST↔Telegram. QA snapshot: **566
-> pytest passed, 1 skipped, 20 deselected**; ruff/mypy/lint/build,
-> `pre-commit run --all-files` (6 hooks) y `detect-secrets scan` verdes.
+> Fase 41 (F9) llevó al **Code Director** a "máximo nivel": planner
+> LLM-driven que descompone objetivos en subtareas reales con fallback
+> heurístico determinista, y prompts con contexto vivo del workspace +
+> reintentos dirigidos por el error previo. Fase 40 introdujo el Code
+> Director (delegación a Claude Code / Codex / Kimi CLI o DeepAgents
+> bajo HumanApproval + budget caps). Fase 39 cerró los residual risks
+> técnicos: rate limiter pluggable memory/Redis,
+> `/system/credentials-status` con inventario vivo, `workflow.v1`
+> export/import, OAuth Google self-healing, `init_credentials.sh`
+> wizard, correlation IDs, approval reaper, four-eyes, AuditEvent
+> simétrico REST↔Telegram. QA snapshot: **632 pytest passed, 1 skipped,
+> 20 deselected**; ruff/mypy/lint/build, `pre-commit run --all-files`
+> (6 hooks) y `detect-secrets scan` verdes.
+>
+> **Guía de usuario completa:** `docs/USER_GUIDE.md`.
 
 ## En Una Frase
 
