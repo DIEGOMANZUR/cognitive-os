@@ -22,6 +22,7 @@ from cognitive_os.code_director.adapters.base import (
     AdapterRegistry,
     CodingAgentAdapter,
 )
+from cognitive_os.code_director.prompt_builder import build_subtask_prompt
 from cognitive_os.code_director.schemas import (
     AdapterChoice,
     BudgetSnapshot,
@@ -188,6 +189,9 @@ class CodeDirector:
 
         # Map of subtask_id -> outcome status, used for downstream skip logic.
         completed: dict[str, SubtaskOutcome] = {}
+        # Map of subtask_id -> (spec, last StepResult) so a subtask can be
+        # prompted with what its dependencies actually produced (F9b).
+        prior_results: dict[str, tuple[SubtaskSpec, StepResult]] = {}
         for subtask in ordered:
             # Skip if any dependency failed.
             blocked = [
@@ -207,16 +211,22 @@ class CodeDirector:
                 completed[subtask.subtask_id] = outcome
                 continue
 
-            outcome = self._run_subtask(
+            upstream = [
+                prior_results[d] for d in subtask.depends_on if d in prior_results
+            ]
+            outcome, last = self._run_subtask(
                 build_id=build_id,
                 subtask=subtask,
                 workspace=workspace,
                 request=request,
                 tracker=tracker,
                 emit=sink,
+                upstream=upstream,
             )
             outcomes.append(outcome)
             completed[subtask.subtask_id] = outcome
+            if last is not None:
+                prior_results[subtask.subtask_id] = (subtask, last)
 
             within, reason = tracker.status()
             if not within:
@@ -270,7 +280,9 @@ class CodeDirector:
         request: CodeBuildRequest,
         tracker: _BudgetTracker,
         emit: EventSink,
-    ) -> SubtaskOutcome:
+        upstream: list[tuple[SubtaskSpec, StepResult]] | None = None,
+    ) -> tuple[SubtaskOutcome, StepResult | None]:
+        upstream = upstream or []
         adapter = self._adapters.get(subtask.adapter)
         if adapter is None or not adapter.is_available():
             emit(
@@ -284,12 +296,15 @@ class CodeDirector:
                     },
                 )
             )
-            return SubtaskOutcome(
-                subtask_id=subtask.subtask_id,
-                status="failed",
-                adapter=subtask.adapter,
-                model=subtask.model,
-                notes=f"Adapter {subtask.adapter} is unavailable on this host.",
+            return (
+                SubtaskOutcome(
+                    subtask_id=subtask.subtask_id,
+                    status="failed",
+                    adapter=subtask.adapter,
+                    model=subtask.model,
+                    notes=f"Adapter {subtask.adapter} is unavailable on this host.",
+                ),
+                None,
             )
 
         emit(
@@ -315,10 +330,18 @@ class CodeDirector:
         last_result: StepResult | None = None
         try:
             for _iteration in range(request.budget.max_calls_per_subtask):
-                # F1 issues one prompt per subtask. F2 may add an iteration
-                # loop where the director crafts follow-up prompts based on
-                # the previous StepResult; the budget already accommodates it.
-                prompt = self._build_prompt(subtask=subtask, request=request)
+                # The prompt is rebuilt every iteration: it injects the live
+                # workspace + upstream outputs (F9b) and, on a retry, the
+                # previous attempt's error so the agent corrects instead of
+                # replaying the same failing approach (F9c).
+                prompt = build_subtask_prompt(
+                    subtask=subtask,
+                    request=request,
+                    workspace=workspace,
+                    upstream=upstream,
+                    attempt=_iteration,
+                    last_result=last_result,
+                )
                 emit(
                     BuildEvent(
                         build_id=build_id,
@@ -357,42 +380,23 @@ class CodeDirector:
                 },
             )
         )
-        return SubtaskOutcome(
-            subtask_id=subtask.subtask_id,
-            status="completed" if success else "failed",
-            adapter=subtask.adapter,
-            model=subtask.model,
-            duration_ms=last_result.duration_ms if last_result else 0,
-            llm_calls=calls_this_subtask,
-            estimated_cost_usd=cost_this_subtask,
-            notes=last_result.error if last_result and last_result.error else None,
+        return (
+            SubtaskOutcome(
+                subtask_id=subtask.subtask_id,
+                status="completed" if success else "failed",
+                adapter=subtask.adapter,
+                model=subtask.model,
+                duration_ms=last_result.duration_ms if last_result else 0,
+                llm_calls=calls_this_subtask,
+                estimated_cost_usd=cost_this_subtask,
+                notes=last_result.error if last_result and last_result.error else None,
+            ),
+            last_result,
         )
-
-    @staticmethod
-    def _build_prompt(*, subtask: SubtaskSpec, request: CodeBuildRequest) -> str:
-        """Render the prompt the adapter will receive.
-
-        Kept deliberately simple in F1; F2 will template per-role prompts
-        (planner/coder/reviewer/tester) and inject workspace state.
-        """
-        lines = [
-            f"Role: {subtask.role}",
-            f"Subtask: {subtask.title}",
-            "",
-            "Description:",
-            subtask.description,
-        ]
-        if subtask.expected_paths:
-            lines.extend(
-                ["", "Expected paths to touch:", *(f"  - {p}" for p in subtask.expected_paths)]
-            )
-        if request.notes:
-            lines.extend(["", "Operator notes:", request.notes])
-        return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
-# Registry helpers (filled in by adapter modules in F2/F3)
+# Registry helpers
 # ---------------------------------------------------------------------------
 
 
