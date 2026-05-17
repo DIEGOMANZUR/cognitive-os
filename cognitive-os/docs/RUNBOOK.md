@@ -349,6 +349,27 @@ antes de extraer el backup.
 * `OpenShellPolicyViolation` → la tarea pidió acciones bloqueadas por
   política. Revisa `args_redacted` antes de aprobar.
 
+## Wizard de bootstrap de credenciales
+
+`bash scripts/init_credentials.sh` muestra un checklist con tres columnas
+(estado / credencial / qué habilita) más la instrucción exacta para
+obtener cada una. Si el API local está vivo consulta
+`/system/credentials-status`; si no, llama al inventario inline en
+Python (no requiere Postgres ni Redis).
+
+- `OK ✓`  → configurada.
+- `REQ ✗` → faltante y **bloqueante** para grado comercial.
+- `OPT ○` → faltante pero opcional (habilita una integración específica).
+
+Modo CI:
+
+```bash
+bash scripts/init_credentials.sh --ci
+```
+
+En `--ci` el script retorna `exit 1` si quedan credenciales `REQ`
+faltantes, así puede usarse como gate de pipeline.
+
 ## Estado vivo de credenciales
 
 El endpoint `GET /system/credentials-status` (admin) reporta en tiempo real
