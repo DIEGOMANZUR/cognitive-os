@@ -139,6 +139,8 @@ from cognitive_os.assist.schemas import (
     PersonalTaskView,
 )
 from cognitive_os.assist.service import PersonalAssistDisabledError, PersonalAssistService
+from cognitive_os.code_director.schemas import BuildPlan, CodeBuildRequest
+from cognitive_os.code_director.service import CodeDirectorError, CodeDirectorService
 from cognitive_os.core.auth import (
     AuthenticatedUser,
     require_admin_user,
@@ -3692,6 +3694,218 @@ def _research_event_sse(event: ResearchEvent) -> str:
             "timestamp": event.timestamp.isoformat(),
             "payload": event.payload,
         }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Code Director endpoints
+# ---------------------------------------------------------------------------
+
+
+class CodeBuildCreateResponse(BaseModel):
+    job_id: str
+    approval_id: str
+    build_id: str
+    plan: BuildPlan
+    detail: str = (
+        "Build planned. Approve the linked HumanApproval to start it; "
+        "no coding agent runs until then."
+    )
+
+
+class CodeBuildStatusResponse(BaseModel):
+    job_id: str
+    build_id: str | None
+    status: str
+    plan: dict[str, Any] | None = None
+    result: dict[str, Any] | None = None
+
+
+def _reject_fake_adapter_request(request: CodeBuildRequest) -> None:
+    pref = request.adapter_preference
+    chosen = {
+        pref.default_adapter,
+        pref.planner_adapter,
+        pref.coder_adapter,
+        pref.reviewer_adapter,
+        pref.tester_adapter,
+    }
+    if "fake" in chosen:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The 'fake' adapter is reserved for tests and cannot be requested.",
+        )
+
+
+@app.post(
+    "/code-director/run",
+    response_model=CodeBuildCreateResponse,
+    dependencies=[_RL_ACTION_REQUEST_CREATE],
+)
+async def create_code_build(
+    request: CodeBuildRequest,
+    user: AuthenticatedUser = _auth_dependency,
+) -> CodeBuildCreateResponse:
+    """Plan a code build and persist it as a waiting-approval job.
+
+    NO coding agent runs and NO token is spent here. The operator must
+    approve the returned HumanApproval (which carries the plan + budget
+    estimate) before the build is dispatched.
+    """
+    _reject_fake_adapter_request(request)
+    try:
+        job_id, approval_id, plan = await CodeDirectorService().create_build(
+            request,
+            requested_by=user.user_id,
+        )
+    except CodeDirectorError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    build_id = Path(plan.workspace_dir).name
+    return CodeBuildCreateResponse(
+        job_id=str(job_id),
+        approval_id=str(approval_id),
+        build_id=build_id,
+        plan=plan,
+    )
+
+
+@app.get("/code-director/{job_id}", response_model=CodeBuildStatusResponse)
+async def get_code_build(
+    job_id: UUID,
+    user: AuthenticatedUser = _auth_dependency,
+) -> CodeBuildStatusResponse:
+    del user
+    async with session_scope() as session:
+        job = await session.get(Job, job_id)
+        if job is None or job.job_type != "code_build":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Code build not found"
+            )
+        meta = dict(job.metadata_json or {})
+        return CodeBuildStatusResponse(
+            job_id=str(job.id),
+            build_id=meta.get("build_id"),
+            status=job.status,
+            plan=meta.get("plan"),
+            result=meta.get("result"),
+        )
+
+
+@app.get("/code-director/{job_id}/events")
+async def stream_code_build_events(
+    job_id: UUID,
+    user: AuthenticatedUser = _auth_dependency,
+) -> StreamingResponse:
+    """SSE stream of the build's JobEvents until the job reaches a terminal state.
+
+    The director persists one JobEvent per build event, so this replays the
+    full history then tails new events. The final frame is a `snapshot` with
+    the job status + result.
+    """
+    del user
+    async with session_scope() as session:
+        job = await session.get(Job, job_id)
+        if job is None or job.job_type != "code_build":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Code build not found"
+            )
+    return StreamingResponse(
+        _code_build_events_stream(job_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+_CODE_BUILD_TERMINAL = frozenset({"completed", "failed", "cancelled", "rejected"})
+
+
+async def _code_build_events_stream(job_id: UUID) -> AsyncIterator[str]:
+    last_seen = 0
+    poll_interval = 0.5
+    max_ticks = 7200  # 0.5s * 7200 = 1h safety ceiling for a hung stream
+    for _tick in range(max_ticks):
+        async with session_scope() as session:
+            job = await session.get(Job, job_id)
+            if job is None:
+                yield _sse({"event": "error", "job_id": str(job_id), "detail": "not_found"})
+                return
+            result = await session.execute(
+                select(JobEvent).where(JobEvent.job_id == job_id).order_by(JobEvent.created_at)
+            )
+            events = list(result.scalars().all())
+            job_status = job.status
+            meta = dict(job.metadata_json or {})
+        for ev in events[last_seen:]:
+            yield _sse(
+                {
+                    "event": ev.event_type,
+                    "job_id": str(job_id),
+                    "status": ev.status,
+                    "message": ev.message,
+                    "payload": ev.metadata_json,
+                }
+            )
+        last_seen = len(events)
+        if job_status in _CODE_BUILD_TERMINAL:
+            yield _sse(
+                {
+                    "event": "snapshot",
+                    "job_id": str(job_id),
+                    "status": job_status,
+                    "result": meta.get("result"),
+                }
+            )
+            yield _sse({"event": "done", "job_id": str(job_id)})
+            return
+        await asyncio.sleep(poll_interval)
+    yield _sse({"event": "error", "job_id": str(job_id), "detail": "stream_timeout"})
+
+
+@app.get("/code-director/{job_id}/download")
+async def download_code_build_artifact(
+    job_id: UUID,
+    user: AuthenticatedUser = _auth_dependency,
+) -> FileResponse:
+    """Download the packaged tar.gz of a completed build.
+
+    The artifact path is resolved from job metadata and re-validated to be
+    inside `document_output_root/code_builds/` so a tampered metadata value
+    cannot escape the output root.
+    """
+    del user
+    async with session_scope() as session:
+        job = await session.get(Job, job_id)
+        if job is None or job.job_type != "code_build":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Code build not found"
+            )
+        meta = dict(job.metadata_json or {})
+        result = meta.get("result") or {}
+        artifact = result.get("artifact_path") if isinstance(result, dict) else None
+    if not artifact:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Build has no artifact yet (not completed).",
+        )
+    base = Path(settings.document_output_root).expanduser().resolve() / "code_builds"
+    resolved = Path(str(artifact)).resolve()
+    try:
+        resolved.relative_to(base)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Artifact path escapes the build output root.",
+        ) from exc
+    if not resolved.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Artifact file missing.")
+    return FileResponse(
+        resolved,
+        media_type="application/gzip",
+        filename=resolved.name,
     )
 
 
