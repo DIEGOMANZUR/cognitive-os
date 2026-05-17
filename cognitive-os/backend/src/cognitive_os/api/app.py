@@ -676,31 +676,32 @@ _SYSTEM_STARTED_AT = datetime.now(UTC)
 def _resolve_git_commit() -> str | None:
     """Capture the current commit at startup if running inside a git checkout.
 
-    Returns short SHA on success, `None` when git is unreachable or the source
-    tree was not built from a git clone (e.g. container with only the wheel).
+    Walks up from `app.py` until `.git` is found (workspace layouts vary —
+    the repo root may sit two or three levels above the backend package),
+    then asks git for the short SHA. Returns `None` when git is unreachable
+    or the source was not built from a git clone (e.g. a wheel in a
+    container).
     """
     import subprocess  # noqa: PLC0415 - localized to startup helper
 
-    candidates = [
-        Path(__file__).resolve().parent.parent.parent.parent,
-        Path(__file__).resolve().parent.parent.parent.parent.parent,
-    ]
-    for repo in candidates:
-        if not (repo / ".git").exists():
-            continue
-        try:
-            result = subprocess.run(
-                ["git", "rev-parse", "--short=12", "HEAD"],
-                cwd=str(repo),
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=2.0,
-            )
-        except (subprocess.SubprocessError, OSError):
+    here = Path(__file__).resolve()
+    for parent in (here, *here.parents):
+        candidate = parent if parent.is_dir() else parent.parent
+        if (candidate / ".git").exists():
+            try:
+                result = subprocess.run(
+                    ["git", "rev-parse", "--short=12", "HEAD"],
+                    cwd=str(candidate),
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=2.0,
+                )
+            except (subprocess.SubprocessError, OSError):
+                return None
+            if result.returncode == 0:
+                return result.stdout.strip() or None
             return None
-        if result.returncode == 0:
-            return result.stdout.strip() or None
     return None
 
 
