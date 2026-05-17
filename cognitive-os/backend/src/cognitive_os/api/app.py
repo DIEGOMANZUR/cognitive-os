@@ -152,7 +152,6 @@ from cognitive_os.core.observability import configure_langsmith, disable_langsmi
 from cognitive_os.core.path_policy import IngestPathPolicyError, resolve_ingest_document_path
 from cognitive_os.core.rate_limit import rate_limit_dependency
 from cognitive_os.db.models import (
-    ActionRequest,
     AuditEvent,
     Document,
     DocumentChunk,
@@ -3275,17 +3274,11 @@ async def _decide_approval(
             detail=f"Approval already decided: {exc.current_status}",
         ) from exc
     except ApprovalSelfDecisionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except ApprovalPayloadCorruptError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except ApprovalDecisionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     if result.openshell_dispatch is not None:
         run_openshell_task_async.apply_async(
@@ -3307,18 +3300,14 @@ def _openshell_task_payload_from_job(job: Job) -> dict[str, Any]:
     stored_payload = metadata.get("task_payload_executable")
     redacted_payload = metadata.get("task_payload_redacted")
     if not isinstance(stored_payload, dict):
-        raise ApprovalPayloadCorruptError(
-            "OpenShell approval is missing executable task payload"
-        )
+        raise ApprovalPayloadCorruptError("OpenShell approval is missing executable task payload")
     if not isinstance(redacted_payload, dict):
         redacted_payload = {}
     try:
         payload = reveal_payload(stored_payload, redacted_payload, settings)
         task = OpenShellTask.model_validate(payload)
     except Exception as exc:
-        raise ApprovalPayloadCorruptError(
-            "OpenShell approval payload is not executable"
-        ) from exc
+        raise ApprovalPayloadCorruptError("OpenShell approval payload is not executable") from exc
     return task.model_dump(mode="json")
 
 

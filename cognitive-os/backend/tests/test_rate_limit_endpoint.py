@@ -83,14 +83,10 @@ async def test_approval_decision_endpoint_rate_limits_after_30_per_minute(
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         # 30 OK
         for i in range(30):
-            response = await client.post(
-                f"/approvals/{approval_id}/approve", headers=_headers()
-            )
+            response = await client.post(f"/approvals/{approval_id}/approve", headers=_headers())
             assert response.status_code == 200, f"call {i} status {response.status_code}"
         # 31st should be 429 from the rate limit, not 200 / 409.
-        response = await client.post(
-            f"/approvals/{approval_id}/approve", headers=_headers()
-        )
+        response = await client.post(f"/approvals/{approval_id}/approve", headers=_headers())
         assert response.status_code == 429
         assert "Retry-After" in response.headers
         body = response.json()

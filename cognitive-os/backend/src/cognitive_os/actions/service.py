@@ -154,8 +154,7 @@ async def decide_approval(
             and approval.requested_by == approver_user_id
         ):
             raise ApprovalSelfDecisionError(
-                "Approver must differ from requester: human-in-the-loop "
-                "requires four-eyes review."
+                "Approver must differ from requester: human-in-the-loop requires four-eyes review."
             )
 
         approval.status = status_value
