@@ -1036,6 +1036,7 @@ async def test_approval_decision_is_immutable(monkeypatch: pytest.MonkeyPatch) -
         yield FakeSession()
 
     monkeypatch.setattr(api_app, "session_scope", fake_session_scope)
+    monkeypatch.setattr(action_service_module, "session_scope", fake_session_scope)
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -1122,6 +1123,7 @@ async def test_openshell_approval_dispatches_queued_job(monkeypatch: pytest.Monk
         yield FakeSession()
 
     monkeypatch.setattr(api_app, "session_scope", fake_session_scope)
+    monkeypatch.setattr(action_service_module, "session_scope", fake_session_scope)
     monkeypatch.setattr(api_app, "run_openshell_task_async", FakeTask)
 
     transport = httpx.ASGITransport(app=app)
@@ -1219,6 +1221,7 @@ async def test_rejected_approval_closes_linked_job_and_action_request(
         yield FakeSession()
 
     monkeypatch.setattr(api_app, "session_scope", fake_session_scope)
+    monkeypatch.setattr(action_service_module, "session_scope", fake_session_scope)
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -1270,6 +1273,7 @@ async def test_approval_self_decision_blocked_by_four_eyes(
         yield FakeSession()
 
     monkeypatch.setattr(api_app, "session_scope", fake_session_scope)
+    monkeypatch.setattr(action_service_module, "session_scope", fake_session_scope)
     monkeypatch.setattr(api_app.settings, "approval_require_four_eyes", True)
 
     transport = httpx.ASGITransport(app=app)
@@ -1332,6 +1336,7 @@ async def test_approval_self_decision_allowed_when_four_eyes_disabled(
         yield FakeSession()
 
     monkeypatch.setattr(api_app, "session_scope", fake_session_scope)
+    monkeypatch.setattr(action_service_module, "session_scope", fake_session_scope)
     monkeypatch.setattr(api_app.settings, "approval_require_four_eyes", False)
 
     transport = httpx.ASGITransport(app=app)

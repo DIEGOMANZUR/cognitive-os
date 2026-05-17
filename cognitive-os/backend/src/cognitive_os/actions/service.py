@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import cast
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import desc, select
@@ -64,6 +66,181 @@ WORKFLOW_EXPORTABLE_TYPES: frozenset[str] = frozenset(
 
 class ActionRequestError(RuntimeError):
     """Raised when an action request cannot progress through its lifecycle."""
+
+
+class ApprovalDecisionError(RuntimeError):
+    """Base class for `decide_approval` domain errors.
+
+    Each subclass maps cleanly to an HTTP status in the REST endpoint and to a
+    human-readable message in the Telegram bot, so both surfaces stay in sync
+    without coupling to FastAPI's HTTPException.
+    """
+
+
+class ApprovalNotFoundError(ApprovalDecisionError):
+    """The `approval_id` does not exist."""
+
+
+class ApprovalAlreadyDecidedError(ApprovalDecisionError):
+    """The approval already moved past `pending`."""
+
+    def __init__(self, current_status: str) -> None:
+        super().__init__(f"Approval already decided: {current_status}")
+        self.current_status = current_status
+
+
+class ApprovalSelfDecisionError(ApprovalDecisionError):
+    """Four-eyes contract: requester and approver are the same user."""
+
+
+class ApprovalPayloadCorruptError(ApprovalDecisionError):
+    """The approval is linked to a job whose stored payload cannot be revealed."""
+
+
+@dataclass(slots=True)
+class OpenShellDispatchSpec:
+    """Returned by `decide_approval` when an OpenShell job must be queued.
+
+    Caller dispatches the Celery task after the DB transaction commits so the
+    sandbox worker never sees a job that the operator can still see as
+    `waiting_approval`.
+    """
+
+    task_payload: dict[str, Any]
+    job_id: str
+
+
+@dataclass(slots=True)
+class ApprovalDecisionResult:
+    approval: HumanApproval
+    openshell_dispatch: OpenShellDispatchSpec | None = None
+
+
+async def decide_approval(
+    approval_id: UUID,
+    *,
+    status_value: str,
+    approver_user_id: str,
+    payload_resolver: Callable[[Job], dict[str, Any]] | None = None,
+    app_settings: Settings = settings,
+) -> ApprovalDecisionResult:
+    """Decide a `HumanApproval` and cascade side-effects.
+
+    Shared by `/approvals/{id}/{approve|reject}` and the Telegram bot so both
+    inherit four-eyes, cascade to Job/ActionRequest, AuditEvent emission and
+    OpenShell dispatch in the same atomic transaction. The Celery dispatch
+    itself happens after commit — callers receive the spec via
+    `ApprovalDecisionResult.openshell_dispatch`.
+
+    `payload_resolver` is a hook so the API layer can inject its
+    `_openshell_task_payload_from_job` (which knows how to reveal the
+    encrypted payload). Callers that don't want OpenShell side-effects pass
+    `None` and any sandbox approval is decided but not queued.
+    """
+    if status_value not in {"approved", "rejected"}:
+        msg = f"Unsupported decision: {status_value!r}"
+        raise ApprovalDecisionError(msg)
+
+    openshell_dispatch: OpenShellDispatchSpec | None = None
+    async with session_scope() as session:
+        approval = await session.get(HumanApproval, approval_id)
+        if approval is None:
+            raise ApprovalNotFoundError(f"Approval not found: {approval_id}")
+        if approval.status != "pending":
+            raise ApprovalAlreadyDecidedError(approval.status)
+        if (
+            app_settings.approval_require_four_eyes
+            and approval.requested_by
+            and approval.requested_by == approver_user_id
+        ):
+            raise ApprovalSelfDecisionError(
+                "Approver must differ from requester: human-in-the-loop "
+                "requires four-eyes review."
+            )
+
+        approval.status = status_value
+        approval.approver_user_id = approver_user_id
+        approval.approved_by = approver_user_id if status_value == "approved" else None
+        approval.decided_at = datetime.now(UTC)
+
+        job = await session.get(Job, approval.job_id) if approval.job_id is not None else None
+        if status_value == "rejected":
+            if job is not None and job.status not in {"completed", "failed", "cancelled"}:
+                job.status = "rejected"
+                job.progress = 100
+                session.add(
+                    JobEvent(
+                        job_id=job.id,
+                        event_type="approval_rejected",
+                        status="rejected",
+                        message="Human approval rejected",
+                        metadata_json={"approval_id": str(approval.id)},
+                    )
+                )
+            action_request_result = await session.execute(
+                select(ActionRequest).where(ActionRequest.approval_id == approval.id)
+            )
+            action_request = action_request_result.scalar_one_or_none()
+            if action_request is not None and action_request.status not in {
+                "completed",
+                "failed",
+                "cancelled",
+                "rejected",
+            }:
+                action_request.status = "rejected"
+                action_request.error = "Human approval rejected"
+        elif (
+            status_value == "approved"
+            and job is not None
+            and job.job_type == "openshell_sandbox"
+            and job.status == "waiting_approval"
+        ):
+            if payload_resolver is None:
+                raise ApprovalPayloadCorruptError(
+                    "OpenShell approval requires a payload resolver to dispatch."
+                )
+            try:
+                task_payload = payload_resolver(job)
+            except ApprovalDecisionError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - convert to domain error
+                raise ApprovalPayloadCorruptError(
+                    "OpenShell approval payload is not executable"
+                ) from exc
+            job.status = "queued"
+            job.progress = 0
+            session.add(
+                JobEvent(
+                    job_id=job.id,
+                    event_type="openshell_approval_approved",
+                    status="queued",
+                    message="OpenShell sandbox approval accepted; task queued",
+                    metadata_json={"approval_id": str(approval.id)},
+                )
+            )
+            openshell_dispatch = OpenShellDispatchSpec(
+                task_payload=task_payload,
+                job_id=str(job.id),
+            )
+
+        session.add(
+            AuditEvent(
+                actor_id=approver_user_id,
+                action=f"approval.{status_value}",
+                resource_type="human_approval",
+                resource_id=str(approval.id),
+                metadata_json={
+                    "requested_action": approval.requested_action,
+                    "requested_by": approval.requested_by,
+                    "job_id": str(approval.job_id) if approval.job_id else None,
+                },
+            )
+        )
+        await session.flush()
+        return ApprovalDecisionResult(
+            approval=approval,
+            openshell_dispatch=openshell_dispatch,
+        )
 
 
 class ActionRequestService:

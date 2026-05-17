@@ -70,7 +70,6 @@ from cognitive_os.core.db import session_scope
 from cognitive_os.core.health import check_health_dashboard
 from cognitive_os.core.observability import configure_langsmith
 from cognitive_os.db.models import (
-    AuditEvent,
     Document,
     DocumentChunk,
     HumanApproval,
@@ -533,36 +532,72 @@ def cmd_reject(bot: TelegramBot, chat_id: int, arg: str) -> None:
 
 
 def _decide_approval(bot: TelegramBot, chat_id: int, arg: str, status_value: str) -> None:
+    """Telegram adapter for `actions.service.decide_approval`.
+
+    Sharing the helper with the REST endpoint guarantees that approving from
+    Telegram inherits four-eyes (when enabled), cascade-to-Job/ActionRequest on
+    reject and AuditEvent emission, and dispatches OpenShell sandbox jobs the
+    same way the panel does.
+    """
+    from cognitive_os.actions.service import (
+        ApprovalAlreadyDecidedError,
+        ApprovalDecisionError,
+        ApprovalNotFoundError,
+        ApprovalPayloadCorruptError,
+        ApprovalSelfDecisionError,
+        decide_approval,
+    )
+
     if not arg:
         bot.send(chat_id, f"Uso: `/{status_value[:6]} <approval_id>`")
         return
+    try:
+        approval_id = UUID(arg)
+    except ValueError:
+        bot.send(chat_id, "id inválido")
+        return
 
-    async def _decide() -> str:
-        async with session_scope() as session:
-            try:
-                approval = await session.get(HumanApproval, UUID(arg))
-            except ValueError:
-                return "id inválido"
-            if approval is None:
-                return "no encontrado"
-            if approval.status != "pending":
-                return f"ya estaba {approval.status}"
-            approval.status = status_value
-            approval.approver_user_id = "telegram"
-            approval.approved_by = "telegram" if status_value == "approved" else None
-            approval.decided_at = datetime.now(UTC)
-            session.add(
-                AuditEvent(
-                    actor_id="telegram",
-                    action=f"approval.{status_value}",
-                    resource_type="human_approval",
-                    resource_id=str(approval.id),
-                    metadata_json={"action": approval.requested_action},
-                )
+    async def _resolve_payload(job: Any) -> dict[str, Any]:
+        # Local import keeps the bot module decoupled from the API package
+        # while reusing the same payload reveal helper.
+        from cognitive_os.api.app import _openshell_task_payload_from_job
+
+        return _openshell_task_payload_from_job(job)
+
+    async def _decide() -> tuple[str, object | None]:
+        try:
+            result = await decide_approval(
+                approval_id,
+                status_value=status_value,
+                approver_user_id="telegram",
+                payload_resolver=lambda job: _run(_resolve_payload(job)),
             )
-            return status_value
+        except ApprovalNotFoundError:
+            return "no encontrado", None
+        except ApprovalAlreadyDecidedError as exc:
+            return f"ya estaba {exc.current_status}", None
+        except ApprovalSelfDecisionError:
+            return "rechazado por four-eyes (mismo solicitante)", None
+        except ApprovalPayloadCorruptError:
+            return "payload corrupto, no se pudo despachar", None
+        except ApprovalDecisionError as exc:
+            return f"error: {exc}", None
+        return status_value, result.openshell_dispatch
 
-    result = _run(_decide())
+    result, openshell = _run(_decide())
+    if openshell is not None:
+        try:
+            from cognitive_os.workers.tasks import run_openshell_task_async
+
+            run_openshell_task_async.apply_async(
+                args=[openshell.task_payload, openshell.job_id],
+                queue="agent_longrun",
+            )
+        except Exception as exc:  # noqa: BLE001 - Celery may be offline; report it
+            logging.getLogger(__name__).warning(
+                "telegram_openshell_dispatch_failed",
+                extra={"error_type": type(exc).__name__},
+            )
     bot.send(chat_id, f"`/approval {arg[:8]}…` → {result}")
 
 

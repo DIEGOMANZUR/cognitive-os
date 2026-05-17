@@ -102,7 +102,16 @@ from cognitive_os.actions.schemas import (
     WorkflowDocument,
     WorkflowImportResult,
 )
-from cognitive_os.actions.service import ActionRequestError, ActionRequestService
+from cognitive_os.actions.service import (
+    ActionRequestError,
+    ActionRequestService,
+    ApprovalAlreadyDecidedError,
+    ApprovalDecisionError,
+    ApprovalNotFoundError,
+    ApprovalPayloadCorruptError,
+    ApprovalSelfDecisionError,
+    decide_approval,
+)
 from cognitive_os.agents.graph import (
     build_graph,
     cast_state,
@@ -3243,112 +3252,62 @@ async def _decide_approval(
     status_value: str,
     approver_user_id: str,
 ) -> ApprovalResponse:
-    openshell_dispatch: tuple[dict[str, Any], str] | None = None
-    async with session_scope() as session:
-        approval = await session.get(HumanApproval, approval_id)
-        if approval is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Approval not found",
-            )
-        if approval.status != "pending":
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Approval already decided: {approval.status}",
-            )
-        if (
-            settings.approval_require_four_eyes
-            and approval.requested_by
-            and approval.requested_by == approver_user_id
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=(
-                    "Approver must differ from requester: human-in-the-loop "
-                    "requires four-eyes review."
-                ),
-            )
-        approval.status = status_value
-        approval.approver_user_id = approver_user_id
-        approval.approved_by = approver_user_id if status_value == "approved" else None
-        approval.decided_at = datetime.now(UTC)
-        job = await session.get(Job, approval.job_id) if approval.job_id is not None else None
-        if status_value == "rejected":
-            if job is not None and job.status not in {"completed", "failed", "cancelled"}:
-                job.status = "rejected"
-                job.progress = 100
-                session.add(
-                    JobEvent(
-                        job_id=job.id,
-                        event_type="approval_rejected",
-                        status="rejected",
-                        message="Human approval rejected",
-                        metadata_json={"approval_id": str(approval.id)},
-                    )
-                )
-            action_request_result = await session.execute(
-                select(ActionRequest).where(ActionRequest.approval_id == approval.id)
-            )
-            action_request = action_request_result.scalar_one_or_none()
-            if action_request is not None and action_request.status not in {
-                "completed",
-                "failed",
-                "cancelled",
-                "rejected",
-            }:
-                action_request.status = "rejected"
-                action_request.error = "Human approval rejected"
-        elif (
-            status_value == "approved"
-            and job is not None
-            and job.job_type == "openshell_sandbox"
-            and job.status == "waiting_approval"
-        ):
-            task_payload = _openshell_task_payload_from_job(job)
-            job.status = "queued"
-            job.progress = 0
-            session.add(
-                JobEvent(
-                    job_id=job.id,
-                    event_type="openshell_approval_approved",
-                    status="queued",
-                    message="OpenShell sandbox approval accepted; task queued",
-                    metadata_json={"approval_id": str(approval.id)},
-                )
-            )
-            openshell_dispatch = (task_payload, str(job.id))
-        session.add(
-            AuditEvent(
-                actor_id=approver_user_id,
-                action=f"approval.{status_value}",
-                resource_type="human_approval",
-                resource_id=str(approval.id),
-                metadata_json={
-                    "requested_action": approval.requested_action,
-                    "requested_by": approval.requested_by,
-                    "job_id": str(approval.job_id) if approval.job_id else None,
-                },
-            )
+    """REST adapter on top of `actions.service.decide_approval`.
+
+    Translates domain errors to HTTP status codes and dispatches the OpenShell
+    Celery task after the DB transaction commits.
+    """
+    try:
+        result = await decide_approval(
+            approval_id,
+            status_value=status_value,
+            approver_user_id=approver_user_id,
+            payload_resolver=_openshell_task_payload_from_job,
         )
-        await session.flush()
-        response = _approval_response(approval)
-    if openshell_dispatch is not None:
-        task_payload, job_id = openshell_dispatch
+    except ApprovalNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Approval not found"
+        ) from exc
+    except ApprovalAlreadyDecidedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Approval already decided: {exc.current_status}",
+        ) from exc
+    except ApprovalSelfDecisionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
+    except ApprovalPayloadCorruptError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
+    except ApprovalDecisionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+
+    if result.openshell_dispatch is not None:
         run_openshell_task_async.apply_async(
-            args=[task_payload, job_id],
+            args=[result.openshell_dispatch.task_payload, result.openshell_dispatch.job_id],
             queue="agent_longrun",
         )
-    return response
+    return _approval_response(result.approval)
 
 
 def _openshell_task_payload_from_job(job: Job) -> dict[str, Any]:
+    """Reveal the OpenShell executable payload stored on a `Job`.
+
+    Raises domain-level `ApprovalPayloadCorruptError` so callers (REST adapter
+    and Telegram bot) decide their own status/message. Never raises
+    HTTPException directly — keeping this surface framework-agnostic lets the
+    shared `decide_approval` invoke it without importing FastAPI.
+    """
     metadata = job.metadata_json or {}
     stored_payload = metadata.get("task_payload_executable")
     redacted_payload = metadata.get("task_payload_redacted")
     if not isinstance(stored_payload, dict):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="OpenShell approval is missing executable task payload",
+        raise ApprovalPayloadCorruptError(
+            "OpenShell approval is missing executable task payload"
         )
     if not isinstance(redacted_payload, dict):
         redacted_payload = {}
@@ -3356,9 +3315,8 @@ def _openshell_task_payload_from_job(job: Job) -> dict[str, Any]:
         payload = reveal_payload(stored_payload, redacted_payload, settings)
         task = OpenShellTask.model_validate(payload)
     except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="OpenShell approval payload is not executable",
+        raise ApprovalPayloadCorruptError(
+            "OpenShell approval payload is not executable"
         ) from exc
     return task.model_dump(mode="json")
 
