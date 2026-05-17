@@ -110,15 +110,10 @@ class _FakeRedisClient:
     def expire(self, key: str, seconds: int) -> int:  # noqa: ARG002 - no eviction needed
         return 1 if key in self._zsets else 0
 
-    def zrange(
-        self, key: str, start: int, stop: int, *, withscores: bool = False
-    ) -> list[Any]:
+    def zrange(self, key: str, start: int, stop: int, *, withscores: bool = False) -> list[Any]:
         zset = self._zsets.get(key, [])
         # `stop` is inclusive in Redis; tolerate negative indices too.
-        if stop == -1:
-            window = zset[start:]
-        else:
-            window = zset[start : stop + 1]
+        window = zset[start:] if stop == -1 else zset[start : stop + 1]
         if withscores:
             return [(m, s) for s, m in window]
         return [m for _s, m in window]

@@ -349,6 +349,24 @@ antes de extraer el backup.
 * `OpenShellPolicyViolation` → la tarea pidió acciones bloqueadas por
   política. Revisa `args_redacted` antes de aprobar.
 
+## Estado vivo de credenciales
+
+El endpoint `GET /system/credentials-status` (admin) reporta en tiempo real
+qué credenciales están configuradas y cuáles faltan, con un puntero exacto a
+dónde obtenerlas. La fuente de verdad es
+`backend/src/cognitive_os/core/credentials_inventory.py`: agregar una
+credencial nueva es una entrada en `INVENTORY` y el endpoint la expone
+automáticamente.
+
+```bash
+curl -fs -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8000/system/credentials-status | jq '
+  {total, configured, missing_required,
+   missing: [.items[] | select(.configured==false) | {name, optional, how_to_obtain}]}'
+```
+
+El endpoint **nunca** devuelve valores — solo booleanos y `how_to_obtain` —
+así que es seguro consultarlo desde el panel.
+
 ## Workflow.v1 — clonar y re-ejecutar planes
 
 Cualquier `ActionRequest` con `action_type` en la lista exportable se

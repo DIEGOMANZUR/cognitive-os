@@ -146,6 +146,12 @@ from cognitive_os.core.auth import (
     require_langsmith_api_access,
 )
 from cognitive_os.core.config import settings
+from cognitive_os.core.credentials_inventory import (
+    CredentialsInventoryResponse,
+)
+from cognitive_os.core.credentials_inventory import (
+    build_status as build_credentials_status,
+)
 from cognitive_os.core.db import session_scope
 from cognitive_os.core.health import HealthDashboard, check_health_dashboard
 from cognitive_os.core.observability import configure_langsmith, disable_langsmith
@@ -776,6 +782,24 @@ async def system_info(
         alembic_head=_SYSTEM_ALEMBIC_HEAD,
         started_at=_SYSTEM_STARTED_AT,
     )
+
+
+@app.get(
+    "/system/credentials-status",
+    response_model=CredentialsInventoryResponse,
+)
+async def system_credentials_status(
+    user: AuthenticatedUser = _admin_auth_dependency,
+) -> CredentialsInventoryResponse:
+    """Live inventory of operator-supplied credentials.
+
+    Admin-only because it lists capability gates the operator hasn't yet
+    activated. Values are NEVER returned — only booleans, the capability the
+    credential unlocks, and a deterministic `how_to_obtain` pointer so the
+    operator can finish bootstrap from this single response.
+    """
+    del user
+    return build_credentials_status()
 
 
 @app.get("/health/dashboard", response_model=HealthDashboard)
