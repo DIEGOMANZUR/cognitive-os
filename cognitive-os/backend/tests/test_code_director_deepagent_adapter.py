@@ -91,7 +91,14 @@ def test_director_runs_end_to_end_with_deepagent_fake_runner(tmp_path: Path) -> 
         return _FakeResult("ok", "subtask done", ["main.py"])
 
     registry = {"deepagent": DeepAgentAdapter(runner=runner)}
-    director = CodeDirector(adapters=registry, local_storage_dir=tmp_path)
+    from cognitive_os.code_director.planner import HeuristicPlanner
+
+    hp = HeuristicPlanner()
+    director = CodeDirector(
+        adapters=registry,
+        local_storage_dir=tmp_path,
+        planner=lambda req, ws: hp.plan(req, workspace_dir=ws),
+    )
     request = CodeBuildRequest(
         objective="Build a tiny CLI calculator with tests" + " " * 60,
         adapter_preference=AdapterPreference(default_adapter="deepagent"),

@@ -17,6 +17,7 @@ from cognitive_os.code_director.director import (
     DirectorError,
     _topological_order,
 )
+from cognitive_os.code_director.planner import HeuristicPlanner
 from cognitive_os.code_director.schemas import (
     AdapterPreference,
     AgentSession,
@@ -39,7 +40,14 @@ def _request(**overrides: object) -> CodeBuildRequest:
 
 
 def _director(adapter: FakeAdapter, tmp_path: Path) -> CodeDirector:
-    return CodeDirector(adapters={"fake": adapter}, local_storage_dir=tmp_path)
+    # Pin the heuristic planner: these tests assert the deterministic
+    # scaffold→implement→review shape and must never touch a real LLM.
+    hp = HeuristicPlanner()
+    return CodeDirector(
+        adapters={"fake": adapter},
+        local_storage_dir=tmp_path,
+        planner=lambda req, ws: hp.plan(req, workspace_dir=ws),
+    )
 
 
 # ---------------------------------------------------------------------------

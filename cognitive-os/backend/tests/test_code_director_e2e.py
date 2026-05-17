@@ -19,6 +19,7 @@ import pytest
 import cognitive_os.code_director.service as svc_module
 from cognitive_os.code_director.adapters.base import CodingAgentAdapter
 from cognitive_os.code_director.director import CodeDirector
+from cognitive_os.code_director.planner import HeuristicPlanner
 from cognitive_os.code_director.schemas import (
     AdapterPreference,
     AgentSession,
@@ -106,9 +107,11 @@ async def test_full_build_writes_files_and_packages_targz(
         local_storage_dir=str(tmp_path / "storage"),
         document_output_root=tmp_path / "out",
     )
+    hp = HeuristicPlanner()
     director = CodeDirector(
         adapters={"fake": _FileWritingAdapter()},
         local_storage_dir=tmp_path / "storage",
+        planner=lambda req, ws: hp.plan(req, workspace_dir=ws),
     )
     service = CodeDirectorService(cfg, director=director, allow_fake_adapter=True)
 
@@ -154,9 +157,11 @@ async def test_full_build_budget_partial_still_packages(
         local_storage_dir=str(tmp_path / "storage"),
         document_output_root=tmp_path / "out",
     )
+    hp = HeuristicPlanner()
     director = CodeDirector(
         adapters={"fake": _FileWritingAdapter()},
         local_storage_dir=tmp_path / "storage",
+        planner=lambda req, ws: hp.plan(req, workspace_dir=ws),
     )
     service = CodeDirectorService(cfg, director=director, allow_fake_adapter=True)
 

@@ -44,106 +44,9 @@ class DirectorError(RuntimeError):
     """Raised when the director cannot produce a plan or dispatch a subtask."""
 
 
-# ---------------------------------------------------------------------------
-# Planning — F1 ships a heuristic; F2+ swap in an LLM-backed planner.
-# ---------------------------------------------------------------------------
-
-
-def _heuristic_plan(
-    request: CodeBuildRequest,
-    *,
-    workspace_dir: Path,
-) -> BuildPlan:
-    """Deterministic three-stage plan.
-
-    F1 uses a heuristic so the director loop can be tested without any LLM.
-    F2 will replace this with an LLM-backed planner that reasons over the
-    objective text; the contract (returns `BuildPlan`) stays identical.
-    """
-    coder_adapter, coder_model = request.adapter_preference.for_role("coder")
-    reviewer_adapter, reviewer_model = request.adapter_preference.for_role("reviewer")
-    tester_adapter, tester_model = request.adapter_preference.for_role("tester")
-
-    subtasks: list[SubtaskSpec] = [
-        SubtaskSpec(
-            subtask_id="st-scaffold",
-            title="Scaffold project structure",
-            description=(
-                "Create the initial directory tree, dependency manifests and "
-                "minimal boilerplate satisfying the operator objective:\n\n"
-                f"{request.objective}\n\n"
-                + (f"Operator notes:\n{request.notes}\n" if request.notes else "")
-            ),
-            role="coder",
-            adapter=coder_adapter,
-            model=coder_model,
-            expected_paths=["README.md", "pyproject.toml", "package.json"],
-        ),
-        SubtaskSpec(
-            subtask_id="st-implement",
-            title="Implement objective",
-            description=(
-                "Implement the application end-to-end inside the workspace. "
-                "Write idiomatic, tested code. Honor any explicit constraints "
-                "from the objective. Objective:\n\n"
-                f"{request.objective}"
-            ),
-            role="coder",
-            adapter=coder_adapter,
-            model=coder_model,
-            depends_on=["st-scaffold"],
-        ),
-        SubtaskSpec(
-            subtask_id="st-review",
-            title="Self-review and propose fixes",
-            description=(
-                "Review the workspace. Report problems found (missing files, "
-                "TODOs, untested branches). If `iterate_until_tests_pass` is "
-                "True, propose concrete patches; otherwise produce a "
-                "human-readable summary."
-            ),
-            role="reviewer",
-            adapter=reviewer_adapter,
-            model=reviewer_model,
-            depends_on=["st-implement"],
-        ),
-    ]
-
-    if request.run_tests_in_sandbox:
-        subtasks.append(
-            SubtaskSpec(
-                subtask_id="st-test",
-                title="Run tests in sandbox",
-                description=(
-                    "Execute the project's test suite inside openshell_sandbox. "
-                    "Report failures with file:line references."
-                ),
-                role="tester",
-                adapter=tester_adapter,
-                model=tester_model,
-                depends_on=["st-review"],
-            )
-        )
-
-    estimated_calls = max(len(subtasks), int(len(request.objective) / 400))
-    estimated_runtime = min(request.budget.max_runtime_minutes, max(5, estimated_calls * 2))
-    estimated_cost = (
-        request.budget.max_total_cost_usd if request.budget.max_total_cost_usd is not None else None
-    )
-
-    return BuildPlan(
-        workspace_dir=str(workspace_dir),
-        subtasks=subtasks,
-        estimated_runtime_minutes=estimated_runtime,
-        estimated_calls=estimated_calls,
-        estimated_cost_usd=estimated_cost,
-        rationale=(
-            "F1 heuristic planner: scaffold → implement → review (+ optional "
-            "sandboxed test run). Replace with an LLM-backed planner in F2 "
-            "while keeping the same `BuildPlan` shape."
-        ),
-    )
-
+# Planning lives in `code_director/planner.py` (HeuristicPlanner +
+# LLMPlanner). The director only holds a `planner` callable so it stays
+# testable without an LLM.
 
 # ---------------------------------------------------------------------------
 # Execution loop
@@ -219,7 +122,17 @@ class CodeDirector:
     ) -> None:
         self._adapters = adapters
         self._local_storage_dir = local_storage_dir
-        self._planner = planner or (lambda req, ws: _heuristic_plan(req, workspace_dir=ws))
+        if planner is not None:
+            self._planner = planner
+        else:
+            # Default: LLM-driven planner with deterministic heuristic
+            # fallback (no key / circuit open / bad JSON -> heuristic).
+            from cognitive_os.code_director.planner import (  # noqa: PLC0415
+                default_planner,
+            )
+
+            _p = default_planner()
+            self._planner = lambda req, ws: _p.plan(req, workspace_dir=ws)
 
     # ---- planning surface -------------------------------------------------
 

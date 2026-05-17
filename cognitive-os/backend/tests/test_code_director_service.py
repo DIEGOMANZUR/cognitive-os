@@ -17,6 +17,7 @@ import pytest
 import cognitive_os.code_director.service as svc_module
 from cognitive_os.code_director.adapters.fake import FakeAdapter
 from cognitive_os.code_director.director import CodeDirector
+from cognitive_os.code_director.planner import HeuristicPlanner
 from cognitive_os.code_director.schemas import AdapterPreference, CodeBuildRequest
 from cognitive_os.code_director.service import CodeDirectorError, CodeDirectorService
 from cognitive_os.core.config import Settings
@@ -66,9 +67,11 @@ def _service_with_fake_adapter(tmp_path) -> CodeDirectorService:
         local_storage_dir=str(tmp_path / "storage"),
         document_output_root=tmp_path / "out",
     )
+    hp = HeuristicPlanner()
     director = CodeDirector(
         adapters={"fake": FakeAdapter()},
         local_storage_dir=tmp_path / "storage",
+        planner=lambda req, ws: hp.plan(req, workspace_dir=ws),
     )
     # `allow_fake_adapter` is the documented test seam — production never
     # sets it, so the fake-adapter guard stays enforced for real requests.
