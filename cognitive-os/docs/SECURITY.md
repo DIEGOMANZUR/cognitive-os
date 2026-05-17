@@ -52,6 +52,12 @@
   umbral pasan a `expired`, cierran el Job/`ActionRequest` ligado y dejan
   `AuditEvent approval.expired`. Evita que una aprobación olvidada dispare
   una acción obsoleta días después.
+- `RATE_LIMIT_BACKEND=memory|redis` (default `memory`) elige el backend del
+  rate limiter de endpoints sensibles. `memory` es single-replica; en cualquier
+  despliegue multi-réplica usar `redis` con `RATE_LIMIT_REDIS_URL` (o
+  `REDIS_URL` como fallback) para que todas las réplicas voten contra el
+  mismo estado de ventana. El backend Redis **falla open** si la conexión
+  cae: protege la liveness, no la confidencialidad.
 - Mutaciones de memoria DeepAgent (`/deepagents/memory/proposals/{id}/approve`,
   `/deepagents/memory/proposals/{id}/reject`,
   `/deepagents/memory/consolidate/run`) requieren rol admin: alteran memoria

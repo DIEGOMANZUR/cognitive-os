@@ -204,6 +204,8 @@
 | `primary_llm_provider` | `PRIMARY_LLM_PROVIDER` | str |
 | `primary_llm_reasoning_effort` | `PRIMARY_LLM_REASONING_EFFORT` | UnionType[str, NoneType] |
 | `primary_llm_thinking_enabled` | `PRIMARY_LLM_THINKING_ENABLED` | bool |
+| `rate_limit_backend` | `RATE_LIMIT_BACKEND` | Literal[memory, redis] |
+| `rate_limit_redis_url` | `RATE_LIMIT_REDIS_URL` | str |
 | `redis_url` | `REDIS_URL` | str |
 | `require_human_approval_for_external_actions` | `REQUIRE_HUMAN_APPROVAL_FOR_EXTERNAL_ACTIONS` | bool |
 | `reranker_enabled` | `RERANKER_ENABLED` | bool |

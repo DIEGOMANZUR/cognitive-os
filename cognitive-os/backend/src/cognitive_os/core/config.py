@@ -270,6 +270,26 @@ class Settings(BaseSettings):
             "approval from being decided long after the operator forgot it."
         ),
     )
+    rate_limit_backend: Literal["memory", "redis"] = Field(
+        default="memory",
+        alias="RATE_LIMIT_BACKEND",
+        description=(
+            "Backend for the per-(user, bucket) rate limiter on hot endpoints. "
+            "'memory' is single-replica only; switch to 'redis' for any "
+            "multi-replica deployment so all API instances vote against the "
+            "same window state."
+        ),
+    )
+    rate_limit_redis_url: str = Field(
+        default="",
+        alias="RATE_LIMIT_REDIS_URL",
+        description=(
+            "Redis URL for the rate limiter backend. When empty, the limiter "
+            "falls back to REDIS_URL (the generic broker URL). The limiter "
+            "fails open if Redis is unreachable so a transient outage never "
+            "blocks legit traffic."
+        ),
+    )
     http_timeout_seconds: float = Field(default=15.0, alias="HTTP_TIMEOUT_SECONDS")
     http_max_retries: int = Field(default=2, alias="HTTP_MAX_RETRIES")
     circuit_breaker_failure_threshold: int = Field(
