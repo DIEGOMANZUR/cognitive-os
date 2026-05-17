@@ -2,6 +2,95 @@
 
 > Bitácora viva. Para producto: ver `docs/`.
 
+## 2026-05-17 - Fase 39 cierre de riesgos residuales
+
+Cuatro mejoras concretas para neutralizar los tres riesgos residuales
+declarados en Fase 38 que SÍ admiten cierre técnico, y minimizar al máximo
+el único que es físicamente imposible cerrar (OAuth Google primer click,
+inherente al flujo Desktop OAuth).
+
+Hallazgo 39.1 - Rate limiter sólo single-replica:
+
+- Severidad: P1 escalabilidad.
+- Evidencia: el limiter histórico vivía in-proc y vetaba multi-replica.
+- Correccion: `RateLimiter` ahora es `Protocol`; dos backends:
+  `InMemoryRateLimiter` (default) y `RedisRateLimiter` (sliding window con
+  sorted set + pipeline ZREMRANGEBYSCORE/ZCARD/ZADD/EXPIRE). Settings
+  nuevos `RATE_LIMIT_BACKEND` (memory|redis) y `RATE_LIMIT_REDIS_URL`. El
+  Redis backend **falla open** ante outage, nunca bloquea legit traffic.
+- Verificacion: 9 tests focal (5 memory + 4 redis con fake client cubriendo
+  allow, block, isolation, fail-open, reset). Suite **555 passed**.
+
+Hallazgo 39.2 - Credenciales pendientes sin observabilidad runtime:
+
+- Severidad: P2 ops.
+- Evidencia: la matriz de 21 credenciales vivía solo en RUNBOOK; un
+  operador no podía consultar desde el sistema mismo cuáles faltaban.
+- Correccion: nuevo modulo `core/credentials_inventory.py` con la matriz
+  declarativa (`CredentialSpec`) y `build_status()`. Endpoint admin
+  `GET /system/credentials-status` retorna `{total, configured,
+  missing_required, items}` con booleans + `how_to_obtain`; **jamás
+  valores**. Test de defensa-en-profundidad busca marcadores
+  secret-looking en la respuesta y confirma que no se filtran.
+- Verificacion: 7 tests (resolución de attrs vs Settings, placeholder
+  detection, REQ vs OPT split, env-var credentials, admin gate,
+  estructura, no-leak). Suite **562 passed**.
+
+Hallazgo 39.3 - OAuth Google primer click "manual":
+
+- Severidad: P2 friccion. NO completamente eliminable.
+- Evidencia: la primera autorización requiere que un humano abra un
+  navegador (inherente al flujo OAuth Desktop). El operador histórico
+  necesitaba re-autorizar cada vez que el access_token expiraba.
+- Correccion en lo cerrable:
+  * `scripts/auth_google.py` ahora detecta si `token.json` existe y es
+    refresheable; corre `GoogleCredentialsLoader.load()`, que refresca
+    transparentemente el access_token usando el refresh_token y reescribe
+    el archivo. Sólo abre browser la primera vez o ante revocación real.
+  * `_check_calendar` / `_check_drive` en `core/health.py` enriquecen el
+    detail cuando el motivo es token faltante: agregan el comando exacto
+    a correr y la nota "los refresh tokens son automáticos".
+- Verificacion: 4 tests para `_google_token_instructions`. Suite
+  **566 passed**.
+
+Hallazgo 39.4 - Sin wizard CLI para bootstrap de credenciales:
+
+- Severidad: P2 onboarding.
+- Evidencia: el operador podía leer el RUNBOOK pero no tenía un comando
+  unificado que listara su estado real.
+- Correccion: `scripts/init_credentials.sh`:
+  * Garantiza .env (delega en init_env.sh).
+  * Consume `/system/credentials-status` si el API responde; fallback a
+    `build_status()` inline en Python.
+  * Checklist tres-columnas (OK ✓ / REQ ✗ / OPT ○) + instrucción exacta
+    + resumen + opción `--ci` para gate de pipeline (exit 1 si REQ
+    faltan).
+
+Cierre Fase 39:
+
+- Suite: **566 passed, 1 skipped, 20 deselected** (+4 vs 562 de Fase 38B).
+- Stress 3 corridas idénticas → 566 cada una, sin flakiness.
+- full-qa, verify_operator_ready, pre-commit (6 hooks), detect-secrets
+  baseline → todos verdes.
+- Smoke wizard live: 15/21 configuradas, 0 REQ faltantes, 6 OPT pendientes
+  documentadas con su comando.
+
+Declaracion honesta de lo único que queda físicamente imposible:
+
+**La primera autorización OAuth de Google requiere un browser controlado
+por un humano.** El estándar OAuth 2.0 Desktop Flow no admite consent
+programático — el usuario debe interactuar con el screen de Google una
+vez. Después de eso, el refresh_token resuelve todo automáticamente.
+Esto NO es un punto débil de Cognitive OS: es el contrato del protocolo
+OAuth.
+
+Otras credenciales externas (DeepSeek, Gemini, GoDaddy, etc.) son
+configuración pura: el operador las pega en .env. El wizard
+`init_credentials.sh` reporta exactamente cuáles faltan y dónde obtenerlas.
+
+Sin P0/P1/P2 conocidos pendientes que admitan cierre técnico. Sistema
+listo para uso comercial.
+
 ## 2026-05-16 - Fase 38 revision personal desde cero post-37
 
 Operador pidio revision personal completa, sin agentes intermediarios, con

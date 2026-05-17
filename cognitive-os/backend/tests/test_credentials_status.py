@@ -61,7 +61,7 @@ def _placeholder_settings() -> Settings:
         "primary_llm_api_key": SecretStr("CHANGEME"),
         "embeddings_api_key": SecretStr("CHANGEME"),
         "jwt_secret": SecretStr("CHANGEME"),
-        "database_url": "postgresql+asyncpg://cog:CHANGEME@localhost:5432/cog",  # pragma: allowlist secret
+        "database_url": "postgresql+asyncpg://cog:CHANGEME@localhost:5432/cog",  # noqa: E501  # pragma: allowlist secret
         "neo4j_password": SecretStr("CHANGEME"),
         "weaviate_api_key": SecretStr("CHANGEME"),
         "action_payload_encryption_key": SecretStr("CHANGEME"),

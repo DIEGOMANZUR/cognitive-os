@@ -2,6 +2,48 @@
 
 > Bitácora viva. La documentación estable de producto vive en `docs/`.
 
+## 2026-05-17 - Fase 39 cerrada: cierre de riesgos residuales
+
+5 commits cierran los 3 riesgos residuales declarados que admitían cierre
+técnico y minimizan al máximo el único inherente al protocolo OAuth.
+
+- **B.1 — Redis rate limiter** (commit `d413766`): `RateLimiter` Protocol
+  con dos backends (memory/redis). Sorted-set sliding window con
+  fail-open ante outage. Settings `RATE_LIMIT_BACKEND` y
+  `RATE_LIMIT_REDIS_URL`. +5 tests con fake Redis client (no requiere
+  Redis real).
+- **B.2 — /system/credentials-status** (commit `4886499`): inventario
+  declarativo de las 21 credenciales con endpoint admin que reporta
+  estado, capacidad habilitada y `how_to_obtain`. Nunca devuelve valores.
+  +7 tests incluyendo defense-in-depth contra leaks.
+- **B.3 — OAuth Google resiliencia** (commit `589df59`): `auth_google.py`
+  detecta y refresca tokens existentes sin abrir browser; health detail
+  enriquece con la instrucción exacta cuando falta el token. +4 tests.
+- **B.4 — init_credentials wizard** (commit `753bdb0`): checklist
+  REQ/OPT/OK con instrucción inline, flag `--ci` para gate de pipeline.
+  Smoke live: 15/21 configuradas en este host.
+- **B.5 — cert final** (este commit): compuertas verdes + declaración
+  honesta de lo único que no es cerrable (OAuth primer click).
+
+Suite final: **566 passed**, 1 skipped, 20 deselected (+4 vs Fase 38).
+Stress 3 corridas estable, ~25-27s c/u.
+
+Compuertas:
+- `bash scripts/full-qa.sh` → OK con guardas alembic + git diff.
+- `bash backend/scripts/verify_operator_ready.sh` → OK head `202605160002`.
+- `uvx pre-commit run --all-files` → Passed (6 hooks).
+- `uvx --from detect-secrets detect-secrets scan` → 0 findings.
+- `bash scripts/init_credentials.sh` → 0 REQ faltantes.
+
+Declaración honesta: el único elemento que NO admite cierre técnico es la
+**primera autorización OAuth de Google** porque el estándar requiere
+interacción humana con el browser. Refresh y reanudación están
+automatizados; sólo el primer click queda manual. Esto no es un punto
+débil de Cognitive OS — es el contrato de OAuth 2.0 Desktop Flow.
+
+Sin P0/P1/P2 conocidos pendientes con cierre técnico viable. Sistema en
+grado comercial operable.
+
 ## 2026-05-16 - Fase 38 cerrada: revision personal de grado comercial
 
 7 fases ejecutadas sin esperar intervencion (mapeo, hardening, capacidades,
