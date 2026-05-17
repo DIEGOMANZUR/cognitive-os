@@ -30,6 +30,7 @@ import { GoogleOpsView } from "./views/GoogleOpsView";
 import { JobsView } from "./views/JobsView";
 import { LangSmithView } from "./views/LangSmithView";
 import { MailInboxView } from "./views/MailInboxView";
+import { CodeDirectorView } from "./views/CodeDirectorView";
 import { MemoryView } from "./views/MemoryView";
 import { ResearchView } from "./views/ResearchView";
 import { SandboxView } from "./views/SandboxView";
@@ -243,6 +244,7 @@ function App() {
         {tab === "jobs" && <JobsView client={client} />}
         {tab === "approvals" && <ApprovalsView client={client} />}
         {tab === "research" && <ResearchView client={client} />}
+        {tab === "codeDirector" && <CodeDirectorView client={client} />}
         {tab === "sandbox" && <SandboxView client={client} />}
         {tab === "langsmith" && <LangSmithView client={client} />}
         {tab === "audit" && <AuditView client={client} />}

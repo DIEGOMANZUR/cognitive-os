@@ -13,6 +13,7 @@ export type Tab =
   | "approvals"
   | "sandbox"
   | "research"
+  | "codeDirector"
   | "langsmith"
   | "audit"
   | "health"
@@ -703,4 +704,58 @@ export type WorkflowImportResult = {
   };
   dry_run: boolean;
   notes: string | null;
+};
+
+// ---- Code Director ----
+
+export type CodeAdapterChoice =
+  | "claude_code"
+  | "codex"
+  | "kimi"
+  | "deepagent";
+
+export type CodeSubtaskSpec = {
+  subtask_id: string;
+  title: string;
+  description: string;
+  role: "planner" | "coder" | "reviewer" | "tester";
+  adapter: CodeAdapterChoice;
+  model: string | null;
+  depends_on: string[];
+  expected_paths: string[];
+};
+
+export type CodeBuildPlan = {
+  workspace_dir: string;
+  subtasks: CodeSubtaskSpec[];
+  estimated_runtime_minutes: number;
+  estimated_calls: number;
+  estimated_cost_usd: number | null;
+  rationale: string;
+};
+
+export type CodeBuildCreateResponse = {
+  job_id: string;
+  approval_id: string;
+  build_id: string;
+  plan: CodeBuildPlan;
+  detail: string;
+};
+
+export type CodeBuildStatusResponse = {
+  job_id: string;
+  build_id: string | null;
+  status: string;
+  plan: CodeBuildPlan | null;
+  result: Record<string, unknown> | null;
+};
+
+export type CodeBuildEvent = {
+  event: string;
+  job_id?: string;
+  status?: string;
+  message?: string | null;
+  payload?: Record<string, unknown>;
+  result?: Record<string, unknown> | null;
+  detail?: string;
 };

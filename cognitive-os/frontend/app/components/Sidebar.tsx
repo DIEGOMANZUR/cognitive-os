@@ -41,6 +41,7 @@ const SECTIONS: Section[] = [
       { id: "approvals", label: "Aprobaciones", icon: "✓", hotkey: "6" },
       { id: "googleOps", label: "Google Ops", icon: "⌖" },
       { id: "research", label: "Research", icon: "⌕" },
+      { id: "codeDirector", label: "Code Director", icon: "⟐" },
       { id: "sandbox", label: "Sandbox", icon: "▢" }
     ]
   },

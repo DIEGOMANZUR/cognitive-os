@@ -228,6 +228,59 @@ export class ApiClient {
     if (streamError) throw new Error(streamError);
   }
 
+  async streamCodeBuildEvents(
+    jobId: string,
+    onEvent: (event: Record<string, unknown>) => void,
+    signal?: AbortSignal
+  ): Promise<void> {
+    const headers = new Headers({ Accept: "text/event-stream" });
+    const token = normalizeAuthToken(this.token);
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    const response = await fetch(this.buildUrl(`/code-director/${jobId}/events`), {
+      method: "GET",
+      headers,
+      signal
+    });
+    if (!response.ok) {
+      await throwResponseError(response);
+    }
+    if (!response.body) {
+      throw new Error("Code build SSE: server did not return a readable body.");
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let streamError: string | null = null;
+    const handleBlock = (block: string) => {
+      if (!block.startsWith("data: ")) return;
+      try {
+        const parsed = JSON.parse(block.slice(6).trim()) as Record<string, unknown>;
+        onEvent(parsed);
+        if (parsed.event === "error") {
+          streamError = String(parsed.detail ?? "Code build stream failed");
+        }
+      } catch {
+        // Ignore malformed line.
+      }
+    };
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let idx = buffer.indexOf("\n\n");
+      while (idx !== -1) {
+        const block = buffer.slice(0, idx).trim();
+        buffer = buffer.slice(idx + 2);
+        handleBlock(block);
+        idx = buffer.indexOf("\n\n");
+      }
+    }
+    buffer += decoder.decode();
+    const trailing = buffer.trim();
+    if (trailing) handleBlock(trailing);
+    if (streamError) throw new Error(streamError);
+  }
+
   buildUrl(path: string): string {
     return `${this.apiBase}${path}`;
   }
