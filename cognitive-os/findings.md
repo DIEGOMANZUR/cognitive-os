@@ -2,6 +2,48 @@
 
 > Bitácora viva. Para producto: ver `docs/`.
 
+## 2026-05-17 — Fase 41: Code Director F9 (planner LLM + prompts con contexto)
+
+El operador pidió "dejar listo al máximo nivel f9": que el director sea
+genuinamente capaz para apps complejas, no sólo que "ande". Dos
+debilidades reales de la Fase 40 que cerramos:
+
+1. El plan era un esqueleto fijo (scaffold→implement→review): para "una
+   app con 2 RAGs + frontend" eso es insuficiente.
+2. El prompt a cada coding agent era una línea ciega: re-scaffoldeaba lo
+   ya hecho, ignoraba lo que produjeron las dependencias y en reintento
+   repetía el mismo enfoque que falló.
+
+- **F9a** `planner.py`: `Planner` Protocol; `HeuristicPlanner`
+  (determinista, extraído del viejo `_heuristic_plan`, sigue siendo el
+  fallback) y `LLMPlanner` (pide al LLM primario un JSON de subtareas,
+  valida roles, descarta deps alucinadas y auto-deps, cap 12 subtareas,
+  asigna adapter/modelo por rol). `_extract_json` tolera prosa y
+  fences ```json. Cae al heurístico ante **cualquier** excepción. El
+  seam `llm_completion` es inyectable. Hallazgo en pruebas: el
+  `LLMPlanner` por defecto pegaba a la DeepSeek real (key en
+  `.env.local`) y colgaba la suite — se fijó `HeuristicPlanner`
+  explícito en las 4 construcciones de director de tests.
+- **F9b+F9c** `prompt_builder.py`: `build_subtask_prompt()` arma un
+  prompt estructurado y acotado: árbol del workspace, contenidos
+  relevantes (paths esperados + archivos tocados por upstream), resumen
+  de cada dependencia directa (F9b); en reintento, bloque
+  error-dirigido con error/stderr/exit-code y "no empieces de cero"
+  (F9c). Topes duros en cada inclusión + path-containment (jamás lee
+  fuera del workspace). `director.run/_run_subtask` hilan los
+  `StepResult` por subtarea para alimentar a las dependientes; se
+  eliminó el `_build_prompt` estático F1.
+- **F9d** smoke E2E `test_code_director_f9_smoke.py`: prueba offline que
+  el plan LLM corre una descomposición custom (≠ heurístico) y que el
+  prompt downstream lleva workspace + upstream; y que un primer intento
+  fallido produce un reintento distinto y error-dirigido.
+
+Cierre: **632 passed, 1 skipped, 20 deselected**; ruff/format/mypy (14
+fuentes code_director) verdes; pre-commit (6 hooks) Passed;
+detect-secrets clean. Sin tokens reales en ningún test (FakeAdapter +
+stub `llm_completion` + `HeuristicPlanner` fijado). El plan sigue
+pasando por `HumanApproval` antes de gastar nada.
+
 ## 2026-05-17 — Fase 40: Code Director (delegación a coding agents)
 
 Nueva capacidad pedida por el operador: "darle un objetivo y que el

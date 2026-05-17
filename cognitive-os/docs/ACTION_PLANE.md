@@ -461,8 +461,13 @@ HumanApproval → dispatch Celery (`agent_longrun`) → ejecución →
 JobEvents + AuditEvent → entrega `tar.gz`**. Budget caps duros
 (`max_runtime_minutes`, `max_total_llm_calls`, `max_calls_per_subtask`,
 `max_total_cost_usd`); al excederse el build queda `partial` y entrega
-lo construido. Detalle operativo completo en `docs/RUNBOOK.md` §
-"Code Director".
+lo construido. El plan lo genera un **planner LLM-driven** que
+descompone el objetivo en subtareas reales (con fallback heurístico
+determinista ante cualquier fallo, así un build nunca muere por el LLM
+planificador); cada subtarea se promptea con el estado vivo del
+workspace + lo que produjeron sus dependencias, y los reintentos son
+dirigidos por el error del intento anterior. Detalle operativo completo
+en `docs/RUNBOOK.md` § "Code Director".
 
 | Endpoint | Proposito | Ejecuta accion real |
 |---|---|---|

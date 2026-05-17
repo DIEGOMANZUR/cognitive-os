@@ -303,6 +303,28 @@ autenticados en el host (`claude --version`, `codex --version`,
 `kimi --version`). El preflight reporta los no disponibles en el plan
 en vez de fallar al ejecutar.
 
+Planificación y prompting (F9):
+
+- **Planner LLM-driven** (`code_director/planner.py`): el plan ya no es
+  el esqueleto fijo scaffold→implement→review. `LLMPlanner` pide al LLM
+  primario configurado que descomponga el objetivo en subtareas reales,
+  ordenadas por dependencia, con adapter/modelo por rol. Ante **cualquier**
+  fallo (sin key, circuito abierto, JSON malformado, esquema inválido,
+  dependencias alucinadas) cae al `HeuristicPlanner` determinista — un
+  build nunca muere porque el LLM planificador hipó. El plan sigue
+  pasando por `HumanApproval` antes de gastar un token.
+- **Prompts con contexto** (`code_director/prompt_builder.py`): cada
+  subtarea recibe el árbol vivo del workspace (no re-scaffoldea lo que
+  ya existe), el contenido de los paths esperados y de los archivos que
+  tocaron sus dependencias, y un resumen de lo que produjo cada upstream.
+  En un reintento se inyecta el error/stderr/exit-code del intento
+  anterior con la directiva explícita "arregla esto, no empieces de
+  cero" — el prompt de reintento difiere del primero, así
+  `iterate_until_tests_pass` converge en vez de repetir el mismo fallo.
+  Todo está acotado por topes duros (entradas del árbol, bytes/líneas
+  por archivo, total, colas de stdout/stderr) y con path-containment:
+  jamás se lee fuera del workspace.
+
 ## Research Orchestrator (multi-agente)
 
 Endpoint base: `/research/runs` (requiere JWT). Disponible cuando

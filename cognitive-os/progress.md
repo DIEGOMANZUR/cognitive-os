@@ -2,6 +2,33 @@
 
 > Bitácora viva. La documentación estable de producto vive en `docs/`.
 
+## 2026-05-17 — Fase 41 Code Director F9 cerrada (3 commits)
+
+Salto de "anda" a "es capaz para apps complejas". El director ya no
+planifica con un esqueleto fijo ni promptea a ciegas:
+
+- F9a `c52ed69` `planner.py`: `LLMPlanner` descompone el objetivo vía
+  el LLM primario (subtareas reales, orden por dependencia,
+  adapter/modelo por rol). Fallback determinista `HeuristicPlanner`
+  ante **cualquier** fallo (sin key, circuito abierto, JSON
+  malformado/encerrado en fences, esquema inválido, deps alucinadas);
+  un build nunca muere por el planner. Seam `llm_completion` inyectable
+  → tests sin gastar token. Tests fijan `HeuristicPlanner` en cada
+  construcción de director para que la suite jamás toque la red (11 t).
+- F9b+F9c `051dc78` `prompt_builder.py`: prompt estructurado y
+  **acotado** desde el estado vivo — árbol del workspace, contenido de
+  paths esperados + archivos que tocaron las dependencias, resumen de
+  upstream (F9b); en reintento, error/stderr/exit-code del intento
+  previo con directiva "arregla esto, no empieces de cero" — el prompt
+  de reintento difiere, `iterate_until_tests_pass` converge (F9c).
+  Topes duros + path-containment; puro filesystem, 0 tokens (10 t).
+- F9d (este) smoke E2E heurístico-vs-LLM + docs + cert (2 t).
+
+Suite: **632 passed, 1 skipped, 20 deselected**. Compuertas
+ruff/format/mypy (14 fuentes code_director), pre-commit (6 hooks),
+detect-secrets — verdes. Docs: RUNBOOK § "Code Director"
+(Planificación y prompting F9), ACTION_PLANE § "Code Director".
+
 ## 2026-05-17 — Fase 40 Code Director cerrada (8 commits)
 
 Meta-agente que delega builds a coding agents externos. 8 fases, commit

@@ -22,7 +22,10 @@
 > delega builds a coding agents externos (Claude Code / Codex / Kimi CLI
 > o DeepAgents in-process) bajo aprobación humana + budget caps + audit;
 > el director nunca codifica en su propio proceso ni gasta tokens hasta
-> que el operador aprueba el plan.
+> que el operador aprueba el plan. Fase 41 (F9) lo hizo capaz para apps
+> complejas: planner LLM-driven (descompone el objetivo en subtareas
+> reales, con fallback heurístico determinista) y prompts con contexto
+> vivo del workspace + reintentos dirigidos por el error previo.
 >
 > Snapshot QA verde: **609 pytest passed, 1 skipped, 20 deselected**;
 > ruff/mypy/lint/build/Compose/Alembic/detect-secrets/pre-commit (6 hooks)
@@ -155,7 +158,7 @@ Backend (`cognitive-os/backend/`):
 
 - `uv sync` (con `--extra openharness` si vas a tocar el motor opcional).
 - `uv run pytest -m 'not integration and not slow'` (snapshot vigente:
-  **609 passed, 1 skipped, 20 deselected**).
+  **632 passed, 1 skipped, 20 deselected**).
 - `uv run ruff check .` y `uv run ruff format --check .`.
 - `uv run mypy src` (success).
 - `uv run alembic check` (sin operaciones nuevas esperadas; excluye tablas
