@@ -116,7 +116,7 @@ def test_prompt_is_delivered_on_stdin_not_argv(tmp_path: Path) -> None:
     )
     adapter = KimiAdapter(binary_override=fake)
     session = adapter.start_session(workspace=tmp_path, objective="x", model=None)
-    secret_prompt = "SENSITIVE-PROMPT-SHOULD-NOT-LEAK-TO-PS"
+    secret_prompt = "DO-NOT-LEAK-TO-PS-MARKER"  # pragma: allowlist secret
     result = adapter.send_prompt(session, secret_prompt)
     assert result.success is True
     recorded_argv = argv_dump.read_text(encoding="utf-8")
