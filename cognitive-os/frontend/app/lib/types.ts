@@ -12,6 +12,7 @@ export type Tab =
   | "jobs"
   | "approvals"
   | "sandbox"
+  | "research"
   | "langsmith"
   | "audit"
   | "health"
@@ -570,4 +571,99 @@ export type LangSmithRunDetail = LangSmithRun & {
   outputs: Record<string, unknown> | null;
   extra: Record<string, unknown> | null;
   tags: string[] | null;
+};
+
+// ---- Research Orchestrator ----------------------------------------------
+
+export type ResearchRunStatus =
+  | "queued"
+  | "planning"
+  | "researching"
+  | "synthesizing"
+  | "scoring"
+  | "completed"
+  | "cancelled"
+  | "failed"
+  | "blocked";
+
+export type ResearchRunRequestPayload = {
+  query: string;
+  time_budget_seconds?: number;
+  max_subtasks?: number;
+  web_allowed?: boolean;
+  user_id?: string | null;
+};
+
+export type ResearchSubtaskView = {
+  subtask_id: string;
+  query: string;
+  rationale?: string | null;
+};
+
+export type ResearchCitationView = {
+  doc_id?: string | null;
+  chunk_id?: string | null;
+  url?: string | null;
+  title?: string | null;
+  snippet?: string | null;
+};
+
+export type ResearchSubtaskResultView = {
+  subtask_id: string;
+  status: "ok" | "failed" | "timeout" | "cancelled" | "blocked";
+  answer?: string;
+  findings?: string[];
+  citations?: ResearchCitationView[];
+  uncertainty_notes?: string[];
+  duration_ms?: number;
+};
+
+export type ResearchSynthesisView = {
+  answer: string;
+  findings: string[];
+  citations: ResearchCitationView[];
+  uncertainty_notes: string[];
+  used_sources: string[];
+};
+
+export type ResearchScoreView = {
+  score: number;
+  rubric: Record<string, number>;
+  reasons: string[];
+};
+
+export type ResearchRunView = {
+  run_id: string;
+  status: ResearchRunStatus;
+  request: ResearchRunRequestPayload;
+  subtasks: ResearchSubtaskView[];
+  results: ResearchSubtaskResultView[];
+  synthesis: ResearchSynthesisView | null;
+  score: ResearchScoreView | null;
+  started_at: string | null;
+  finished_at: string | null;
+  error: string | null;
+};
+
+export type ResearchEventKind =
+  | "run_started"
+  | "plan_ready"
+  | "subtask_started"
+  | "subtask_finished"
+  | "synthesis_ready"
+  | "score_ready"
+  | "run_completed"
+  | "run_cancelled"
+  | "run_failed"
+  | "run_blocked"
+  | "snapshot"
+  | "done"
+  | "error";
+
+export type ResearchEvent = {
+  event: ResearchEventKind;
+  run_id: string;
+  timestamp?: string;
+  payload?: Record<string, unknown>;
+  detail?: string;
 };

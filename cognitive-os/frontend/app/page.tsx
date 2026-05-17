@@ -31,6 +31,7 @@ import { JobsView } from "./views/JobsView";
 import { LangSmithView } from "./views/LangSmithView";
 import { MailInboxView } from "./views/MailInboxView";
 import { MemoryView } from "./views/MemoryView";
+import { ResearchView } from "./views/ResearchView";
 import { SandboxView } from "./views/SandboxView";
 import { SettingsView } from "./views/SettingsView";
 import { SkillsView } from "./views/SkillsView";
@@ -241,6 +242,7 @@ function App() {
         {tab === "documentAnalysis" && <DocumentAnalysisView client={client} />}
         {tab === "jobs" && <JobsView client={client} />}
         {tab === "approvals" && <ApprovalsView client={client} />}
+        {tab === "research" && <ResearchView client={client} />}
         {tab === "sandbox" && <SandboxView client={client} />}
         {tab === "langsmith" && <LangSmithView client={client} />}
         {tab === "audit" && <AuditView client={client} />}

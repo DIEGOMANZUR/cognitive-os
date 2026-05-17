@@ -1,4 +1,4 @@
-import type { ChatResponse, StreamEvent } from "./types";
+import type { ChatResponse, ResearchEvent, StreamEvent } from "./types";
 
 async function throwResponseError(response: Response): Promise<never> {
   const detail = await parseErrorDetail(response);
@@ -167,6 +167,65 @@ export class ApiClient {
       throw new Error(streamError);
     }
     return final;
+  }
+
+  /**
+   * SSE stream for `/research/runs/{run_id}/events`. Uses `fetch` (instead of
+   * the native `EventSource`) so we can attach the `Authorization` header that
+   * the backend requires. Resolves when the stream emits `done` or the stream
+   * ends naturally.
+   */
+  async streamResearchEvents(
+    runId: string,
+    onEvent: (event: ResearchEvent) => void,
+    signal?: AbortSignal
+  ): Promise<void> {
+    const headers = new Headers({ Accept: "text/event-stream" });
+    const token = normalizeAuthToken(this.token);
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    const response = await fetch(this.buildUrl(`/research/runs/${runId}/events`), {
+      method: "GET",
+      headers,
+      signal
+    });
+    if (!response.ok) {
+      await throwResponseError(response);
+    }
+    if (!response.body) {
+      throw new Error("Research SSE: server did not return a readable body.");
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let streamError: string | null = null;
+    const handleBlock = (block: string) => {
+      if (!block.startsWith("data: ")) return;
+      try {
+        const parsed = JSON.parse(block.slice(6).trim()) as ResearchEvent;
+        onEvent(parsed);
+        if (parsed.event === "error") {
+          streamError = String(parsed.detail ?? "Research stream failed");
+        }
+      } catch {
+        // Ignore malformed line — server may emit empty heartbeats.
+      }
+    };
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let idx = buffer.indexOf("\n\n");
+      while (idx !== -1) {
+        const block = buffer.slice(0, idx).trim();
+        buffer = buffer.slice(idx + 2);
+        handleBlock(block);
+        idx = buffer.indexOf("\n\n");
+      }
+    }
+    buffer += decoder.decode();
+    const trailing = buffer.trim();
+    if (trailing) handleBlock(trailing);
+    if (streamError) throw new Error(streamError);
   }
 
   buildUrl(path: string): string {
