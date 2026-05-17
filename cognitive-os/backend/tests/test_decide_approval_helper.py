@@ -212,3 +212,77 @@ async def test_decide_approval_already_decided(monkeypatch: pytest.MonkeyPatch) 
             approver_user_id="telegram",
         )
     assert exc_info.value.current_status == "approved"
+
+
+@pytest.mark.asyncio
+async def test_decide_approval_code_build_queues_job_and_returns_dispatch_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Approving a `run_code_build` approval flips the job to queued and
+    returns `code_build_job_id` so the caller dispatches the Celery task."""
+    now = datetime.now(UTC)
+    approval_id = UUID("77777777-7777-7777-7777-777777777777")
+    job_id = UUID("88888888-8888-8888-8888-888888888888")
+    approval = HumanApproval(
+        id=approval_id,
+        status="pending",
+        action="run_code_build",
+        requested_action="run_code_build:cb-demo",
+        args_redacted={},
+        requested_by="operator",
+        job_id=job_id,
+        created_at=now,
+        updated_at=now,
+    )
+    job = Job(
+        id=job_id,
+        job_type="code_build",
+        status="waiting_approval",
+        progress=0,
+        metadata_json={"build_id": "cb-demo"},
+        created_at=now,
+        updated_at=now,
+    )
+    added: list[object] = []
+
+    class FakeSession:
+        async def get(self, model: type[object], obj_id: UUID) -> object | None:
+            if model is HumanApproval:
+                return approval
+            if model is Job:
+                return job
+            return None
+
+        async def execute(self, _stmt: object) -> object:
+            class _R:
+                @staticmethod
+                def scalar_one_or_none() -> None:
+                    return None
+
+            return _R()
+
+        def add(self, obj: object) -> None:
+            added.append(obj)
+
+        async def flush(self) -> None:
+            return None
+
+    @asynccontextmanager
+    async def fake_session_scope():
+        yield FakeSession()
+
+    monkeypatch.setattr(action_service_module, "session_scope", fake_session_scope)
+
+    result = await decide_approval(
+        approval_id,
+        status_value="approved",
+        approver_user_id="reviewer",  # distinct from requester -> four-eyes ok
+    )
+
+    assert result.code_build_job_id == str(job_id)
+    assert result.openshell_dispatch is None
+    assert job.status == "queued"
+    assert any(
+        isinstance(e, JobEvent) and e.event_type == "code_build_approval_approved" for e in added
+    )
+    assert any(isinstance(a, AuditEvent) and a.action == "approval.approved" for a in added)

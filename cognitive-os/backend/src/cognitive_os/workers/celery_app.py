@@ -68,6 +68,10 @@ celery_app.conf.update(
             "queue": "agent_longrun",
             "routing_key": "agent_longrun",
         },
+        "cognitive_os.run_code_build": {
+            "queue": "agent_longrun",
+            "routing_key": "agent_longrun",
+        },
         "cognitive_os.deliver_personal_reminders": {
             "queue": "maintenance",
             "routing_key": "maintenance",

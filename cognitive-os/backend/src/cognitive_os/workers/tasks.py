@@ -654,6 +654,35 @@ def run_document_analysis_task_async(task_dict: dict[str, Any], job_id: str) -> 
         raise
 
 
+@celery_app.task(name="cognitive_os.run_code_build")
+def run_code_build_task_async(job_id: str) -> dict[str, Any]:
+    """Execute an approved code build.
+
+    Dispatched ONLY from `_decide_approval` when a `run_code_build:<id>`
+    HumanApproval is accepted — so by the time this runs the operator has
+    already approved the plan and the budget estimate. The director enforces
+    its own per-build hard caps (runtime / calls / USD); this task just
+    re-enters on already-terminal jobs defensively (Celery retry safety).
+    """
+    from cognitive_os.code_director.service import CodeDirectorService
+
+    active_job_id = UUID(job_id)
+    existing_status = _run(_read_job_status(active_job_id))
+    if existing_status in {"completed", "failed", "cancelled", "rejected"}:
+        return {
+            "job_id": job_id,
+            "status": existing_status,
+            "skipped": True,
+            "reason": "Worker re-entry on a job already in a terminal state.",
+        }
+    try:
+        result = _run(CodeDirectorService().run_build(active_job_id))
+        return result.model_dump(mode="json")
+    except Exception as exc:
+        _run(_mark_job_failed(active_job_id, exc))
+        raise
+
+
 async def _cleanup_old_terminal_jobs(*, days: int) -> int:
     from sqlalchemy import delete
 

@@ -114,6 +114,10 @@ class OpenShellDispatchSpec:
 class ApprovalDecisionResult:
     approval: HumanApproval
     openshell_dispatch: OpenShellDispatchSpec | None = None
+    # Set when an approved `run_code_build:<id>` HumanApproval is accepted.
+    # The caller dispatches `cognitive_os.run_code_build` after commit, same
+    # post-transaction pattern as `openshell_dispatch`.
+    code_build_job_id: str | None = None
 
 
 async def decide_approval(
@@ -222,6 +226,26 @@ async def decide_approval(
                 job_id=str(job.id),
             )
 
+        code_build_job_id: str | None = None
+        if (
+            status_value == "approved"
+            and job is not None
+            and job.job_type == "code_build"
+            and job.status == "waiting_approval"
+        ):
+            job.status = "queued"
+            job.progress = 0
+            session.add(
+                JobEvent(
+                    job_id=job.id,
+                    event_type="code_build_approval_approved",
+                    status="queued",
+                    message="Code build plan approved; build queued",
+                    metadata_json={"approval_id": str(approval.id)},
+                )
+            )
+            code_build_job_id = str(job.id)
+
         session.add(
             AuditEvent(
                 actor_id=approver_user_id,
@@ -239,6 +263,7 @@ async def decide_approval(
         return ApprovalDecisionResult(
             approval=approval,
             openshell_dispatch=openshell_dispatch,
+            code_build_job_id=code_build_job_id,
         )
 
 

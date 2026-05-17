@@ -3309,6 +3309,13 @@ async def _decide_approval(
             args=[result.openshell_dispatch.task_payload, result.openshell_dispatch.job_id],
             queue="agent_longrun",
         )
+    if result.code_build_job_id is not None:
+        from cognitive_os.workers.tasks import run_code_build_task_async
+
+        run_code_build_task_async.apply_async(
+            args=[result.code_build_job_id],
+            queue="agent_longrun",
+        )
     return _approval_response(result.approval)
 
 

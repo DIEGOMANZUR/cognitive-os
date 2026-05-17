@@ -582,15 +582,15 @@ def _decide_approval(bot: TelegramBot, chat_id: int, arg: str, status_value: str
             return "payload corrupto, no se pudo despachar", None
         except ApprovalDecisionError as exc:
             return f"error: {exc}", None
-        return status_value, result.openshell_dispatch
+        return status_value, result
 
-    result, openshell = _run(_decide())
-    if openshell is not None:
+    status_label, decision = _run(_decide())
+    if decision is not None and decision.openshell_dispatch is not None:
         try:
             from cognitive_os.workers.tasks import run_openshell_task_async
 
             run_openshell_task_async.apply_async(
-                args=[openshell.task_payload, openshell.job_id],
+                args=[decision.openshell_dispatch.task_payload, decision.openshell_dispatch.job_id],
                 queue="agent_longrun",
             )
         except Exception as exc:  # noqa: BLE001 - Celery may be offline; report it
@@ -598,7 +598,20 @@ def _decide_approval(bot: TelegramBot, chat_id: int, arg: str, status_value: str
                 "telegram_openshell_dispatch_failed",
                 extra={"error_type": type(exc).__name__},
             )
-    bot.send(chat_id, f"`/approval {arg[:8]}…` → {result}")
+    if decision is not None and decision.code_build_job_id is not None:
+        try:
+            from cognitive_os.workers.tasks import run_code_build_task_async
+
+            run_code_build_task_async.apply_async(
+                args=[decision.code_build_job_id],
+                queue="agent_longrun",
+            )
+        except Exception as exc:  # noqa: BLE001 - Celery may be offline; report it
+            logging.getLogger(__name__).warning(
+                "telegram_code_build_dispatch_failed",
+                extra={"error_type": type(exc).__name__},
+            )
+    bot.send(chat_id, f"`/approval {arg[:8]}…` → {status_label}")
 
 
 @command("threads", "últimos LangGraph threads")
