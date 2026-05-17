@@ -236,6 +236,73 @@ Notas:
 * El dispatch es idempotente: solo manda Celery cuando la solicitud esta en
   `queued`.
 
+## Code Director (delegación a coding agents externos)
+
+El Code Director es un meta-agente: recibe un objetivo de alto nivel,
+arma un plan de subtareas y **delega** cada una a un coding agent externo
+(Claude Code CLI, Codex CLI, Kimi CLI, o DeepAgents in-process). El
+director nunca codifica en su propio proceso ni gasta un token hasta que
+el operador aprueba el plan.
+
+Endpoints (todos JWT):
+
+- `POST /code-director/run` — rate-limited (`action_request_create`,
+  30/min). Body: `{objective, notes?, adapter_preference, budget?,
+  run_tests_in_sandbox?}`. Devuelve `{job_id, approval_id, build_id,
+  plan}` y persiste un `Job(job_type="code_build",
+  status="waiting_approval")` + un `HumanApproval`
+  (`run_code_build:<build_id>`). **No corre nada todavía.**
+- `GET /code-director/{job_id}` — estado + plan + result.
+- `GET /code-director/{job_id}/events` — SSE; reproduce el historial de
+  JobEvents y luego tailing hasta estado terminal (`snapshot` + `done`).
+- `GET /code-director/{job_id}/download` — `tar.gz` del workspace
+  generado. La ruta se re-valida dentro de
+  `DOCUMENT_OUTPUT_ROOT/code_builds/` (no se puede escapar).
+
+`adapter_preference` admite pinning por rol:
+
+```json
+{
+  "default_adapter": "claude_code",
+  "default_model": "claude-opus-4-7",
+  "coder_adapter": "codex",
+  "reviewer_adapter": "claude_code"
+}
+```
+
+Adapters: `claude_code` (`claude -p --add-dir <ws> --model M
+--max-budget-usd N`), `codex` (`codex exec --cd <ws>
+--sandbox workspace-write -m M -`), `kimi` (`kimi --print
+--work-dir <ws> --prompt -`; Kimi toma el modelo de su propia config),
+`deepagent` (in-process, mismo tool policy + budget que el resto).
+
+`budget` impone topes duros: `max_runtime_minutes` (def 120),
+`max_total_llm_calls` (def 200), `max_calls_per_subtask` (def 20),
+`max_total_cost_usd` (opcional). Si se excede cualquiera, el build para
+con estado `partial` y **igual entrega lo construido** hasta ese punto.
+
+Flujo operativo:
+
+1. `POST /code-director/run` con el objetivo y el adapter/modelo.
+2. Revisa el plan (tabla de subtareas + estimación) en la pestaña
+   **Code Director**.
+3. Aprueba el `HumanApproval` desde **Aprobaciones** (hereda four-eyes y
+   audit). Al aprobar, el director encola `cognitive_os.run_code_build`
+   en la queue `agent_longrun`.
+4. Sigue el build en vivo (SSE) o por polling.
+5. Al completar (`completed`/`partial`), descarga el `tar.gz`.
+
+Seguridad: el `fake` adapter (sólo tests) es rechazado con 400. El
+workspace vive aislado en `LOCAL_STORAGE_DIR/workspaces/code_builds/`;
+el código generado nunca toca tu repo ni se ejecuta en tu host (los
+tests opcionales corren en `openshell_sandbox`). Cada CLI externo se
+autentica con sus propias credenciales — el director no inyecta keys.
+
+Pre-requisito: los CLIs que vayas a usar deben estar instalados y
+autenticados en el host (`claude --version`, `codex --version`,
+`kimi --version`). El preflight reporta los no disponibles en el plan
+en vez de fallar al ejecutar.
+
 ## Research Orchestrator (multi-agente)
 
 Endpoint base: `/research/runs` (requiere JWT). Disponible cuando

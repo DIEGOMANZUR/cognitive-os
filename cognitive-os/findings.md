@@ -2,6 +2,57 @@
 
 > Bitácora viva. Para producto: ver `docs/`.
 
+## 2026-05-17 — Fase 40: Code Director (delegación a coding agents)
+
+Nueva capacidad pedida por el operador: "darle un objetivo y que el
+agente llegue a una app probada delegando a coding agents externos
+(Claude Code / Codex / Kimi CLI o DeepAgents), sin que el operador
+escriba los prompts".
+
+Diseño elegido: **director pattern**, no auto-coding. El meta-agente
+planifica, somete el plan a `HumanApproval`, y al aprobarse delega cada
+subtarea al adapter elegido. Construido en 8 fases pequeñas, commit por
+fase, sin gastar tokens reales en tests (FakeAdapter + fake bash binary).
+
+- **F1** `code_director/{schemas,director}.py` + `adapters/{base,fake}.py`:
+  Protocol `CodingAgentAdapter`, planner heurístico, topo-sort con
+  detección de ciclos, budget tracker (runtime/calls/USD), skip de
+  dependientes si falla una subtarea. 12 tests.
+- **F2** `adapters/deepagent.py`: adapter in-process sobre DeepAgents
+  `research`; nunca raise, mapea status→StepResult. 7 tests.
+- **F3/F3b/F3c** `adapters/{subprocess_base,claude_code,codex,kimi}.py`:
+  prompt por STDIN (no argv → no fuga en `ps`), timeout SIGTERM→SIGKILL
+  del process group, never-raise. 11 tests con fake bash binary, 0
+  tokens.
+- **F4** `code_director/service.py`: `CodeDirectorService.create_build`
+  persiste `Job(code_build, waiting_approval)`+`HumanApproval` sin gastar
+  nada; `run_build` (post-approval) corre el director y empaqueta el
+  workspace en `tar.gz`. Reusa Job/HumanApproval/AuditEvent → reaper +
+  four-eyes + audit symmetry aplican igual. 5 tests.
+- **F5** Celery task `cognitive_os.run_code_build` (queue
+  `agent_longrun`) + wiring en `decide_approval`: aprobar
+  `run_code_build:<id>` encola el build desde REST o Telegram. 1 test
+  nuevo en decide_approval helper.
+- **F6** 4 endpoints REST (`/code-director/run|{id}|/events|/download`),
+  rate-limited, SSE, download con path-containment a
+  `DOCUMENT_OUTPUT_ROOT/code_builds/`. 5 tests.
+- **F7** `CodeDirectorView.tsx` + `streamCodeBuildEvents`: form objetivo
+  + adapter/modelo/budget, tabla de plan, warn-box de aprobación, SSE
+  timeline, descarga `tar.gz`. lint/build verdes.
+- **F8** E2E: 2 tests que escriben archivos reales y verifican el
+  `tar.gz` + manifest, incluido el caso `partial` por budget.
+
+Verificación de cierre: **609 passed, 1 skipped, 20 deselected**;
+ruff/format/mypy verdes; frontend lint/build verdes; pre-commit (6
+hooks) Passed; detect-secrets clean (un marcador de test silenciado con
+pragma).
+
+Garantía comercial: el director **no codifica en su proceso ni gasta un
+token hasta que el operador aprueba el plan**. Antigravity y Claude
+Desktop quedan fuera por no tener modo headless (decisión documentada
+con el operador, no es debilidad del sistema). Los CLIs externos se
+autentican con sus propias credenciales; el director no inyecta keys.
+
 ## 2026-05-17 - Fase 39 cierre de riesgos residuales
 
 Cuatro mejoras concretas para neutralizar los tres riesgos residuales

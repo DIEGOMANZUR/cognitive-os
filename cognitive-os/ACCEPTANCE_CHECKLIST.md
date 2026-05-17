@@ -8,7 +8,7 @@
 > `GoogleOpsView` para operar Maps/Calendar/Drive.
 > Snapshot QA persistente (Fase 39):
 > **566 pytest passed, 1 skipped, 20 deselected**; ruff/ruff format/mypy
-> (111 source files), frontend lint/build (19 vistas), Compose config,
+> (111 source files), frontend lint/build (20 vistas), Compose config,
 > Alembic head `202605160002` sin drift, `git diff --check`,
 > `pre-commit run --all-files` (6 hooks) y `detect-secrets scan` verdes.
 > Los snapshots con fecha por-fase más abajo son **históricos**: para
@@ -25,7 +25,7 @@ infraestructura local real, credenciales o aprobacion manual.
 - [x] `uv run ruff format --check .` → 220 files already formatted.
 - [x] `uv run mypy src` → Success: no issues found in 111 source files.
 - [x] `npm run lint` → pass.
-- [x] `npm run build` → Next.js 16.2.6, 19 vistas.
+- [x] `npm run build` → Next.js 16.2.6, 20 vistas.
 - [x] `docker compose --env-file .env.example -f infra/docker-compose.yml config --quiet` → pass.
 - [x] `uv run alembic heads` → `202605160002 (head)`; `alembic check` sin drift.
 - [x] `git diff --check` → clean.

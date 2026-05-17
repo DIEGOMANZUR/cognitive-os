@@ -1,7 +1,7 @@
 # Cognitive OS — Guía Maestra
 
 > **Última actualización:** 2026-05-15, Fase 33 RBAC + cifrado + research durable.
-> **Estado del producto:** monorepo en grado comercial operativo (backend FastAPI 0.115+ con **122 endpoints REST** —96 propios + 26 orquestación—, **15 tareas Celery** distribuidas en **5 colas** `default`/`ingestion`/`agent_longrun`/`maintenance`/`mail`, **16 migraciones Alembic**, LangGraph 1.1.10 + DeepAgents 0.6.x + Postgres 16+pgvector + Redis 7 + Weaviate 1.29.0 + Neo4j 5 ligados a `127.0.0.1` por defecto; consola Next.js 16.2.6 con **19 vistas** en `app/views/*.tsx` incluidas `AssistView`, `GoogleOpsView` y `ResearchView`; bot Telegram opcional; Kimi WebBridge; fusión opcional con OpenHarness en la ruta `research`). Runtime local: **DeepSeek V4 Pro** (`deepseek-v4-pro`) como LLM base; secundario Kimi K2.6-code-preview; vision GLM-4.6v primario. Mail personal GoDaddy IMAP/SMTP + Gmail label `TODOS` soportado + propuestas escritas; Google Maps/Calendar/Drive operables; envío y writes externos solo aprobados (`MAIL_REQUIRE_APPROVAL_FOR_SEND=true`). Asistente personal con `PersonalTask`/`PersonalNote` CRUD y reminders. Cockpit `.opencode/` con **21 MCPs**, **15 skills**, 7 subagentes y 7 comandos slash.
+> **Estado del producto:** monorepo en grado comercial operativo (backend FastAPI 0.115+ con **126 endpoints REST** —100 propios + 26 orquestación—, **16 tareas Celery** distribuidas en **5 colas** `default`/`ingestion`/`agent_longrun`/`maintenance`/`mail`, **16 migraciones Alembic**, LangGraph 1.1.10 + DeepAgents 0.6.x + Postgres 16+pgvector + Redis 7 + Weaviate 1.29.0 + Neo4j 5 ligados a `127.0.0.1` por defecto; consola Next.js 16.2.6 con **20 vistas** en `app/views/*.tsx` incluidas `AssistView`, `GoogleOpsView` y `ResearchView`; bot Telegram opcional; Kimi WebBridge; fusión opcional con OpenHarness en la ruta `research`). Runtime local: **DeepSeek V4 Pro** (`deepseek-v4-pro`) como LLM base; secundario Kimi K2.6-code-preview; vision GLM-4.6v primario. Mail personal GoDaddy IMAP/SMTP + Gmail label `TODOS` soportado + propuestas escritas; Google Maps/Calendar/Drive operables; envío y writes externos solo aprobados (`MAIL_REQUIRE_APPROVAL_FOR_SEND=true`). Asistente personal con `PersonalTask`/`PersonalNote` CRUD y reminders. Cockpit `.opencode/` con **21 MCPs**, **15 skills**, 7 subagentes y 7 comandos slash.
 > **QA snapshot persistente:** 497 pytest passed, 1 skipped, 20 deselected (518 tests recogidos); ruff + ruff format + mypy (109 source files) + frontend lint + frontend build + Compose config + Alembic head + `git diff --check` → todo verde. Fase 37 suma hardening de workers, approvals y Alembic autogenerate sobre la base Fase 33: RBAC local explícito, cifrado de payload ejecutable y persistencia configurable de research.
 > **Para qué es este documento:** que **una sola persona, sin contexto previo**, pueda entender qué es Cognitive OS, qué hace, qué *no* hace, cómo se usa por web, por API y por Telegram, y qué le falta para dejar el sistema redondo. Cada afirmación tiene su archivo o variable de respaldo en el repo.
 
@@ -15,7 +15,7 @@
 4. [Mapa mental: cómo encajan las piezas](#4-mapa-mental-cómo-encajan-las-piezas)
 5. [El recorrido completo de una petición](#5-el-recorrido-completo-de-una-petición)
 6. [Componentes del backend, uno por uno](#6-componentes-del-backend-uno-por-uno)
-7. [Frontend: las 19 vistas y cómo usar cada una](#7-frontend-las-18-vistas-y-cómo-usar-cada-una)
+7. [Frontend: las 20 vistas y cómo usar cada una](#7-frontend-las-18-vistas-y-cómo-usar-cada-una)
 8. [Telegram: cada comando con ejemplo](#8-telegram-cada-comando-con-ejemplo)
 9. [La fusión OpenHarness + DeepAgents en `research`](#9-la-fusión-openharness--deepagents-en-research)
 10. [Document Analysis (ruta legal)](#10-document-analysis-ruta-legal)
@@ -152,7 +152,7 @@ Todo corre en tu infraestructura (Docker local), todas las acciones quedan audit
 ┌─────────────────┐                ┌─────────────────────────────────────────┐
 │  Frontend       │                │ FastAPI app (96 propios / 122 REST)     │
 │  Next.js 16     │ ─── REST/SSE ──│  /chat /chat/stream /threads/*          │
-│  19 vistas      │ ◄── JWT ───────│  /documents/* /document-analysis/*      │
+│  20 vistas      │ ◄── JWT ───────│  /documents/* /document-analysis/*      │
 │  (panel web)    │                │  /jobs /approvals /audit /health/*      │
 └─────────────────┘                │  /actions/* /deepagents/* /assist/*     │
                                    │  /research/* /langsmith/* /agents       │
@@ -239,7 +239,7 @@ Sigue una petición típica `POST /chat/stream` con un mensaje "Investiga X" par
 
 ### 6.1. API FastAPI (`backend/src/cognitive_os/api/app.py`)
 
-122 endpoints REST agrupados por dominio (96 propios + 26 de orquestación/transversales; excluye `/docs`, `/redoc`, `/openapi.json` y `/docs/oauth2-redirect`). Catálogo resumido de rutas reales del código, todas requieren JWT excepto `/health`:
+126 endpoints REST agrupados por dominio (100 propios + 26 de orquestación/transversales; excluye `/docs`, `/redoc`, `/openapi.json` y `/docs/oauth2-redirect`). Catálogo resumido de rutas reales del código, todas requieren JWT excepto `/health`:
 
 #### Salud y configuración
 - `GET /health` — público, devuelve `{status: "ok"}`.
@@ -390,7 +390,7 @@ Ver §9. Usa `_execute_engine_blocking` (hilo dedicado + event loop propio) para
 
 ---
 
-## 7. Frontend: las 19 vistas y cómo usar cada una
+## 7. Frontend: las 20 vistas y cómo usar cada una
 
 Frontend en `frontend/`, Next.js 16 (Turbopack), React 19, ESLint 9. Vistas en `frontend/app/views/`. Cada vista habla con la API vía `ApiClient` (configurable desde `Settings` o `NEXT_PUBLIC_API_BASE_URL`).
 
@@ -913,7 +913,7 @@ CONFIRM_RESTORE=YES bash scripts/restore_storage.sh backups/storage/ARCHIVO.tar.
 
 Lo que **funciona hoy** (verificado contra código y tests):
 
-- Backend completo (96 endpoints propios; 122 REST totales) + frontend (19 vistas, incluye `Assist`, `Google Ops` y `Research`).
+- Backend completo (96 endpoints propios; 122 REST totales) + frontend (20 vistas, incluye `Assist`, `Google Ops` y `Research`).
 - Ruta `research` con fusión opcional OpenHarness y fallback determinista.
 - Ruta `legal` con Document Analysis y exportadores.
 - Action Plane con `computer_organize`, `document_generate`, `browser_preview`, `browser_interactive`, Google Calendar create y Drive upload ejecutables sólo por `ActionRequest` aprobado; Maps read-only con tráfico/link; Gmail digest read-only; mail GoDaddy IMAP/SMTP con envío aprobado; GoDaddy DNS preview/executor con dry-run.

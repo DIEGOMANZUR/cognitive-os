@@ -2,6 +2,32 @@
 
 > Bitácora viva. La documentación estable de producto vive en `docs/`.
 
+## 2026-05-17 — Fase 40 Code Director cerrada (8 commits)
+
+Meta-agente que delega builds a coding agents externos. 8 fases, commit
+por fase, suite verde en cada una:
+
+- F1 `102567a` schemas + Protocol + FakeAdapter + director loop (12 t)
+- F2 `e7ed3ee` DeepAgentAdapter in-process (7 t)
+- F3 `5cca3e6` subprocess adapters Claude/Codex/Kimi (11 t, 0 tokens)
+- F4 `96e7a67` CodeDirectorService HITL persistence (5 t)
+- F5 `aba0b64` Celery task + approval-triggered dispatch (1 t)
+- F6 `6c29a3f` 4 REST endpoints + secure download (5 t)
+- F7 `e18ea1c` CodeDirectorView + SSE timeline (frontend)
+- F8 (este) E2E tar.gz + manifest + docs + cert (2 t)
+
+Conteos vivos actualizados: **126 endpoints REST** (100 propios),
+**16 tareas Celery**, **20 vistas frontend**. Suite final:
+**609 passed, 1 skipped, 20 deselected**. Compuertas: ruff/format/mypy,
+frontend lint/build, pre-commit (6 hooks), detect-secrets — todas
+verdes. Docs: RUNBOOK § "Code Director", ACTION_PLANE § "Code Director",
+AGENTS.md actualizado.
+
+Sin P0/P1/P2 conocidos pendientes con cierre técnico viable. El único
+pendiente operador sigue siendo OAuth Google (1 click) si quiere
+Calendar/Drive — no aplica al Code Director, que usa las credenciales
+propias de cada CLI.
+
 ## 2026-05-17 - Fase 39 cerrada: cierre de riesgos residuales
 
 5 commits cierran los 3 riesgos residuales declarados que admitían cierre

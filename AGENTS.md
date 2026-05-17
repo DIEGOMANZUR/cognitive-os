@@ -2,24 +2,29 @@
 
 > **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):**
 > monorepo en grado comercial operativo. Backend FastAPI 0.115+ con
-> **122 endpoints REST** (96 propios + 26 de orquestación), **15 tareas
+> **126 endpoints REST** (100 propios + 26 de orquestación), **16 tareas
 > Celery** distribuidas en 5 colas (`default`, `ingestion`,
 > `agent_longrun`, `maintenance`, `mail`), **16 migraciones Alembic**
 > (head `202605160002`), LangGraph 1.1.10 + DeepAgents 0.6.x + OpenHarness
 > opcional, mail multicuenta GoDaddy/Gmail con aprobación humana
 > obligatoria y Google Maps/Calendar/Drive operables vía Action Plane sin
-> writes directos. Frontend Next.js 16.2.6 + React 19 con **19 vistas**
-> incluidas `AssistView`, `GoogleOpsView` y `ResearchView` (plan animado
-> sobre SSE). Cockpit OpenCode con **21 MCPs**, 7 subagentes, **15 skills**
-> y 7 comandos slash. LLM por defecto: **DeepSeek V4 Pro**.
+> writes directos. Frontend Next.js 16.2.6 + React 19 con **20 vistas**
+> incluidas `AssistView`, `GoogleOpsView`, `ResearchView` (plan animado
+> sobre SSE) y `CodeDirectorView`. Cockpit OpenCode con **21 MCPs**, 7
+> subagentes, **15 skills** y 7 comandos slash. LLM por defecto:
+> **DeepSeek V4 Pro**.
 >
 > Fase 39 cerró los residual risks técnicos: rate limiter pluggable
 > Redis/memory, `/system/credentials-status` con inventario vivo, workflow.v1
 > export/import, OAuth Google self-healing, wizard `init_credentials.sh`,
 > correlation IDs, approval reaper, four-eyes, AuditEvent simétrico
-> REST↔Telegram.
+> REST↔Telegram. Fase 40 añadió el **Code Director**: meta-agente que
+> delega builds a coding agents externos (Claude Code / Codex / Kimi CLI
+> o DeepAgents in-process) bajo aprobación humana + budget caps + audit;
+> el director nunca codifica en su propio proceso ni gasta tokens hasta
+> que el operador aprueba el plan.
 >
-> Snapshot QA verde: **566 pytest passed, 1 skipped, 20 deselected**;
+> Snapshot QA verde: **609 pytest passed, 1 skipped, 20 deselected**;
 > ruff/mypy/lint/build/Compose/Alembic/detect-secrets/pre-commit (6 hooks)
 > verdes. Único pendiente operador: autorizar `auth_google.py` (1 click
 > browser) si quiere Calendar/Drive y completar credenciales OPT que vaya
@@ -74,7 +79,7 @@ responder o actuar.
   - `backend/` (Python ≥ 3.12, uv, FastAPI 0.115+, LangGraph 1.1.10+,
     DeepAgents 0.6.1<0.7, Celery 5.4+, SQLAlchemy 2 async, 75 archivos
     `tests/test_*.py`).
-  - `frontend/` (Next.js 16.2.6, React 19, ESLint 9, TypeScript 5.8, **18
+  - `frontend/` (Next.js 16.2.6, React 19, ESLint 9, TypeScript 5.8, **20
     vistas** en `app/views/*.tsx`).
   - `infra/docker-compose.yml` (PostgreSQL 16+pgvector, Redis 7, Weaviate 1.29.0
     y Neo4j 5 publicados sólo en `127.0.0.1` por defecto).
@@ -150,9 +155,9 @@ Backend (`cognitive-os/backend/`):
 
 - `uv sync` (con `--extra openharness` si vas a tocar el motor opcional).
 - `uv run pytest -m 'not integration and not slow'` (snapshot vigente:
-  **497 passed, 1 skipped, 20 deselected**).
-- `uv run ruff check .` y `uv run ruff format --check .` (203 archivos).
-- `uv run mypy src` (109 source files, success).
+  **609 passed, 1 skipped, 20 deselected**).
+- `uv run ruff check .` y `uv run ruff format --check .`.
+- `uv run mypy src` (success).
 - `uv run alembic check` (sin operaciones nuevas esperadas; excluye tablas
   runtime de LangGraph/PostgresSaver).
 

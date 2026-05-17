@@ -2,10 +2,10 @@
 
 > **Status (2026-05-17, Phase 39 — residual risks closed):** stack
 > operational at commercial grade. Verified counts (no inflation): **122
-> REST endpoints** (96 Cognitive-OS-owned + 26 orchestration), **15 Celery
+> REST endpoints** (100 Cognitive-OS-owned + 26 orchestration), **15 Celery
 > tasks** across **5 queues** (`default`, `ingestion`, `agent_longrun`,
 > `maintenance`, `mail`), **16 Alembic migrations** (head
-> `202605160002`), **19 Next.js views** under `frontend/app/views/*.tsx`
+> `202605160002`), **20 Next.js views** under `frontend/app/views/*.tsx`
 > (including `AssistView`, `GoogleOpsView` and `ResearchView` — animated
 > plan over SSE), **21 MCP servers** wired via the OpenCode cockpit,
 > **15 skills**, 7 subagents, 7 slash commands. Local runtime:

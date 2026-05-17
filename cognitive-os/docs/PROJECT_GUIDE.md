@@ -2,10 +2,10 @@
 
 > **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):**
 > producto en grado comercial operativo. Backend FastAPI 0.115+ con **122
-> endpoints REST** (96 propios + 26 orquestación), **15 tareas Celery**
+> endpoints REST** (100 propios + 26 orquestación), **16 tareas Celery**
 > distribuidas en **5 queues** (`default`, `ingestion`, `agent_longrun`,
 > `maintenance`, `mail`), **16 migraciones Alembic** (head
-> `202605160002`). Frontend Next.js 16.2.6 con **19 vistas** (incluidas
+> `202605160002`). Frontend Next.js 16.2.6 con **20 vistas** (incluidas
 > `AssistView`, `GoogleOpsView` y `ResearchView` con plan animado sobre
 > SSE). La ruta `research` está fusionada con **OpenHarness** opcional
 > (extra `openharness-ai>=0.1.9,<0.2`, `prelude_merge` por defecto).

@@ -1,11 +1,11 @@
 # Cognitive OS
 
 > **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):** monorepo en grado comercial
-> operativo con backend FastAPI 0.115+ (122 endpoints REST verificados,
-> 15 tareas Celery distribuidas en 5 colas, 16 migraciones Alembic) +
+> operativo con backend FastAPI 0.115+ (126 endpoints REST verificados,
+> 16 tareas Celery distribuidas en 5 colas, 16 migraciones Alembic) +
 > LangGraph 1.1.10 + DeepAgents 0.6.x + Celery 5.4 + Postgres 16+pgvector +
 > Redis 7 + Weaviate 1.29.0 + Neo4j 5 (servicios de datos ligados a
-> `127.0.0.1`) y consola Next.js 16.2.6 con **19 vistas** en `app/views/*.tsx` (incluidas
+> `127.0.0.1`) y consola Next.js 16.2.6 con **20 vistas** en `app/views/*.tsx` (incluidas
 > `AssistView` y `GoogleOpsView`). La ruta **`research`** sigue fusionada con
 > [OpenHarness](https://github.com/HKUDS/OpenHarness) opcional (`extra`
 > `openharness`). LLM por defecto: **DeepSeek V4 Pro** (`deepseek-v4-pro`),
@@ -52,7 +52,7 @@ acciones sensibles requieren aprobación humana y quedan auditadas. Ver
 
 ## Leer Primero
 
-- **`docs/COGNITIVE_OS_GUIDE.md`: guía maestra "desde cero" — empieza aquí si nunca viste el proyecto. Incluye arquitectura, las 19 vistas del frontend (incluidas `Assist` y `Google Ops`), correo multicuenta, Google Ops, ejecutables de escritorio, credenciales por capacidad, casos de uso reales y troubleshooting.**
+- **`docs/COGNITIVE_OS_GUIDE.md`: guía maestra "desde cero" — empieza aquí si nunca viste el proyecto. Incluye arquitectura, las 20 vistas del frontend (incluidas `Assist` y `Google Ops`), correo multicuenta, Google Ops, ejecutables de escritorio, credenciales por capacidad, casos de uso reales y troubleshooting.**
 - `docs/PROJECT_GUIDE.md`: explicacion simple y tecnica del producto.
 - `docs/README.md`: indice completo de documentacion.
 - `docs/OPENHARNESS_FUSION.md`: cómo encaja OpenHarness con LangGraph + DeepAgents (pipelines, presets, workspace).

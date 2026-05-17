@@ -445,6 +445,31 @@ Pendiente para capacidades futuras:
 - No usar `browser_preview` con cookies persistidas, login, ni modo headed.
   Sus screenshots quedan acotadas a `BROWSER_SCREENSHOT_MAX_BYTES` dentro de
   `BROWSER_SCREENSHOT_DIR`.
+- El Code Director no codifica en su propio proceso ni gasta tokens hasta
+  que el operador aprueba el plan; el código generado vive aislado en
+  `LOCAL_STORAGE_DIR/workspaces/code_builds/` y el `tar.gz` entregable
+  jamás escapa `DOCUMENT_OUTPUT_ROOT/code_builds/`. El `fake` adapter es
+  sólo de tests (rechazado con 400 en la API).
+
+## Code Director (delegación a coding agents)
+
+Meta-agente que descompone un objetivo de alto nivel en subtareas y
+delega cada una a un coding agent externo
+(`claude_code` | `codex` | `kimi` | `deepagent`) seleccionable por rol.
+Mismo ciclo controlado que el resto del Action Plane: **plan →
+HumanApproval → dispatch Celery (`agent_longrun`) → ejecución →
+JobEvents + AuditEvent → entrega `tar.gz`**. Budget caps duros
+(`max_runtime_minutes`, `max_total_llm_calls`, `max_calls_per_subtask`,
+`max_total_cost_usd`); al excederse el build queda `partial` y entrega
+lo construido. Detalle operativo completo en `docs/RUNBOOK.md` §
+"Code Director".
+
+| Endpoint | Proposito | Ejecuta accion real |
+|---|---|---|
+| `POST /code-director/run` | Planifica un build y crea `Job`+`HumanApproval` | No (sin tokens hasta aprobar) |
+| `GET /code-director/{id}` | Estado + plan + result | No |
+| `GET /code-director/{id}/events` | SSE del timeline de JobEvents | No |
+| `GET /code-director/{id}/download` | `tar.gz` del workspace generado | No |
 
 ## Documentos: DOCX/XLSX/PPTX
 

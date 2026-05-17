@@ -2,7 +2,7 @@
 
 > **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):**
 > Next.js 16.2.6 (Turbopack), React 19, ESLint 9.39.4, TypeScript 5.8.
-> **19 vistas** confirmadas en `app/views/*.tsx`: `ChatView`,
+> **20 vistas** confirmadas en `app/views/*.tsx`: `ChatView`,
 > `DashboardView`, `SettingsView`, `ApprovalsView` (con import/export
 > `workflow.v1`), `MemoryView`, `JobsView`, `SandboxView`,
 > `DocumentsView`, `DocumentAnalysisView`, `ConfigurationView`,
