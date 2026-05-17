@@ -488,11 +488,16 @@ def default_registry() -> AdapterRegistry:
 
     Each adapter is constructed lazily so unavailable CLIs do not crash
     import. The fake adapter is intentionally **not** included here —
-    tests build their own registry.
+    tests build their own registry. The director's preflight calls
+    `is_available()` on each, so an adapter whose binary/stack is missing
+    is reported (not crashed) and the operator is told before approving.
     """
-    # F2/F3 will register the real adapters. F1 ships an empty registry; the
-    # tests inject `{"fake": FakeAdapter()}` to exercise the director.
-    registry: AdapterRegistry = {}
+    from cognitive_os.code_director.adapters.deepagent import DeepAgentAdapter
+
+    registry: AdapterRegistry = {
+        "deepagent": DeepAgentAdapter(),
+    }
+    # F3 adds: claude_code, codex, kimi (subprocess adapters).
     return registry
 
 
