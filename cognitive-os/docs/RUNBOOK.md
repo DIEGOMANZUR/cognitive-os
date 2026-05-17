@@ -349,6 +349,29 @@ antes de extraer el backup.
 * `OpenShellPolicyViolation` → la tarea pidió acciones bloqueadas por
   política. Revisa `args_redacted` antes de aprobar.
 
+## Workflow.v1 — clonar y re-ejecutar planes
+
+Cualquier `ActionRequest` con `action_type` en la lista exportable se
+serializa a JSON portable y se vuelve a someter:
+
+```bash
+# exportar
+curl -fs -H "Authorization: Bearer $TOKEN" \
+    "http://127.0.0.1:8000/actions/requests/$REQUEST_ID/workflow" \
+    > workflow.json
+
+# editar workflow.json a gusto (mismo schema redactado), luego importar
+curl -fs -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    --data @workflow.json \
+    http://127.0.0.1:8000/actions/requests/from-workflow
+```
+
+El import pasa por los mismos `create_*_request` que la UI, así que aprobación,
+allow-lists, idempotency y cifrado se mantienen. Lista completa de tipos
+exportables, formato JSON y guardrails: `docs/ACTION_PLANE.md` §
+"Workflow.v1".
+
 ## Bootstrap desde cero (operador nuevo)
 
 Esta sección asume que el operador clona el repo fresh y necesita levantar

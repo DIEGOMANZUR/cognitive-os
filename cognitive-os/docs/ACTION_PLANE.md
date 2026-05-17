@@ -121,6 +121,80 @@ Todos requieren JWT.
 | `POST /actions/webbridge/navigate` | Navega el navegador real a dominio allow-listed y con SSRF check | No, pero cambia estado del navegador |
 | `POST /actions/webbridge/snapshot` / `screenshot` / `list_tabs` | Lee estado visual/tabs del navegador real | No |
 | `POST /actions/webbridge/click` / `fill` / `evaluate` / `close_session` | Mutaciones directas en navegador real; bloqueadas por defecto si requieren aprobación | Sí solo si `KIMI_WEBBRIDGE_ALLOW_MUTATIONS=true` y `KIMI_WEBBRIDGE_REQUIRE_APPROVAL=false` |
+| `GET /actions/requests/{id}/workflow` | Exporta una `ActionRequest` como `workflow.v1` JSON (payload redactado + preview + procedencia) | No |
+| `POST /actions/requests/from-workflow` | Crea una nueva `ActionRequest` a partir de un `workflow.v1` JSON | Sí (a través del carril normal con aprobación) |
+
+## Workflow.v1 (export / import)
+
+Cada `ActionRequest` cuyo `action_type` está entre las siguientes 7 puede
+serializarse a un documento JSON portátil y volver a someterse:
+
+- `computer_organize`
+- `godaddy_dns_change`
+- `document_generate`
+- `browser_preview`
+- `browser_interactive`
+- `calendar_create_event`
+- `drive_upload_file`
+
+El import siempre pasa por el mismo `create_*_request` que el endpoint
+estándar, así que **todos los guardrails se aplican intactos**: allow-lists,
+SSRF check, idempotency dedup, aprobación humana, cifrado at-rest del payload
+ejecutable y rate limiting per-`(user, bucket)`. Lo único que viaja en el JSON
+es el payload **redactado**; los valores con forma de secreto quedan como
+`[REDACTED]` y deben re-suministrarse al re-someter el plan si la acción los
+requería realmente.
+
+Ejemplo de documento exportado por `GET /actions/requests/{id}/workflow`:
+
+```json
+{
+  "workflow_version": "1.0",
+  "action_type": "browser_preview",
+  "payload": {
+    "url": "https://example.com/landing",
+    "wait_until": "load",
+    "capture_screenshot": true
+  },
+  "preview": {
+    "status": "ok",
+    "url": "https://example.com/landing",
+    "wait_until": "load",
+    "capture_screenshot": true,
+    "timeout_ms": 20000
+  },
+  "source": {
+    "exported_at": "2026-05-17T01:23:45+00:00",
+    "exported_by": "1",
+    "source_action_request_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+  },
+  "notes": null,
+  "metadata": {}
+}
+```
+
+Para re-someter el mismo plan (idéntico o editado):
+
+```bash
+curl -s -H "Authorization: Bearer $TOKEN" \
+     -H "Content-Type: application/json" \
+     --data @workflow-aaaa.json \
+     http://127.0.0.1:8000/actions/requests/from-workflow
+```
+
+La respuesta es `WorkflowImportResult` con la nueva `ActionRequest` ya creada,
+en estado `pending_approval` o `blocked` según la política vigente. Si el
+operador re-somete un payload idéntico mientras la `ActionRequest` original
+sigue activa, el helper `_find_active_idempotent_request` retorna la fila
+existente sin duplicar.
+
+`workflow_version` está versionado: cambios aditivos suben el minor, cambios
+breaking suben el major. El importador rechaza versiones distintas a `1.0`
+con `422 Unprocessable Entity` (Pydantic Literal).
+
+En el panel: la pestaña **Aprobaciones** trae `Importar workflow` (file
+picker) en la cabecera y un botón `Exportar` por fila ligada a una
+`ActionRequest`.
 
 ## Estados de `ActionRequest`
 
