@@ -1,18 +1,28 @@
 # Documentacion De Cognitive OS
 
-> **Estado actual (2026-05-15, Fase 33 RBAC + cifrado + research durable):** producto en grado comercial
-> operativo con backend FastAPI 0.115+ (**118 endpoints REST**, **14 tareas
-> Celery** en **5 queues**, **16 migraciones Alembic**) + LangGraph 1.1.10 +
-> DeepAgents 0.6.x + Action Plane, correo personal multicuenta GoDaddy/Gmail
-> con aprobación humana (`MAIL_REQUIRE_APPROVAL_FOR_SEND=true`), Google
-> Maps/Calendar/Drive operables sin writes directos, infra de datos ligada a
-> `127.0.0.1`, y consola Next.js 16.2.6 (**18 vistas**). La ruta `research` está fusionada con
-> **OpenHarness** opcional (extra `openharness-ai>=0.1.9,<0.2`), pipeline
-> por defecto `prelude_merge`, workspace `deepagent_mirror`. Documento
-> canónico de la fusión: `OPENHARNESS_FUSION.md`. El runtime local usa
-> **DeepSeek V4 Pro** (`deepseek-v4-pro`) como LLM base; secundario Kimi
-> K2.6-code-preview; vision GLM-4.6v. QA: **497 pytest passed, 1 skipped,
-> 20 deselected**; ruff/mypy/lint/build, Compose config, Alembic head y diff verdes.
+> **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):**
+> producto en grado comercial operativo con backend FastAPI 0.115+
+> (**122 endpoints REST**, **15 tareas Celery** en **5 queues**,
+> **16 migraciones Alembic** head `202605160002`) + LangGraph 1.1.10 +
+> DeepAgents 0.6.x + Action Plane, correo personal multicuenta
+> GoDaddy/Gmail con aprobación humana
+> (`MAIL_REQUIRE_APPROVAL_FOR_SEND=true`), Google Maps/Calendar/Drive
+> operables sin writes directos, infra de datos ligada a `127.0.0.1`, y
+> consola Next.js 16.2.6 (**19 vistas**). La ruta `research` está
+> fusionada con **OpenHarness** opcional (extra
+> `openharness-ai>=0.1.9,<0.2`), pipeline por defecto `prelude_merge`,
+> workspace `deepagent_mirror`. Documento canónico de la fusión:
+> `OPENHARNESS_FUSION.md`. Runtime local: **DeepSeek V4 Pro**
+> (`deepseek-v4-pro`).
+>
+> Fase 39 cerró todos los residual risks técnicos: rate limiter pluggable
+> memory/Redis, `/system/credentials-status` (admin) con inventario vivo
+> de las 21 credenciales operador, `workflow.v1` export/import,
+> OAuth Google self-healing, wizard `init_credentials.sh`, correlation
+> IDs `X-Request-ID`, approval reaper, four-eyes, AuditEvent simétrico
+> REST↔Telegram. QA: **566 pytest passed, 1 skipped, 20 deselected**;
+> ruff/mypy/lint/build, Compose config, Alembic head, `git diff --check`,
+> `pre-commit run --all-files` (6 hooks) y `detect-secrets scan` verdes.
 
 Este directorio contiene la documentacion estable del proyecto. Los archivos
 `task_plan.md`, `findings.md` y `progress.md` en la raiz no son documentacion de
@@ -20,7 +30,7 @@ producto: son bitacora de trabajo de la sesion actual.
 
 ## Leer Primero
 
-1. **`COGNITIVE_OS_GUIDE.md` — guía maestra "desde cero" con todo: arquitectura, frontend (18 vistas, incluidas `Assist` y `Google Ops`), mail multicuenta, Google Ops, Telegram, ejecutables de escritorio, credenciales por capacidad, casos de uso y troubleshooting. Empieza aquí si nunca habías visto el proyecto.**
+1. **`COGNITIVE_OS_GUIDE.md` — guía maestra "desde cero" con todo: arquitectura, frontend (19 vistas, incluidas `Assist` y `Google Ops`), mail multicuenta, Google Ops, Telegram, ejecutables de escritorio, credenciales por capacidad, casos de uso y troubleshooting. Empieza aquí si nunca habías visto el proyecto.**
 2. `../README.md` - entrada principal, comandos basicos y mapa rapido.
 3. `PROJECT_GUIDE.md` - explicacion simple y tecnica del producto completo.
 4. `ARCHITECTURE.md` - arquitectura interna y flujo entre componentes.

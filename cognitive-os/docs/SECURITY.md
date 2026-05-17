@@ -1,6 +1,6 @@
 # Seguridad
 
-> **Estado actual (2026-05-15, Fase 33):** las reglas siguen vigentes. Google
+> **Estado actual (2026-05-17, Fase 39):** las reglas siguen vigentes. Google
 > Calendar/Drive writes reales sólo pueden pasar por `ActionRequest` + aprobación
 > humana; los endpoints directos rechazan `dry_run=false`. Postgres, Redis,
 > Weaviate y Neo4j publican sólo en `127.0.0.1` por defecto. OAuth/Drive/health

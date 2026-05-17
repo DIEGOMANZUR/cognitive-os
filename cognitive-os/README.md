@@ -1,11 +1,11 @@
 # Cognitive OS
 
-> **Estado actual (2026-05-15, Fase 33 RBAC + cifrado + research durable):** monorepo en grado comercial
-> operativo con backend FastAPI 0.115+ (118 endpoints REST verificados,
-> 14 tareas Celery distribuidas en 5 colas, 16 migraciones Alembic) +
+> **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):** monorepo en grado comercial
+> operativo con backend FastAPI 0.115+ (122 endpoints REST verificados,
+> 15 tareas Celery distribuidas en 5 colas, 16 migraciones Alembic) +
 > LangGraph 1.1.10 + DeepAgents 0.6.x + Celery 5.4 + Postgres 16+pgvector +
 > Redis 7 + Weaviate 1.29.0 + Neo4j 5 (servicios de datos ligados a
-> `127.0.0.1`) y consola Next.js 16.2.6 con **18 vistas** en `app/views/*.tsx` (incluidas
+> `127.0.0.1`) y consola Next.js 16.2.6 con **19 vistas** en `app/views/*.tsx` (incluidas
 > `AssistView` y `GoogleOpsView`). La ruta **`research`** sigue fusionada con
 > [OpenHarness](https://github.com/HKUDS/OpenHarness) opcional (`extra`
 > `openharness`). LLM por defecto: **DeepSeek V4 Pro** (`deepseek-v4-pro`),
@@ -21,6 +21,25 @@
 > de la queue `mail` y Kimi WebBridge—. Sin commits aún en `master`; estado
 > reproducible vía `bash scripts/full-qa.sh`.
 
+### Novedades Fase 39 (2026-05-17)
+
+- **`/system/info`** — versión runtime + commit + alembic head + policy flags.
+- **`/system/credentials-status`** (admin) — inventario vivo de las 21
+  credenciales operador con estado, capacidad habilitada y dónde
+  obtenerlas. Nunca devuelve valores.
+- **`/actions/requests/{id}/workflow`** + **`/actions/requests/from-workflow`**
+  — export/import de planes como JSON `workflow.v1` portátil.
+- **Vista `Research`** con plan animado vía SSE.
+- **Rate limit** con backend Redis pluggable (`RATE_LIMIT_BACKEND=memory|redis`).
+- **Approval reaper** (`APPROVAL_PENDING_MAX_HOURS=48`) cierra approvals stale.
+- **Four-eyes** para approvals (`APPROVAL_REQUIRE_FOUR_EYES=true`).
+- **Correlation IDs** propagados a logs vía `X-Request-ID`.
+- **OAuth Google self-healing**: `auth_google.py` detecta token válido y
+  refresca sin abrir navegador; health detail trae el comando exacto si
+  falta el `token.json`.
+- **Wizard CLI**: `bash scripts/init_credentials.sh` reporta checklist
+  REQ/OPT/OK de las 21 credenciales con `--ci` para gate de pipeline.
+
 Monorepo con backend **FastAPI** (agentes LangGraph, Celery, Postgres) y **Next.js** 16 como consola web.
 
 **Investigación (`research`):** Cognitive OS **fusiona** tres capas cuando se activa el motor opcional OpenHarness: LangGraph orquesta → [OpenHarness](https://github.com/HKUDS/OpenHarness) puede generar un **preludio** con su `QueryEngine` (en el mismo workspace que DeepAgents si `OPENHARNESS_WORKSPACE_MODE=deepagent_mirror`) → [DeepAgents](https://github.com/langchain-ai/deepagents) produce el informe con citas y política del proyecto. Si OpenHarness no está instalado/habilitado o falla, el grafo continúa solo con DeepAgents y, si éste no responde, con un agente RAG determinista de fallback.
@@ -33,7 +52,7 @@ acciones sensibles requieren aprobación humana y quedan auditadas. Ver
 
 ## Leer Primero
 
-- **`docs/COGNITIVE_OS_GUIDE.md`: guía maestra "desde cero" — empieza aquí si nunca viste el proyecto. Incluye arquitectura, las 18 vistas del frontend (incluidas `Assist` y `Google Ops`), correo multicuenta, Google Ops, ejecutables de escritorio, credenciales por capacidad, casos de uso reales y troubleshooting.**
+- **`docs/COGNITIVE_OS_GUIDE.md`: guía maestra "desde cero" — empieza aquí si nunca viste el proyecto. Incluye arquitectura, las 19 vistas del frontend (incluidas `Assist` y `Google Ops`), correo multicuenta, Google Ops, ejecutables de escritorio, credenciales por capacidad, casos de uso reales y troubleshooting.**
 - `docs/PROJECT_GUIDE.md`: explicacion simple y tecnica del producto.
 - `docs/README.md`: indice completo de documentacion.
 - `docs/OPENHARNESS_FUSION.md`: cómo encaja OpenHarness con LangGraph + DeepAgents (pipelines, presets, workspace).
@@ -55,7 +74,7 @@ rsync -a --exclude node_modules --exclude .next --exclude .venv --exclude '__pyc
 - Python ≥ 3.12 y [uv](https://docs.astral.sh/uv/)
 - Node.js ≥ 22 y npm
 - Verificación reproducible: `bash scripts/full-qa.sh` (`uv sync --extra openharness` + `pytest` + `ruff check` + `ruff format --check` + `mypy` + `npm ci` + `npm run lint` + `npm run build`). Estrés: `bash scripts/stress-qa.sh` (3 pasadas de pytest por defecto).
-- Snapshot QA vigente (2026-05-16, Fase 37): **497 pytest passed, 1 skipped, 20 deselected** (518 tests recogidos); ruff/ruff format/mypy (109 source files), frontend lint/build, Compose config, Alembic head y `git diff --check` verdes.
+- Snapshot QA vigente (2026-05-17, Fase 39): **566 pytest passed, 1 skipped, 20 deselected**; ruff/ruff format/mypy (111 source files), frontend lint/build, Compose config, Alembic head (`202605160002`) y `git diff --check` verdes. Stress 3 corridas estables.
 
 ## Backend
 

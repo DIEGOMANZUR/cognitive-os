@@ -1,28 +1,32 @@
 # Cognitive OS — Architecture
 
-> **Status (2026-05-15, Phase 33 RBAC + encryption + durable research):** stack operational at commercial
-> grade. Verified counts (no inflation): **118 REST endpoints** (92
-> Cognitive-OS-owned + 26 orchestration), **14 Celery tasks** across **5
-> queues** (`default`, `ingestion`, `agent_longrun`, `maintenance`, `mail`),
-> **14 Alembic migrations**, **18 Next.js views** under
-> `frontend/app/views/*.tsx` (including `AssistView` and `GoogleOpsView`),
-> **21 MCP servers** wired via the OpenCode cockpit, **15 skills**, 7
-> subagents, 7 slash commands. The local runtime is configured for
-> **DeepSeek V4 Pro** (`deepseek-v4-pro`) as the base LLM; secondary Kimi
-> K2.6-code-preview; vision GLM-4.6v primary, Kimi 2.6 fallback. The
-> personal assistant layer ships real GoDaddy IMAP/SMTP mail ingestion,
-> Google Maps/Calendar/Drive operations without direct writes, written reply proposals and approval-only send
-> (`MAIL_REQUIRE_APPROVAL_FOR_SEND=true`). The `research` route uses a
-> three-stage fusion when the optional **`openharness-ai`** extra is
-> installed and `ENABLE_OPENHARNESS_RESEARCH=true`: LangGraph orchestrates
-> → OpenHarness `QueryEngine` may emit a prelude → DeepAgents produces the
-> cited report. Default pipeline `prelude_merge`, default workspace
-> `deepagent_mirror`. See `docs/OPENHARNESS_FUSION.md` for the canonical
-> contract. Phase 33 adds explicit local RBAC, encrypted executable ActionRequest
-> payloads in production, and Postgres-backed research run snapshots/events. QA
-> snapshot: **497 pytest passed, 1 skipped, 20 deselected**;
-> ruff/mypy/lint/build, Compose config and Alembic head green; `git diff --check` clean; no commits yet on
-> `master`.
+> **Status (2026-05-17, Phase 39 — residual risks closed):** stack
+> operational at commercial grade. Verified counts (no inflation): **122
+> REST endpoints** (96 Cognitive-OS-owned + 26 orchestration), **15 Celery
+> tasks** across **5 queues** (`default`, `ingestion`, `agent_longrun`,
+> `maintenance`, `mail`), **16 Alembic migrations** (head
+> `202605160002`), **19 Next.js views** under `frontend/app/views/*.tsx`
+> (including `AssistView`, `GoogleOpsView` and `ResearchView` — animated
+> plan over SSE), **21 MCP servers** wired via the OpenCode cockpit,
+> **15 skills**, 7 subagents, 7 slash commands. Local runtime:
+> **DeepSeek V4 Pro** (`deepseek-v4-pro`); secondary Kimi
+> K2.6-code-preview; vision GLM-4.6v primary, Kimi 2.6 fallback.
+>
+> Phase 39 closed every technical residual risk: pluggable rate limiter
+> (memory/Redis), `/system/credentials-status` admin endpoint with the
+> live 21-credential inventory (never returns values), `workflow.v1`
+> ActionRequest export/import, self-healing Google OAuth
+> (`auth_google.py` skips the browser when an existing token can
+> refresh), `init_credentials.sh` operator wizard, request-scoped
+> `X-Request-ID` propagation, approval reaper
+> (`APPROVAL_PENDING_MAX_HOURS=48`), four-eyes approvals
+> (`APPROVAL_REQUIRE_FOUR_EYES=true`) and AuditEvent symmetry between the
+> REST and Telegram approval paths.
+>
+> QA snapshot: **566 pytest passed, 1 skipped, 20 deselected**;
+> ruff/mypy/lint/build, Compose config, Alembic head with no drift,
+> `git diff --check`, `pre-commit run --all-files` (6 hooks) and
+> `detect-secrets scan` all green.
 
 Cognitive OS is a local-first cognitive operating system. LangGraph orchestrates
 flows, DeepAgents do the deep work, **OpenHarness optionally augments the `research`

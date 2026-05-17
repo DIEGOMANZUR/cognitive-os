@@ -1,21 +1,23 @@
 # Cognitive OS - Guia Simple Y Tecnica
 
-> **Estado actual (2026-05-15, Fase 33 RBAC + cifrado + research durable):** producto en grado comercial
-> operativo. Backend FastAPI 0.115+ con **118 endpoints REST** (92
-> propios + 26 orquestación), **14 tareas Celery** distribuidas en **5
-> queues** (`default`, `ingestion`, `agent_longrun`, `maintenance`, `mail`),
-> **16 migraciones Alembic** persistidas. Frontend Next.js 16.2.6 con **18
-> vistas** (incluidas `AssistView` y `GoogleOpsView`). La ruta `research` está fusionada con
-> **OpenHarness** opcional (extra `openharness-ai>=0.1.9,<0.2`,
-> `prelude_merge` por defecto). El runtime local usa **DeepSeek V4 Pro**
-> (`deepseek-v4-pro`) como LLM base. Existe corte real y persistente de
-> correo personal multicuenta: GoDaddy IMAP/SMTP, Gmail label `TODOS`
-> soportado si OAuth está habilitado, propuestas escritas, Google Maps/Calendar/Drive
-> operables sin writes directos y envío solo con aprobación humana (`MAIL_REQUIRE_APPROVAL_FOR_SEND=true`). Cockpit
-> `.opencode/` con **21 MCPs**, **15 skills**, 7 subagentes y 7 comandos
-> slash. Fase 33 añade RBAC local explícito, cifrado de payload ejecutable y
-> persistencia Postgres configurable para research. QA snapshot: **497 pytest
-> passed, 1 skipped, 20 deselected**; ruff/mypy/lint/build verdes.
+> **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):**
+> producto en grado comercial operativo. Backend FastAPI 0.115+ con **122
+> endpoints REST** (96 propios + 26 orquestación), **15 tareas Celery**
+> distribuidas en **5 queues** (`default`, `ingestion`, `agent_longrun`,
+> `maintenance`, `mail`), **16 migraciones Alembic** (head
+> `202605160002`). Frontend Next.js 16.2.6 con **19 vistas** (incluidas
+> `AssistView`, `GoogleOpsView` y `ResearchView` con plan animado sobre
+> SSE). La ruta `research` está fusionada con **OpenHarness** opcional
+> (extra `openharness-ai>=0.1.9,<0.2`, `prelude_merge` por defecto).
+> Runtime local: **DeepSeek V4 Pro** (`deepseek-v4-pro`).
+>
+> Fase 39 cerró los residual risks técnicos: rate limiter pluggable
+> memory/Redis, `/system/credentials-status` con inventario vivo,
+> `workflow.v1` export/import, OAuth Google self-healing,
+> `init_credentials.sh` wizard, correlation IDs, approval reaper,
+> four-eyes, AuditEvent simétrico REST↔Telegram. QA snapshot: **566
+> pytest passed, 1 skipped, 20 deselected**; ruff/mypy/lint/build,
+> `pre-commit run --all-files` (6 hooks) y `detect-secrets scan` verdes.
 
 ## En Una Frase
 

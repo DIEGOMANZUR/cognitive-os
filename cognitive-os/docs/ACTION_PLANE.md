@@ -1,6 +1,6 @@
 # Action Plane
 
-> **Estado actual (2026-05-15, Fase 33 RBAC + cifrado):** capa **preview-first con
+> **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):** capa **preview-first con
 > `ActionRequest` persistente** y carril activo de **mail personal aprobado**.
 > Hay ejecución real para `computer_organize`, `document_generate`,
 > `browser_preview`, `browser_interactive`, GoDaddy DNS (solo con dry-run
@@ -14,6 +14,11 @@
 > `mail_*` (cuentas/mensajes/send_logs), `personal_tasks/notes` y nuevos action
 > types Google (`calendar_create_event`, `drive_upload_file`). Fase 33 añade
 > cifrado at-rest configurable de `payload_executable` y admin/RBAC explícito.
+> Fase 38/39 agregan: idempotency aplicativa + DB (índice parcial UNIQUE),
+> four-eyes en approvals (`APPROVAL_REQUIRE_FOUR_EYES=true`), reaper de
+> approvals stale (`APPROVAL_PENDING_MAX_HOURS=48`), AuditEvent simétrico
+> entre REST y Telegram, `workflow.v1` export/import (ver sección abajo),
+> rate limiter por usuario (memory/Redis) y correlation IDs propagados.
 
 El action plane es la capa que prepara a Cognitive OS para actuar en el computador,
 en navegador y en servicios externos sin saltarse seguridad, auditoria ni aprobacion

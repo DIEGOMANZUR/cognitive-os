@@ -1,7 +1,7 @@
 # Cognitive OS — Guía Maestra
 
 > **Última actualización:** 2026-05-15, Fase 33 RBAC + cifrado + research durable.
-> **Estado del producto:** monorepo en grado comercial operativo (backend FastAPI 0.115+ con **118 endpoints REST** —92 propios + 26 orquestación—, **14 tareas Celery** distribuidas en **5 colas** `default`/`ingestion`/`agent_longrun`/`maintenance`/`mail`, **16 migraciones Alembic**, LangGraph 1.1.10 + DeepAgents 0.6.x + Postgres 16+pgvector + Redis 7 + Weaviate 1.29.0 + Neo4j 5 ligados a `127.0.0.1` por defecto; consola Next.js 16.2.6 con **18 vistas** en `app/views/*.tsx` incluidas `AssistView` y `GoogleOpsView`; bot Telegram opcional; Kimi WebBridge; fusión opcional con OpenHarness en la ruta `research`). Runtime local: **DeepSeek V4 Pro** (`deepseek-v4-pro`) como LLM base; secundario Kimi K2.6-code-preview; vision GLM-4.6v primario. Mail personal GoDaddy IMAP/SMTP + Gmail label `TODOS` soportado + propuestas escritas; Google Maps/Calendar/Drive operables; envío y writes externos solo aprobados (`MAIL_REQUIRE_APPROVAL_FOR_SEND=true`). Asistente personal con `PersonalTask`/`PersonalNote` CRUD y reminders. Cockpit `.opencode/` con **21 MCPs**, **15 skills**, 7 subagentes y 7 comandos slash.
+> **Estado del producto:** monorepo en grado comercial operativo (backend FastAPI 0.115+ con **122 endpoints REST** —96 propios + 26 orquestación—, **15 tareas Celery** distribuidas en **5 colas** `default`/`ingestion`/`agent_longrun`/`maintenance`/`mail`, **16 migraciones Alembic**, LangGraph 1.1.10 + DeepAgents 0.6.x + Postgres 16+pgvector + Redis 7 + Weaviate 1.29.0 + Neo4j 5 ligados a `127.0.0.1` por defecto; consola Next.js 16.2.6 con **19 vistas** en `app/views/*.tsx` incluidas `AssistView`, `GoogleOpsView` y `ResearchView`; bot Telegram opcional; Kimi WebBridge; fusión opcional con OpenHarness en la ruta `research`). Runtime local: **DeepSeek V4 Pro** (`deepseek-v4-pro`) como LLM base; secundario Kimi K2.6-code-preview; vision GLM-4.6v primario. Mail personal GoDaddy IMAP/SMTP + Gmail label `TODOS` soportado + propuestas escritas; Google Maps/Calendar/Drive operables; envío y writes externos solo aprobados (`MAIL_REQUIRE_APPROVAL_FOR_SEND=true`). Asistente personal con `PersonalTask`/`PersonalNote` CRUD y reminders. Cockpit `.opencode/` con **21 MCPs**, **15 skills**, 7 subagentes y 7 comandos slash.
 > **QA snapshot persistente:** 497 pytest passed, 1 skipped, 20 deselected (518 tests recogidos); ruff + ruff format + mypy (109 source files) + frontend lint + frontend build + Compose config + Alembic head + `git diff --check` → todo verde. Fase 37 suma hardening de workers, approvals y Alembic autogenerate sobre la base Fase 33: RBAC local explícito, cifrado de payload ejecutable y persistencia configurable de research.
 > **Para qué es este documento:** que **una sola persona, sin contexto previo**, pueda entender qué es Cognitive OS, qué hace, qué *no* hace, cómo se usa por web, por API y por Telegram, y qué le falta para dejar el sistema redondo. Cada afirmación tiene su archivo o variable de respaldo en el repo.
 
@@ -15,7 +15,7 @@
 4. [Mapa mental: cómo encajan las piezas](#4-mapa-mental-cómo-encajan-las-piezas)
 5. [El recorrido completo de una petición](#5-el-recorrido-completo-de-una-petición)
 6. [Componentes del backend, uno por uno](#6-componentes-del-backend-uno-por-uno)
-7. [Frontend: las 18 vistas y cómo usar cada una](#7-frontend-las-18-vistas-y-cómo-usar-cada-una)
+7. [Frontend: las 19 vistas y cómo usar cada una](#7-frontend-las-18-vistas-y-cómo-usar-cada-una)
 8. [Telegram: cada comando con ejemplo](#8-telegram-cada-comando-con-ejemplo)
 9. [La fusión OpenHarness + DeepAgents en `research`](#9-la-fusión-openharness--deepagents-en-research)
 10. [Document Analysis (ruta legal)](#10-document-analysis-ruta-legal)
@@ -150,9 +150,9 @@ Todo corre en tu infraestructura (Docker local), todas las acciones quedan audit
 
 ```
 ┌─────────────────┐                ┌─────────────────────────────────────────┐
-│  Frontend       │                │ FastAPI app (92 propios / 118 REST)     │
+│  Frontend       │                │ FastAPI app (96 propios / 122 REST)     │
 │  Next.js 16     │ ─── REST/SSE ──│  /chat /chat/stream /threads/*          │
-│  18 vistas      │ ◄── JWT ───────│  /documents/* /document-analysis/*      │
+│  19 vistas      │ ◄── JWT ───────│  /documents/* /document-analysis/*      │
 │  (panel web)    │                │  /jobs /approvals /audit /health/*      │
 └─────────────────┘                │  /actions/* /deepagents/* /assist/*     │
                                    │  /research/* /langsmith/* /agents       │
@@ -239,7 +239,7 @@ Sigue una petición típica `POST /chat/stream` con un mensaje "Investiga X" par
 
 ### 6.1. API FastAPI (`backend/src/cognitive_os/api/app.py`)
 
-118 endpoints REST agrupados por dominio (92 propios + 26 de orquestación/transversales; excluye `/docs`, `/redoc`, `/openapi.json` y `/docs/oauth2-redirect`). Catálogo resumido de rutas reales del código, todas requieren JWT excepto `/health`:
+122 endpoints REST agrupados por dominio (96 propios + 26 de orquestación/transversales; excluye `/docs`, `/redoc`, `/openapi.json` y `/docs/oauth2-redirect`). Catálogo resumido de rutas reales del código, todas requieren JWT excepto `/health`:
 
 #### Salud y configuración
 - `GET /health` — público, devuelve `{status: "ok"}`.
@@ -390,7 +390,7 @@ Ver §9. Usa `_execute_engine_blocking` (hilo dedicado + event loop propio) para
 
 ---
 
-## 7. Frontend: las 18 vistas y cómo usar cada una
+## 7. Frontend: las 19 vistas y cómo usar cada una
 
 Frontend en `frontend/`, Next.js 16 (Turbopack), React 19, ESLint 9. Vistas en `frontend/app/views/`. Cada vista habla con la API vía `ApiClient` (configurable desde `Settings` o `NEXT_PUBLIC_API_BASE_URL`).
 
@@ -716,6 +716,95 @@ Si quieres que **cada capacidad documentada** funcione end-to-end, necesitas est
 | `ENABLE_GOOGLE_CALENDAR_WRITE`, `ENABLE_GOOGLE_DRIVE_WRITE` | Mantener `false` hasta que el operador quiera writes reales; aun activados, writes pasan por `ActionRequest` + aprobación. |
 | `GOOGLE_DRIVE_DELIVERABLES_FOLDER_NAME` | Nombre de carpeta operativa para entregables, default `Cognitive OS Deliverables`. |
 
+#### Por qué las credenciales de Google Cloud Console **no bastan** por sí solas
+
+Una pregunta natural: si pegaste `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` y
+`GOOGLE_MAPS_API_KEY` desde tu proyecto Google Cloud (con Maps API, Drive API
+y Calendar API habilitadas), ¿por qué Calendar/Drive aún aparecen como
+bloqueados en `/health/dashboard`?
+
+Porque OAuth 2.0 tiene **tres piezas distintas** y tu proyecto Cloud sólo
+cubre dos:
+
+1. **API Key Maps** (`GOOGLE_MAPS_API_KEY`) → Maps no usa OAuth. Auth es por
+   clave de proyecto. **Funciona apenas la pegas en `.env`.**
+2. **OAuth Client ID + Secret** (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`)
+   → Identifican a Cognitive OS como aplicación legítima ante Google.
+   Vienen de tu Cloud Console.
+3. **`token.json`** → Es el **consentimiento del usuario** (tú, dueño del
+   calendario/Drive) autorizando a esta app específica a leer/escribir en
+   tus datos. Sólo Google puede emitirlo, y sólo después de que tú apruebes
+   en una pantalla de consentimiento en el navegador.
+
+```
+   Cloud Console te da:     ──┐
+   - CLIENT_ID                │  "Cognitive OS existe como app"
+   - CLIENT_SECRET            │
+   - APIs habilitadas       ──┘
+                                            │
+                                            ▼
+                              No alcanza para leer tus datos.
+                                            │
+                                            ▼
+   Browser consent te da:   ──┐
+   - access_token             │  "diegomanzurn8@gmail.com permitió a
+   - refresh_token            │   Cognitive OS leer SU calendar/drive"
+   (en token.json)          ──┘
+```
+
+Razón de diseño: si bastara con el `CLIENT_SECRET`, cualquier desarrollador
+con esas credenciales podría leer el Drive de cualquier persona. El
+`token.json` prueba criptográficamente que **tú** autorizaste a **esta app**
+para acceder a **tus** datos.
+
+#### Cómo completar la autorización (una vez en toda la vida del deployment)
+
+```bash
+cd cognitive-os/backend
+uv run python scripts/auth_google.py
+```
+
+Lo que ocurre paso a paso:
+
+1. El script lee `GOOGLE_CLIENT_ID/SECRET` de `.env` y los scopes
+   `calendar.events` + `drive` de `GOOGLE_CALENDAR_SCOPES` /
+   `GOOGLE_DRIVE_SCOPES`.
+2. Abre tu navegador en una URL de Google con esos scopes.
+3. Google muestra: *"Cognitive OS quiere acceder a tu Calendar y Drive —
+   ¿Permitir?"* (con tu cuenta logueada). Click "Permitir".
+4. El script captura el `refresh_token` que Google genera y lo guarda en
+   `storage/oauth/google/token.json` con permisos `0o600`.
+5. A partir de ese momento, `GoogleCredentialsLoader` refresca el
+   `access_token` automáticamente cada hora usando el `refresh_token`.
+
+Si vuelves a correr `scripts/auth_google.py` cuando el token todavía es
+válido, el script **detecta que ya está autorizado**, refresca
+silenciosamente y sale sin abrir el navegador. Sólo verás la pantalla de
+consentimiento si:
+
+- Es la primera vez en este host.
+- Revocaste manualmente el acceso desde
+  [myaccount.google.com/connections](https://myaccount.google.com/connections).
+- Cambiaste los scopes que el backend pide (ej. agregaste write).
+
+#### Gmail OAuth es separado (mismo principio)
+
+`GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` están en `.env` como pareja
+distinta históricamente, **pero puedes reutilizar el mismo OAuth client de
+Google** si tu proyecto Cloud ya tiene Gmail API habilitada — basta con
+copiar los valores de `GOOGLE_CLIENT_ID/SECRET` también a esas dos
+variables. Luego corres el quickstart oficial para generar
+`GMAIL_TOKEN_DIR/token.json` con scope `gmail.readonly`.
+
+#### Diagnóstico rápido
+
+| Síntoma | Causa | Acción |
+|---|---|---|
+| `/health/dashboard` muestra `google_calendar` o `google_drive` como `blocked` con `No token.json found; run scripts/auth_google.py once.` | Falta el `token.json`. | Corre `auth_google.py`. |
+| Mismo, pero el detail menciona `refresh failed` | Token revocado o scopes nuevos. | Borra `token.json` y vuelve a correr el script. |
+| Calendar/Drive responden 502 con `Cannot refresh Google token` | Refresh genuinamente falló (red, proyecto deshabilitado). | Verifica que el proyecto Cloud sigue activo y las APIs habilitadas. |
+| `/system/credentials-status` reporta `GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET` configurada pero Calendar sigue blocked | Tienes la identidad de la app, falta tu consentimiento. | Mismo: `auth_google.py`. |
+
 ### Mail personal GoDaddy/Gmail-label
 | Variable | Cómo obtenerlo |
 | --- | --- |
@@ -824,7 +913,7 @@ CONFIRM_RESTORE=YES bash scripts/restore_storage.sh backups/storage/ARCHIVO.tar.
 
 Lo que **funciona hoy** (verificado contra código y tests):
 
-- Backend completo (92 endpoints propios; 118 REST totales) + frontend (18 vistas, incluye `Assist` y `Google Ops`).
+- Backend completo (96 endpoints propios; 122 REST totales) + frontend (19 vistas, incluye `Assist`, `Google Ops` y `Research`).
 - Ruta `research` con fusión opcional OpenHarness y fallback determinista.
 - Ruta `legal` con Document Analysis y exportadores.
 - Action Plane con `computer_organize`, `document_generate`, `browser_preview`, `browser_interactive`, Google Calendar create y Drive upload ejecutables sólo por `ActionRequest` aprobado; Maps read-only con tráfico/link; Gmail digest read-only; mail GoDaddy IMAP/SMTP con envío aprobado; GoDaddy DNS preview/executor con dry-run.

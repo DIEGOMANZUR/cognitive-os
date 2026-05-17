@@ -1,16 +1,23 @@
 # RUNBOOK Cognitive OS
 
-> **Estado actual (2026-05-15, 04:47 hora Chile):** la ruta `research` está
-> fusionada con OpenHarness opcional; el runtime local usa **DeepSeek V4
-> Pro** (`deepseek-v4-pro`); el stack incluye mail personal GoDaddy/Gmail-label
-> con queue Celery `mail` integrada en `scripts/dev_worker.sh`. Para uso
-> diario en este PC existen ejecutables en `/home/jgonz/Escritorio` que
-> levantan/reinician/detienen todo (Docker stack, migraciones, API, Celery
-> worker multi-queue `default,ingestion,agent_longrun,maintenance,mail`,
+> **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):**
+> la ruta `research` está fusionada con OpenHarness opcional; el runtime
+> local usa **DeepSeek V4 Pro** (`deepseek-v4-pro`); el stack incluye mail
+> personal GoDaddy/Gmail-label con queue Celery `mail` integrada en
+> `scripts/dev_worker.sh`. Para uso diario existen ejecutables en
+> `/home/jgonz/Escritorio` (versión endurecida) que
+> levantan/reinician/detienen todo (Docker stack, migraciones, API,
+> Celery worker multi-queue `default,ingestion,agent_longrun,maintenance,mail`,
 > Celery beat, frontend Next.js y Kimi WebBridge). Telegram queda omitido
-> si `TELEGRAM_ENABLED=false`. Snapshot QA reproducible vía
+> si `TELEGRAM_ENABLED=false`. Endpoints operacionales nuevos:
+> `/system/info` (versión + git commit + alembic head + policy flags) y
+> `/system/credentials-status` (admin; inventario vivo de las 21
+> credenciales operador, nunca devuelve valores). Wizard CLI:
+> `bash scripts/init_credentials.sh` para checklist REQ/OPT/OK con
+> instrucciones específicas. Snapshot QA reproducible vía
 > `bash scripts/full-qa.sh` y `bash scripts/stress-qa.sh` (3 pasadas
-> pytest por defecto).
+> pytest por defecto). QA actual: **566 passed, 1 skipped, 20
+> deselected**, head Alembic `202605160002`.
 
 ## Ejecutables de escritorio
 

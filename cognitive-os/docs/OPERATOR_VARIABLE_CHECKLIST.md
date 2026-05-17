@@ -1,6 +1,6 @@
 # Checklist operador: variables de entorno ↔ `Settings`
 
-> **Estado actual (2026-05-15, Fase 33):** vigente. La tabla canónica
+> **Estado actual (2026-05-17, Fase 39):** vigente. La tabla canónica
 > `SETTINGS_REGISTRY_TABLE.md` (autogenerada por
 > `scripts/dump_settings_registry.py`, **no editar a mano**) incluye
 > OpenHarness (`ENABLE_OPENHARNESS_RESEARCH`, `OPENHARNESS_*`), mail

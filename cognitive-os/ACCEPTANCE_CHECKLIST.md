@@ -1,33 +1,38 @@
 # ACCEPTANCE CHECKLIST
 
-> **Estado actual (2026-05-15, Fase 33 RBAC + cifrado + research durable):** matriz de aceptación
+> **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):** matriz de aceptación
 > vigente. Incluye OpenHarness opcional en *Chat / orquestación*, mail
 > personal GoDaddy/Gmail-label con envío aprobado, integraciones Google
 > (Maps con tráfico/link, Calendar/Drive read + writes solo por `ActionRequest`), voz
 > ElevenLabs (STT/TTS), vista `AssistView` para tareas/notas personales y
 > `GoogleOpsView` para operar Maps/Calendar/Drive.
-> Snapshot QA persistente (Fase 37):
-> **497 pytest passed, 1 skipped, 20 deselected**; ruff/ruff format/mypy
-> (109 source files), frontend lint/build, Compose config, Alembic head y `git diff --check` verdes; sin commits aún en
-> `master`. Los snapshots con fecha por-fase más abajo son **históricos**:
-> para reverificar QA hoy ejecuta `bash scripts/full-qa.sh`.
+> Snapshot QA persistente (Fase 39):
+> **566 pytest passed, 1 skipped, 20 deselected**; ruff/ruff format/mypy
+> (111 source files), frontend lint/build (19 vistas), Compose config,
+> Alembic head `202605160002` sin drift, `git diff --check`,
+> `pre-commit run --all-files` (6 hooks) y `detect-secrets scan` verdes.
+> Los snapshots con fecha por-fase más abajo son **históricos**: para
+> reverificar QA hoy ejecuta `bash scripts/full-qa.sh`.
 
 Este checklist separa lo verificado por pruebas automaticas de lo que requiere
 infraestructura local real, credenciales o aprobacion manual.
 
-## Verificado Automaticamente - 2026-05-16 (Fase 37 auditoria integral)
+## Verificado Automaticamente - 2026-05-17 (Fase 39 cierre de riesgos residuales)
 
-- [x] `uv run pytest -m 'not integration and not slow'` → **497 passed, 1 skipped, 20 deselected**.
+- [x] `uv run pytest -m 'not integration and not slow'` → **566 passed, 1 skipped, 20 deselected**.
+- [x] Stress 3 corridas idénticas → 566 passed cada una.
 - [x] `uv run ruff check .` → All checks passed.
-- [x] `uv run ruff format --check .` → 203 files already formatted.
-- [x] `uv run mypy src` → Success: no issues found in 109 source files.
+- [x] `uv run ruff format --check .` → 220 files already formatted.
+- [x] `uv run mypy src` → Success: no issues found in 111 source files.
 - [x] `npm run lint` → pass.
-- [x] `npm run build` → Next.js 16.2.6 (Turbopack), build estática OK.
+- [x] `npm run build` → Next.js 16.2.6, 19 vistas.
 - [x] `docker compose --env-file .env.example -f infra/docker-compose.yml config --quiet` → pass.
-- [x] `uv run alembic heads` → `202605150002 (head)`.
+- [x] `uv run alembic heads` → `202605160002 (head)`; `alembic check` sin drift.
 - [x] `git diff --check` → clean.
-- [x] Tests focalizados Fase 33: config, LangSmith RBAC, cifrado de
-  `payload_executable`, research persistence hooks y settings registry → **25 passed**.
+- [x] `uvx pre-commit run --all-files` → 6 hooks Passed (large-files, merge-conflict, EOF, trailing-whitespace, gitleaks, detect-secrets baseline).
+- [x] `uvx --from detect-secrets detect-secrets scan` → 0 findings.
+- [x] `bash scripts/init_credentials.sh` → 0 REQ faltantes en el host.
+- [x] Tests focalizados Fase 39: rate limit memory+redis (9), credentials inventory (7), workflow.v1 (7), decide_approval helper (4), correlation_id (7), google_oauth_instructions (4) → **38 passed**.
 
 ## Verificado Automaticamente - 2026-05-15 (Fase 32 hardening comercial)
 

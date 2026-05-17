@@ -1,15 +1,18 @@
 # Cognitive OS Frontend
 
-> **Estado actual (2026-05-15, Fase 32 hardening comercial):** Next.js 16.2.6 (Turbopack),
-> React 19, ESLint 9.39.4, TypeScript 5.8. **18 vistas** confirmadas en
-> `app/views/*.tsx`: `ChatView`, `DashboardView`, `SettingsView`,
-> `ApprovalsView`, `MemoryView`, `JobsView`, `SandboxView`,
+> **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):**
+> Next.js 16.2.6 (Turbopack), React 19, ESLint 9.39.4, TypeScript 5.8.
+> **19 vistas** confirmadas en `app/views/*.tsx`: `ChatView`,
+> `DashboardView`, `SettingsView`, `ApprovalsView` (con import/export
+> `workflow.v1`), `MemoryView`, `JobsView`, `SandboxView`,
 > `DocumentsView`, `DocumentAnalysisView`, `ConfigurationView`,
 > `MailInboxView`, `LangSmithView`, `AgentsView`, `SkillsView`,
-> `HealthView`, `AuditView`, `AssistView` (tareas/notas personales) y
-> `GoogleOpsView` (Maps/Calendar/Drive). Componentes principales: `Sidebar.tsx`, `TopBar.tsx`,
-> `CommandPalette.tsx`, `PWA.tsx`. Las respuestas **research** pueden
-> combinar en backend OpenHarness + DeepAgents sin cambiar la UI (ver
+> `HealthView`, `AuditView`, `AssistView` (tareas/notas personales),
+> `GoogleOpsView` (Maps/Calendar/Drive) y **`ResearchView`** (plan animado
+> sobre SSE de `/research/runs/{id}/events`). Componentes principales:
+> `Sidebar.tsx`, `TopBar.tsx`, `CommandPalette.tsx`, `PWA.tsx`,
+> `ErrorBoundary.tsx` (recovery global). Las respuestas **research**
+> pueden combinar en backend OpenHarness + DeepAgents sin cambiar la UI (ver
 > `docs/OPENHARNESS_FUSION.md`). La vista `Mail` consume `/mail/*` para
 > sync GoDaddy/Gmail-label, propuestas editables y envío aprobado por SMTP
 > GoDaddy con estado `pending_send` y `MailSendResult`. La vista `Assist`

@@ -1,20 +1,29 @@
 # AGENTS.md
 
-> **Estado actual (2026-05-15, Fase 33 RBAC + cifrado + research durable):** monorepo en grado comercial
-> operativo. Backend FastAPI 0.115+ con **118 endpoints REST** (92 propios + 26
-> de orquestación), 14 tareas Celery distribuidas en 5 colas
-> (`default`, `ingestion`, `agent_longrun`, `maintenance`, `mail`), 14
-> migraciones Alembic, integración LangGraph 1.1.10 + DeepAgents 0.6.x +
-> OpenHarness opcional, mail multicuenta GoDaddy/Gmail con aprobación humana
-> obligatoria y Google Maps/Calendar/Drive operables vía Action Plane sin writes
-> directos. Frontend Next.js 16.2.6 + React 19 con **18 vistas** (incluidas
-> `AssistView` y `GoogleOpsView`). Cockpit OpenCode con **21 MCPs**, 7
-> subagentes, **15 skills** y 7 comandos slash. LLM por defecto:
-> **DeepSeek V4 Pro**. Fase 33 añade RBAC local explícito, cifrado Fernet de
-> `payload_executable` y persistencia Postgres configurable para research.
-> Snapshot QA verde (497 pytest passed, 1 skipped, 20 deselected;
-> ruff/mypy/lint/build/Compose/Alembic OK). Sin commits aún en `master` —
-> queda pendiente completar variables `.env.local` que requieren input manual.
+> **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):**
+> monorepo en grado comercial operativo. Backend FastAPI 0.115+ con
+> **122 endpoints REST** (96 propios + 26 de orquestación), **15 tareas
+> Celery** distribuidas en 5 colas (`default`, `ingestion`,
+> `agent_longrun`, `maintenance`, `mail`), **16 migraciones Alembic**
+> (head `202605160002`), LangGraph 1.1.10 + DeepAgents 0.6.x + OpenHarness
+> opcional, mail multicuenta GoDaddy/Gmail con aprobación humana
+> obligatoria y Google Maps/Calendar/Drive operables vía Action Plane sin
+> writes directos. Frontend Next.js 16.2.6 + React 19 con **19 vistas**
+> incluidas `AssistView`, `GoogleOpsView` y `ResearchView` (plan animado
+> sobre SSE). Cockpit OpenCode con **21 MCPs**, 7 subagentes, **15 skills**
+> y 7 comandos slash. LLM por defecto: **DeepSeek V4 Pro**.
+>
+> Fase 39 cerró los residual risks técnicos: rate limiter pluggable
+> Redis/memory, `/system/credentials-status` con inventario vivo, workflow.v1
+> export/import, OAuth Google self-healing, wizard `init_credentials.sh`,
+> correlation IDs, approval reaper, four-eyes, AuditEvent simétrico
+> REST↔Telegram.
+>
+> Snapshot QA verde: **566 pytest passed, 1 skipped, 20 deselected**;
+> ruff/mypy/lint/build/Compose/Alembic/detect-secrets/pre-commit (6 hooks)
+> verdes. Único pendiente operador: autorizar `auth_google.py` (1 click
+> browser) si quiere Calendar/Drive y completar credenciales OPT que vaya
+> a usar — `bash scripts/init_credentials.sh` reporta cuáles faltan.
 
 Proyecto: **Cognitive OS** (mono-workspace).
 Sub-proyecto principal: `cognitive-os/` (backend FastAPI + LangGraph + DeepAgents,

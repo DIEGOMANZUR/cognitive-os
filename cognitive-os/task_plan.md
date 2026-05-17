@@ -1,20 +1,22 @@
 # Cognitive OS Hardening And Action Plane Plan
 
-> **Estado actual (2026-05-16, Fase 37 auditoria integral):** las fases 1–33
-> tienen sus bloques P0/P1 cerrados; Fase 34–36 dejaron runtime, baseline git y CI
-> localmente verificables. La Fase 33 aplica el núcleo
-> de Fase 29: admin explícito/RBAC local, cifrado at-rest de `payload_executable`
-> y backend Postgres configurable para snapshots/eventos del Research Orchestrator.
-> Queda fuera del código completar variables `.env.local` reales y operar
-> credenciales que requieren input manual del operador. Las tablas de "Resultado De
-> Verificacion" más abajo son **snapshots históricos** por fase: para
-> conocer el verdadero estado de QA hoy ejecuta `bash scripts/full-qa.sh` y
-> revisa la salida. Snapshot QA persistente: **497 pytest passed, 1
-> skipped, 20 deselected**, ruff/ruff format/mypy/lint/build, Compose config,
-> Alembic head y `git diff --check` verdes. Documentación de producto autoritativa:
-> `docs/COGNITIVE_OS_GUIDE.md`, `docs/PROJECT_GUIDE.md`,
-> `docs/ARCHITECTURE.md`, `docs/OPENHARNESS_FUSION.md`, `docs/RUNBOOK.md`,
-> `docs/SECURITY.md`.
+> **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):**
+> fases 1–38 cerradas. Fase 38 hizo revisión personal post-37 con atomic
+> doc writes, correlation IDs, rate limit, approval reaper, /system/info,
+> índice composite en human_approvals. Fase 39 cerró los residual risks
+> técnicos: rate limiter pluggable memory/Redis, `/system/credentials-status`,
+> workflow.v1 export/import, OAuth Google self-healing,
+> `init_credentials.sh` wizard. Las tablas de "Resultado De Verificacion"
+> más abajo son **snapshots históricos** por fase: el snapshot vigente se
+> obtiene con `bash scripts/full-qa.sh`. Snapshot QA persistente: **566
+> pytest passed, 1 skipped, 20 deselected**,
+> ruff/ruff format/mypy/lint/build, Compose config, Alembic head
+> `202605160002` sin drift, `git diff --check`, `pre-commit run --all-files`
+> (6 hooks) y `detect-secrets scan` verdes. Único pendiente operador:
+> autorizar `auth_google.py` (1 click browser) si quiere Calendar/Drive.
+> Documentación de producto autoritativa: `docs/COGNITIVE_OS_GUIDE.md`,
+> `docs/PROJECT_GUIDE.md`, `docs/ARCHITECTURE.md`,
+> `docs/OPENHARNESS_FUSION.md`, `docs/RUNBOOK.md`, `docs/SECURITY.md`.
 
 ## Objetivo
 
@@ -56,17 +58,17 @@ pruebas/documentacion que sostengan evolucion futura.
 | 24. Inventario local de archivos | complete | `computer_inventory` read-only bajo allow-list, sin symlinks ni lectura de secretos |
 | 25. Roadmap asistente personal completo | complete | Matriz de capacidades y brechas documentada en `PERSONAL_ASSISTANT_ROADMAP.md` |
 | 26. Mail multicuenta personal con aprobación humana | complete | GoDaddy IMAP/SMTP, Gmail label `TODOS`, Postgres `mail_*`, UI Mail, queue `mail`, envío solo aprobado |
-| 27. Normalización documental 2026-05-14 | complete | Todos los Markdown activos reflejan DeepSeek V4 Pro, Weaviate 1.29.0, 89 endpoints propios, **17 vistas (incluida `Assist`)**, mail personal y ejecutables escritorio |
+| 27. Normalización documental 2026-05-14 | complete | Todos los Markdown activos reflejan DeepSeek V4 Pro, Weaviate 1.29.0, 89 endpoints propios, **19 vistas (incluida `Assist`)**, mail personal y ejecutables escritorio |
 | 28. Revisión integral y optimización comercial | in_progress (P0/P1 done) | Auditoría desde cero ejecutada (arquitectura/backend/frontend/seguridad/tests); P0/P1 aplicados: secret hygiene, mail timeouts/redacción, `/config/public` ampliado, contratos frontend, AssistView, tests mail/config/no-secret. **Pendientes P2 → mover a Fase 29**: auth/RBAC, cifrado payload, persistencia research, bind DB privado |
 | 29. Endurecimiento comercial multi-usuario | in_progress (code closed, env manual) | Auth/RBAC con roles, cifrado at-rest de `payload_executable` en `action_requests`, persistencia durable configurable del orquestador de research en Postgres; queda completar variables `.env.local` faltantes con input del operador |
-| 30. Barrido documental 2026-05-15 | complete | Snapshot histórico con conteos de ese momento (115 endpoints, 17 vistas, 11 workers, 5 queues, 13 migraciones); reemplazado por Fase 37 para estado vigente |
+| 30. Barrido documental 2026-05-15 | complete | Snapshot histórico con conteos de ese momento (115 endpoints, 19 vistas, 11 workers, 5 queues, 13 migraciones); reemplazado por Fase 37 para estado vigente |
 | 31. Google Maps/Drive/Calendar operables | complete | Maps con tráfico/link, Drive carpeta de entregables, Calendar/Drive writes vía `ActionRequest`, `/actions/capabilities` y `/config/public` con flags Google, `GoogleOpsView`, tests focalizados y QA amplio verde |
 | 32. Hardening comercial seguridad/PWA/QA | complete | Google direct writes preview-only, producción exige aprobación humana, errores sensibles redactados, reaper en beat, infra loopback, PWA con headers/update/offline, tests high-value y QA amplio verde |
 | 33. Fase 29 aplicada: RBAC + cifrado + research durable | complete | Admin explícito sin fallback implícito, roles en JWT local, cifrado Fernet de payload ejecutable, backend Postgres opcional para runs de research, tests y docs |
 | 34. Reconciliacion operativa local | complete | Alembic en head, Compose loopback, backups/snapshots ignorados y runtime core healthy |
 | 35. Baseline git seguro | complete | Primer baseline versionado sin secretos ni material local, pre-commit/gitleaks verdes |
 | 36. Pulido CI y QA completa | complete | CI efectivo en `.github/workflows`, full QA y readiness verdes |
-| 37. Auditoria integral por capas | in_progress | Conteos vigentes verificados: 118 endpoints, 18 vistas, 14 tareas Celery, 15 migraciones; bloques 1-4 cerrados (workers, RBAC, idempotency, DB) |
+| 37. Auditoria integral por capas | in_progress | Conteos vigentes verificados: 122 endpoints, 19 vistas, 15 tareas Celery, 15 migraciones; bloques 1-4 cerrados (workers, RBAC, idempotency, DB) |
 
 ## Fase 33 - Plan de implementacion activo
 
@@ -199,7 +201,7 @@ Implementar el primer corte operativo del asistente personal de correo:
 Actualizar todos los Markdown activos para que una persona nueva entienda el
 estado real del proyecto: funcionamiento, arquitectura, guías de uso, variables,
 mail personal, runtime DeepSeek V4 Pro, Weaviate 1.29.0, Kimi WebBridge,
-ejecutables de escritorio, 89 endpoints propios y 17 vistas frontend (Chat, Dashboard, Settings, Approvals, Memory, Jobs, Sandbox, Documents, DocumentAnalysis, Configuration, Mail, LangSmith, Agents, Skills, Health, Audit, Assist).
+ejecutables de escritorio, 89 endpoints propios y 19 vistas frontend (Chat, Dashboard, Settings, Approvals, Memory, Jobs, Sandbox, Documents, DocumentAnalysis, Configuration, Mail, LangSmith, Agents, Skills, Health, Audit, Assist).
 
 ### Criterios De Aceptacion
 

@@ -1,14 +1,18 @@
 # Scripts
 
-> **Estado actual (2026-05-15, 04:47 hora Chile):** scripts shell verificados.
-> `dev_worker.sh` escucha **5 queues**:
+> **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):**
+> scripts shell verificados. `dev_worker.sh` escucha **5 queues**:
 > `default,ingestion,agent_longrun,maintenance,mail`. `full-qa.sh` y
-> `stress-qa.sh` instalan el extra OpenHarness para validar la fusión
-> `research`. Ejecutables de escritorio (`Levantar/Reiniciar/Detener/Estado
-> Cognitive OS.{sh,desktop}`) envuelven `cognitive-os.sh` para operar
-> Docker stack, migraciones, API, Celery worker multi-queue, Celery beat,
-> frontend Next.js y Kimi WebBridge. Telegram queda omitido si
-> `TELEGRAM_ENABLED=false`.
+> `stress-qa.sh` instalan el extra OpenHarness; `full-qa.sh` además
+> ejecuta `alembic check` (tolerante a Postgres apagado) y
+> `git diff --check` como guards finales. Ejecutables de escritorio
+> endurecidos (`Levantar/Reiniciar/Detener/Estado Cognitive OS.{sh,desktop}`)
+> envuelven `cognitive-os.sh` con lock `flock`, preflight de
+> dependencias, anti PID-recycle, kill graceful, rotación de logs y
+> modo `doctor`. Telegram queda omitido si `TELEGRAM_ENABLED=false`.
+> Nuevo wizard `init_credentials.sh [--ci]`: checklist REQ/OPT/OK de
+> credenciales operador con instrucción inline y exit-1 en CI si faltan
+> REQ.
 
 ## Bootstrap y operación
 
