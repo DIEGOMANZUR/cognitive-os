@@ -124,6 +124,23 @@ def test_llm_planner_caps_subtasks_at_12(tmp_path: Path) -> None:
     assert len(plan.subtasks) == 12
 
 
+def test_llm_planner_keeps_tail_reviewer_when_truncating(tmp_path: Path) -> None:
+    """The cap must not drop the reviewer if the LLM put it at the tail."""
+    head = ",".join(
+        f'{{"subtask_id":"s{i}","title":"t","description":"d","role":"coder"}}' for i in range(14)
+    )
+    reviewer = (
+        '{"subtask_id":"final-qa","title":"QA","description":"check",'
+        '"role":"reviewer","depends_on":["s13"]}'
+    )
+    planner = LLMPlanner(llm_completion=lambda _p: f'{{"subtasks":[{head},{reviewer}]}}')
+    plan = planner.plan(_request(), workspace_dir=tmp_path)
+    assert len(plan.subtasks) == 12
+    # The reviewer survived the truncation and is the last subtask.
+    assert plan.subtasks[-1].subtask_id == "final-qa"
+    assert plan.subtasks[-1].role == "reviewer"
+
+
 # ---- LLM planner: fallback paths ------------------------------------------
 
 

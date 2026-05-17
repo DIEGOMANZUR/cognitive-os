@@ -233,8 +233,24 @@ class LLMPlanner:
         if not isinstance(raw_subtasks, list) or not raw_subtasks:
             msg = "LLM plan has no subtasks"
             raise ValueError(msg)
+        # Cap at 12 subtasks. If the original list had a reviewer at the
+        # tail (per the schema hint), preserve it after the truncation so
+        # we never deliver a plan without the final QA step.
         if len(raw_subtasks) > 12:
-            raw_subtasks = raw_subtasks[:12]
+            tail_reviewer = None
+            for candidate in reversed(raw_subtasks):
+                if (
+                    isinstance(candidate, dict)
+                    and str(candidate.get("role", "")).strip().lower() == "reviewer"
+                ):
+                    tail_reviewer = candidate
+                    break
+            head = raw_subtasks[:12]
+            if tail_reviewer is not None and tail_reviewer not in head:
+                # Drop the last head item to make room for the reviewer so
+                # the plan stays bounded at 12.
+                head = head[:11] + [tail_reviewer]
+            raw_subtasks = head
 
         ids: set[str] = set()
         subtasks: list[SubtaskSpec] = []

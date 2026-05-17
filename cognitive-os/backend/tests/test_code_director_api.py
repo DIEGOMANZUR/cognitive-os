@@ -51,6 +51,22 @@ async def test_run_rejects_fake_adapter() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "role_key",
+    ["planner_adapter", "coder_adapter", "reviewer_adapter", "tester_adapter"],
+)
+async def test_run_rejects_fake_adapter_in_any_role(role_key: str) -> None:
+    """An operator can't smuggle the fake adapter in via a non-default role."""
+    body = _valid_body("claude_code")
+    body["adapter_preference"][role_key] = "fake"  # type: ignore[index]
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/code-director/run", headers=_headers(), json=body)
+    assert resp.status_code == 400, role_key
+    assert "reserved for tests" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_run_returns_plan_and_approval(monkeypatch: pytest.MonkeyPatch) -> None:
     job_id = uuid4()
     approval_id = uuid4()
