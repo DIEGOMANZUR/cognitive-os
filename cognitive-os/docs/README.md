@@ -27,7 +27,7 @@
 > credenciales operador, `workflow.v1` export/import, OAuth Google
 > self-healing, wizard `init_credentials.sh`, correlation IDs
 > `X-Request-ID`, approval reaper, four-eyes, AuditEvent simétrico
-> REST↔Telegram. QA: **632 pytest passed, 1 skipped, 20 deselected**;
+> REST↔Telegram. QA: **637 pytest passed, 1 skipped, 20 deselected**;
 > ruff/mypy/lint/build, Compose config, Alembic head, `git diff --check`,
 > `pre-commit run --all-files` (6 hooks) y `detect-secrets scan` verdes.
 

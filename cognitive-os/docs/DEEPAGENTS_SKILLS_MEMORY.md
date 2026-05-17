@@ -1,8 +1,12 @@
 # DeepAgents Skills and Memory
 
-> **Estado actual (2026-05-15, 04:47 hora Chile):** skills core en
-> `backend/src/cognitive_os/deepagents/skills/core/` (8 SKILL.md, todos con
-> nota OpenHarness consistente); user skills en
+> **Estado actual (2026-05-17, Fase 42):** skills core en
+> `backend/src/cognitive_os/deepagents/skills/core/` (**13 SKILL.md**: 8
+> originales + **legal pack de 5** —`legal-hold`, `privilege-log-review`,
+> `oss-license-review`, `worker-classification`, `matter-intake`—
+> adaptadas del repo Apache 2.0
+> [claude-for-legal](https://github.com/anthropics/claude-for-legal),
+> con atribución en `skills/core/NOTICE.md`). User skills en
 > `storage/deepagents/skills/user/`; memoria gobernada por
 > `DeepAgentMemoryService` con propuestas → aprobación humana → activa.
 > Tools de skills/memoria expuestas a DeepAgents:
@@ -58,6 +62,18 @@ allowed_tools:
 ```
 
 Core skills are versioned with the backend and must not be edited by agents.
+
+### Legal pack (Fase 42, adapted from `claude-for-legal` — Apache 2.0)
+
+| Skill | Risk level | Output |
+|---|---|---|
+| `legal-hold` | `approval_required` | Issue/refresh/release/report de litigation hold + draft `notice_text` (no envía). |
+| `privilege-log-review` | `read_only` | Issues por fila (rúbrica de 4 chequeos): descripción flaca, recipient sin rol, ground débil, fecha fuera de rango. |
+| `oss-license-review` | `read_only` | Reporte de cumplimiento OSS frente al modelo de distribución declarado; severidad info/warn/block. |
+| `worker-classification` | `read_only` | Empleado vs contractor bajo el test correcto (ABC/economic-reality/IRS/UK), tabla de factores y deciding factors. |
+| `matter-intake` | `approval_required` | Preview de `matter.md` normalizado + primera entrada de cronología; NO escribe hasta aprobar. |
+
+Atribución Apache 2.0 en `backend/src/cognitive_os/deepagents/skills/core/NOTICE.md`. No se copió código upstream — solo se portaron las estructuras de output y las reglas duras, reescribiendo prompts a la convención Cognitive OS (`risk_level` + `allowed_tools`).
 
 ## Add A User Skill
 

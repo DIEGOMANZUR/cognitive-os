@@ -21,6 +21,16 @@
 > de la queue `mail` y Kimi WebBridge—. Sin commits aún en `master`; estado
 > reproducible vía `bash scripts/full-qa.sh`.
 
+### Novedades Fase 42 (2026-05-17) — Legal pack DeepAgents (Apache 2.0)
+
+- **5 skills core nuevas** adaptadas del repo
+  [claude-for-legal](https://github.com/anthropics/claude-for-legal)
+  (Apache 2.0) sin copiar código: `legal-hold`,
+  `privilege-log-review`, `oss-license-review`, `worker-classification`,
+  `matter-intake`. Atribución y obligaciones cubiertas en
+  `skills/core/NOTICE.md`. **13 skills core** en total.
+- Suite QA: **637 passed, 1 skipped, 20 deselected**.
+
 ### Novedades Fase 41 (2026-05-17) — Code Director F9
 
 - **`code_director/planner.py`** — `LLMPlanner` descompone el objetivo
@@ -100,7 +110,7 @@ rsync -a --exclude node_modules --exclude .next --exclude .venv --exclude '__pyc
 - Python ≥ 3.12 y [uv](https://docs.astral.sh/uv/)
 - Node.js ≥ 22 y npm
 - Verificación reproducible: `bash scripts/full-qa.sh` (`uv sync --extra openharness` + `pytest` + `ruff check` + `ruff format --check` + `mypy` + `npm ci` + `npm run lint` + `npm run build`). Estrés: `bash scripts/stress-qa.sh` (3 pasadas de pytest por defecto).
-- Snapshot QA vigente (2026-05-17, Fase 41 F9 cerrada): **632 pytest passed, 1 skipped, 20 deselected**; ruff/ruff format/mypy (111 source files), frontend lint/build, Compose config, Alembic head (`202605160002`) y `git diff --check` verdes. Stress 3 corridas estables.
+- Snapshot QA vigente (2026-05-17, Fase 42 legal-pack cerrada): **637 pytest passed, 1 skipped, 20 deselected**; ruff/ruff format/mypy (111 source files), frontend lint/build, Compose config, Alembic head (`202605160002`) y `git diff --check` verdes. Stress 3 corridas estables.
 
 ## Backend
 

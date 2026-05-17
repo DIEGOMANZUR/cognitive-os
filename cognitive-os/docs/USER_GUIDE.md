@@ -149,11 +149,19 @@ exactamente**, **qué cambia al hacer click**, **dónde queda registro**.
   `HumanApproval` → al aprobar entra en `enabled_skills`.
 
 #### Skills (✸)
-- **Qué hace:** lista las skills core (`citation-discipline`,
-  `contradiction-detector`, `evidence-matrix`, `legal-draft-careful`,
-  `rag-research`, `report-writer`, `sandbox-code-analysis`,
-  `timeline-builder`) y user. Permite proponer nueva skill desde un
-  `SKILL.md` montado.
+- **Qué hace:** lista las **13 skills core** y las user. Las 13 core
+  son:
+  - **Generales:** `citation-discipline`, `contradiction-detector`,
+    `evidence-matrix`, `legal-draft-careful`, `rag-research`,
+    `report-writer`, `sandbox-code-analysis`, `timeline-builder`.
+  - **Legal pack (Fase 42, adaptado de
+    [claude-for-legal](https://github.com/anthropics/claude-for-legal)
+    bajo Apache 2.0):** `legal-hold` (issue/refresh/release/report),
+    `privilege-log-review` (rúbrica 4-puntos), `oss-license-review`
+    (compliance OSS por modelo de distribución),
+    `worker-classification` (employee vs contractor por jurisdicción),
+    `matter-intake` (preview de `matter.md` antes de aprobar).
+  Permite proponer nueva skill desde un `SKILL.md` montado.
 - **Click "Proponer":** crea propuesta + `HumanApproval`. Sin aprobar,
   la skill **no** se ejecuta.
 

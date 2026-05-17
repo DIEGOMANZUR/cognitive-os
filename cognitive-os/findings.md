@@ -2,6 +2,48 @@
 
 > Bitácora viva. Para producto: ver `docs/`.
 
+## 2026-05-17 — Fase 42: legal-pack desde claude-for-legal (Apache 2.0)
+
+Después de cerrar F9 el operador pidió que aplicara la integración con
+`https://github.com/anthropics/claude-for-legal`. Análisis del repo: 13
+plugins, todos bajo Apache 2.0, ninguno portable verbatim porque
+dependen del plugin system de Claude Code/Skills SDK. Decisión: portar
+**patrones, rúbricas y estructuras de output** —no código— al
+`DeepAgentSkillsRegistry` propio.
+
+Filtro aplicado para no inflar: descartar todo lo que duplica capacidad
+ya existente (`evidence_matrix`, `contradictions`, `timeline_builder`,
+`claim_chart`, `tabular_review`, `legal_draft` ya viven como modos del
+`DocumentAnalysisView`). Selección final de 5 skills que llenan gaps
+reales:
+
+- **`legal-hold`** (approval_required) — issue/refresh/release/report
+  de holds con output JSON estricto + `notice_text` draft (jamás envía).
+- **`privilege-log-review`** (read_only) — rúbrica de 4 chequeos
+  (descripción suficiente, recipients roleables, ground sostenido,
+  fecha consistente) con issues por entry_id.
+- **`oss-license-review`** (read_only) — compliance OSS frente al
+  modelo de distribución (proprietary SaaS/on-prem/Apache/GPL/internal);
+  clasifica permissive/weak/strong copyleft/source-available; severidad
+  info/warn/block; detecta `NOTICE` faltante.
+- **`worker-classification`** (read_only) — employee vs contractor con
+  el test correcto por jurisdicción (ABC California, economic reality
+  DOL post-2024, IRS common-law, UK multi-factor); factor table con
+  confidence y deciding factors; nunca asume jurisdicción.
+- **`matter-intake`** (approval_required) — preview de `matter.md`
+  normalizado + primera cronología; duplicate-check via workspace
+  memory; jamás escribe hasta aprobar.
+
+Cumplimiento Apache 2.0: `skills/core/NOTICE.md` con atribución
+explícita; modificaciones bajo la misma Apache 2.0 para mantener
+compatibilidad downstream. No se copió código upstream — sólo
+estructura conceptual.
+
+Tests 5 focales (`test_deepagents_skills_legal_pack.py`): discovery,
+allow-list de tools, risk_levels esperados, atribución presente, no
+shadow de skills legacy. Suite: **637 passed, 1 skipped, 20
+deselected**. Pre-commit + detect-secrets verdes.
+
 ## 2026-05-17 — Fase 41: Code Director F9 (planner LLM + prompts con contexto)
 
 El operador pidió "dejar listo al máximo nivel f9": que el director sea

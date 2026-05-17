@@ -158,7 +158,7 @@ Backend (`cognitive-os/backend/`):
 
 - `uv sync` (con `--extra openharness` si vas a tocar el motor opcional).
 - `uv run pytest -m 'not integration and not slow'` (snapshot vigente:
-  **632 passed, 1 skipped, 20 deselected**).
+  **637 passed, 1 skipped, 20 deselected**).
 - `uv run ruff check .` y `uv run ruff format --check .`.
 - `uv run mypy src` (success).
 - `uv run alembic check` (sin operaciones nuevas esperadas; excluye tablas

@@ -2,6 +2,21 @@
 
 > Bitácora viva. La documentación estable de producto vive en `docs/`.
 
+## 2026-05-17 — Fase 42 legal-pack DeepAgents cerrada (1 commit)
+
+Aporte de 5 skills core nuevas al `DeepAgentSkillsRegistry`, adaptadas
+del repo `claude-for-legal` (Apache 2.0) sin copiar código:
+`legal-hold`, `privilege-log-review`, `oss-license-review`,
+`worker-classification`, `matter-intake`. Filtro estricto para no
+duplicar capacidades ya cubiertas por `DocumentAnalysisView` (matrix,
+contradictions, timeline, claim chart, tabular, legal-draft). 13 skills
+core en total. Atribución y obligaciones Apache 2.0 cubiertas en
+`skills/core/NOTICE.md`.
+
+- `c746142` legal pack + tests (5) + atribución
+
+Suite: **637 passed, 1 skipped, 20 deselected**. Pre-commit + detect-secrets verdes.
+
 ## 2026-05-17 — Fase 41 Code Director F9 cerrada (3 commits)
 
 Salto de "anda" a "es capaz para apps complejas". El director ya no

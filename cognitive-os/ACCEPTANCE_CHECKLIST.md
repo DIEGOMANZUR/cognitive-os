@@ -1,6 +1,6 @@
 # ACCEPTANCE CHECKLIST
 
-> **Estado actual (2026-05-17, Fase 41 Code Director F9 cerrada):** matriz
+> **Estado actual (2026-05-17, Fase 42 legal-pack DeepAgents cerrada):** matriz
 > de aceptación vigente. Incluye OpenHarness opcional en *Chat /
 > orquestación*, mail personal GoDaddy/Gmail-label con envío aprobado,
 > integraciones Google (Maps con tráfico/link, Calendar/Drive read +
@@ -21,10 +21,10 @@
 Este checklist separa lo verificado por pruebas automaticas de lo que requiere
 infraestructura local real, credenciales o aprobacion manual.
 
-## Verificado Automaticamente - 2026-05-17 (Fase 41 Code Director F9 cerrada)
+## Verificado Automaticamente - 2026-05-17 (Fase 42 legal-pack DeepAgents cerrada)
 
-- [x] `uv run pytest -m 'not integration and not slow'` → **632 passed, 1 skipped, 20 deselected**.
-- [x] Stress 3 corridas idénticas → 632 passed cada una.
+- [x] `uv run pytest -m 'not integration and not slow'` → **637 passed, 1 skipped, 20 deselected**.
+- [x] Stress 3 corridas idénticas → 637 passed cada una.
 - [x] `uv run ruff check .` → All checks passed.
 - [x] `uv run ruff format --check .` → 220 files already formatted.
 - [x] `uv run mypy src` → Success: no issues found in 111 source files.
