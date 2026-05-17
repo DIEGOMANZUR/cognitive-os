@@ -220,6 +220,23 @@ async def _check_maps() -> ComponentHealth:
     )
 
 
+def _google_token_instructions(detail: str | None) -> str | None:
+    """Append actionable next-step text when the failure is a missing token.
+
+    `scripts/auth_google.py` is the canonical one-time OAuth flow. The check
+    already redacts paths and credentials; here we keep that contract and only
+    add a deterministic next-step pointer.
+    """
+    if not detail:
+        return detail
+    if "token.json" in detail or "auth_google.py" in detail:
+        return (
+            f"{detail} Run once: `uv run python backend/scripts/auth_google.py`. "
+            "Refresh tokens are renewed automatically once the file exists."
+        )
+    return detail
+
+
 async def _check_calendar() -> ComponentHealth:
     from cognitive_os.actions.calendar import CalendarService
 
@@ -227,7 +244,7 @@ async def _check_calendar() -> ComponentHealth:
     return ComponentHealth(
         name="google_calendar",
         status=cal.status,
-        detail=cal.reason,
+        detail=_google_token_instructions(cal.reason),
         metadata={"write_enabled": cal.write_enabled, "calendar_id": cal.calendar_id},
     )
 
@@ -239,7 +256,7 @@ async def _check_drive() -> ComponentHealth:
     return ComponentHealth(
         name="google_drive",
         status=drv.status,
-        detail=drv.reason,
+        detail=_google_token_instructions(drv.reason),
         metadata={
             "write_enabled": drv.write_enabled,
             "upload_max_bytes": drv.upload_max_bytes,

@@ -23,6 +23,30 @@ import sys
 from cognitive_os.core.config import settings
 
 
+def _existing_token_is_usable(token_path: object) -> bool:
+    """Return True iff `token_path` already authorises today's scopes.
+
+    Tries `GoogleCredentialsLoader.load()`, which transparently refreshes the
+    access token when the refresh_token is still valid. Failure here is
+    expected when the token is missing or scopes have grown — the caller
+    falls back to the full interactive flow.
+    """
+    from pathlib import Path
+
+    from cognitive_os.core.google_oauth import GoogleCredentialsLoader, GoogleOAuthError
+
+    if not Path(token_path).exists():  # type: ignore[arg-type]
+        return False
+    loader = GoogleCredentialsLoader(token_path=Path(token_path))  # type: ignore[arg-type]
+    try:
+        loader.load()
+    except GoogleOAuthError:
+        return False
+    except Exception:  # noqa: BLE001 - any import / runtime hiccup -> fall back
+        return False
+    return True
+
+
 def main() -> int:
     client_id = settings.google_client_id
     client_secret = settings.google_client_secret.get_secret_value()
@@ -32,6 +56,18 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
+
+    token_dir = settings.google_token_dir.expanduser()
+    token_path = token_dir / "token.json"
+
+    # Resilience: if the operator already authorised once and the refresh_token
+    # is still valid, skip the interactive flow. The GoogleCredentialsLoader
+    # transparently refreshes and rewrites token.json. The operator never has
+    # to re-authorise just because the short-lived access_token expired.
+    if _existing_token_is_usable(token_path):
+        print(f"Existing Google token at {token_path} is still valid (auto-refreshed).")
+        print("No browser interaction required.")
+        return 0
 
     try:
         from google_auth_oauthlib.flow import InstalledAppFlow
@@ -62,15 +98,17 @@ def main() -> int:
     flow = InstalledAppFlow.from_client_config(client_config, scopes)
     credentials = flow.run_local_server(port=0)
 
-    token_dir = settings.google_token_dir.expanduser()
     token_dir.mkdir(parents=True, exist_ok=True)
-    token_path = token_dir / "token.json"
     token_path.write_text(credentials.to_json(), encoding="utf-8")
     with contextlib.suppress(OSError):
         token_path.chmod(0o600)
     print(f"\nAuthorized. Token written to {token_path}")
     print(
         "Calendar/Drive are now usable once ENABLE_GOOGLE_CALENDAR / ENABLE_GOOGLE_DRIVE are true."
+    )
+    print(
+        "Reminder: access tokens are short-lived but the refresh_token saved in "
+        "this file lets the backend refresh them transparently."
     )
     return 0
 
