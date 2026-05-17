@@ -23,8 +23,8 @@ infraestructura local real, credenciales o aprobacion manual.
 
 ## Verificado Automaticamente - 2026-05-17 (Fase 42 legal-pack DeepAgents cerrada)
 
-- [x] `uv run pytest -m 'not integration and not slow'` → **637 passed, 1 skipped, 20 deselected**.
-- [x] Stress 3 corridas idénticas → 637 passed cada una.
+- [x] `uv run pytest -m 'not integration and not slow'` → **642 passed, 1 skipped, 20 deselected**.
+- [x] Stress 3 corridas idénticas → 642 passed cada una.
 - [x] `uv run ruff check .` → All checks passed.
 - [x] `uv run ruff format --check .` → 220 files already formatted.
 - [x] `uv run mypy src` → Success: no issues found in 111 source files.

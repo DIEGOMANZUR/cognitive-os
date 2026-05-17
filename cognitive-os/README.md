@@ -29,7 +29,7 @@
   `privilege-log-review`, `oss-license-review`, `worker-classification`,
   `matter-intake`. Atribución y obligaciones cubiertas en
   `skills/core/NOTICE.md`. **13 skills core** en total.
-- Suite QA: **637 passed, 1 skipped, 20 deselected**.
+- Suite QA: **642 passed, 1 skipped, 20 deselected**.
 
 ### Novedades Fase 41 (2026-05-17) — Code Director F9
 

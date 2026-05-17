@@ -16,7 +16,7 @@
 > `bash scripts/init_credentials.sh` para checklist REQ/OPT/OK con
 > instrucciones específicas. Snapshot QA reproducible vía
 > `bash scripts/full-qa.sh` y `bash scripts/stress-qa.sh` (3 pasadas
-> pytest por defecto). QA actual: **637 passed, 1 skipped, 20
+> pytest por defecto). QA actual: **642 passed, 1 skipped, 20
 > deselected**, head Alembic `202605160002`.
 
 ## Ejecutables de escritorio

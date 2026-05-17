@@ -2,6 +2,19 @@
 
 > Bitácora viva. La documentación estable de producto vive en `docs/`.
 
+## 2026-05-17 — Fase 43 auditoría desde cero + fixes (1 commit)
+
+Auditoría exhaustiva post-Fase 42 sobre el monorepo (backend +
+frontend + config + tests + migraciones + seguridad + skills registry).
+Sin P0. Dos defectos P1 reales detectados y cerrados:
+
+- LLMPlanner cap truncaba reviewer en cola → preservación explícita del
+  reviewer al hacer el cap a 12.
+- `fake` adapter rejection sin cobertura paramétrica en sub-roles →
+  parametrize sobre `planner/coder/reviewer/tester_adapter`.
+
+`0347ffd` fix + 5 tests. Suite **642 passed, 1 skipped, 20 deselected**.
+
 ## 2026-05-17 — Fase 42 legal-pack DeepAgents cerrada (1 commit)
 
 Aporte de 5 skills core nuevas al `DeepAgentSkillsRegistry`, adaptadas

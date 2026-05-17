@@ -2,6 +2,49 @@
 
 > Bitácora viva. Para producto: ver `docs/`.
 
+## 2026-05-17 — Fase 43: auditoría desde cero + dos fixes reales
+
+Tras cerrar Fase 42 el operador pidió revisar todo el monorepo buscando
+defectos, mejoras y cosas implementables. Auditoría capa por capa:
+
+- Backend: `ruff` clean, `mypy` clean (125 fuentes), `mypy --strict` en
+  code_director + deepagents clean (37 fuentes). 0 `datetime.utcnow()`
+  deprecado, 0 `requests.*` sin timeout, 0 `httpx.AsyncClient()` sin
+  timeout, 0 `except: pass` real, 0 imports sucios. 126 endpoints —
+  todos con auth excepto `/health` (correcto).
+- Frontend: `npm audit` 0 vulns, `eslint --max-warnings 0` pass,
+  `tsc --noEmit` 0 errores, `next build` verde.
+- Config: 251 ENV en `config.py`, todas presentes en
+  `SETTINGS_REGISTRY_TABLE.md` (gap 0).
+- Tests: 100 archivos de test, 638 passed (Fase 42), stress 2 corridas
+  idénticas (28.56s / 26.47s).
+- Migraciones: 16 archivos Alembic, todos con `downgrade` definido (10
+  con cuerpo vacío — add-only, correcto).
+- Seguridad: 0 secretos en código, baseline `detect-secrets` íntegra,
+  rate-limit pegado a los 3 endpoints sensibles
+  (`approval_decision`/`action_dispatch`/`action_request_create`).
+- Skills registry: path-traversal de `user_id` rechazado correctamente
+  (`../core` y `../../etc` retornan `[]`).
+
+**Dos defectos reales detectados y cerrados** (`0347ffd`):
+
+1. **`LLMPlanner` cap descartaba al reviewer si estaba en posición >12.**
+   El cap `raw_subtasks[:12]` truncaba ciegamente, contradiciendo la
+   regla del schema hint "the LAST subtask MUST be a reviewer". Fix:
+   detectar reviewer en la cola del payload original y preservarlo
+   reemplazando el item 12 del head.
+2. **Rejection de `fake` adapter sin cobertura paramétrica en sub-roles.**
+   `_reject_fake_adapter_request` ya inspeccionaba los 4 sub-roles, pero
+   el test API sólo cubría `default_adapter='fake'`. Agregado test
+   parametrizado para `planner/coder/reviewer/tester_adapter='fake'`.
+
+Suite: **642 passed, 1 skipped, 20 deselected** (+5 vs Fase 42).
+Compuertas verdes en backend (ruff/format/mypy) y frontend (lint/build).
+
+Sin P0/P1 conocidos pendientes con cierre técnico viable post-Fase 43.
+Pendiente operador: OAuth Google (1 click) si quiere Calendar/Drive —
+no aplica a este carril.
+
 ## 2026-05-17 — Fase 42: legal-pack desde claude-for-legal (Apache 2.0)
 
 Después de cerrar F9 el operador pidió que aplicara la integración con

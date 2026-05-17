@@ -23,7 +23,7 @@
 > (`APPROVAL_REQUIRE_FOUR_EYES=true`) and AuditEvent symmetry between the
 > REST and Telegram approval paths.
 >
-> QA snapshot: **637 pytest passed, 1 skipped, 20 deselected**;
+> QA snapshot: **642 pytest passed, 1 skipped, 20 deselected**;
 > ruff/mypy/lint/build, Compose config, Alembic head with no drift,
 > `git diff --check`, `pre-commit run --all-files` (6 hooks) and
 > `detect-secrets scan` all green.

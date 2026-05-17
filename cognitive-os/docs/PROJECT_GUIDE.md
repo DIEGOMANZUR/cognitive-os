@@ -21,7 +21,7 @@
 > `/system/credentials-status` con inventario vivo, `workflow.v1`
 > export/import, OAuth Google self-healing, `init_credentials.sh`
 > wizard, correlation IDs, approval reaper, four-eyes, AuditEvent
-> simétrico REST↔Telegram. QA snapshot: **637 pytest passed, 1 skipped,
+> simétrico REST↔Telegram. QA snapshot: **642 pytest passed, 1 skipped,
 > 20 deselected**; ruff/mypy/lint/build, `pre-commit run --all-files`
 > (6 hooks) y `detect-secrets scan` verdes.
 >
