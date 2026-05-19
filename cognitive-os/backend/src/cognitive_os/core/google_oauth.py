@@ -73,6 +73,28 @@ class GoogleCredentialsLoader:
     def access_token(self) -> str:
         return str(getattr(self.load(), "token", ""))
 
+    def granted_scopes(self) -> list[str]:
+        """Scopes attached to the loaded token, normalized to a list[str].
+
+        Returns [] if the token can't be loaded or doesn't expose scopes.
+        Used by the Calendar/Drive status reporters to surface
+        `missing_scopes` instead of claiming `ready` while a needed scope is
+        absent (GPT-5.5 P1 hallazgo Fase 68b).
+        """
+        try:
+            creds = self.load()
+        except GoogleOAuthError:
+            return []
+        raw = getattr(creds, "scopes", None) or []
+        if isinstance(raw, str):
+            return [s for s in raw.split() if s]
+        return [str(s) for s in raw]
+
+    def missing_scopes(self, required: list[str]) -> list[str]:
+        """Return the subset of `required` scopes NOT present on the token."""
+        granted = set(self.granted_scopes())
+        return [s for s in required if s not in granted]
+
     def _refresh(self, credentials: Any) -> None:
         try:
             credentials.refresh(self._request_factory())

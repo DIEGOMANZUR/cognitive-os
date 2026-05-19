@@ -1,15 +1,15 @@
 # Cognitive OS - Guia Simple Y Tecnica
 
-> **Estado actual (2026-05-17, Fase 41 Code Director F9 cerrada):**
-> producto en grado comercial operativo. Backend FastAPI 0.115+ con **126
+> **Estado actual (2026-05-19, Fase 68 — GoDaddy DNS prod operativo + doble revisión; LLM primary/agent gpt-5.5, fallbacks gemini-3.1-pro-low, visión glm-4.6v; suite hermética 685 passed):**
+> producto en grado comercial operativo. Backend FastAPI 0.115+ con **131
 > endpoints REST**, **16 tareas Celery** distribuidas en **5 queues**
-> (`default`, `ingestion`, `agent_longrun`, `maintenance`, `mail`), **16
-> migraciones Alembic** (head `202605160002`). Frontend Next.js 16.2.6
+> (`default`, `ingestion`, `agent_longrun`, `maintenance`, `mail`), **17
+> migraciones Alembic** (head `202605170001`). Frontend Next.js 16.2.6
 > con **20 vistas** (incluidas `AssistView`, `GoogleOpsView`,
 > `ResearchView` con plan animado sobre SSE, y `CodeDirectorView`). La
 > ruta `research` está fusionada con **OpenHarness** opcional (extra
 > `openharness-ai>=0.1.9,<0.2`, `prelude_merge` por defecto). Runtime
-> local: **DeepSeek V4 Pro** (`deepseek-v4-pro`).
+> local (cadena verificada Fase 67/68): primary+agent **gpt-5.5**, secondary/fallback **gemini-3.1-pro-low**, visión **glm-4.6v**; Kimi solo Code Director CLI.
 >
 > Fase 41 (F9) llevó al **Code Director** a "máximo nivel": planner
 > LLM-driven que descompone objetivos en subtareas reales con fallback
@@ -21,9 +21,14 @@
 > `/system/credentials-status` con inventario vivo, `workflow.v1`
 > export/import, OAuth Google self-healing, `init_credentials.sh`
 > wizard, correlation IDs, approval reaper, four-eyes, AuditEvent
-> simétrico REST↔Telegram. QA snapshot: **642 pytest passed, 1 skipped,
-> 20 deselected**; ruff/mypy/lint/build, `pre-commit run --all-files`
-> (6 hooks) y `detect-secrets scan` verdes.
+> simétrico REST↔Telegram. Fases 50-58 cerraron approvals Telegram con
+> dispatch real de `ActionRequest` y smoke de launchers. Fases 59-63
+> agregaron dispatch durable con fallo de broker controlado y JobEvents
+> submit/fail. Fase 64 añadió reserva atómica anti-submit duplicado.
+> Fase 65 cerró paridad Telegram↔UI (36 slash commands) y corrigió el
+> CHECK `ck_ar_action_type` que rompía Drive folder/organize en Postgres.
+> QA snapshot: **685 pytest passed, 1 skipped, 20 deselected**; ruff/format/mypy,
+> frontend lint/build, Alembic head `202605170001` y `git diff --check` verdes.
 >
 > **Guía de usuario completa:** `docs/USER_GUIDE.md`.
 
@@ -178,8 +183,9 @@ GoDaddy y generacion de documentos Office. Hoy combina preview-first,
 
 No ejecuta acciones reales por accidente. Las ejecuciones reales implementadas
 incluyen `computer_organize`, `document_generate`, `browser_preview`,
-`browser_interactive`, GoDaddy DNS bajo flags estrictos y mail GoDaddy SMTP bajo
-aprobación humana. Cada una queda limitada por configuración, auditoría y estado.
+`browser_interactive`, Calendar create, Drive upload/folder/organize, GoDaddy DNS
+bajo flags estrictos y mail GoDaddy SMTP bajo aprobación humana. Cada una queda
+limitada por configuración, auditoría y estado.
 
 ### OpenShell Sandbox
 

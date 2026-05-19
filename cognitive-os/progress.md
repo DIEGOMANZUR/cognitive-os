@@ -2,6 +2,237 @@
 
 > Bitácora viva. La documentación estable de producto vive en `docs/`.
 
+## 2026-05-18 — Fase 67: esquemas de tools tipados + cadena LLM operador
+
+- **21 tools del DeepAgent** reescritas con `args_schema` Pydantic
+  tipado/descrito/validado (antes `lambda` sin tipos → `{}` vacío que
+  gateways estrictos rechazan con 400). Verificado: 0 props vacías.
+- **Cadena LLM** (orden del operador, verificada en vivo): primary+agent
+  = gpt-5.5 @ gateway :8317; secondary+fallback = gemini-3.1-pro-low @
+  gateway; visión = glm-4.6v @ z.ai. Kimi-k2.6 HTTP da 403 (solo Code
+  Director CLI) — documentado, no cableado como fallback muerto.
+- `.env` reconfigurado + credenciales gateway/kimi/glm guardadas también
+  en Supermemory MCP.
+- Live: `/chat` teorema CAP → `route=research`, sin fallback RAG, 0
+  errores de schema/tool_choice en log. 97 tests tool/deepagent verdes.
+- Archivos: `deepagents/tools.py` (+21 args_schema + import pydantic),
+  `.env` (cadena LLM), bitácora.
+
+## 2026-05-18 — Fase 66: auditoría en vivo con credenciales reales
+
+Credenciales del operador integradas en `.env` (20/21 inventario; solo
+falta `GODADDY_API_SECRET`). Stack real levantado (Docker + API + worker)
+y auditado endpoint por endpoint. 4 bugs críticos encontrados y
+corregidos, todos verificados en vivo:
+
+1. **DeepAgent muerto** → `create_agent_chat_model()` (`AGENT_LLM_MODEL=
+   deepseek-chat`); el reasoner no soporta tool_choice forzado.
+2. **LLM secondary/fallback 403** (Kimi-for-Coding rechaza HTTP) →
+   repuntados a DeepSeek; vision_fallback a GLM.
+3. **LangSmith trazas 403** → `configure_langsmith()` prefiere el
+   personal access token (full scope) sobre la api_key scoped.
+4. **Maps traffic-aware 400** ("future time") → `departureTime` default
+   y clamp a `now + 60s` en `actions/maps.py`.
+
+Hardening: 7 tests pasados a herméticos (`_env_file=None`),
+`SETTINGS_REGISTRY_TABLE.md` regenerado, factory test al nuevo símbolo.
+Migración `202605170001` aplicada en Postgres real (bugfix Fase 65
+verificado contra la DB viva). Suite: **685 passed, 1 skipped,
+20 deselected**. Pendiente operador: `auth_google.py` (OAuth interactivo)
+y `GODADDY_API_SECRET`.
+
+Archivos tocados (código): `core/config.py` (+`agent_llm_*`),
+`agents/llm_factory.py` (+`create_agent_chat_model`),
+`deepagents/factory.py` (usa el nuevo modelo de agente),
+`core/observability.py` (LangSmith token precedence),
+`actions/maps.py` (departureTime futuro). `.env`: credenciales +
+LLM lanes repuntados. Docs: registry table + bitácora.
+
+## 2026-05-17 — Fase 65: paridad UI↔Telegram + bugfix CHECK + hardening final
+
+Sesión de revisión integral pre-entrega comercial. Trabajo realizado:
+
+1. **Baseline QA** confirmada verde antes de tocar nada (674 passed,
+   stress 3×674, pre-commit 6 hooks, compose, alembic, frontend build).
+2. **Mapeo FE↔BE**: 44 rutas REST del frontend ↔ 131 endpoints backend,
+   0 huérfanos.
+3. **Bug crítico Postgres**: `ck_ar_action_type` no incluía
+   `drive_ensure_folder`/`drive_organize_files`. Corregido con migración
+   `202605170001` + ORM sync + test de regresión
+   `test_action_request_check_constraint.py`.
+4. **Telegram paridad UI**: +11 slash commands (`/maps`, `/calendar`,
+   `/freebusy`, `/drive`, `/documents`, `/audit`, `/mail`, `/research`,
+   `/codebuild`, `/sandbox`, `/capabilities`) con gating de capacidades
+   y 9 tests focalizados nuevos.
+5. **Secrets**: falso positivo `telegram_bot.py:548` anotado con pragma;
+   baseline detect-secrets limpio.
+6. **Docs**: README, AGENTS.md, findings.md, progress.md, USER_GUIDE.md
+   y resto de markdowns actualizados al snapshot Fase 65.
+
+Snapshot QA post-cambios: **685 passed, 1 skipped, 20 deselected**;
+ruff/format/mypy/pre-commit/frontend build verdes.
+
+## 2026-05-17 — Fase 64 dispatch idempotente cerrado
+
+Bloque quirúrgico sobre el borde dispatch → Celery:
+
+- Agregado `ActionDispatchReservation` y
+  `ActionRequestService.reserve_action_dispatch()`.
+- REST `/actions/requests/{id}/dispatch` y Telegram reservan el dispatch bajo
+  lock antes de llamar `apply_async`.
+- `ActionRequest.metadata_json.dispatch_state` usa `submitting`, `submitted` y
+  `failed` para bloquear duplicados y permitir retry tras fallo de broker.
+- `record_action_dispatch_event()` sincroniza metadata con `JobEvent`.
+
+Verificación focal:
+
+- `uv run pytest tests/test_actions.py tests/test_action_request_workers.py
+  tests/test_telegram_bot.py tests/test_decide_approval_helper.py -q` → **72
+  passed**.
+- Ruff focal, `ruff format --check` focal y `uv run mypy src` → verdes.
+- `bash scripts/full-qa.sh` → **674 passed, 1 skipped, 20 deselected**, ruff
+  check, ruff format, mypy, Alembic check, `npm ci`, frontend lint/build y
+  `git diff --check` verdes.
+
+## 2026-05-17 — Fases 59-63 bloque 4 dispatch durable iniciado
+
+Alcance elegido por calidad: reforzar el borde más sensible posterior a una
+aprobación, donde el sistema pasa de `ActionRequest` aprobado a job Celery
+aceptado. Implementación aplicada:
+
+- REST `/actions/requests/{id}/dispatch` ahora captura fallos de broker Celery
+  y devuelve `dispatched=false` con reason operator-facing en vez de 500 opaco.
+- REST registra `JobEvent action_request_dispatch_submitted` tras submit exitoso
+  y `action_request_dispatch_failed` si Celery no acepta el job.
+- Telegram registra los mismos JobEvents al despachar ActionRequests aprobados.
+- `run_action_request_task_async` sale temprano si el `Job` ya está `running`,
+  evitando eventos duplicados cuando el broker entrega la misma tarea dos veces.
+
+Verificación focal inicial:
+
+- `uv run pytest tests/test_actions.py::test_dispatch_action_request_enqueues_worker
+  tests/test_actions.py::test_dispatch_action_request_reports_celery_failure
+  tests/test_actions.py::test_dispatch_action_request_does_not_enqueue_non_queued_status
+  tests/test_action_request_workers.py tests/test_telegram_bot.py -q` → **12
+  passed**.
+- Ruff focal y `ruff format --check` focal verdes.
+- `uv run pytest tests/test_actions.py tests/test_action_request_workers.py
+  tests/test_telegram_bot.py tests/test_decide_approval_helper.py -q` → **69
+  passed**.
+- `bash scripts/full-qa.sh` → **671 passed, 1 skipped, 20 deselected**, ruff
+  check, ruff format, mypy, Alembic check, `npm ci`, frontend lint/build y
+  `git diff --check` verdes.
+
+## 2026-05-17 — Fases 50-58 bloque 3 operativo cerrado
+
+Arranque autónomo pedido por el operador: cerrar hasta Fase 58 sin intervención.
+Alcance activo: simetría Telegram/panel para aprobaciones, dispatch real de
+`ActionRequest` aprobados desde Telegram, eliminación del riesgo de event loop
+anidado en approvals OpenShell, smoke versionado para ejecutables de escritorio
+y actualización documental/QA.
+
+Estado inicial:
+
+- Detectado gap real: `/approvals` Telegram muestra IDs cortos pero
+  `/approve`/`/reject` sólo aceptaban UUID completo.
+- Detectado gap real: Telegram decidía `execute_action_request:<id>` pero no
+  lo encolaba ni despachaba.
+- Detectado gap real: el resolver OpenShell de Telegram podía invocar `_run()`
+  dentro de un event loop activo.
+- Detectado gap operativo: los launchers están en el Escritorio, pero no había
+  un script versionado que valide sintaxis, permisos y targets.
+
+Implementación aplicada:
+
+- Telegram approvals resuelven UUID completo o prefijo único; prefijos ambiguos,
+  demasiado cortos o con caracteres fuera de UUID se rechazan antes de mutar DB.
+- Telegram firma decisiones como `telegram:<chat_id>` y conserva four-eyes.
+- Telegram despacha `execute_action_request:<id>` aprobado vía
+  `ActionRequestService.queue_approved_action_request()` +
+  `run_action_request_task_async.apply_async(..., queue="agent_longrun")`.
+- OpenShell approval desde Telegram usa `_openshell_task_payload_from_job`
+  síncrono, sin `_run()` dentro de otro `_run()`.
+- Nuevo `scripts/verify_desktop_launchers.sh` para smoke read-only de
+  `/home/jgonz/Escritorio/cognitive-os.sh`, wrappers y `.desktop`.
+
+Verificación focal:
+
+- `uv run pytest tests/test_telegram_bot.py tests/test_desktop_launchers.py -q`
+  → **7 passed**.
+- `uv run pytest tests/test_decide_approval_helper.py tests/test_actions.py
+  tests/test_telegram_bot.py tests/test_desktop_launchers.py -q` → **65
+  passed**.
+- `bash scripts/verify_desktop_launchers.sh` → OK en el Escritorio real.
+- `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy src` →
+  verdes.
+- `bash scripts/full-qa.sh` → **669 passed, 1 skipped, 20 deselected**,
+  ruff check, ruff format, mypy, Alembic check, `npm ci`, frontend lint/build
+  y `git diff --check` verdes.
+
+## 2026-05-17 — Fases 45-49 Google operativo avanzado
+
+Implementación aplicada:
+
+- Drive uploads: `_validate_upload_path` acepta `DOCUMENT_OUTPUT_ROOT`,
+  `LOCAL_STORAGE_DIR/workspaces`, `OPENSHELL_ALLOWED_OUTPUT_DIR` y
+  `COMPUTER_ALLOWED_ROOTS`; no abre `storage/oauth` ni storage completo.
+- Drive organización: nuevo contrato `DriveOrganizeRequest/Preview`, endpoint
+  `/actions/drive/organize/preview`, request aprobable
+  `/actions/drive/organize/request`, `ActionType`/workflow
+  `drive_organize_files`, executor con `files.update` y audit.
+- Calendar free/busy: nuevo `FreeBusyRequest/Result`, provider fake/Google,
+  endpoint `/actions/calendar/freebusy` y scope default
+  `https://www.googleapis.com/auth/calendar.freebusy`.
+- DeepAgents: tools `check_calendar_freebusy` y `preview_drive_organization`
+  bajo políticas read-only (`allow_calendar_read`, `allow_drive_read`).
+- Frontend: `GoogleOpsView` muestra disponibilidad Calendar y permite preview
+  + solicitud aprobable de organización Drive.
+
+Verificación focal: `uv run pytest tests/test_google_drive.py
+tests/test_google_calendar.py tests/test_actions.py
+tests/test_deepagents_personal_tools.py -q` → **118 passed**; `npm run lint`
+verde.
+
+Verificación final: `bash scripts/full-qa.sh` → **662 passed, 1 skipped,
+20 deselected**, ruff check, ruff format, mypy, Alembic check, `npm ci`,
+frontend lint/build y `git diff --check` verdes. Compose config también pasa
+con `.env.example` (solo warnings esperados de variables unset por usar ejemplo).
+
+## 2026-05-17 — Fase 44 Google Ops comercial iniciada
+
+Arranque autónomo pedido por el operador: lectura de AGENTS/README,
+task_plan/findings/progress, arquitectura, Action Plane, User Guide, roadmap,
+runbook y código Google Ops (`actions/maps.py`, `drive.py`, `calendar.py`,
+`actions/service.py`, endpoints FastAPI, tools DeepAgents, `GoogleOpsView` y
+tests). Plan activo: mejorar Maps route advice, Drive search/folder request,
+tools DeepAgents, UI y pruebas sin requerir credenciales nuevas ni ejecutar
+writes reales.
+
+Implementación aplicada:
+
+- Maps: `RoutePlan` ahora trae `traffic_severity`, `departure_time`,
+  `arrival_time`, `route_advice`, `route_labels` y `alternative_count`;
+  `RouteRequest.compute_alternatives` cablea `computeAlternativeRoutes`.
+- Drive: `DriveSearchRequest` soporta `search_mode=name|full_text|all`,
+  `include_folders`, `mime_type` y `corpus=user|all_drives`; provider real arma
+  `q` seguro con `trashed = false`.
+- Drive folder: nuevo `ActionRequest` ejecutable `drive_ensure_folder` +
+  endpoint `/actions/drive/folders/ensure/request` + executor worker.
+- DeepAgents: `plan_route` devuelve dump JSON con advice; `search_drive_files`
+  acepta `search_mode` y default `all`.
+- Frontend: `GoogleOpsView` expone alternativas Maps, advice de ruta, búsqueda
+  Drive por modo/corpus y solicitud aprobable de carpeta.
+
+Verificación focal inicial: `100 passed` en
+`test_maps.py test_google_drive.py test_deepagents_personal_tools.py
+test_actions.py`; frontend `npm run lint` y `npm run build` verdes; `mypy src`
+verde.
+
+Verificación amplia de cierre: `uv run pytest -m 'not integration and not slow'
+-q` → **646 passed, 1 skipped, 20 deselected**; `uv run ruff check .`,
+`uv run ruff format --check .`, `uv run mypy src`, `npm run lint`,
+`npm run build` y `git diff --check` verdes.
+
 ## 2026-05-17 — Fase 43 auditoría desde cero + fixes (1 commit)
 
 Auditoría exhaustiva post-Fase 42 sobre el monorepo (backend +

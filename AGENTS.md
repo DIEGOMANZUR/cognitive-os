@@ -1,14 +1,37 @@
 # AGENTS.md
 
-> **Estado actual (2026-05-17, Fase 41 Code Director F9 cerrada):**
-> monorepo en grado comercial operativo. Backend FastAPI 0.115+ con
-> **126 endpoints REST** (100 propios + 26 de orquestación), **16 tareas
+> **Estado actual (2026-05-19, Fase 68 — GoDaddy DNS producción operativo + doble revisión profunda):**
+> GoDaddy DNS verificado en vivo (auth prod HTTP 200), seguro (dry-run +
+> aprobación, sin prod-writes); bug de alias `ENABLE_GODADDY`→`GODADDY_ENABLED`
+> corregido; `.env.example` actualizado (documenta `AGENT_LLM_*`); suite
+> hermética por construcción (conftest guard) **685 passed**. Telegram
+> pendiente: el `TELEGRAM_BOT_TOKEN` del `.env` da 401 (revocado) y falta
+> `TELEGRAM_AUTHORIZED_USER_IDS` — requiere token nuevo del operador.
+> Estado previo (Fase 67 — esquemas de tools tipados + cadena LLM operador):
+> Las 21 tools del DeepAgent ahora usan `args_schema` Pydantic tipado
+> (antes lambdas → `{}` vacío que gateways estrictos rechazaban). Cadena
+> LLM verificada en vivo: primary+agent=gpt-5.5 @ gateway :8317,
+> secondary/fallback=gemini-3.1-pro-low, visión=glm-4.6v. Kimi-k2.6 HTTP
+> 403 (solo Code Director CLI). `/chat` real sin fallback, router LLM OK.
+> Estado previo (Fase 66 auditoría EN VIVO con credenciales reales):
+> monorepo en grado comercial operativo, verificado funcionando con stack
+> real levantado. Auditoría en vivo encontró y corrigió 4 bugs críticos
+> que la resiliencia enmascaraba: (1) DeepAgent muerto — el reasoner
+> `deepseek-v4-pro` no soporta tool_choice forzado → carril de agente
+> ahora usa `deepseek-chat` vía `AGENT_LLM_MODEL`; (2) SECONDARY/FALLBACK
+> LLM con 403 garantizado (Kimi-for-Coding rechaza HTTP) → repuntados a
+> DeepSeek; (3) LangSmith dropeaba trazas (key scoped 403) → usa el
+> personal access token; (4) Maps traffic-aware siempre 400
+> (`departureTime` pasado) → `now+60s`. Suite **685 passed**.
+> Backend FastAPI 0.115+ con
+> **131 endpoints REST** (104 propios + 27 de orquestación), **16 tareas
 > Celery** distribuidas en 5 colas (`default`, `ingestion`,
-> `agent_longrun`, `maintenance`, `mail`), **16 migraciones Alembic**
-> (head `202605160002`), LangGraph 1.1.10 + DeepAgents 0.6.x + OpenHarness
+> `agent_longrun`, `maintenance`, `mail`), **17 migraciones Alembic**
+> (head `202605170001`), LangGraph 1.1.10 + DeepAgents 0.6.x + OpenHarness
 > opcional, mail multicuenta GoDaddy/Gmail con aprobación humana
-> obligatoria y Google Maps/Calendar/Drive operables vía Action Plane sin
-> writes directos. Frontend Next.js 16.2.6 + React 19 con **20 vistas**
+> obligatoria y Google Maps/Calendar/Drive operables vía Action Plane: Maps
+> read-only, Calendar free/busy + create aprobado, Drive search/upload/folder/organize
+> con aprobación y sin deletes. Frontend Next.js 16.2.6 + React 19 con **20 vistas**
 > incluidas `AssistView`, `GoogleOpsView`, `ResearchView` (plan animado
 > sobre SSE) y `CodeDirectorView`. Cockpit OpenCode con **21 MCPs**, 7
 > subagentes, **15 skills** y 7 comandos slash. LLM por defecto:
@@ -25,11 +48,30 @@
 > que el operador aprueba el plan. Fase 41 (F9) lo hizo capaz para apps
 > complejas: planner LLM-driven (descompone el objetivo en subtareas
 > reales, con fallback heurístico determinista) y prompts con contexto
-> vivo del workspace + reintentos dirigidos por el error previo.
+> vivo del workspace + reintentos dirigidos por el error previo. Fases
+> 44-49 consolidaron Google Ops (Maps con advice/ETA, Calendar
+> free/busy, Drive search/upload/folder/organize aprobable). Fases
+> 50-58 cerraron el bloque operativo humano: Telegram approvals acepta
+> UUID completo o prefijo único, firma como `telegram:<chat_id>`,
+> despacha `ActionRequest` aprobados y el repo incluye smoke reproducible
+> de launchers de escritorio. Fases 59-63 endurecieron dispatch:
+> broker failures visibles sin 500 opaco, JobEvents submit/fail en REST
+> y Telegram, y worker short-circuit ante entrega duplicada ya `running`.
+> Fase 64 añadió reserva atómica `dispatch_state=submitting|submitted|failed`
+> antes de `apply_async`, impidiendo submits duplicados a Celery y dejando
+> retry explícito tras fallo. Fase 65 cerró paridad Telegram↔UI (36 slash
+> commands incluyendo `/maps`, `/calendar`, `/freebusy`, `/drive`,
+> `/documents`, `/audit`, `/mail`, `/research`, `/codebuild`, `/sandbox`,
+> `/capabilities`) y corrigió un bug crítico de CHECK constraint
+> `ck_ar_action_type` que rompía silenciosamente
+> `/actions/drive/folders/ensure/request` y `/actions/drive/organize/request`
+> en Postgres (migración `202605170001` + test de regresión que mantiene
+> alineados ORM, migración y servicio).
 >
-> Snapshot QA verde: **609 pytest passed, 1 skipped, 20 deselected**;
-> ruff/mypy/lint/build/Compose/Alembic/detect-secrets/pre-commit (6 hooks)
-> verdes. Único pendiente operador: autorizar `auth_google.py` (1 click
+> Snapshot QA verde: **685 pytest passed, 1 skipped, 20 deselected**;
+> ruff/ruff format/mypy/frontend lint/build/Alembic/`git diff --check`
+> verdes vía `bash scripts/full-qa.sh`. Único pendiente operador:
+> autorizar `auth_google.py` (1 click
 > browser) si quiere Calendar/Drive y completar credenciales OPT que vaya
 > a usar — `bash scripts/init_credentials.sh` reporta cuáles faltan.
 

@@ -116,6 +116,22 @@ export function SettingsView({
           <div className="grid-2 small">
             <Item label="Entorno" value={config.data.environment} />
             <Item
+              label="Perfil de operador"
+              value={
+                config.data.operator_profile === "dedicated_local"
+                  ? "dedicated_local (sin fricción)"
+                  : "strict (multi-tenant)"
+              }
+            />
+            <Item
+              label="auto_approve_reversibles"
+              value={String(config.data.auto_approve_reversible_actions)}
+            />
+            <Item
+              label="code_director_budget"
+              value={config.data.code_director_budget_mode}
+            />
+            <Item
               label="tools_readonly_mode"
               value={String(config.data.tools_readonly_mode)}
             />

@@ -34,6 +34,42 @@ def create_primary_chat_model() -> ChatOpenAI:
     )
 
 
+def create_agent_chat_model() -> ChatOpenAI:
+    """Tool-capable model for DeepAgents / structured output.
+
+    DeepAgents binds tools and forces a specific ``tool_choice`` (structured
+    output via ``response_format``). The operator's primary lane runs
+    ``gpt-5.5`` through their openai-compatible gateway, which honours
+    forced tool_choice; this factory reuses the primary provider/base/key
+    unless ``AGENT_LLM_*`` is set explicitly so the operator can pin a
+    different tool-capable model for the agent lane only. Plain chat /
+    reasoning keeps using the primary model.
+
+    Historical context: earlier runtimes pointed the agent lane at the
+    DeepSeek reasoner (``deepseek-v4-pro``) which answered HTTP 400
+    ``deepseek-reasoner does not support this tool_choice``, silently
+    falling DeepAgent runs back to deterministic RAG. We surface a dedicated
+    agent lane to avoid repeating that footgun on future model swaps.
+    """
+    base_url = settings.agent_llm_base_url.strip() or settings.primary_llm_base_url
+    api_key = (
+        settings.agent_llm_api_key
+        if settings.agent_llm_api_key.get_secret_value().strip()
+        else settings.primary_llm_api_key
+    )
+    if api_key.get_secret_value().strip() in ("", "CHANGEME"):
+        msg = "Agent LLM key is not configured (set AGENT_LLM_API_KEY or PRIMARY_LLM_API_KEY)."
+        raise ValueError(msg)
+    return ChatOpenAI(
+        model=settings.agent_llm_model,
+        base_url=base_url,
+        api_key=api_key,
+        temperature=0,
+        timeout=settings.http_timeout_seconds,
+        max_retries=settings.http_max_retries,
+    )
+
+
 def create_secondary_chat_model() -> ChatOpenAI:
     """Create the secondary (cheap) chat model for low-cost tasks like summarization."""
     credential = settings.secondary_llm_api_key.get_secret_value()
@@ -70,10 +106,10 @@ def create_vision_chat_model(*, fallback: bool = False) -> ChatOpenAI:
     """Create the dedicated multimodal (vision) chat model.
 
     Historically the vision analyzer used the *primary* chat model, which on
-    this deployment is DeepSeek (text-only). That silently degraded screenshot
-    analysis. This factory uses the dedicated `VISION_LLM_*` config (glm-4.6v by
-    default), with `fallback=True` selecting the secondary vision provider
-    (Kimi 2.6) when the primary one errors (quota, outage, retired model).
+    text-only primaries silently degraded screenshot analysis. This factory
+    uses the dedicated `VISION_LLM_*` config (`glm-4.6v` by default — z.ai
+    multimodal), with `fallback=True` selecting the secondary vision provider
+    when the primary one errors (quota, outage, retired model).
     """
     if fallback:
         provider = settings.vision_fallback_llm_provider

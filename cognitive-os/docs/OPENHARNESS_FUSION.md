@@ -1,16 +1,16 @@
 # Fusión OpenHarness ↔ Cognitive OS (LangGraph + DeepAgents)
 
-> **Estado actual (2026-05-15, 04:47 hora Chile):** integración estable,
-> **opcional**, gobernada por `ENABLE_OPENHARNESS_RESEARCH`. Pipeline por
-> defecto **`prelude_merge`**, workspace por defecto **`deepagent_mirror`**,
-> preset por defecto **`research`**. Runtime local usa DeepSeek V4 Pro
-> (`deepseek-v4-pro`) como LLM base vía `PRIMARY_LLM_*` con
-> `base_url=https://api.deepseek.com`; secundario Kimi K2.6-code-preview;
-> vision GLM-4.6v primario, Kimi 2.6 fallback. El extra opcional se instala
-> con `uv sync --extra openharness` (declara `openharness-ai>=0.1.9,<0.2`).
-> Mail personal (GoDaddy IMAP/SMTP + Gmail label `TODOS`) y Kimi WebBridge
-> no cambian este contrato. La fusión NO participa en `document_analysis`
-> (ruta legal) ni en el carril `/mail/*`.
+> **Estado actual (2026-05-19, Fase 69):** integración estable, **opcional**,
+> gobernada por `ENABLE_OPENHARNESS_RESEARCH`. Pipeline por defecto
+> **`prelude_merge`**, workspace por defecto **`deepagent_mirror`**, preset
+> por defecto **`research`**. Cadena LLM verificada (gateway openai-compatible
+> del operador): primary+agent **`gpt-5.5`**, secondary/fallback
+> **`gemini-3.1-pro-low`**, visión **`glm-4.6v`**. Kimi-k2.6 sólo a través del
+> adapter CLI del Code Director (su endpoint HTTP devuelve 403). El extra
+> opcional se instala con `uv sync --extra openharness` (declara
+> `openharness-ai>=0.1.9,<0.2`). Mail personal (GoDaddy IMAP/SMTP + Gmail
+> label `TODOS`) y Kimi WebBridge no cambian este contrato. La fusión NO
+> participa en `document_analysis` (ruta legal) ni en el carril `/mail/*`.
 
 Esta guía describe cómo integramos [OpenHarness](https://github.com/HKUDS/OpenHarness) en la **ruta `research`** de Cognitive OS **sin** sustituir al orquestador LangGraph ni al subagente [DeepAgents](https://github.com/langchain-ai/deepagents). El producto resultante combina las tres piezas: orquestación + políticas + persistencia aquí; bucle de herramientas probado en OpenHarness cuando aporta; informe estructurado y skills con DeepAgents.
 

@@ -15,7 +15,8 @@
 > (`analyze_image`), skills/memoria (`list_available_skills`, `read_skill`,
 > `get_relevant_memory`, `propose_memory_update`) y herramientas
 > personales aisladas por `user_id` (`plan_route`, `geocode_address`,
-> `list_calendar_events`, `search_drive_files`, `search_notes`).
+> `list_calendar_events`, `check_calendar_freebusy`, `search_drive_files`,
+> `preview_drive_organization`, `search_notes`).
 
 ## Rol En Cognitive OS
 

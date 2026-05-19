@@ -19,7 +19,15 @@ from cognitive_os.actions.calendar import CalendarStatus, EventCreatePreview, Ev
 from cognitive_os.actions.computer import ComputerActionService
 from cognitive_os.actions.documents import DocumentActionService
 from cognitive_os.actions.domains import GoDaddyActionService
-from cognitive_os.actions.drive import DriveStatus, DriveUploadPreview, DriveUploadRequest
+from cognitive_os.actions.drive import (
+    DriveFolderPreview,
+    DriveFolderRequest,
+    DriveOrganizePreview,
+    DriveOrganizeRequest,
+    DriveStatus,
+    DriveUploadPreview,
+    DriveUploadRequest,
+)
 from cognitive_os.actions.mail import GmailActionService
 from cognitive_os.actions.payload_crypto import is_encrypted_payload, reveal_payload
 from cognitive_os.actions.schemas import (
@@ -34,7 +42,7 @@ from cognitive_os.actions.schemas import (
     SlideContent,
     SpreadsheetSheet,
 )
-from cognitive_os.actions.service import ActionRequestService
+from cognitive_os.actions.service import ActionDispatchReservation, ActionRequestService
 from cognitive_os.api.app import app
 from cognitive_os.core.auth import create_access_token
 from cognitive_os.core.config import Settings
@@ -592,6 +600,80 @@ async def test_drive_upload_request_endpoint_uses_action_service(
 
 
 @pytest.mark.asyncio
+async def test_drive_folder_request_endpoint_uses_action_service(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    view = _action_request_view(
+        status="pending_approval",
+        job_id=UUID("22222222-2222-2222-2222-222222222222"),
+        action_type="drive_ensure_folder",
+    )
+
+    class FakeActionRequestService:
+        async def create_drive_folder_request(
+            self,
+            request: DriveFolderRequest,
+            *,
+            requested_by: str,
+        ) -> ActionRequestView:
+            assert request.dry_run is False
+            assert requested_by == "1"
+            return view
+
+    monkeypatch.setattr(api_app, "ActionRequestService", FakeActionRequestService)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/actions/drive/folders/ensure/request",
+            json={"dry_run": False},
+            headers=_headers(),
+        )
+
+    assert response.status_code == 200
+    assert response.json()["action_type"] == "drive_ensure_folder"
+    assert response.json()["status"] == "pending_approval"
+
+
+@pytest.mark.asyncio
+async def test_drive_organize_request_endpoint_uses_action_service(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    view = _action_request_view(
+        status="pending_approval",
+        job_id=UUID("22222222-2222-2222-2222-222222222222"),
+        action_type="drive_organize_files",
+    )
+
+    class FakeActionRequestService:
+        async def create_drive_organize_request(
+            self,
+            request: DriveOrganizeRequest,
+            *,
+            requested_by: str,
+        ) -> ActionRequestView:
+            assert request.query == "factura"
+            assert request.target_folder_name == "Finanzas"
+            assert request.dry_run is False
+            assert requested_by == "1"
+            return view
+
+    monkeypatch.setattr(api_app, "ActionRequestService", FakeActionRequestService)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/actions/drive/organize/request",
+            json={"query": "factura", "target_folder_name": "Finanzas", "dry_run": False},
+            headers=_headers(),
+        )
+
+    assert response.status_code == 200
+    assert response.json()["action_type"] == "drive_organize_files"
+    assert response.json()["status"] == "pending_approval"
+
+
+@pytest.mark.asyncio
 async def test_calendar_action_request_service_persists_approval_lifecycle(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -611,6 +693,7 @@ async def test_calendar_action_request_service_persists_approval_lifecycle(
     monkeypatch.setattr(action_service_module, "CalendarService", FakeCalendarService)
     service = ActionRequestService(
         Settings(
+            _env_file=None,
             enable_google_calendar=True,
             enable_google_calendar_write=True,
             google_client_id="client-id",
@@ -760,6 +843,7 @@ async def test_calendar_action_request_dedups_repeat_submissions(
     monkeypatch.setattr(action_service_module, "CalendarService", FakeCalendarService)
     service = ActionRequestService(
         Settings(
+            _env_file=None,
             enable_google_calendar=True,
             enable_google_calendar_write=True,
             google_client_id="client-id",
@@ -813,6 +897,7 @@ async def test_drive_upload_action_request_service_persists_approval_lifecycle(
     monkeypatch.setattr(action_service_module, "DriveService", FakeDriveService)
     service = ActionRequestService(
         Settings(
+            _env_file=None,
             enable_google_drive=True,
             enable_google_drive_write=True,
             google_client_id="client-id",
@@ -856,6 +941,154 @@ async def test_drive_upload_action_request_service_persists_approval_lifecycle(
 
 
 @pytest.mark.asyncio
+async def test_drive_folder_action_request_service_persists_approval_lifecycle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sessions = _install_fake_action_session(monkeypatch)
+
+    class FakeDriveService:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            del args, kwargs
+
+        def ensure_deliverables_folder(
+            self,
+            request: DriveFolderRequest,
+            *,
+            requested_by: str | None = None,
+        ) -> DriveFolderPreview:
+            assert request.dry_run is True
+            assert requested_by == "operator-1"
+            return DriveFolderPreview(
+                status="preview",
+                folder_name="Cognitive OS Deliverables",
+            )
+
+        def status(self) -> DriveStatus:
+            return DriveStatus(
+                status="ready",
+                write_enabled=True,
+                upload_max_bytes=2048,
+                deliverables_folder_name="Cognitive OS Deliverables",
+            )
+
+    monkeypatch.setattr(action_service_module, "DriveService", FakeDriveService)
+    service = ActionRequestService(
+        Settings(
+            _env_file=None,
+            enable_google_drive=True,
+            enable_google_drive_write=True,
+            google_client_id="client-id",
+            google_client_secret="client-secret",  # pragma: allowlist secret
+            google_drive_upload_max_bytes=2048,
+        )
+    )
+
+    view = await service.create_drive_folder_request(
+        DriveFolderRequest(dry_run=False),
+        requested_by="operator-1",
+    )
+
+    session = sessions[0]
+    action_request = _only_added(session, ActionRequest)
+    job = _only_added(session, Job)
+    approval = _only_added(session, HumanApproval)
+    job_event = _only_added(session, JobEvent)
+
+    assert isinstance(action_request, ActionRequest)
+    assert isinstance(job, Job)
+    assert isinstance(approval, HumanApproval)
+    assert isinstance(job_event, JobEvent)
+    assert view.status == "pending_approval"
+    assert view.action_type == "drive_ensure_folder"
+    assert action_request.status == "pending_approval"
+    assert action_request.action_type == "drive_ensure_folder"
+    assert action_request.payload_executable is not None
+    assert action_request.payload_executable["dry_run"] is False
+    assert action_request.preview["folder_name"] == "Cognitive OS Deliverables"
+    assert action_request.job_id == job.id
+    assert action_request.approval_id == approval.id
+    assert approval.requested_action == f"execute_action_request:{action_request.id}"
+    assert job.status == "waiting_approval"
+    assert job_event.event_type == "action_approval_required"
+
+
+@pytest.mark.asyncio
+async def test_drive_organize_action_request_service_persists_approval_lifecycle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sessions = _install_fake_action_session(monkeypatch)
+
+    class FakeDriveService:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            del args, kwargs
+
+        def organize_files(
+            self,
+            request: DriveOrganizeRequest,
+            *,
+            requested_by: str | None = None,
+        ) -> DriveOrganizePreview:
+            assert request.dry_run is True
+            assert requested_by == "operator-1"
+            return DriveOrganizePreview(
+                status="preview",
+                query=request.query,
+                target_folder_name=request.target_folder_name or "Cognitive OS Deliverables",
+                dry_run=True,
+                operation_count=1,
+                operations=[],
+            )
+
+        def status(self) -> DriveStatus:
+            return DriveStatus(
+                status="ready",
+                write_enabled=True,
+                upload_max_bytes=2048,
+                deliverables_folder_name="Cognitive OS Deliverables",
+            )
+
+    monkeypatch.setattr(action_service_module, "DriveService", FakeDriveService)
+    service = ActionRequestService(
+        Settings(
+            _env_file=None,
+            enable_google_drive=True,
+            enable_google_drive_write=True,
+            google_client_id="client-id",
+            google_client_secret="client-secret",  # pragma: allowlist secret
+            google_drive_upload_max_bytes=2048,
+        )
+    )
+
+    view = await service.create_drive_organize_request(
+        DriveOrganizeRequest(query="factura", target_folder_name="Finanzas", dry_run=False),
+        requested_by="operator-1",
+    )
+
+    session = sessions[0]
+    action_request = _only_added(session, ActionRequest)
+    job = _only_added(session, Job)
+    approval = _only_added(session, HumanApproval)
+    job_event = _only_added(session, JobEvent)
+
+    assert isinstance(action_request, ActionRequest)
+    assert isinstance(job, Job)
+    assert isinstance(approval, HumanApproval)
+    assert isinstance(job_event, JobEvent)
+    assert view.status == "pending_approval"
+    assert view.action_type == "drive_organize_files"
+    assert action_request.status == "pending_approval"
+    assert action_request.action_type == "drive_organize_files"
+    assert action_request.payload_executable is not None
+    assert action_request.payload_executable["dry_run"] is False
+    assert action_request.preview["target_folder_name"] == "Finanzas"
+    assert action_request.job_id == job.id
+    assert action_request.approval_id == approval.id
+    assert approval.requested_action == f"execute_action_request:{action_request.id}"
+    assert job.status == "waiting_approval"
+    assert job_event.event_type == "action_approval_required"
+
+
+@pytest.mark.asyncio
 async def test_dispatch_action_request_enqueues_worker(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -864,11 +1097,39 @@ async def test_dispatch_action_request_enqueues_worker(
         job_id=UUID("22222222-2222-2222-2222-222222222222"),
     )
     calls: list[dict[str, object]] = []
+    events: list[dict[str, object]] = []
 
     class FakeActionRequestService:
         async def queue_approved_action_request(self, action_request_id: UUID) -> ActionRequestView:
             assert action_request_id == view.id
             return view
+
+        async def reserve_action_dispatch(
+            self, action_request_id: UUID
+        ) -> ActionDispatchReservation:
+            assert action_request_id == view.id
+            return ActionDispatchReservation(action_request=view, should_dispatch=True)
+
+        async def record_action_dispatch_event(
+            self,
+            *,
+            job_id: UUID,
+            action_request_id: UUID,
+            event_type: str,
+            status: str,
+            message: str,
+            metadata_json: dict[str, object] | None = None,
+        ) -> None:
+            events.append(
+                {
+                    "job_id": job_id,
+                    "action_request_id": action_request_id,
+                    "event_type": event_type,
+                    "status": status,
+                    "message": message,
+                    "metadata_json": metadata_json or {},
+                }
+            )
 
     class FakeTask:
         @staticmethod
@@ -893,6 +1154,139 @@ async def test_dispatch_action_request_enqueues_worker(
             "queue": "agent_longrun",
         }
     ]
+    assert events == [
+        {
+            "job_id": view.job_id,
+            "action_request_id": view.id,
+            "event_type": "action_request_dispatch_submitted",
+            "status": "queued",
+            "message": "Action request submitted to Celery",
+            "metadata_json": {"queue": "agent_longrun"},
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_dispatch_action_request_reports_celery_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    view = _action_request_view(
+        status="queued",
+        job_id=UUID("22222222-2222-2222-2222-222222222222"),
+    )
+    events: list[dict[str, object]] = []
+
+    class FakeActionRequestService:
+        async def queue_approved_action_request(self, action_request_id: UUID) -> ActionRequestView:
+            assert action_request_id == view.id
+            return view
+
+        async def reserve_action_dispatch(
+            self, action_request_id: UUID
+        ) -> ActionDispatchReservation:
+            assert action_request_id == view.id
+            return ActionDispatchReservation(action_request=view, should_dispatch=True)
+
+        async def record_action_dispatch_event(
+            self,
+            *,
+            job_id: UUID,
+            action_request_id: UUID,
+            event_type: str,
+            status: str,
+            message: str,
+            metadata_json: dict[str, object] | None = None,
+        ) -> None:
+            events.append(
+                {
+                    "job_id": job_id,
+                    "action_request_id": action_request_id,
+                    "event_type": event_type,
+                    "status": status,
+                    "message": message,
+                    "metadata_json": metadata_json or {},
+                }
+            )
+
+    class FakeTask:
+        @staticmethod
+        def apply_async(*, args: list[str], queue: str) -> None:
+            assert args == [str(view.id), str(view.job_id)]
+            assert queue == "agent_longrun"
+            raise RuntimeError("broker down")
+
+    monkeypatch.setattr(api_app, "ActionRequestService", FakeActionRequestService)
+    monkeypatch.setattr(api_app, "run_action_request_task_async", FakeTask)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            f"/actions/requests/{view.id}/dispatch",
+            headers=_headers(),
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["dispatched"] is False
+    assert "Celery dispatch failed (RuntimeError)" in body["reason"]
+    assert events == [
+        {
+            "job_id": view.job_id,
+            "action_request_id": view.id,
+            "event_type": "action_request_dispatch_failed",
+            "status": "queued",
+            "message": "Action request dispatch failed before Celery accepted it",
+            "metadata_json": {"error_type": "RuntimeError"},
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_dispatch_action_request_does_not_enqueue_when_already_submitted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    view = _action_request_view(
+        status="queued",
+        job_id=UUID("22222222-2222-2222-2222-222222222222"),
+    )
+    calls: list[dict[str, object]] = []
+
+    class FakeActionRequestService:
+        async def queue_approved_action_request(self, action_request_id: UUID) -> ActionRequestView:
+            assert action_request_id == view.id
+            return view
+
+        async def reserve_action_dispatch(
+            self, action_request_id: UUID
+        ) -> ActionDispatchReservation:
+            assert action_request_id == view.id
+            return ActionDispatchReservation(
+                action_request=view,
+                should_dispatch=False,
+                reason="Action request dispatch already submitted; waiting for worker.",
+            )
+
+    class FakeTask:
+        @staticmethod
+        def apply_async(*, args: list[str], queue: str) -> None:
+            calls.append({"args": args, "queue": queue})
+
+    monkeypatch.setattr(api_app, "ActionRequestService", FakeActionRequestService)
+    monkeypatch.setattr(api_app, "run_action_request_task_async", FakeTask)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            f"/actions/requests/{view.id}/dispatch",
+            headers=_headers(),
+        )
+
+    assert response.status_code == 200
+    assert response.json()["dispatched"] is False
+    assert response.json()["reason"] == (
+        "Action request dispatch already submitted; waiting for worker."
+    )
+    assert calls == []
 
 
 @pytest.mark.asyncio
@@ -1002,6 +1396,123 @@ async def test_queue_approved_action_request_locks_row_before_queue(
     assert view.status == "queued"
     assert action_request.status == "queued"
     assert job.status == "queued"
+
+
+@pytest.mark.asyncio
+async def test_reserve_action_dispatch_sets_submitting_and_blocks_duplicates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    action_request_id = UUID("abababab-abab-abab-abab-abababababab")
+    now = datetime.now(UTC)
+    action_request = ActionRequest(
+        id=action_request_id,
+        action_type="browser_preview",
+        status="queued",
+        requested_by="operator-1",
+        job_id=UUID("cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd"),
+        payload_redacted={},
+        payload_executable={},
+        preview={},
+        result={},
+        metadata_json={},
+        created_at=now,
+        updated_at=now,
+    )
+    captured: dict[str, object] = {}
+
+    class _Scalar:
+        def scalar_one_or_none(self) -> ActionRequest:
+            return action_request
+
+    class _Session(_FakeActionRequestSession):
+        async def execute(self, stmt: object) -> _Scalar:
+            captured["for_update"] = getattr(stmt, "_for_update_arg", None) is not None
+            return _Scalar()
+
+    @asynccontextmanager
+    async def fake_session_scope():
+        yield _Session()
+
+    monkeypatch.setattr(action_service_module, "session_scope", fake_session_scope)
+
+    first = await ActionRequestService().reserve_action_dispatch(action_request_id)
+    second = await ActionRequestService().reserve_action_dispatch(action_request_id)
+
+    assert captured["for_update"] is True
+    assert first.should_dispatch is True
+    assert action_request.metadata_json["dispatch_state"] == "submitting"
+    assert "dispatch_claimed_at" in action_request.metadata_json
+    assert second.should_dispatch is False
+    assert second.reason == "Action request dispatch already in progress."
+
+
+@pytest.mark.asyncio
+async def test_record_action_dispatch_event_marks_submitted_and_failed_for_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    action_request_id = UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+    job_id = UUID("ffffffff-1111-2222-3333-444444444444")
+    now = datetime.now(UTC)
+    action_request = ActionRequest(
+        id=action_request_id,
+        action_type="browser_preview",
+        status="queued",
+        requested_by="operator-1",
+        job_id=job_id,
+        payload_redacted={},
+        payload_executable={},
+        preview={},
+        result={},
+        metadata_json={"dispatch_state": "submitting", "dispatch_claimed_at": "now"},
+        created_at=now,
+        updated_at=now,
+    )
+    added: list[object] = []
+
+    class _Session(_FakeActionRequestSession):
+        def add(self, obj: object) -> None:
+            added.append(obj)
+
+        async def get(self, model: type[object], row_id: UUID) -> object | None:
+            if model is ActionRequest and row_id == action_request_id:
+                return action_request
+            return None
+
+    @asynccontextmanager
+    async def fake_session_scope():
+        yield _Session()
+
+    monkeypatch.setattr(action_service_module, "session_scope", fake_session_scope)
+    service = ActionRequestService()
+
+    await service.record_action_dispatch_event(
+        job_id=job_id,
+        action_request_id=action_request_id,
+        event_type="action_request_dispatch_submitted",
+        status="queued",
+        message="submitted",
+        metadata_json={"queue": "agent_longrun"},
+    )
+
+    assert action_request.metadata_json["dispatch_state"] == "submitted"
+    assert action_request.metadata_json["dispatch_queue"] == "agent_longrun"
+    assert "dispatch_claimed_at" not in action_request.metadata_json
+    assert any(
+        isinstance(item, JobEvent) and item.event_type == "action_request_dispatch_submitted"
+        for item in added
+    )
+
+    await service.record_action_dispatch_event(
+        job_id=job_id,
+        action_request_id=action_request_id,
+        event_type="action_request_dispatch_failed",
+        status="queued",
+        message="failed",
+        metadata_json={"error_type": "RuntimeError"},
+    )
+
+    assert action_request.metadata_json["dispatch_state"] == "failed"
+    assert action_request.metadata_json["dispatch_last_error_type"] == "RuntimeError"
 
 
 @pytest.mark.asyncio
@@ -1899,3 +2410,145 @@ async def test_browser_preview_request_endpoint_uses_action_service(
     assert response.status_code == 200
     assert response.json()["action_type"] == "browser_preview"
     assert response.json()["status"] == "pending_approval"
+
+
+# -- Fase 69 P0.2 — dedicated_local auto-approve for reversible actions ------
+
+
+@pytest.mark.asyncio
+async def test_drive_folder_request_auto_approves_in_dedicated_local(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """drive_ensure_folder is on the auto-approve whitelist: with
+    auto_approve_reversible_actions=True the service must invoke
+    `_auto_approve_and_dispatch` so the operator does not have to click."""
+    _install_fake_action_session(monkeypatch)
+    captured: dict[str, object] = {}
+
+    async def _spy(self: object, **kwargs: object) -> object:  # type: ignore[no-redef]
+        captured.update(kwargs)
+        from cognitive_os.actions.service import ActionRequestView  # noqa: PLC0415
+
+        return ActionRequestView(
+            id=kwargs["action_request_id"],  # type: ignore[arg-type]
+            action_type="drive_ensure_folder",
+            status="queued",
+            requested_by="operator-1",
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+            preview={},
+            payload_redacted={},
+            error=None,
+            metadata_json={},
+            idempotency_key=None,
+            job_id=None,
+            approval_id=None,
+            workflow_run_id=None,
+        )
+
+    monkeypatch.setattr(
+        ActionRequestService,
+        "_auto_approve_and_dispatch",
+        _spy,
+        raising=True,
+    )
+
+    service = ActionRequestService(
+        Settings(
+            _env_file=None,
+            operator_profile="dedicated_local",
+            enable_google_drive=True,
+            enable_google_drive_write=True,
+            google_client_id="client-id",
+            google_client_secret="client-secret",  # pragma: allowlist secret
+        )
+    )
+    assert service._settings.auto_approve_reversible_actions is True
+
+    view = await service.create_drive_folder_request(
+        DriveFolderRequest(dry_run=False),
+        requested_by="operator-1",
+    )
+
+    assert captured, "_auto_approve_and_dispatch must be called for whitelisted reversibles"
+    assert view.status == "queued"
+
+
+@pytest.mark.asyncio
+async def test_drive_organize_does_not_auto_approve_even_in_dedicated_local(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """drive_organize_files touches existing files: NOT in the whitelist, must
+    stay pending_approval even when auto_approve_reversible_actions=True."""
+    _install_fake_action_session(monkeypatch)
+    called: list[bool] = []
+
+    async def _spy(self: object, **_kwargs: object) -> object:
+        called.append(True)
+        raise AssertionError("auto-approve must not fire for drive_organize_files")
+
+    monkeypatch.setattr(
+        ActionRequestService,
+        "_auto_approve_and_dispatch",
+        _spy,
+        raising=True,
+    )
+
+    service = ActionRequestService(
+        Settings(
+            _env_file=None,
+            operator_profile="dedicated_local",
+            enable_google_drive=True,
+            enable_google_drive_write=True,
+            google_client_id="client-id",
+            google_client_secret="client-secret",  # pragma: allowlist secret
+        )
+    )
+
+    view = await service.create_drive_organize_request(
+        DriveOrganizeRequest(),
+        requested_by="operator-1",
+    )
+
+    assert not called
+    assert view.status == "pending_approval"
+
+
+@pytest.mark.asyncio
+async def test_drive_folder_request_does_not_auto_approve_in_strict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Even for whitelisted action_types: strict profile keeps approval flow."""
+    _install_fake_action_session(monkeypatch)
+    called: list[bool] = []
+
+    async def _spy(self: object, **_kwargs: object) -> object:
+        called.append(True)
+        raise AssertionError("auto-approve must not fire under OPERATOR_PROFILE=strict")
+
+    monkeypatch.setattr(
+        ActionRequestService,
+        "_auto_approve_and_dispatch",
+        _spy,
+        raising=True,
+    )
+
+    service = ActionRequestService(
+        Settings(
+            _env_file=None,
+            operator_profile="strict",
+            auto_approve_reversible_actions=False,
+            enable_google_drive=True,
+            enable_google_drive_write=True,
+            google_client_id="client-id",
+            google_client_secret="client-secret",  # pragma: allowlist secret
+        )
+    )
+
+    view = await service.create_drive_folder_request(
+        DriveFolderRequest(dry_run=False),
+        requested_by="operator-1",
+    )
+
+    assert not called
+    assert view.status == "pending_approval"

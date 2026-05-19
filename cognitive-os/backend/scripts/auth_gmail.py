@@ -1,18 +1,20 @@
 #!/usr/bin/env python
-"""One-time interactive Google OAuth flow for Calendar + Drive.
+"""One-time interactive Gmail OAuth flow (read-only digest lane).
 
 Run this once on the operator's machine. It opens a browser, asks the user to
-authorize the Cognitive OS "Desktop app" client, and writes an authorized-user
-`token.json` into `GOOGLE_TOKEN_DIR`. The backend itself never runs this flow:
-it only consumes the resulting token via `core.google_oauth.GoogleCredentialsLoader`.
+authorize the Cognitive OS Gmail "Desktop app" client, and writes an authorized-user
+`token.json` into `GMAIL_TOKEN_DIR`. The backend itself never runs this flow:
+the digest reads the resulting token via `actions/gmail_digest.py` and
+`mail/service.py`. Gmail runs on its own OAuth lane separate from Calendar/Drive
+(distinct scopes, distinct `token.json`) so revoking one does not break the other.
 
 Usage (from `backend/`):
 
-    uv run python scripts/auth_google.py
+    uv run python scripts/auth_gmail.py
 
-Requirements: `google-auth-oauthlib` (install with `uv pip install google-auth-oauthlib`
-if it is not already present). GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET must be set
-in `.env`.
+Requirements: `google-auth-oauthlib` (install with
+`uv pip install google-auth-oauthlib` if it is not already present).
+GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET must be set in `.env`.
 """
 
 from __future__ import annotations
@@ -24,14 +26,10 @@ from cognitive_os.core.config import settings
 
 
 def _existing_token_is_usable(token_path: object, required_scopes: list[str]) -> bool:
-    """Return True iff `token_path` already authorises today's scopes.
+    """Return True iff `token_path` already authorises today's gmail_scopes.
 
-    Tries `GoogleCredentialsLoader.load()` (transparently refreshes the access
-    token when the refresh_token is still valid) AND diffs the granted scopes
-    against `required_scopes`. If GOOGLE_*_SCOPES changed in .env after the
-    token was issued, this returns False so the operator is re-prompted to
-    consent — otherwise the script would short-circuit and Calendar/Drive
-    would stay `blocked` in /health/dashboard with no obvious next step.
+    Diffs granted vs `required_scopes` so changing GMAIL_SCOPES in .env forces
+    re-consent instead of leaving Gmail digest silently misconfigured.
     """
     from pathlib import Path
 
@@ -49,7 +47,7 @@ def _existing_token_is_usable(token_path: object, required_scopes: list[str]) ->
     missing = loader.missing_scopes(required_scopes)
     if missing:
         print(
-            "Existing token is missing scopes now configured in .env:\n  "
+            "Existing Gmail token is missing scopes now configured in .env:\n  "
             + "\n  ".join(missing)
             + "\nFalling back to the interactive flow to re-consent.",
             file=sys.stderr,
@@ -59,32 +57,21 @@ def _existing_token_is_usable(token_path: object, required_scopes: list[str]) ->
 
 
 def main() -> int:
-    client_id = settings.google_client_id
-    client_secret = settings.google_client_secret.get_secret_value()
+    client_id = settings.gmail_client_id
+    client_secret = settings.gmail_client_secret.get_secret_value()
     if "CHANGEME" in client_id or "CHANGEME" in client_secret:
         print(
-            "GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET are not configured in .env.",
+            "GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET are not configured in .env.",
             file=sys.stderr,
         )
         return 1
 
-    token_dir = settings.google_token_dir.expanduser()
+    token_dir = settings.gmail_token_dir.expanduser()
     token_path = token_dir / "token.json"
+    scopes = sorted(set(settings.gmail_scopes))
 
-    scopes = sorted(
-        {
-            *settings.google_calendar_scopes,
-            *settings.google_drive_scopes,
-        }
-    )
-
-    # Resilience: if the operator already authorised once and the refresh_token
-    # is still valid AND the granted scopes still cover GOOGLE_*_SCOPES,
-    # skip the interactive flow. The GoogleCredentialsLoader transparently
-    # refreshes and rewrites token.json. Re-consent is forced only when the
-    # configured scopes changed (token would otherwise stay blocked).
     if _existing_token_is_usable(token_path, scopes):
-        print(f"Existing Google token at {token_path} is still valid (auto-refreshed).")
+        print(f"Existing Gmail token at {token_path} is still valid (auto-refreshed).")
         print("No browser interaction required.")
         return 0
 
@@ -106,7 +93,7 @@ def main() -> int:
             "redirect_uris": ["http://localhost"],
         }
     }
-    print("Requesting Google authorization for scopes:\n  " + "\n  ".join(scopes))
+    print("Requesting Gmail authorization for scopes:\n  " + "\n  ".join(scopes))
     flow = InstalledAppFlow.from_client_config(client_config, scopes)
     credentials = flow.run_local_server(port=0)
 
@@ -116,7 +103,7 @@ def main() -> int:
         token_path.chmod(0o600)
     print(f"\nAuthorized. Token written to {token_path}")
     print(
-        "Calendar/Drive are now usable once ENABLE_GOOGLE_CALENDAR / ENABLE_GOOGLE_DRIVE are true."
+        "Gmail is now usable once GMAIL_READ_ENABLED=true (digest / label TODOS)."
     )
     print(
         "Reminder: access tokens are short-lived but the refresh_token saved in "

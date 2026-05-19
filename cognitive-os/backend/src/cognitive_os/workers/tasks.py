@@ -109,6 +109,75 @@ async def _read_job_status(job_id: UUID) -> str | None:
         return None if job is None else job.status
 
 
+async def _read_action_request_status(action_request_id: UUID) -> str | None:
+    """Current status of an ActionRequest, or None when missing.
+
+    The worker sets Job→running BEFORE ActionRequestService flips the
+    ActionRequest queued→running. If the worker crashes in that window, a
+    Celery retry that only looked at Job.status would short-circuit and
+    strand the ActionRequest in `queued` forever. Reading the AR status lets
+    the retry distinguish "genuine duplicate (AR running/terminal)" from
+    "crashed in the window (AR still queued/pending → must proceed)".
+    `execute_action_request` is itself atomic (SELECT ... FOR UPDATE, only
+    promotes from `queued`), so proceeding is always safe.
+    """
+    from cognitive_os.db.models import ActionRequest  # noqa: PLC0415
+
+    async with session_scope() as session:
+        ar = await session.get(ActionRequest, action_request_id)
+        return None if ar is None else ar.status
+
+
+async def _reserve_code_build_job(job_id: UUID) -> tuple[str, str | None]:
+    """Atomically claim a Code Director build job for execution.
+
+    Returns ``("claimed", previous_status)`` when this caller transitioned the
+    job from ``queued``/``submitted``/``submitting`` to ``running``, or
+    ``("skip", current_status)`` when the job is missing / already terminal /
+    already running by another worker. The previous-status helper distinguishes
+    "duplicate dispatch (already running)" from "worker re-entry on terminal"
+    so the caller logs the right thing.
+
+    Why atomic: ``_read_job_status`` + later UPDATE is a check-then-act race;
+    two Celery workers can each read ``queued`` and both invoke ``run_build``
+    against the same workspace (Fase 69 P0.4 — GPT-5.5 review #2).
+    """
+    from sqlalchemy import update  # noqa: PLC0415
+
+    async with session_scope() as session:
+        current_job = await session.get(Job, job_id)
+        if current_job is None:
+            return ("skip", None)
+        current_status = current_job.status
+        if current_status in {"completed", "failed", "cancelled", "rejected"}:
+            return ("skip", current_status)
+        if current_status == "running":
+            return ("skip", current_status)
+        result = await session.execute(
+            update(Job)
+            .where(
+                Job.id == job_id,
+                Job.status.in_(("queued", "submitting", "submitted")),
+            )
+            .values(status="running", updated_at=datetime.now(UTC))
+        )
+        rowcount = getattr(result, "rowcount", 0) or 0
+        if rowcount == 0:
+            # Another worker raced us between SELECT and UPDATE.
+            refreshed = await session.get(Job, job_id)
+            return ("skip", refreshed.status if refreshed is not None else None)
+        session.add(
+            JobEvent(
+                job_id=job_id,
+                event_type="code_build_dispatch_reserved",
+                status="running",
+                message=f"Reserved for execution (from status={current_status}).",
+                metadata_json={"previous_status": current_status},
+            )
+        )
+        return ("claimed", current_status)
+
+
 async def _mark_job_failed(job_id: UUID, exc: Exception) -> None:
     await _update_job(
         job_id,
@@ -334,6 +403,23 @@ def run_deepagent_task_async(task_dict: dict[str, Any], job_id: str) -> dict[str
 def run_openshell_task_async(task_dict: dict[str, Any], job_id: str) -> dict[str, Any]:
     active_job_id = UUID(job_id)
     task = OpenShellTask.model_validate(task_dict)
+    existing_status = _run(_read_job_status(active_job_id))
+    if existing_status in {"completed", "failed", "cancelled", "rejected"}:
+        return {
+            "job_id": job_id,
+            "status": existing_status,
+            "skipped": True,
+            "reason": "Worker re-entry on a job already in a terminal state.",
+        }
+    if existing_status == "running":
+        # Duplicate dispatch (same approval decided twice) — already in
+        # flight. Same idempotency guard as run_action_request/code_build.
+        return {
+            "job_id": job_id,
+            "status": existing_status,
+            "skipped": True,
+            "reason": "Duplicate dispatch: an OpenShell task for this job is already running.",
+        }
     try:
         _run(
             _update_job(
@@ -493,18 +579,30 @@ def reap_stuck_action_requests_task() -> dict[str, Any]:
         )
     )
     try:
-        reaped = _run(ActionRequestService().reap_stuck_running())
+        service = ActionRequestService()
+        reaped = _run(service.reap_stuck_running())
+        # Also unstick dispatch reservations that never resolved (process
+        # died between reserve_action_dispatch and apply_async). Same beat
+        # cadence; cheap and idempotent.
+        dispatch_unstuck = _run(service.reap_stale_dispatch_reservations())
         _run(
             _update_job(
                 job_id,
                 status="completed",
                 progress=100,
                 event_type="reap_completed",
-                message=f"Reaped {reaped} stuck action_request(s)",
-                metadata_json={"reaped": reaped},
+                message=(
+                    f"Reaped {reaped} stuck action_request(s); "
+                    f"unstuck {dispatch_unstuck} stale dispatch reservation(s)"
+                ),
+                metadata_json={"reaped": reaped, "dispatch_unstuck": dispatch_unstuck},
             )
         )
-        return {"job_id": str(job_id), "reaped": reaped}
+        return {
+            "job_id": str(job_id),
+            "reaped": reaped,
+            "dispatch_unstuck": dispatch_unstuck,
+        }
     except Exception as exc:
         _run(_mark_job_failed(job_id, exc))
         raise
@@ -519,6 +617,23 @@ def run_action_request_task_async(action_request_id: str, job_id: str) -> dict[s
     # in a terminal state would overwrite the real outcome — short-circuit
     # instead and return the existing row.
     existing_status = _run(_read_job_status(active_job_id))
+    if existing_status == "running":
+        # Only short-circuit if the ActionRequest itself is already running
+        # or terminal (genuine duplicate). If the AR is still queued/pending
+        # the previous attempt crashed in the Job→running ⇢ AR→running
+        # window: must proceed so the action isn't stranded.
+        # execute_action_request is atomic, so re-entry is safe either way.
+        ar_status = _run(_read_action_request_status(active_action_request_id))
+        if ar_status in {"running", "completed", "failed", "cancelled", "rejected"}:
+            return {
+                "id": str(active_action_request_id),
+                "job_id": str(active_job_id),
+                "status": existing_status,
+                "ar_status": ar_status,
+                "skipped": True,
+                "reason": "Worker re-entry; ActionRequest already running/terminal.",
+            }
+        # else: fall through — crashed in the window, AR still needs to run.
     if existing_status in {"completed", "failed", "cancelled", "rejected"}:
         return {
             "id": str(active_action_request_id),
@@ -667,13 +782,21 @@ def run_code_build_task_async(job_id: str) -> dict[str, Any]:
     from cognitive_os.code_director.service import CodeDirectorService
 
     active_job_id = UUID(job_id)
-    existing_status = _run(_read_job_status(active_job_id))
-    if existing_status in {"completed", "failed", "cancelled", "rejected"}:
+    outcome, previous_status = _run(_reserve_code_build_job(active_job_id))
+    if outcome == "skip":
         return {
             "job_id": job_id,
-            "status": existing_status,
+            "status": previous_status,
             "skipped": True,
-            "reason": "Worker re-entry on a job already in a terminal state.",
+            "reason": (
+                "Worker re-entry on a job already in a terminal state."
+                if previous_status in {"completed", "failed", "cancelled", "rejected"}
+                else (
+                    "Duplicate dispatch: a code build for this job is already running."
+                    if previous_status == "running"
+                    else f"Job not eligible for execution (status={previous_status})."
+                )
+            ),
         }
     try:
         result = _run(CodeDirectorService().run_build(active_job_id))

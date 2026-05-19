@@ -229,7 +229,8 @@ class ActionRequest(UUIDPrimaryKeyMixin, TimestampMixin, MetadataMixin, Base):
             "action_type IN ("
             "'computer_organize', 'browser_navigation', 'gmail_query', "
             "'godaddy_dns_change', 'document_generate', 'browser_preview', "
-            "'browser_interactive', 'calendar_create_event', 'drive_upload_file'"
+            "'browser_interactive', 'calendar_create_event', 'drive_upload_file', "
+            "'drive_ensure_folder', 'drive_organize_files'"
             ")",
             name="ck_ar_action_type",
         ),

@@ -13,6 +13,7 @@ from cognitive_os.actions.calendar import (
     CalendarService,
     EventCreateRequest,
     FakeCalendarProvider,
+    FreeBusyRequest,
     GoogleCalendarProvider,
     ListEventsRequest,
     _parse_event,
@@ -32,7 +33,10 @@ def _settings(tmp_path: Path, *, enabled: bool = True, client_id: str = "id.apps
         enable_google_calendar=enabled,
         google_client_id=client_id,
         google_token_dir=tmp_path,
-        google_calendar_scopes=["https://www.googleapis.com/auth/calendar.events"],
+        google_calendar_scopes=[
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.freebusy",
+        ],
         http_timeout_seconds=5.0,
     )
 
@@ -83,6 +87,29 @@ def test_list_events_rejects_inverted_window(tmp_path: Path) -> None:
         )
 
 
+def test_freebusy_uses_provider_and_defaults_to_primary(tmp_path: Path) -> None:
+    event = CalendarEvent(
+        event_id="e1",
+        summary="Call",
+        start="2026-06-01T10:00:00Z",
+        end="2026-06-01T11:00:00Z",
+    )
+    provider = FakeCalendarProvider(events=[event])
+    service = CalendarService(provider=provider, app_settings=_settings(tmp_path))
+    result = service.freebusy(FreeBusyRequest())
+    assert result.busy_count == 1
+    assert result.calendars[0].calendar_id == "primary"
+    assert result.calendars[0].busy[0].start == "2026-06-01T10:00:00Z"
+    assert provider.freebusy_calls[0]["calendars"] == ["primary"]
+
+
+def test_freebusy_rejects_inverted_window(tmp_path: Path) -> None:
+    service = CalendarService(provider=FakeCalendarProvider(), app_settings=_settings(tmp_path))
+    now = datetime.now(tz=UTC)
+    with pytest.raises(CalendarError, match="time_max must be after"):
+        service.freebusy(FreeBusyRequest(time_min=now, time_max=now - timedelta(hours=1)))
+
+
 def test_parse_event_detects_all_day() -> None:
     timed = _parse_event(
         {"id": "a", "summary": "Call", "start": {"dateTime": "2026-06-01T09:00:00Z"}, "end": {}}
@@ -125,16 +152,50 @@ def test_google_provider_parses_events(tmp_path: Path, monkeypatch: pytest.Monke
     assert events[0].location == "Madrid"
 
 
+def test_google_provider_parses_freebusy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    payload = {
+        "calendars": {
+            "primary": {
+                "busy": [
+                    {
+                        "start": "2026-06-01T10:00:00Z",
+                        "end": "2026-06-01T11:00:00Z",
+                    }
+                ]
+            },
+            "team@example.com": {"busy": []},
+        }
+    }
+
+    def fake_post(url: str, **kwargs: object) -> httpx.Response:
+        body = kwargs["json"]
+        assert url.endswith("/freeBusy")
+        assert body["items"] == [{"id": "primary"}, {"id": "team@example.com"}]
+        return httpx.Response(200, json=payload, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    provider = GoogleCalendarProvider(_settings(tmp_path), credentials_loader=_loader(tmp_path))
+    result = provider.freebusy(
+        time_min=datetime(2026, 6, 1, tzinfo=UTC),
+        time_max=datetime(2026, 6, 2, tzinfo=UTC),
+        calendars=["primary", "team@example.com"],
+    )
+    assert result.busy_count == 1
+    assert result.calendars[0].busy[0].end == "2026-06-01T11:00:00Z"
+
+
 @pytest.mark.asyncio
 async def test_calendar_endpoints_require_auth() -> None:
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         status_resp = await client.get("/actions/calendar/status")
         events_resp = await client.post("/actions/calendar/events", json={})
+        freebusy_resp = await client.post("/actions/calendar/freebusy", json={})
         create_resp = await client.post("/actions/calendar/events/create", json={})
         request_resp = await client.post("/actions/calendar/events/request", json={})
     assert status_resp.status_code == 401
     assert events_resp.status_code == 401
+    assert freebusy_resp.status_code == 401
     assert create_resp.status_code == 401
     assert request_resp.status_code == 401
 
@@ -169,7 +230,10 @@ def _create_settings(
         enable_google_calendar_write=write_enabled,
         google_client_id="id.apps",
         google_token_dir=tmp_path,
-        google_calendar_scopes=["https://www.googleapis.com/auth/calendar.events"],
+        google_calendar_scopes=[
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.freebusy",
+        ],
         http_timeout_seconds=5.0,
     )
 

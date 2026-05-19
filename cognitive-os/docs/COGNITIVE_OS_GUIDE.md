@@ -1,8 +1,8 @@
 # Cognitive OS — Guía Maestra
 
-> **Última actualización:** 2026-05-17, Fase 41 Code Director F9 cerrada.
-> **Estado del producto:** monorepo en grado comercial operativo (backend FastAPI 0.115+ con **126 endpoints REST**, **16 tareas Celery** distribuidas en **5 colas** `default`/`ingestion`/`agent_longrun`/`maintenance`/`mail`, **16 migraciones Alembic**, LangGraph 1.1.10 + DeepAgents 0.6.x + Postgres 16+pgvector + Redis 7 + Weaviate 1.29.0 + Neo4j 5 ligados a `127.0.0.1` por defecto; consola Next.js 16.2.6 con **20 vistas** en `app/views/*.tsx` incluidas `AssistView`, `GoogleOpsView`, `ResearchView` y `CodeDirectorView`; bot Telegram opcional; Kimi WebBridge; fusión opcional con OpenHarness en la ruta `research`; **Code Director** (delegación a Claude Code/Codex/Kimi/DeepAgents con planner LLM-driven y prompts con contexto vivo, F9)). Runtime local: **DeepSeek V4 Pro** (`deepseek-v4-pro`) como LLM base; secundario Kimi K2.6-code-preview; vision GLM-4.6v primario. Mail personal GoDaddy IMAP/SMTP + Gmail label `TODOS` soportado + propuestas escritas; Google Maps/Calendar/Drive operables; envío y writes externos solo aprobados (`MAIL_REQUIRE_APPROVAL_FOR_SEND=true`). Asistente personal con `PersonalTask`/`PersonalNote` CRUD y reminders.
-> **QA snapshot persistente (Fase 41):** **642 pytest passed, 1 skipped, 20 deselected**; ruff + ruff format + mypy (111 source files) + frontend lint + frontend build + Compose config + Alembic head + `git diff --check` + pre-commit (6 hooks) + detect-secrets → todo verde.
+> **Última actualización:** 2026-05-19, Fase 68 — GoDaddy DNS de producción operativo y verificado en vivo (auth HTTP 200, seguro: dry-run + aprobación + sin prod-writes; bug de alias `ENABLE_GODADDY`→`GODADDY_ENABLED` corregido). Cadena LLM del operador verificada: primary+agent **gpt-5.5** (gateway), secondary/fallback **gemini-3.1-pro-low**, visión **glm-4.6v**; las 21 tools del DeepAgent con `args_schema` Pydantic tipado (válido en gateways estrictos); suite hermética por construcción (conftest guard) **685 passed**. Telegram pendiente: token del `.env` da 401 (revocado), falta el user_id autorizado — requiere token nuevo del operador. Fases previas (66/67): carril de agente y router con modelo tool-capable, LangSmith personal access token, Maps `departureTime` futuro.
+> **Estado del producto:** monorepo en grado comercial operativo (backend FastAPI 0.115+ con **131 endpoints REST**, **16 tareas Celery** distribuidas en **5 colas** `default`/`ingestion`/`agent_longrun`/`maintenance`/`mail`, **17 migraciones Alembic**, LangGraph 1.1.10 + DeepAgents 0.6.x + Postgres 16+pgvector + Redis 7 + Weaviate 1.29.0 + Neo4j 5 ligados a `127.0.0.1` por defecto; consola Next.js 16.2.6 con **20 vistas** en `app/views/*.tsx` incluidas `AssistView`, `GoogleOpsView`, `ResearchView` y `CodeDirectorView`; bot Telegram opcional con **36 slash commands** en paridad con el panel; Kimi WebBridge; fusión opcional con OpenHarness en la ruta `research`; **Code Director** (delegación a Claude Code/Codex/Kimi/DeepAgents con planner LLM-driven y prompts con contexto vivo, F9)). Runtime local (cadena verificada Fase 67/68): primary+agent **gpt-5.5** (gateway openai-compatible del operador), secondary/fallback **gemini-3.1-pro-low**, visión **glm-4.6v** (z.ai); Kimi-k2.6 solo vía el adapter CLI del Code Director (su endpoint HTTP da 403). Mail personal GoDaddy IMAP/SMTP + Gmail label `TODOS` soportado + propuestas escritas; Google Maps/Calendar/Drive operables; Telegram approvals con dispatch de `ActionRequest`; dispatch durable con broker failure controlado, JobEvents submit/fail y reserva atómica anti-submit duplicado; envío y writes externos solo aprobados (`MAIL_REQUIRE_APPROVAL_FOR_SEND=true`). Asistente personal con `PersonalTask`/`PersonalNote` CRUD y reminders. Fase 65 corrigió un bug crítico Postgres-only: el CHECK `ck_ar_action_type` no incluía `drive_ensure_folder`/`drive_organize_files` (migración `202605170001` + test de regresión).
+> **QA snapshot persistente (Fase 65):** **685 pytest passed, 1 skipped, 20 deselected**; ruff + ruff format + mypy (125 source files) + frontend lint + frontend build + Alembic head `202605170001` + `git diff --check` → todo verde.
 > **Para qué es este documento:** la **guía maestra técnica** "desde cero". Complementa la `USER_GUIDE.md` (orientada a operación cotidiana) con arquitectura detallada, mail multicuenta, escritorio, credenciales y troubleshooting profundo. Cada afirmación tiene su archivo o variable de respaldo en el repo.
 
 ---
@@ -76,7 +76,7 @@ Todo corre en tu infraestructura (Docker local), todas las acciones quedan audit
 | Leer Gmail en modo digest read-only (resumen redactado) sin enviar nada | Action Plane → Gmail `digest/preview` |
 | Revisar correo personal multicuenta, proponer respuestas y enviarlas con aprobación | `/mail/*` + GoDaddy IMAP/SMTP + Gmail label `TODOS` |
 | Planificar rutas con tráfico y link navegable | Action Plane → Google Maps `route` |
-| Crear eventos Calendar y subir entregables a Drive con aprobación | Google Ops + `ActionRequest` (`calendar_create_event`, `drive_upload_file`) |
+| Crear eventos Calendar, subir entregables y organizar Drive con aprobación | Google Ops + `ActionRequest` (`calendar_create_event`, `drive_upload_file`, `drive_organize_files`) |
 | Preparar cambios DNS en GoDaddy con dry-run, allow-list y aprobación | Action Plane → GoDaddy `dns/preview` + `request` |
 | Coordinar **investigación multi-subtarea con presupuesto y SSE** | Research Orchestrator (`/research/runs`) con cancelación y eventos |
 | Operar todo desde Telegram (móvil) | Bot opcional con 25+ comandos slash |
@@ -150,7 +150,7 @@ Todo corre en tu infraestructura (Docker local), todas las acciones quedan audit
 
 ```
 ┌─────────────────┐                ┌─────────────────────────────────────────┐
-│  Frontend       │                │ FastAPI app (96 propios / 122 REST)     │
+│  Frontend       │                │ FastAPI app (104 propios / 130 REST)    │
 │  Next.js 16     │ ─── REST/SSE ──│  /chat /chat/stream /threads/*          │
 │  20 vistas      │ ◄── JWT ───────│  /documents/* /document-analysis/*      │
 │  (panel web)    │                │  /jobs /approvals /audit /health/*      │
@@ -239,7 +239,7 @@ Sigue una petición típica `POST /chat/stream` con un mensaje "Investiga X" par
 
 ### 6.1. API FastAPI (`backend/src/cognitive_os/api/app.py`)
 
-126 endpoints REST agrupados por dominio (100 propios + 26 de orquestación/transversales; excluye `/docs`, `/redoc`, `/openapi.json` y `/docs/oauth2-redirect`). Catálogo resumido de rutas reales del código, todas requieren JWT excepto `/health`:
+130 endpoints REST agrupados por dominio (104 propios + 26 de orquestación/transversales; excluye `/docs`, `/redoc`, `/openapi.json` y `/docs/oauth2-redirect`). Catálogo resumido de rutas reales del código, todas requieren JWT excepto `/health`:
 
 #### Salud y configuración
 - `GET /health` — público, devuelve `{status: "ok"}`.
@@ -291,8 +291,8 @@ Sigue una petición típica `POST /chat/stream` con un mensaje "Investiga X" par
 - `POST /actions/computer/organize/preview|request`, `POST /actions/computer/inventory`.
 - `GET/POST /actions/gmail/status|query/preview|query/request|digest/preview`.
 - `GET/POST /actions/maps/status|geocode|route`.
-- `GET/POST /actions/calendar/status|events|events/create|events/request`.
-- `GET/POST /actions/drive/status|files|files/upload|files/upload/request|folders/ensure`; `GET /actions/drive/files/{file_id}`.
+- `GET/POST /actions/calendar/status|events|freebusy|events/create|events/request`.
+- `GET/POST /actions/drive/status|files|files/upload|files/upload/request|folders/ensure|folders/ensure/request|organize/preview|organize/request`; `GET /actions/drive/files/{file_id}`.
 - `GET/POST /actions/godaddy/status|dns/preview|dns/request`.
 - `GET/POST /actions/documents/status|preview|request`.
 - `GET /actions/requests`, `GET /actions/requests/{id}`, `POST /actions/requests/{id}/dispatch|cancel`.
@@ -340,6 +340,9 @@ Subagentes controlados con políticas (`DeepAgentToolPolicy`). Tools expuestas:
 | `read_skill` | Devuelve un SKILL.md |
 | `get_relevant_memory` | Memoria revisada por scope |
 | `propose_memory_update` | **Propone**, no aprueba (requiere humano) |
+| `plan_route` / `geocode_address` | Google Maps read-only con rutas/tráfico y geocoding |
+| `list_calendar_events` / `check_calendar_freebusy` | Google Calendar read-only |
+| `search_drive_files` / `preview_drive_organization` | Google Drive read-only/preview, sin writes directos |
 
 Subagentes activos cuando `DEEPAGENTS_ENABLE_SUBAGENTS=true`:
 - Research: `local-rag-researcher`, `citation-auditor`, `web-researcher`.
@@ -359,8 +362,8 @@ Salida: `result.json`, `report.md`, `evidence_matrix.csv`, `timeline.csv`, `cont
 - **Computer**: `computer_organize` (mover archivos con preview/aprobación) y `computer_inventory` (read-only metadata).
 - **Gmail**: `digest/preview` (read-only, redacta direcciones, **no** crea drafts).
 - **Maps**: geocoding y rutas read-only con tráfico, duración base, retraso y link Google Maps.
-- **Calendar**: listar eventos y crear eventos por `ActionRequest` aprobable (`calendar_create_event`).
-- **Drive**: listar/get, asegurar carpeta de entregables y subir archivos allow-listed por `ActionRequest` (`drive_upload_file`).
+- **Calendar**: listar eventos, consultar free/busy y crear eventos por `ActionRequest` aprobable (`calendar_create_event`).
+- **Drive**: listar/get, asegurar carpeta de entregables, subir archivos allow-listed y organizar archivos por `ActionRequest` (`drive_upload_file`, `drive_organize_files`).
 - **GoDaddy**: DNS preview + executor real con dry-run, allow-list, aprobación.
 - **Documents**: DOCX/XLSX/PPTX con guardrails de paths, tamaño, assets allow-listed, fórmulas XLSX no inyectables.
 - **Mail personal**: GoDaddy IMAP/SMTP + Gmail label `TODOS` opcional, propuestas escritas, envío por SMTP GoDaddy solo con aprobación.
@@ -526,6 +529,7 @@ Detalle: [`ACTION_PLANE.md`](./ACTION_PLANE.md).
 - `browser_interactive` (Chromium headless, plan de pasos, vision opcional).
 - `calendar_create_event` (Google Calendar por `ActionRequest`, flag write + aprobación).
 - `drive_upload_file` (Google Drive por `ActionRequest`, allow-list de path + carpeta de entregables).
+- `drive_ensure_folder` y `drive_organize_files` (Drive folder/organización por `ActionRequest`, sin deletes ni cambios de permisos).
 - `mail approve-send` (SMTP GoDaddy desde `/mail/messages/{id}/approve-send`, solo aprobación explícita).
 
 **Capacidades read-only/preview por defecto:**
@@ -591,7 +595,7 @@ bash scripts/dev_worker.sh
 bash scripts/dev_beat.sh
 
 # 8. Frontend (otra terminal)
-cd frontend && npm ci && npm run dev    # http://localhost:3000
+cd frontend && PORT=3001 npm ci && npm run dev    # http://localhost:3001 (3000=OpenChamber)
 
 # 9. (Opcional) Bot Telegram
 cd backend && uv run python -m cognitive_os.integrations.telegram_bot
@@ -716,6 +720,16 @@ Si quieres que **cada capacidad documentada** funcione end-to-end, necesitas est
 | `ENABLE_GOOGLE_CALENDAR_WRITE`, `ENABLE_GOOGLE_DRIVE_WRITE` | Mantener `false` hasta que el operador quiera writes reales; aun activados, writes pasan por `ActionRequest` + aprobación. |
 | `GOOGLE_DRIVE_DELIVERABLES_FOLDER_NAME` | Nombre de carpeta operativa para entregables, default `Cognitive OS Deliverables`. |
 
+Fases 44-49 refuerzan esta capa: Maps devuelve `route_advice`, ETA, severidad de
+tráfico y alternativas; Drive busca por nombre, contenido indexado (`fullText`)
+o ambos sobre `Mi unidad`/`allDrives`, y la carpeta de entregables puede
+crearse como `ActionRequest` `drive_ensure_folder` aprobable antes de subir
+archivos. Drive upload acepta entregables generados bajo `DOCUMENT_OUTPUT_ROOT`,
+`LOCAL_STORAGE_DIR/workspaces`, `OPENSHELL_ALLOWED_OUTPUT_DIR` o
+`COMPUTER_ALLOWED_ROOTS`; la organización usa preview + `drive_organize_files`
+aprobable y solo mueve archivos con `files.update`. Calendar suma `freebusy`
+read-only para detectar ventanas ocupadas.
+
 #### Por qué las credenciales de Google Cloud Console **no bastan** por sí solas
 
 Una pregunta natural: si pegaste `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` y
@@ -767,7 +781,7 @@ uv run python scripts/auth_google.py
 Lo que ocurre paso a paso:
 
 1. El script lee `GOOGLE_CLIENT_ID/SECRET` de `.env` y los scopes
-   `calendar.events` + `drive` de `GOOGLE_CALENDAR_SCOPES` /
+   `calendar.events` + `calendar.freebusy` + `drive` de `GOOGLE_CALENDAR_SCOPES` /
    `GOOGLE_DRIVE_SCOPES`.
 2. Abre tu navegador en una URL de Google con esos scopes.
 3. Google muestra: *"Cognitive OS quiere acceder a tu Calendar y Drive —
@@ -913,10 +927,10 @@ CONFIRM_RESTORE=YES bash scripts/restore_storage.sh backups/storage/ARCHIVO.tar.
 
 Lo que **funciona hoy** (verificado contra código y tests):
 
-- Backend completo (96 endpoints propios; 122 REST totales) + frontend (20 vistas, incluye `Assist`, `Google Ops` y `Research`).
+- Backend completo (104 endpoints propios; 130 REST totales) + frontend (20 vistas, incluye `Assist`, `Google Ops` y `Research`).
 - Ruta `research` con fusión opcional OpenHarness y fallback determinista.
 - Ruta `legal` con Document Analysis y exportadores.
-- Action Plane con `computer_organize`, `document_generate`, `browser_preview`, `browser_interactive`, Google Calendar create y Drive upload ejecutables sólo por `ActionRequest` aprobado; Maps read-only con tráfico/link; Gmail digest read-only; mail GoDaddy IMAP/SMTP con envío aprobado; GoDaddy DNS preview/executor con dry-run.
+- Action Plane con `computer_organize`, `document_generate`, `browser_preview`, `browser_interactive`, Google Calendar create y Drive upload/folder/organize ejecutables sólo por `ActionRequest` aprobado; Maps read-only con tráfico/link; Calendar free/busy read-only; Gmail digest read-only; mail GoDaddy IMAP/SMTP con envío aprobado; GoDaddy DNS preview/executor con dry-run.
 - Memoria DeepAgents con propuestas + aprobación + episódica.
 - Bot Telegram con 25+ comandos.
 - Research Orchestrator multi-subtarea con SSE y cancelación.

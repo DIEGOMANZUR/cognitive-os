@@ -47,6 +47,7 @@ async def check_health_dashboard() -> HealthDashboard:
         _safe_check("google_drive", _check_drive()),
         _safe_check("kimi_webbridge", _check_webbridge()),
         _safe_check("captcha_solver", _check_captcha()),
+        _safe_check("mail", _check_mail()),
     )
     overall = (
         "ok"
@@ -291,6 +292,50 @@ async def _check_captcha() -> ComponentHealth:
         status=cap.status,
         detail=cap.reason,
         metadata={"base_url": cap.base_url},
+    )
+
+
+async def _check_mail() -> ComponentHealth:
+    """Report mail wiring without IMAP/SMTP live calls.
+
+    No live connection: avoids per-/health latency and keeps the GoDaddy/Gmail
+    credentials out of every dashboard hit. Matches the contract used by
+    primary_llm and embeddings ("configured" iff wiring is complete).
+    """
+    if not settings.mail_enabled:
+        return ComponentHealth(
+            name="mail",
+            status="disabled",
+            detail="MAIL_ENABLED=false",
+            metadata={
+                "godaddy_enabled": settings.mail_godaddy_enabled,
+                "approval_required": settings.mail_require_approval_for_send,
+            },
+        )
+    providers: list[str] = []
+    if settings.mail_godaddy_enabled:
+        password_set = settings.mail_godaddy_password.get_secret_value() not in {"", "CHANGEME"}
+        if settings.mail_godaddy_username and password_set:
+            providers.append("godaddy")
+    if not providers:
+        return ComponentHealth(
+            name="mail",
+            status="degraded",
+            detail="MAIL_ENABLED=true but no provider has credentials configured.",
+            metadata={
+                "godaddy_enabled": settings.mail_godaddy_enabled,
+                "approval_required": settings.mail_require_approval_for_send,
+            },
+        )
+    return ComponentHealth(
+        name="mail",
+        status="configured",
+        detail="Mail providers wired; IMAP/SMTP live calls skipped to avoid latency.",
+        metadata={
+            "providers": providers,
+            "approval_required": settings.mail_require_approval_for_send,
+            "gmail_label": settings.mail_gmail_label,
+        },
     )
 
 

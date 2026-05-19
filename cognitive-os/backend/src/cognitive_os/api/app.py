@@ -28,6 +28,8 @@ from cognitive_os.actions.calendar import (
     CalendarStatus,
     EventCreatePreview,
     EventCreateRequest,
+    FreeBusyRequest,
+    FreeBusyResult,
     ListEventsRequest,
 )
 from cognitive_os.actions.captcha import (
@@ -46,6 +48,8 @@ from cognitive_os.actions.drive import (
     DriveFile,
     DriveFolderPreview,
     DriveFolderRequest,
+    DriveOrganizePreview,
+    DriveOrganizeRequest,
     DriveSearchRequest,
     DriveService,
     DriveStatus,
@@ -352,6 +356,9 @@ class HealthResponse(BaseModel):
 class SystemInfoResponse(BaseModel):
     service: str
     environment: str
+    # Fase 68b: surface the active operator profile so the panel header can
+    # show "Strict" vs "PC dedicado" without exposing any secret.
+    operator_profile: str
     python_version: str
     fastapi_version: str
     pytest_marker_default: str
@@ -506,6 +513,13 @@ class KnowledgeStatsResponse(BaseModel):
 
 class PublicConfigResponse(BaseModel):
     environment: str
+    # Operator profile (Fase 68b): "strict" or "dedicated_local". The frontend
+    # uses it to surface a friction-vs-safety banner in the header without
+    # leaking any secrets — `/config/public` is the read-only mirror of which
+    # presets the operator chose.
+    operator_profile: str
+    auto_approve_reversible_actions: bool
+    code_director_budget_mode: str
     web_search_enabled: bool
     tools_readonly_mode: bool
     require_human_approval_for_external_actions: bool
@@ -770,6 +784,7 @@ async def system_info(
     return SystemInfoResponse(
         service="cognitive-os",
         environment=settings.environment,
+        operator_profile=settings.operator_profile,
         python_version=sys.version.split()[0],
         fastapi_version=fastapi.__version__,
         pytest_marker_default="not integration and not slow",
@@ -1903,6 +1918,9 @@ async def public_config(
     web_providers = configured_web_search_provider_names(settings)
     return PublicConfigResponse(
         environment=settings.environment,
+        operator_profile=settings.operator_profile,
+        auto_approve_reversible_actions=settings.auto_approve_reversible_actions,
+        code_director_budget_mode=settings.code_director_budget_mode,
         web_search_enabled=settings.web_search_enabled,
         tools_readonly_mode=settings.tools_readonly_mode,
         require_human_approval_for_external_actions=(
@@ -2119,10 +2137,9 @@ async def dispatch_action_request(
     user: AuthenticatedUser = _auth_dependency,
 ) -> ActionDispatchResponse:
     del user
+    action_service = ActionRequestService()
     try:
-        action_request = await ActionRequestService().queue_approved_action_request(
-            action_request_id
-        )
+        action_request = await action_service.queue_approved_action_request(action_request_id)
     except ActionRequestError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
@@ -2138,11 +2155,77 @@ async def dispatch_action_request(
             dispatched=False,
             reason=f"Action request status is {action_request.status}; nothing queued.",
         )
-    run_action_request_task_async.apply_async(
-        args=[str(action_request.id), str(action_request.job_id)],
-        queue="agent_longrun",
+    try:
+        reservation = await action_service.reserve_action_dispatch(action_request.id)
+    except ActionRequestError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    action_request = reservation.action_request
+    if not reservation.should_dispatch:
+        return ActionDispatchResponse(
+            action_request=action_request,
+            dispatched=False,
+            reason=reservation.reason,
+        )
+    if action_request.job_id is None:
+        return ActionDispatchResponse(
+            action_request=action_request,
+            dispatched=False,
+            reason="Action request has no job to dispatch.",
+        )
+    try:
+        run_action_request_task_async.apply_async(
+            args=[str(action_request.id), str(action_request.job_id)],
+            queue="agent_longrun",
+        )
+    except Exception as exc:  # noqa: BLE001 - broker errors must be operator-visible
+        await _record_action_dispatch_event(
+            action_service,
+            job_id=action_request.job_id,
+            action_request_id=action_request.id,
+            event_type="action_request_dispatch_failed",
+            status="queued",
+            message="Action request dispatch failed before Celery accepted it",
+            metadata_json={"error_type": type(exc).__name__},
+        )
+        return ActionDispatchResponse(
+            action_request=action_request,
+            dispatched=False,
+            reason=(
+                f"Celery dispatch failed ({type(exc).__name__}). "
+                "Action request remains queued; retry dispatch when the broker is healthy."
+            ),
+        )
+    await _record_action_dispatch_event(
+        action_service,
+        job_id=action_request.job_id,
+        action_request_id=action_request.id,
+        event_type="action_request_dispatch_submitted",
+        status="queued",
+        message="Action request submitted to Celery",
+        metadata_json={"queue": "agent_longrun"},
     )
     return ActionDispatchResponse(action_request=action_request, dispatched=True)
+
+
+async def _record_action_dispatch_event(
+    action_service: ActionRequestService,
+    *,
+    job_id: UUID,
+    action_request_id: UUID,
+    event_type: str,
+    status: str,
+    message: str,
+    metadata_json: dict[str, object] | None = None,
+) -> None:
+    with contextlib.suppress(Exception):
+        await action_service.record_action_dispatch_event(
+            job_id=job_id,
+            action_request_id=action_request_id,
+            event_type=event_type,
+            status=status,
+            message=message,
+            metadata_json=metadata_json,
+        )
 
 
 @app.get("/actions/requests/{action_request_id}/workflow", response_model=WorkflowDocument)
@@ -2273,6 +2356,7 @@ async def maps_route(
                 travel_mode=request.travel_mode,
                 traffic_aware=request.traffic_aware,
                 departure_time=request.departure_time,
+                compute_alternatives=request.compute_alternatives,
             )
         )
     except MapsError as exc:
@@ -2347,6 +2431,21 @@ async def calendar_events(
     del user
     try:
         return await asyncio.to_thread(CalendarService().list_events, request)
+    except CalendarError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+
+
+@app.post("/actions/calendar/freebusy", response_model=FreeBusyResult)
+async def calendar_freebusy(
+    request: FreeBusyRequest,
+    user: AuthenticatedUser = _auth_dependency,
+) -> FreeBusyResult:
+    del user
+    try:
+        return await asyncio.to_thread(CalendarService().freebusy, request)
     except CalendarError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -2485,6 +2584,60 @@ async def drive_ensure_folder(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
+
+
+@app.post("/actions/drive/organize/preview", response_model=DriveOrganizePreview)
+async def drive_organize_preview(
+    request: DriveOrganizeRequest,
+    user: AuthenticatedUser = _auth_dependency,
+) -> DriveOrganizePreview:
+    if not request.dry_run:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Direct Drive organization writes are disabled; create an ActionRequest via "
+                "/actions/drive/organize/request."
+            ),
+        )
+    try:
+        return await asyncio.to_thread(
+            lambda: DriveService().organize_files(request, requested_by=user.user_id)
+        )
+    except DriveError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+
+
+@app.post(
+    "/actions/drive/organize/request",
+    response_model=ActionRequestView,
+    dependencies=[_RL_ACTION_REQUEST_CREATE],
+)
+async def drive_organize_request(
+    request: DriveOrganizeRequest,
+    user: AuthenticatedUser = _auth_dependency,
+) -> ActionRequestView:
+    return await ActionRequestService().create_drive_organize_request(
+        request,
+        requested_by=user.user_id,
+    )
+
+
+@app.post(
+    "/actions/drive/folders/ensure/request",
+    response_model=ActionRequestView,
+    dependencies=[_RL_ACTION_REQUEST_CREATE],
+)
+async def drive_ensure_folder_request(
+    request: DriveFolderRequest,
+    user: AuthenticatedUser = _auth_dependency,
+) -> ActionRequestView:
+    return await ActionRequestService().create_drive_folder_request(
+        request,
+        requested_by=user.user_id,
+    )
 
 
 @app.post(

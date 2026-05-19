@@ -25,6 +25,8 @@ def test_loads_env_example() -> None:
     assert loaded_settings.cors_allow_origins == [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
     ]
     assert loaded_settings.browser_automation_provider == "playwright"
     assert loaded_settings.browser_headless_default is True
@@ -57,7 +59,12 @@ def test_rejects_changeme_in_production() -> None:
 
 
 def test_parse_cors_origins() -> None:
-    assert parse_cors_origins("") == ["http://localhost:3000", "http://127.0.0.1:3000"]
+    assert parse_cors_origins("") == [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+    ]
     assert parse_cors_origins("https://app.example.test") == ["https://app.example.test"]
     assert parse_cors_origins(" https://a.test , https://b.test ") == [
         "https://a.test",
@@ -71,17 +78,25 @@ def test_rejects_cors_wildcard() -> None:
 
 
 def test_external_capabilities_require_credentials_when_enabled() -> None:
+    # _env_file=None keeps this a hermetic unit test of the validator: it must
+    # not read the operator's real ../.env (which may legitimately carry these
+    # credentials), only the in-call kwargs.
     with pytest.raises(ValidationError, match="Gmail integration requires"):
-        Settings(gmail_read_enabled=True)
+        Settings(_env_file=None, gmail_read_enabled=True)
     with pytest.raises(ValidationError, match="Microsoft mail integration requires"):
-        Settings(microsoft_mail_enabled=True)
+        Settings(_env_file=None, microsoft_mail_enabled=True)
     with pytest.raises(ValidationError, match="GoDaddy integration requires"):
-        Settings(godaddy_enabled=True)
+        Settings(_env_file=None, godaddy_enabled=True)
 
 
 def test_production_google_writes_require_human_approval() -> None:
     production_secrets = {
         "environment": "production",
+        # Hermetic: ignore the operator's real ../.env so the production
+        # validators are exercised only against these explicit kwargs (the
+        # ambient .env legitimately carries enabled capabilities/keys that
+        # would otherwise inject unrelated validation errors).
+        "_env_file": None,
         "jwt_secret": "x" * 32,
         "primary_llm_api_key": "primary-key",  # pragma: allowlist secret
         "secondary_llm_api_key": "secondary-key",  # pragma: allowlist secret
@@ -117,6 +132,11 @@ def test_production_google_writes_require_human_approval() -> None:
 def test_production_kimi_webbridge_mutations_require_approval() -> None:
     production_secrets = {
         "environment": "production",
+        # Hermetic: ignore the operator's real ../.env so the production
+        # validators are exercised only against these explicit kwargs (the
+        # ambient .env legitimately carries enabled capabilities/keys that
+        # would otherwise inject unrelated validation errors).
+        "_env_file": None,
         "jwt_secret": "x" * 32,
         "primary_llm_api_key": "primary-key",  # pragma: allowlist secret
         "secondary_llm_api_key": "secondary-key",  # pragma: allowlist secret
@@ -146,13 +166,21 @@ def test_production_kimi_webbridge_mutations_require_approval() -> None:
 
 
 def test_action_payload_encryption_required_needs_key() -> None:
+    # _env_file=None: hermetic. The operator's real ../.env now carries a valid
+    # ACTION_PAYLOAD_ENCRYPTION_KEY; this test asserts the validator logic in
+    # isolation (required=true + no key must raise).
     with pytest.raises(ValidationError, match="ACTION_PAYLOAD_ENCRYPTION_KEY"):
-        Settings(action_payload_encryption_required=True)
+        Settings(_env_file=None, action_payload_encryption_required=True)
 
 
 def test_production_requires_action_payload_encryption() -> None:
     production_secrets = {
         "environment": "production",
+        # Hermetic: ignore the operator's real ../.env so the production
+        # validators are exercised only against these explicit kwargs (the
+        # ambient .env legitimately carries enabled capabilities/keys that
+        # would otherwise inject unrelated validation errors).
+        "_env_file": None,
         "jwt_secret": "x" * 32,
         "primary_llm_api_key": "primary-key",  # pragma: allowlist secret
         "secondary_llm_api_key": "secondary-key",  # pragma: allowlist secret
@@ -177,6 +205,11 @@ def test_production_requires_action_payload_encryption() -> None:
 def test_production_requires_postgres_research_persistence() -> None:
     production_secrets = {
         "environment": "production",
+        # Hermetic: ignore the operator's real ../.env so the production
+        # validators are exercised only against these explicit kwargs (the
+        # ambient .env legitimately carries enabled capabilities/keys that
+        # would otherwise inject unrelated validation errors).
+        "_env_file": None,
         "jwt_secret": "x" * 32,
         "primary_llm_api_key": "primary-key",  # pragma: allowlist secret
         "secondary_llm_api_key": "secondary-key",  # pragma: allowlist secret

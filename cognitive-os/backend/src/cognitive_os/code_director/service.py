@@ -233,14 +233,39 @@ class CodeDirectorService:
         out_dir.mkdir(parents=True, exist_ok=True)
         stamp = time.strftime("%Y%m%d-%H%M%S")
         archive = out_dir / f"{build_id}-{stamp}.tar.gz"
+
+        files_list: list[Path] = []
+        total_bytes = 0
+        max_files = self._settings.code_director_package_max_files
+        max_bytes = self._settings.code_director_package_max_bytes
+        if workspace.exists():
+            for entry in workspace.rglob("*"):
+                if not entry.is_file():
+                    continue
+                files_list.append(entry)
+                if len(files_list) > max_files:
+                    msg = (
+                        f"Workspace has more than {max_files} files — refusing to "
+                        "package. Raise `CODE_DIRECTOR_PACKAGE_MAX_FILES` or trim "
+                        "the workspace."
+                    )
+                    raise DirectorError(msg)
+                try:
+                    total_bytes += entry.stat().st_size
+                except OSError:
+                    continue
+                if total_bytes > max_bytes:
+                    msg = (
+                        f"Workspace exceeds {max_bytes} bytes uncompressed — "
+                        "refusing to package. Raise `CODE_DIRECTOR_PACKAGE_MAX_BYTES` "
+                        "or trim the workspace."
+                    )
+                    raise DirectorError(msg)
         manifest = {
             "build_id": build_id,
             "workspace": str(workspace),
-            "files": sorted(
-                str(p.relative_to(workspace)) for p in workspace.rglob("*") if p.is_file()
-            )
-            if workspace.exists()
-            else [],
+            "files": sorted(str(p.relative_to(workspace)) for p in files_list),
+            "package_bytes_uncompressed": total_bytes,
         }
         (workspace / "_codedirector_manifest.json").write_text(
             json.dumps(manifest, indent=2), encoding="utf-8"

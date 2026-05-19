@@ -8,15 +8,26 @@ from typing import Any, cast
 from uuid import UUID, uuid4
 
 from langchain_core.tools import StructuredTool
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from cognitive_os.actions.calendar import CalendarError, CalendarService, ListEventsRequest
+from cognitive_os.actions.calendar import (
+    CalendarError,
+    CalendarService,
+    FreeBusyRequest,
+    ListEventsRequest,
+)
 from cognitive_os.actions.captcha import (
     CaptchaKind,
     CaptchaSolverError,
     CaptchaSolverService,
 )
-from cognitive_os.actions.drive import DriveError, DriveSearchRequest, DriveService
+from cognitive_os.actions.drive import (
+    DriveError,
+    DriveOrganizeRequest,
+    DriveSearchRequest,
+    DriveService,
+)
 from cognitive_os.actions.kimi_webbridge import (
     KimiWebBridgeError,
     KimiWebBridgeService,
@@ -54,6 +65,147 @@ MAX_WORKSPACE_FILE_BYTES = 2 * 1024 * 1024
 LocalRetriever = Callable[[str], list[RetrievedContext]]
 
 
+# --- Explicit tool argument schemas ------------------------------------------
+#
+# Every DeepAgent tool below is wired with an explicit `args_schema`. Without
+# it, `StructuredTool.from_function(func=lambda ...)` cannot introspect the
+# lambda's parameter types and emits empty `{}` property schemas. Lenient
+# providers (DeepSeek) tolerate that, but strict OpenAI-compatible gateways
+# reject it with HTTP 400 "Invalid schema for function '<name>'". These models
+# mirror the underlying typed functions 1:1, add per-parameter descriptions for
+# better tool-use quality, and Pydantic-validate the input before the call is
+# ever issued. Field names MUST match each lambda's parameter names.
+
+
+class SearchLocalDocsArgs(BaseModel):
+    query: str = Field(description="Texto a buscar en los documentos locales ingeridos.")
+    limit: int = Field(default=8, ge=1, le=20, description="Máximo de pasajes a devolver.")
+
+
+class ReadDocumentPagesArgs(BaseModel):
+    doc_id: str = Field(description="UUID del documento ya ingerido en Postgres.")
+    page_start: int = Field(ge=1, description="Primera página (1-based, inclusive).")
+    page_end: int = Field(ge=1, description="Última página (1-based, inclusive).")
+
+
+class GraphQueryReadonlyArgs(BaseModel):
+    question: str = Field(
+        description="Pregunta en lenguaje natural para la consulta predefinida al grafo."
+    )
+
+
+class SearchWebArgs(BaseModel):
+    query: str = Field(description="Consulta de búsqueda web (solo si la política la permite).")
+
+
+class WriteWorkspaceFileArgs(BaseModel):
+    relative_path: str = Field(
+        description="Ruta relativa dentro del workspace temporal controlado (sin '..')."
+    )
+    content: str = Field(description="Contenido de texto a escribir en el archivo.")
+
+
+class ListAvailableSkillsArgs(BaseModel):
+    """No recibe argumentos: lista las skills habilitadas bajo política."""
+
+
+class ReadSkillArgs(BaseModel):
+    skill_name: str = Field(description="Nombre exacto de una skill habilitada (sin rutas).")
+
+
+class GetRelevantMemoryArgs(BaseModel):
+    scope: str = Field(description="Ámbito de memoria: 'user', 'thread', 'case' o 'global'.")
+    query: str = Field(description="Consulta para recuperar memoria persistente relevante.")
+
+
+class ProposeMemoryUpdateArgs(BaseModel):
+    kind: str = Field(description="Tipo de memoria: p.ej. 'semantic', 'episodic', 'preference'.")
+    content: str = Field(description="Contenido propuesto para la memoria.")
+    reason: str = Field(description="Por qué esta memoria es relevante/duradera.")
+    scope: str = Field(description="Ámbito propuesto: 'user', 'thread', 'case' o 'global'.")
+
+
+class PlanRouteArgs(BaseModel):
+    origin: str = Field(description="Dirección o lugar de origen.")
+    destination: str = Field(description="Dirección o lugar de destino.")
+    travel_mode: str = Field(
+        default="driving",
+        description="Modo de viaje: driving | walking | bicycling | transit.",
+    )
+    compute_alternatives: bool = Field(
+        default=False, description="Si true, pide rutas alternativas."
+    )
+
+
+class GeocodeAddressArgs(BaseModel):
+    address: str = Field(description="Dirección textual a convertir en lat/lng.")
+
+
+class ListCalendarEventsArgs(BaseModel):
+    days_ahead: int = Field(default=7, ge=1, le=60, description="Ventana en días hacia adelante.")
+    max_results: int = Field(default=10, ge=1, le=50, description="Máximo de eventos a devolver.")
+
+
+class CheckCalendarFreebusyArgs(BaseModel):
+    days_ahead: int = Field(default=7, ge=1, le=60, description="Ventana en días hacia adelante.")
+    calendar_ids: str = Field(
+        default="primary", description="IDs de calendario separados por comas."
+    )
+
+
+class SearchDriveFilesArgs(BaseModel):
+    query: str = Field(default="", description="Texto a buscar por nombre o contenido indexado.")
+    max_results: int = Field(default=10, ge=1, le=50, description="Máximo de archivos.")
+    search_mode: str = Field(default="all", description="Modo de búsqueda: name | full_text | all.")
+
+
+class PreviewDriveOrganizationArgs(BaseModel):
+    query: str = Field(default="", description="Filtro de archivos a previsualizar para mover.")
+    target_folder_name: str | None = Field(
+        default=None, description="Carpeta destino (None usa la de entregables por defecto)."
+    )
+    max_files: int = Field(default=20, ge=1, le=50, description="Máximo de archivos a listar.")
+    search_mode: str = Field(default="all", description="Modo de búsqueda: name | full_text | all.")
+
+
+class SearchNotesArgs(BaseModel):
+    query: str = Field(description="Consulta semántica sobre las notas personales del usuario.")
+    limit: int = Field(default=10, ge=1, le=50, description="Máximo de notas a devolver.")
+
+
+class BrowseRealNavigateArgs(BaseModel):
+    url: str = Field(description="URL a abrir (solo dominios en la allow-list de WebBridge).")
+    session: str | None = Field(
+        default=None, description="Nombre de sesión/tab opcional para aislar la navegación."
+    )
+
+
+class BrowseRealSnapshotArgs(BaseModel):
+    session: str | None = Field(
+        default=None, description="Sesión/tab opcional a inspeccionar (default: activa)."
+    )
+
+
+class BrowseRealScreenshotArgs(BaseModel):
+    session: str | None = Field(
+        default=None, description="Sesión/tab opcional a capturar (default: activa)."
+    )
+    fmt: str = Field(default="png", description="Formato de imagen: png | jpeg.")
+
+
+class SolveImageCaptchaArgs(BaseModel):
+    image_base64: str = Field(
+        description="Imagen del captcha (PNG/JPEG) codificada en base64, sin prefijo data:."
+    )
+
+
+class SolveTokenCaptchaArgs(BaseModel):
+    kind: str = Field(description="Tipo: recaptcha_v2 | recaptcha_v3 | hcaptcha | turnstile.")
+    website_url: str = Field(description="URL de la página que muestra el captcha.")
+    website_key: str = Field(description="Sitekey público del captcha en esa página.")
+    page_action: str | None = Field(default=None, description="Acción de reCAPTCHA v3 (opcional).")
+
+
 def build_deepagent_tools(
     *,
     policy: DeepAgentToolPolicy,
@@ -76,10 +228,11 @@ def build_deepagent_tools(
     `allowed_doc_ids` to enable reads.
 
     Personal-assistant tools (`search_notes`, `list_calendar_events`,
-    `search_drive_files`, `plan_route`, `geocode_address`) are read-only and
-    delegate capability gating to the underlying services; they return a
-    controlled error dict when a service is `disabled`/`blocked` instead of
-    raising. `user_id` scopes note search to a single owner.
+    `check_calendar_freebusy`, `search_drive_files`, `preview_drive_organization`,
+    `plan_route`, `geocode_address`) are read-only and delegate capability
+    gating to the underlying services; they return a controlled error dict when
+    a service is `disabled`/`blocked` instead of raising. `user_id` scopes note
+    search to a single owner.
     """
     permitted_doc_ids = frozenset(allowed_doc_ids or ())
     resolved_maps = maps_service or MapsService()
@@ -96,6 +249,7 @@ def build_deepagent_tools(
                 policy=policy,
                 local_retriever=local_retriever,
             ),
+            args_schema=SearchLocalDocsArgs,
             name="search_local_docs",
             description=(
                 "Busca en documentos locales ingeridos (excluye snippets re-indexados desde "
@@ -110,16 +264,19 @@ def build_deepagent_tools(
                 policy=policy,
                 allowed_doc_ids=permitted_doc_ids,
             ),
+            args_schema=ReadDocumentPagesArgs,
             name="read_document_pages",
             description="Lee paginas ya ingeridas desde Postgres por doc_id y rango.",
         ),
         StructuredTool.from_function(
             func=lambda question: graph_query_readonly(question, policy=policy),
+            args_schema=GraphQueryReadonlyArgs,
             name="graph_query_readonly",
             description="Consulta segura y predefinida contra el grafo; no acepta Cypher libre.",
         ),
         StructuredTool.from_function(
             func=lambda query: search_web(query, policy=policy),
+            args_schema=SearchWebArgs,
             name="search_web",
             description="Busqueda web solo si esta habilitada por configuracion y politica.",
         ),
@@ -130,21 +287,25 @@ def build_deepagent_tools(
                 policy=policy,
                 workspace=workspace,
             ),
+            args_schema=WriteWorkspaceFileArgs,
             name="write_workspace_file",
             description="Escribe archivos solo dentro del workspace temporal controlado.",
         ),
         StructuredTool.from_function(
             func=lambda: list_available_skills(),
+            args_schema=ListAvailableSkillsArgs,
             name="list_available_skills",
             description="Lista skills habilitadas para DeepAgents bajo politica Cognitive OS.",
         ),
         StructuredTool.from_function(
             func=lambda skill_name: read_skill(skill_name),
+            args_schema=ReadSkillArgs,
             name="read_skill",
             description="Lee una skill habilitada por nombre sin aceptar rutas arbitrarias.",
         ),
         StructuredTool.from_function(
             func=lambda scope, query: get_relevant_memory(scope, query),
+            args_schema=GetRelevantMemoryArgs,
             name="get_relevant_memory",
             description="Devuelve memoria persistente relevante, filtrada y redactada.",
         ),
@@ -155,21 +316,27 @@ def build_deepagent_tools(
                 reason,
                 scope,
             ),
+            args_schema=ProposeMemoryUpdateArgs,
             name="propose_memory_update",
             description="Propone memoria nueva; nunca aplica cambios directos.",
         ),
         StructuredTool.from_function(
-            func=lambda origin, destination, travel_mode="driving": plan_route(
-                origin,
-                destination,
-                travel_mode=travel_mode,
-                policy=policy,
-                maps_service=resolved_maps,
+            func=lambda origin, destination, travel_mode="driving", compute_alternatives=False: (
+                plan_route(
+                    origin,
+                    destination,
+                    travel_mode=travel_mode,
+                    compute_alternatives=compute_alternatives,
+                    policy=policy,
+                    maps_service=resolved_maps,
+                )
             ),
+            args_schema=PlanRouteArgs,
             name="plan_route",
             description=(
                 "Planifica una ruta entre dos direcciones via Google Maps Routes API "
-                "(modo: driving|walking|bicycling|transit). Read-only."
+                "(modo: driving|walking|bicycling|transit), con trafico, ETA y consejo. "
+                "Read-only."
             ),
         ),
         StructuredTool.from_function(
@@ -178,6 +345,7 @@ def build_deepagent_tools(
                 policy=policy,
                 maps_service=resolved_maps,
             ),
+            args_schema=GeocodeAddressArgs,
             name="geocode_address",
             description="Convierte una direccion textual en lat/lng via Geocoding API. Read-only.",
         ),
@@ -188,6 +356,7 @@ def build_deepagent_tools(
                 policy=policy,
                 calendar_service=resolved_calendar,
             ),
+            args_schema=ListCalendarEventsArgs,
             name="list_calendar_events",
             description=(
                 "Lista los próximos eventos del calendario primario (Google Calendar). "
@@ -195,16 +364,50 @@ def build_deepagent_tools(
             ),
         ),
         StructuredTool.from_function(
-            func=lambda query="", max_results=10: search_drive_files(
+            func=lambda days_ahead=7, calendar_ids="primary": check_calendar_freebusy(
+                days_ahead=days_ahead,
+                calendar_ids=calendar_ids,
+                policy=policy,
+                calendar_service=resolved_calendar,
+            ),
+            args_schema=CheckCalendarFreebusyArgs,
+            name="check_calendar_freebusy",
+            description=(
+                "Consulta disponibilidad libre/ocupada en Google Calendar para uno o mas "
+                "calendarios (calendar_ids separado por comas). Read-only."
+            ),
+        ),
+        StructuredTool.from_function(
+            func=lambda query="", max_results=10, search_mode="all": search_drive_files(
                 query=query,
                 max_results=max_results,
+                search_mode=search_mode,
                 policy=policy,
                 drive_service=resolved_drive,
             ),
+            args_schema=SearchDriveFilesArgs,
             name="search_drive_files",
             description=(
-                "Busca archivos en Google Drive del usuario por nombre. Read-only, ordenado "
-                "por modificado más reciente."
+                "Busca archivos en Google Drive del usuario por nombre o contenido indexado "
+                "(search_mode: name|full_text|all). Read-only, ordenado por modificado reciente."
+            ),
+        ),
+        StructuredTool.from_function(
+            func=lambda query="", target_folder_name=None, max_files=20, search_mode="all": (
+                preview_drive_organization(
+                    query=query,
+                    target_folder_name=target_folder_name,
+                    max_files=max_files,
+                    search_mode=search_mode,
+                    policy=policy,
+                    drive_service=resolved_drive,
+                )
+            ),
+            args_schema=PreviewDriveOrganizationArgs,
+            name="preview_drive_organization",
+            description=(
+                "Previsualiza que archivos de Drive se moverian a una carpeta objetivo. "
+                "No escribe; las ejecuciones reales requieren ActionRequest aprobado."
             ),
         ),
         StructuredTool.from_function(
@@ -215,6 +418,7 @@ def build_deepagent_tools(
                 policy=policy,
                 note_index=resolved_notes,
             ),
+            args_schema=SearchNotesArgs,
             name="search_notes",
             description=(
                 "Busca notas personales del usuario (PersonalNote) por similitud semántica. "
@@ -229,6 +433,7 @@ def build_deepagent_tools(
                 webbridge_service=resolved_webbridge,
                 user_id=user_id,
             ),
+            args_schema=BrowseRealNavigateArgs,
             name="browse_real_navigate",
             description=(
                 "Abre una URL en el navegador real del usuario via Kimi WebBridge. "
@@ -242,6 +447,7 @@ def build_deepagent_tools(
                 webbridge_service=resolved_webbridge,
                 user_id=user_id,
             ),
+            args_schema=BrowseRealSnapshotArgs,
             name="browse_real_snapshot",
             description=(
                 "Lee el árbol de accesibilidad de la pestaña activa (texto). "
@@ -256,6 +462,7 @@ def build_deepagent_tools(
                 webbridge_service=resolved_webbridge,
                 user_id=user_id,
             ),
+            args_schema=BrowseRealScreenshotArgs,
             name="browse_real_screenshot",
             description=(
                 "Captura screenshot de la pestaña activa via Kimi WebBridge. "
@@ -269,6 +476,7 @@ def build_deepagent_tools(
                 captcha_service=resolved_captcha,
                 user_id=user_id,
             ),
+            args_schema=SolveImageCaptchaArgs,
             name="solve_image_captcha",
             description=(
                 "Resuelve un captcha de imagen (texto distorsionado) con CapSolver. "
@@ -286,6 +494,7 @@ def build_deepagent_tools(
                 captcha_service=resolved_captcha,
                 user_id=user_id,
             ),
+            args_schema=SolveTokenCaptchaArgs,
             name="solve_token_captcha",
             description=(
                 "Resuelve reCAPTCHA v2/v3, hCaptcha o Cloudflare Turnstile con "
@@ -716,6 +925,7 @@ def plan_route(
     destination: str,
     *,
     travel_mode: str = "driving",
+    compute_alternatives: bool = False,
     policy: DeepAgentToolPolicy,
     maps_service: MapsService,
 ) -> dict[str, Any]:
@@ -723,6 +933,7 @@ def plan_route(
         "origin_len": len(origin or ""),
         "destination_len": len(destination or ""),
         "travel_mode": travel_mode,
+        "compute_alternatives": compute_alternatives,
     }
     try:
         validate_tool_allowed("plan_route", policy)
@@ -734,9 +945,10 @@ def plan_route(
             origin=origin,
             destination=destination,
             travel_mode=mode,
+            compute_alternatives=compute_alternatives,
         )
         _audit("plan_route", args_redacted)
-        return plan.model_dump()
+        return plan.model_dump(mode="json")
     except MapsError as exc:
         return _controlled_error("plan_route", args_redacted, exc)
     except Exception as exc:
@@ -793,22 +1005,63 @@ def list_calendar_events(
         return _controlled_error("list_calendar_events", args_redacted, exc)
 
 
+def check_calendar_freebusy(
+    *,
+    days_ahead: int = 7,
+    calendar_ids: str = "primary",
+    policy: DeepAgentToolPolicy,
+    calendar_service: CalendarService,
+) -> dict[str, Any]:
+    args_redacted: dict[str, Any] = {
+        "days_ahead": days_ahead,
+        "calendar_count": len(_split_calendar_ids(calendar_ids)),
+    }
+    try:
+        validate_tool_allowed("check_calendar_freebusy", policy)
+        from datetime import UTC, datetime, timedelta
+
+        bounded_days = _bounded_int(days_ahead, name="days_ahead", minimum=1, maximum=60)
+        now = datetime.now(tz=UTC)
+        result = calendar_service.freebusy(
+            FreeBusyRequest(
+                time_min=now,
+                time_max=now + timedelta(days=bounded_days),
+                calendars=_split_calendar_ids(calendar_ids),
+            )
+        )
+        _audit("check_calendar_freebusy", args_redacted)
+        return result.model_dump(mode="json")
+    except CalendarError as exc:
+        return _controlled_error("check_calendar_freebusy", args_redacted, exc)
+    except Exception as exc:
+        return _controlled_error("check_calendar_freebusy", args_redacted, exc)
+
+
 def search_drive_files(
     *,
     query: str = "",
     max_results: int = 10,
+    search_mode: str = "all",
     policy: DeepAgentToolPolicy,
     drive_service: DriveService,
 ) -> dict[str, Any]:
     args_redacted: dict[str, Any] = {
         "query_len": len(query or ""),
         "max_results": max_results,
+        "search_mode": search_mode,
     }
     try:
         validate_tool_allowed("search_drive_files", policy)
+        if search_mode not in {"name", "full_text", "all"}:
+            msg = f"Unsupported search_mode: {search_mode}"
+            raise ValueError(msg)
         bounded_max = _bounded_int(max_results, name="max_results", minimum=1, maximum=50)
         files = drive_service.list_files(
-            DriveSearchRequest(query=query, max_results=bounded_max),
+            DriveSearchRequest(
+                query=query,
+                max_results=bounded_max,
+                search_mode=cast("Any", search_mode),
+            ),
         )
         _audit("search_drive_files", args_redacted)
         return {"files": [file.model_dump() for file in files]}
@@ -816,6 +1069,49 @@ def search_drive_files(
         return _controlled_error("search_drive_files", args_redacted, exc)
     except Exception as exc:
         return _controlled_error("search_drive_files", args_redacted, exc)
+
+
+def preview_drive_organization(
+    *,
+    query: str = "",
+    target_folder_name: str | None = None,
+    max_files: int = 20,
+    search_mode: str = "all",
+    policy: DeepAgentToolPolicy,
+    drive_service: DriveService,
+) -> dict[str, Any]:
+    args_redacted: dict[str, Any] = {
+        "query_len": len(query or ""),
+        "target_folder_name_len": len(target_folder_name or ""),
+        "max_files": max_files,
+        "search_mode": search_mode,
+    }
+    try:
+        validate_tool_allowed("preview_drive_organization", policy)
+        if search_mode not in {"name", "full_text", "all"}:
+            msg = f"Unsupported search_mode: {search_mode}"
+            raise ValueError(msg)
+        bounded_max = _bounded_int(max_files, name="max_files", minimum=1, maximum=50)
+        preview = drive_service.organize_files(
+            DriveOrganizeRequest(
+                query=query,
+                target_folder_name=target_folder_name,
+                max_files=bounded_max,
+                search_mode=cast("Any", search_mode),
+                dry_run=True,
+            )
+        )
+        _audit("preview_drive_organization", args_redacted)
+        return preview.model_dump(mode="json")
+    except DriveError as exc:
+        return _controlled_error("preview_drive_organization", args_redacted, exc)
+    except Exception as exc:
+        return _controlled_error("preview_drive_organization", args_redacted, exc)
+
+
+def _split_calendar_ids(raw: str) -> list[str]:
+    cleaned = [item.strip() for item in (raw or "primary").split(",") if item.strip()]
+    return cleaned[:20] or ["primary"]
 
 
 def search_notes(

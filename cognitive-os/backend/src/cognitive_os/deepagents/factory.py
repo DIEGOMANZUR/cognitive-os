@@ -6,7 +6,7 @@ from typing import Any, cast
 from deepagents import FilesystemPermission, create_deep_agent
 from deepagents.backends.filesystem import FilesystemBackend
 
-from cognitive_os.agents.llm_factory import create_primary_chat_model
+from cognitive_os.agents.llm_factory import create_agent_chat_model
 from cognitive_os.core.config import settings
 from cognitive_os.deepagents.schemas import (
     DeepAgentResult,
@@ -56,7 +56,7 @@ def create_controlled_deep_agent(
         FilesystemPermission(operations=["read", "write"], paths=["/**"], mode="allow"),
     ]
     create_kwargs: dict[str, Any] = {
-        "model": create_primary_chat_model(),
+        "model": create_agent_chat_model(),
         "tools": agent_tools,
         "system_prompt": _system_prompt(
             task,

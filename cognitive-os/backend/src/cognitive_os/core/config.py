@@ -38,8 +38,18 @@ def parse_int_csv(value: object) -> list[int]:
 
 
 def parse_cors_origins(value: object) -> list[str]:
-    """Parse comma-separated browser origins; empty uses local Next.js dev defaults."""
-    default = ("http://localhost:3000", "http://127.0.0.1:3000")
+    """Parse comma-separated browser origins; empty uses local Next.js dev defaults.
+
+    Default covers both :3000 (legacy) and :3001 (current default since the
+    operator's OpenChamber occupies :3000) so a clean checkout works without
+    editing .env. Operator overrides via CORS_ALLOW_ORIGINS still win.
+    """
+    default = (
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+    )
     if value is None or value == "":
         return list(default)
     if isinstance(value, str):
@@ -95,6 +105,27 @@ class Settings(BaseSettings):
         default="development",
         alias="ENVIRONMENT",
     )
+    # Operator profile (Fase 68b, GPT-5.5 + operator request).
+    #
+    # `strict` (default): the historical posture — approvals/four-eyes,
+    # narrow allow-lists, short TTLs, sanitised env for adapters. Right
+    # for shared machines or remote ops.
+    #
+    # `dedicated_local`: this PC is dedicated to the agent and the
+    # operator's real browser profile (Edge with logged sessions) is on
+    # it. The profile relaxes friction wherever it doesn't cause
+    # irreversible damage: four-eyes off, longer approval TTL, computer
+    # roots covering the home directory, adapter env not sanitised by
+    # default. Browser/WebBridge wildcards and mail autosend are NOT
+    # silent defaults — the operator still needs to set them
+    # (`KIMI_WEBBRIDGE_ALLOWED_DOMAINS=*`, `MAIL_REQUIRE_APPROVAL_FOR_SEND=false`)
+    # so the choice is visible in `/health/dashboard`, but the profile
+    # documents and recommends them for a dedicated PC. See
+    # `_apply_operator_profile_defaults()`.
+    operator_profile: Literal["strict", "dedicated_local"] = Field(
+        default="strict",
+        alias="OPERATOR_PROFILE",
+    )
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     app_host: str = Field(default="127.0.0.1", alias="APP_HOST")
     app_port: int = Field(default=8000, alias="APP_PORT")
@@ -133,28 +164,45 @@ class Settings(BaseSettings):
         default=True,
         alias="PRIMARY_LLM_THINKING_ENABLED",
     )
+    # DeepAgents/structured-output need a model that supports a *forced*
+    # tool_choice. DeepSeek's reasoner (what `deepseek-v4-pro` maps to) returns
+    # HTTP 400 "deepseek-reasoner does not support this tool_choice", which
+    # silently degraded every DeepAgent run to the RAG fallback. The agent lane
+    # therefore uses a tool-capable model (DeepSeek `deepseek-chat` by default)
+    # while plain chat keeps the reasoner. Reuses the primary provider/base/key
+    # unless explicitly overridden.
+    agent_llm_model: str = Field(default="deepseek-chat", alias="AGENT_LLM_MODEL")
+    agent_llm_base_url: str = Field(default="", alias="AGENT_LLM_BASE_URL")
+    agent_llm_api_key: SecretStr = Field(
+        default=SecretStr(""),
+        alias="AGENT_LLM_API_KEY",
+    )
 
     secondary_llm_provider: str = Field(default="openai_compatible", alias="SECONDARY_LLM_PROVIDER")
     secondary_llm_base_url: str = Field(
-        default="https://api.kimi.com/coding/v1",
+        # Fase 68b: NO usar api.kimi.com/coding/v1 como default — ese endpoint
+        # da HTTP 403 a clientes HTTP (Kimi-for-Coding solo coding agents).
+        # La cadena verificada usa el gateway openai-compatible del operador.
+        default="https://your-openai-compatible-gateway/v1",
         alias="SECONDARY_LLM_BASE_URL",
     )
     secondary_llm_api_key: SecretStr = Field(
         default=SecretStr("CHANGEME"),
         alias="SECONDARY_LLM_API_KEY",
     )
-    secondary_llm_model: str = Field(default="K2.6-code-preview", alias="SECONDARY_LLM_MODEL")
+    secondary_llm_model: str = Field(default="gemini-3.1-pro-low", alias="SECONDARY_LLM_MODEL")
 
     fallback_llm_provider: str = Field(default="openai_compatible", alias="FALLBACK_LLM_PROVIDER")
     fallback_llm_base_url: str = Field(
-        default="https://api.kimi.com/coding/v1",
+        # Idem: nunca default a Kimi HTTP (403). Cadena verificada = gateway.
+        default="https://your-openai-compatible-gateway/v1",
         alias="FALLBACK_LLM_BASE_URL",
     )
     fallback_llm_api_key: SecretStr = Field(
         default=SecretStr("CHANGEME"),
         alias="FALLBACK_LLM_API_KEY",
     )
-    fallback_llm_model: str = Field(default="K2.6-code-preview", alias="FALLBACK_LLM_MODEL")
+    fallback_llm_model: str = Field(default="gemini-3.1-pro-low", alias="FALLBACK_LLM_MODEL")
 
     vision_llm_provider: str = Field(default="openai_compatible", alias="VISION_LLM_PROVIDER")
     vision_llm_base_url: str = Field(
@@ -164,15 +212,17 @@ class Settings(BaseSettings):
     vision_llm_api_key: SecretStr = Field(default=SecretStr("CHANGEME"), alias="VISION_LLM_API_KEY")
     vision_llm_model: str = Field(default="glm-4.6v", alias="VISION_LLM_MODEL")
 
-    # Secondary vision model (Kimi 2.6). When the primary vision provider errors
-    # (quota, outage, model retired), `create_vision_chat_model(fallback=True)`
-    # builds this one instead.
+    # Secondary vision model. When the primary vision provider errors (quota,
+    # outage, model retired), `create_vision_chat_model(fallback=True)` builds
+    # this one. Fase 68b: default a GLM-4.6v (verificado HTTP 200), NO a Kimi
+    # HTTP (403). Kimi-for-Coding solo funciona vía el adapter CLI del Code
+    # Director, nunca como endpoint ChatOpenAI.
     vision_fallback_llm_provider: str = Field(
         default="openai_compatible",
         alias="VISION_FALLBACK_LLM_PROVIDER",
     )
     vision_fallback_llm_base_url: str = Field(
-        default="https://api.kimi.com/coding/v1",
+        default="https://api.z.ai/api/coding/paas/v4",
         alias="VISION_FALLBACK_LLM_BASE_URL",
     )
     vision_fallback_llm_api_key: SecretStr = Field(
@@ -180,7 +230,7 @@ class Settings(BaseSettings):
         alias="VISION_FALLBACK_LLM_API_KEY",
     )
     vision_fallback_llm_model: str = Field(
-        default="K2.6-code-preview",
+        default="glm-4.6v",
         alias="VISION_FALLBACK_LLM_MODEL",
     )
 
@@ -637,7 +687,10 @@ class Settings(BaseSettings):
         ),
     )
     google_calendar_scopes: StringList = Field(
-        default_factory=lambda: ["https://www.googleapis.com/auth/calendar.events"],
+        default_factory=lambda: [
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.freebusy",
+        ],
         alias="GOOGLE_CALENDAR_SCOPES",
     )
     enable_google_drive: bool = Field(default=False, alias="ENABLE_GOOGLE_DRIVE")
@@ -645,9 +698,10 @@ class Settings(BaseSettings):
         default=False,
         alias="ENABLE_GOOGLE_DRIVE_WRITE",
         description=(
-            "Promote Drive from read-only to allow file upload. The endpoint still "
-            "requires an explicit `dry_run=false` and only paths under "
-            "COMPUTER_ALLOWED_ROOTS are accepted as source."
+            "Promote Drive from read-only to approved file uploads and file moves. "
+            "Uploads still require explicit `dry_run=false` and only accept sources "
+            "under DOCUMENT_OUTPUT_ROOT, LOCAL_STORAGE_DIR/workspaces, "
+            "OPENSHELL_ALLOWED_OUTPUT_DIR, or COMPUTER_ALLOWED_ROOTS."
         ),
     )
     google_drive_scopes: StringList = Field(
@@ -775,6 +829,47 @@ class Settings(BaseSettings):
     godaddy_max_requests_per_minute: int = Field(
         default=60,
         alias="GODADDY_MAX_REQUESTS_PER_MINUTE",
+    )
+
+    # Code Director budget enforcement mode.
+    #  - "soft" (default): the budget is a guideline. The current subtask
+    #    always runs to its natural boundary (one CLI invocation up to the
+    #    adapter wall-clock timeout); exceeding the budget ends the BUILD as
+    #    `partial` between subtasks but never kills work mid-subtask. This is
+    #    the right default for a dedicated local PC (let the agent finish;
+    #    don't add friction).
+    #  - "hard": the budget is checked BEFORE every adapter call; if a cap is
+    #    already exceeded the subtask aborts immediately without spending the
+    #    next call, and the adapter wall-clock timeout is clamped to the
+    #    remaining runtime budget.
+    code_director_budget_mode: Literal["soft", "hard"] = Field(
+        default="soft", alias="CODE_DIRECTOR_BUDGET_MODE"
+    )
+
+    # Stability cap for `_package_workspace`. A long-running subtask could
+    # leave a workspace with thousands of files and tens of GB of generated
+    # content; uncapped `rglob('*') + tar.add` would either hang packaging
+    # or fill the document_output volume. The reaper fails the build with a
+    # clear error if either threshold is exceeded — we never truncate
+    # silently.
+    code_director_package_max_files: int = Field(
+        default=10_000, ge=1, alias="CODE_DIRECTOR_PACKAGE_MAX_FILES"
+    )
+    code_director_package_max_bytes: int = Field(
+        default=500 * 1024 * 1024,
+        ge=1,
+        alias="CODE_DIRECTOR_PACKAGE_MAX_BYTES",
+    )
+
+    # When True the action service auto-approves a whitelist of *reversible*
+    # action types (drive_ensure_folder, drive_upload) so the operator does not
+    # have to click /approve on actions that cannot harm anyone but the agent's
+    # own workspace. Mail send, drive_organize_files, browser, openshell and
+    # code_build stay manual — they are irreversible or touch others. Default
+    # False; flipped to True by `apply_operator_profile_defaults` when
+    # `OPERATOR_PROFILE=dedicated_local` and the operator did not set it.
+    auto_approve_reversible_actions: bool = Field(
+        default=False, alias="AUTO_APPROVE_REVERSIBLE_ACTIONS"
     )
 
     enable_openshell_sandbox: bool = Field(default=False, alias="ENABLE_OPENSHELL_SANDBOX")
@@ -1019,6 +1114,57 @@ class Settings(BaseSettings):
             api_key=self.vision_llm_api_key,
             model=self.vision_llm_model,
         )
+
+    @model_validator(mode="after")
+    def apply_operator_profile_defaults(self) -> Self:
+        """Soften defaults for `operator_profile=dedicated_local`.
+
+        Only fields still at their factory default are overridden — any
+        explicit value the operator put in `.env` wins (we never silently
+        flip an operator-set flag). Safe to chain with the production
+        validator: production reads the *final* values, so dedicated_local
+        + production still fails if approval gates were softened too far.
+
+        Decisions:
+          - approval_require_four_eyes      → False  (PC dedicado, un solo aprobador)
+          - approval_pending_max_hours      → 168h   (1 semana)
+          - require_human_approval_for_external_actions → False
+          - mail_require_approval_for_send  → True   (kept, sender mistakes are irreversible)
+          - browser_allowed_domains         → []     (kept, operator's choice to widen)
+          - kimi_webbridge_allowed_domains  → []     (idem)
+        Doc: docs/USER_GUIDE.md "Perfiles de operación".
+        """
+        if self.operator_profile != "dedicated_local":
+            return self
+        # `model_fields_set` is pydantic's authoritative "did the caller set
+        # this explicitly" — works whether the caller passed it positionally,
+        # by alias from `.env`, or via env vars. Comparing against the default
+        # value would silently override an explicit `True` that equals the
+        # default `True`.
+        explicit: set[str] = self.model_fields_set
+
+        def _at_default(field: str) -> bool:
+            return field not in explicit
+
+        # In-place mutation: pydantic-settings models are not `frozen` here
+        # and `model_validator(mode="after")` runs during construction, so
+        # mutating attributes is the supported way to apply derived defaults.
+        if _at_default("approval_require_four_eyes"):
+            self.approval_require_four_eyes = False
+        if _at_default("approval_pending_max_hours"):
+            self.approval_pending_max_hours = 168
+        if _at_default("require_human_approval_for_external_actions"):
+            self.require_human_approval_for_external_actions = False
+        if _at_default("code_director_budget_mode"):
+            self.code_director_budget_mode = "soft"
+        if _at_default("auto_approve_reversible_actions"):
+            self.auto_approve_reversible_actions = True
+        # Kimi WebBridge is the carril principal en PC dedicado (operator's
+        # real Edge with sessions). Default off across profiles for safety;
+        # dedicated_local opts in unless the operator forced it off.
+        if _at_default("enable_kimi_webbridge"):
+            self.enable_kimi_webbridge = True
+        return self
 
     @model_validator(mode="after")
     def reject_changeme_in_production(self) -> Self:

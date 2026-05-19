@@ -17,7 +17,11 @@ from psycopg import Connection
 from psycopg.rows import DictRow, dict_row
 from psycopg_pool import ConnectionPool
 
-from cognitive_os.agents.llm_factory import create_primary_chat_model, create_secondary_chat_model
+from cognitive_os.agents.llm_factory import (
+    create_agent_chat_model,
+    create_primary_chat_model,
+    create_secondary_chat_model,
+)
 from cognitive_os.agents.research import ReadOnlyResearchTools, ResearchAgent
 from cognitive_os.agents.state import (
     AgentResult,
@@ -176,13 +180,23 @@ def route_request(state: CognitiveState, *, router_llm: Any | None = None) -> Ro
     latest_text = _latest_user_text(messages)
     llm = router_llm
     if llm is None:
+        # The router uses `with_structured_output`, which forces a
+        # `tool_choice`. Some models (notably reasoner-only endpoints like
+        # DeepSeek's `deepseek-v4-pro`) return HTTP 400 when forced
+        # tool_choice is set — so we start from the dedicated agent lane
+        # (`gpt-5.5` via the operator's gateway in the current chain) and
+        # fall back to secondary/primary as plain models, then to a
+        # deterministic regex router as last resort.
         try:
-            llm = create_secondary_chat_model()
+            llm = create_agent_chat_model()
         except Exception:
             try:
-                llm = create_primary_chat_model()
+                llm = create_secondary_chat_model()
             except Exception:
-                return deterministic_route(latest_text)
+                try:
+                    llm = create_primary_chat_model()
+                except Exception:
+                    return deterministic_route(latest_text)
 
     try:
         structured = llm.with_structured_output(RouterDecision)

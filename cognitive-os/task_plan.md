@@ -1,19 +1,26 @@
 # Cognitive OS Hardening And Action Plane Plan
 
-> **Estado actual (2026-05-17, Fase 39 cierre de riesgos residuales):**
-> fases 1–38 cerradas. Fase 38 hizo revisión personal post-37 con atomic
-> doc writes, correlation IDs, rate limit, approval reaper, /system/info,
-> índice composite en human_approvals. Fase 39 cerró los residual risks
-> técnicos: rate limiter pluggable memory/Redis, `/system/credentials-status`,
-> workflow.v1 export/import, OAuth Google self-healing,
-> `init_credentials.sh` wizard. Las tablas de "Resultado De Verificacion"
-> más abajo son **snapshots históricos** por fase: el snapshot vigente se
-> obtiene con `bash scripts/full-qa.sh`. Snapshot QA persistente: **566
-> pytest passed, 1 skipped, 20 deselected**,
-> ruff/ruff format/mypy/lint/build, Compose config, Alembic head
-> `202605160002` sin drift, `git diff --check`, `pre-commit run --all-files`
-> (6 hooks) y `detect-secrets scan` verdes. Único pendiente operador:
-> autorizar `auth_google.py` (1 click browser) si quiere Calendar/Drive.
+> **Estado actual (2026-05-19, Fase 68b cerrada + mi-ultrareview offline 10 dominios):**
+> Fases 1–64 cubren la base hasta dispatch idempotente. **Fase 65** cerró
+> paridad Telegram↔UI (36 slash commands) y el bugfix Postgres-only del
+> CHECK `ck_ar_action_type` (migración `202605170001`). **Fase 66**
+> auditoría en vivo con credenciales reales. **Fase 67** reescribió las
+> 21 tools del DeepAgent con `args_schema` Pydantic + cadena LLM operador
+> (primary+agent `gpt-5.5`, secondary/fallback `gemini-3.1-pro-low`,
+> visión `glm-4.6v`). **Fase 68** GoDaddy DNS prod operativo + doble
+> revisión profunda. **Fase 68b** revisión cruzada GPT-5.5 cerró 7
+> hallazgos: alineación defaults LLM, Code Director budget soft|hard,
+> ActionRequest worker crash-window + `dispatch_state` sweeper, Drive
+> organize con `file_ids` congelados, Google OAuth `missing_scopes` en
+> status, `next-env.d.ts` robusto en checkout limpio, perfil
+> `OPERATOR_PROFILE=dedicated_local` (sin fricción para PC dedicada).
+> **Mi-ultrareview offline 10 dominios (2026-05-19)**: 1 bug P2 corregido
+> (`cmd_job` SQL LIKE wildcards en Telegram), 2 deudas FUTURO documentadas
+> (índices compuestos en `jobs`, reapers Code Build/OpenShell). Snapshot
+> QA persistente: **685+ pytest passed** (verificar con
+> `bash scripts/full-qa.sh`); Alembic head `202605170001` sin drift.
+> Único pendiente operador: token Telegram nuevo (revocado, da 401) y
+> autorizar `scripts/auth_google.py` (1 click browser) para Calendar/Drive.
 > Documentación de producto autoritativa: `docs/COGNITIVE_OS_GUIDE.md`,
 > `docs/PROJECT_GUIDE.md`, `docs/ARCHITECTURE.md`,
 > `docs/OPENHARNESS_FUSION.md`, `docs/RUNBOOK.md`, `docs/SECURITY.md`.
@@ -27,6 +34,232 @@ con aprobacion humana, auditoria y limites claros.
 No se promete software infalible. La meta operativa es eliminar fallas obvias,
 reducir superficies fragiles, hacer explicitas las politicas de riesgo y dejar
 pruebas/documentacion que sostengan evolucion futura.
+
+## Fase 44 - Google Ops como capa comercial del agente
+
+### Objetivo
+
+Convertir la base existente de Google Maps/Calendar/Drive en una capa mas util
+para el asistente personal:
+
+- Maps debe entregar consejo operativo de ruta, no solo distancia/duracion.
+- Drive debe poder buscar en todo el Drive por nombre o contenido indexado,
+  inspeccionar mejor resultados y crear la carpeta de entregables mediante el
+  ciclo `ActionRequest` aprobado.
+- Los tools de DeepAgents deben exponer esta capacidad de forma read-only o
+  aprobable, manteniendo audit, allow-lists y cero writes directos.
+- El frontend debe reflejar las capacidades reales sin prometer acciones que no
+  pasan por backend/aprobacion.
+
+### Criterios De Aceptacion
+
+- `DriveSearchRequest` soporta modo de busqueda (`name`, `full_text`, `all`) y
+  filtros seguros sin construir queries fragiles.
+- Existe `drive_ensure_folder` como `ActionRequest` ejecutable: request,
+  aprobacion, worker, auditoria y tests.
+- `MapsService` devuelve campos de recomendacion/ETA/severidad de trafico
+  calculados desde la respuesta Routes API.
+- DeepAgents puede consultar rutas con trafico y Drive con modo de busqueda
+  ampliado sin writes directos.
+- `GoogleOpsView` ofrece controles para busqueda Drive ampliada, request de
+  carpeta de entregables y route advice.
+- Pruebas focalizadas backend/frontend pasan; si alguna compuerta amplia no se
+  ejecuta por tiempo, queda documentado.
+
+### Resultado 2026-05-17
+
+- Implementado `RoutePlan` con `traffic_severity`, ETA, advice, labels y
+  alternativas.
+- Implementado Drive search ampliado (`name|full_text|all`, `user|all_drives`,
+  filtros de carpetas/mime) y `drive_ensure_folder` aprobable.
+- Actualizados DeepAgent tools, `GoogleOpsView`, tests y docs.
+- Verificación: `646 passed, 1 skipped, 20 deselected`; ruff check/format,
+  mypy, frontend lint/build y `git diff --check` verdes.
+
+## Fases 45-49 - Cierre Google operativo avanzado
+
+### Objetivo
+
+Cerrar el bloque Google avanzado pedido por el operador sin asumir presencia
+humana ni credenciales nuevas:
+
+- Fase 45: Drive debe funcionar como nube de entregables del sistema,
+  aceptando artefactos generados por Cognitive OS sin abrir rutas arbitrarias.
+- Fase 46: ordenar Google Drive debe existir como plan seguro y acción
+  aprobable (`ActionRequest`), no como write directo.
+- Fase 47: Calendar debe exponer free/busy para agenda proactiva y
+  coordinación con rutas.
+- Fase 48: frontend/backend deben reflejar estos contratos en Google Ops.
+- Fase 49: tests/docs/certificación del bloque.
+
+### Criterios De Aceptacion
+
+- Upload Drive permite artefactos bajo `DOCUMENT_OUTPUT_ROOT` y
+  `LOCAL_STORAGE_DIR/workspaces`, `OPENSHELL_ALLOWED_OUTPUT_DIR`, además de
+  `COMPUTER_ALLOWED_ROOTS`, sin permitir `storage/oauth` ni paths arbitrarios.
+- Existe carril `drive_organize_files`: preview lista archivos candidatos y
+  request aprobado mueve archivos a carpeta destino con `files.update`
+  (`addParents`/`removeParents`), nunca delete.
+- Calendar `freebusy` lista ventanas ocupadas por rango y es read-only.
+- DeepAgents y `GoogleOpsView` exponen las nuevas lecturas/requests sin writes
+  directos.
+- Validación focal + compuertas amplias razonables pasan.
+
+### Resultado 2026-05-17
+
+- Fase 45: upload Drive ahora reconoce raíces seguras de entregables del sistema
+  (`DOCUMENT_OUTPUT_ROOT`, `LOCAL_STORAGE_DIR/workspaces`,
+  `OPENSHELL_ALLOWED_OUTPUT_DIR`, `COMPUTER_ALLOWED_ROOTS`) y mantiene fuera
+  `storage/oauth`.
+- Fase 46: agregado `drive_organize_files` con preview, endpoint `/request`,
+  `ActionRequestService`, executor worker, workflow.v1, audit y `files.update`
+  (`addParents`/`removeParents`) sin delete ni permisos.
+- Fase 47: agregado `POST /actions/calendar/freebusy` y tool DeepAgents
+  `check_calendar_freebusy`.
+- Fase 48: `GoogleOpsView` expone free/busy, preview de organización y solicitud
+  aprobable de organización Drive.
+- Verificación focal inicial: `uv run pytest tests/test_google_drive.py
+  tests/test_google_calendar.py tests/test_actions.py
+  tests/test_deepagents_personal_tools.py -q` -> **118 passed**; `npm run lint`
+  verde.
+- Verificación final: `bash scripts/full-qa.sh` -> **662 passed, 1 skipped,
+  20 deselected**, ruff, ruff format, mypy, Alembic check, `npm ci`,
+  frontend lint/build y `git diff --check` verdes.
+
+## Fases 50-58 - Bloque 3: cierre operativo y superficies humanas
+
+### Objetivo
+
+Cerrar superficies propensas a fallo que quedan entre el runtime productivo y
+los puntos humanos de operación diaria, sin requerir nuevas credenciales ni
+intervención del operador:
+
+- Fase 50: Telegram approvals debe aceptar el ID corto que muestra `/approvals`
+  y resolver ambigüedad sin decidir la aprobación equivocada.
+- Fase 51: Telegram approvals debe usar identidad auditable por chat
+  (`telegram:<chat_id>`) y respetar four-eyes con más precisión.
+- Fase 52: Aprobar desde Telegram un `execute_action_request:<id>` debe encolar
+  y despachar la acción aprobada igual que el panel operativo.
+- Fase 53: El carril OpenShell aprobado desde Telegram debe eliminar el riesgo
+  de event-loop anidado al revelar payloads.
+- Fase 54: Los mensajes de Telegram deben reportar si la aprobación sólo se
+  decidió o si además se despachó una tarea Celery.
+- Fase 55: Los ejecutables de escritorio deben tener verificación reproducible
+  en repo, no sólo conocimiento manual del host.
+- Fase 56: La documentación debe dejar de declarar como residual un riesgo ya
+  cerrado y explicar el smoke real de launchers.
+- Fase 57: Tests unitarios deben cubrir los bordes de Telegram approval y el
+  verificador de launchers sin depender de Telegram real ni Docker.
+- Fase 58: QA focal + compuertas amplias deben certificar el bloque.
+
+### Criterios De Aceptacion
+
+- `/approve <8chars>` y `/reject <8chars>` funcionan si el prefijo es único;
+  prefijos ambiguos o demasiado cortos se rechazan sin mutar estado.
+- Telegram aprueba/rechaza con `approver_user_id=telegram:<chat_id>`.
+- Al aprobar un `ActionRequest` desde Telegram se llama
+  `ActionRequestService.queue_approved_action_request()` y se despacha
+  `run_action_request_task_async` en `agent_longrun` cuando queda `queued`.
+- OpenShell y Code Director conservan su dispatch post-aprobación desde
+  Telegram, sin `asyncio.run()` dentro de un event loop activo.
+- Existe `scripts/verify_desktop_launchers.sh` con defaults para este host y
+  overrides testeables (`COGOS_DESKTOP_DIR`, `COGOS_MASTER`, `COGOS_REPO_ROOT`).
+- `docs/RUNBOOK.md`, `progress.md` y `findings.md` reflejan el cierre real.
+- Tests focales nuevos pasan junto con ruff/mypy y, si el tiempo lo permite,
+  `bash scripts/full-qa.sh`.
+
+### Resultado 2026-05-17
+
+- Telegram approvals aceptan UUID completo o prefijo único, rechazan prefijos
+  ambiguos/cortos y filtran caracteres fuera del formato UUID antes del query.
+- Las decisiones Telegram se auditan como `telegram:<chat_id>`.
+- Al aprobar `execute_action_request:<id>` desde Telegram, el bot encola con
+  `ActionRequestService.queue_approved_action_request()` y despacha
+  `run_action_request_task_async` en `agent_longrun` si el request queda
+  `queued`.
+- El resolver OpenShell ahora es síncrono y reutiliza
+  `_openshell_task_payload_from_job` sin `_run()` anidado.
+- `scripts/verify_desktop_launchers.sh` valida el maestro, wrappers `.sh` y
+  accesos `.desktop` del Escritorio sin levantar servicios.
+- Verificación focal: `7 passed` en tests Telegram/launchers; `65 passed` en
+  ciclo approvals/actions; ruff, ruff format, mypy y smoke real de launchers
+  verdes.
+
+## Fases 59-63 - Bloque 4: dispatch durable y observabilidad de jobs
+
+### Objetivo
+
+Pulir el punto más delicado que queda después de aprobar acciones externas: el
+salto entre `ActionRequest` aprobado y Celery aceptando el trabajo.
+
+- Fase 59: el endpoint REST de dispatch no debe devolver un 500 crudo si el
+  broker Celery no acepta el job.
+- Fase 60: cada submit/fallo de dispatch debe dejar `JobEvent` observable.
+- Fase 61: Telegram debe registrar la misma telemetría de dispatch que REST.
+- Fase 62: un worker duplicado que recibe un job ya `running` debe salir sin
+  volver a tocar el job ni crear eventos confusos.
+- Fase 63: tests/docs/QA del bloque.
+
+### Criterios De Aceptacion
+
+- `POST /actions/requests/{id}/dispatch` devuelve
+  `ActionDispatchResponse(dispatched=false, reason=...)` si Celery falla antes
+  de aceptar la tarea; la `ActionRequest` queda `queued` para retry.
+- REST y Telegram registran `action_request_dispatch_submitted` cuando Celery
+  acepta el job y `action_request_dispatch_failed` cuando el broker falla.
+- `run_action_request_task_async` short-circuitea si el `Job` ya está
+  `running`, igual que ya hacía con estados terminales.
+- Tests focales cubren éxito, fallo broker, status no encolable, Telegram y
+  worker duplicado.
+- Documentación operativa explica el comportamiento de retry/observabilidad.
+
+### Resultado 2026-05-17
+
+- `ActionRequestService.record_action_dispatch_event()` centraliza JobEvents de
+  dispatch.
+- REST dispatch captura errores del broker y devuelve respuesta controlada, sin
+  500 opaco.
+- Telegram registra eventos de submit/fallo de dispatch.
+- Worker Celery short-circuitea reentradas cuando el job ya está `running`.
+- Verificación focal inicial: `12 passed` en tests dispatch/worker/Telegram;
+  ruff focal y format focal verdes.
+- Verificación final: `bash scripts/full-qa.sh` -> **671 passed, 1 skipped,
+  20 deselected**, ruff, ruff format, mypy, Alembic check, `npm ci`,
+  frontend lint/build y `git diff --check` verdes.
+
+## Fase 64 - Dispatch idempotente con reserva atomica
+
+### Objetivo
+
+Cerrar el borde que quedaba tras Fases 59-63: aunque el worker ya toleraba
+entregas duplicadas, dos operadores/superficies podían llamar dispatch casi al
+mismo tiempo y enviar dos tareas Celery mientras la `ActionRequest` seguía
+`queued`.
+
+### Criterios De Aceptacion
+
+- Antes de `apply_async`, REST y Telegram deben reservar el dispatch bajo lock
+  de `ActionRequest`.
+- `metadata_json.dispatch_state=submitting` bloquea llamadas concurrentes.
+- `dispatch_state=submitted` bloquea nuevos submits mientras el worker procesa.
+- `dispatch_state=failed` permite retry después de un fallo de broker.
+- Los eventos submit/fail actualizan metadata y conservan JobEvents.
+- Tests cubren submit normal, fallo, duplicado `submitted`, reserva
+  `submitting`, metadata submit/fail y Telegram.
+
+### Resultado 2026-05-17
+
+- Agregado `ActionDispatchReservation` y
+  `ActionRequestService.reserve_action_dispatch()`.
+- `record_action_dispatch_event()` ahora sincroniza `dispatch_state`,
+  timestamps, queue y último error en `ActionRequest.metadata_json`.
+- REST y Telegram reservan antes de `apply_async`; duplicados devuelven
+  `dispatched=false` con reason clara sin tocar Celery.
+- Verificación focal: `72 passed` en actions/worker/Telegram/approval; ruff,
+  ruff format y mypy verdes.
+- Verificación final: `bash scripts/full-qa.sh` -> **674 passed, 1 skipped,
+  20 deselected**, ruff, ruff format, mypy, Alembic check, `npm ci`,
+  frontend lint/build y `git diff --check` verdes.
 
 ## Estado De Fases
 
@@ -69,6 +302,11 @@ pruebas/documentacion que sostengan evolucion futura.
 | 35. Baseline git seguro | complete | Primer baseline versionado sin secretos ni material local, pre-commit/gitleaks verdes |
 | 36. Pulido CI y QA completa | complete | CI efectivo en `.github/workflows`, full QA y readiness verdes |
 | 37. Auditoria integral por capas | in_progress | Conteos vigentes verificados: 122 endpoints, 19 vistas, 15 tareas Celery, 15 migraciones; bloques 1-4 cerrados (workers, RBAC, idempotency, DB) |
+| 44. Google Ops comercial | complete | Maps advice/ETA/severidad, Drive search nombre/contenido/allDrives, `drive_ensure_folder`, UI y QA amplio verde |
+| 45-49. Google operativo avanzado | complete | Drive como nube de entregables segura, organización Drive aprobable, Calendar free/busy, UI/docs y full QA verde |
+| 50-58. Bloque 3 operativo | complete | Telegram approvals simétricas con dispatch, verifier de launchers, docs y QA focal verde |
+| 59-63. Bloque 4 dispatch durable | complete | Dispatch REST/Telegram observable, broker failure controlado, worker duplicado short-circuit |
+| 64. Dispatch idempotente | complete | Reserva atómica de dispatch y bloqueo de submits duplicados antes de Celery |
 
 ## Fase 33 - Plan de implementacion activo
 

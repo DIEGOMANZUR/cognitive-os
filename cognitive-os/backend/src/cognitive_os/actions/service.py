@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -17,7 +19,13 @@ from cognitive_os.actions.calendar import CalendarError, CalendarService, EventC
 from cognitive_os.actions.computer import ComputerActionService
 from cognitive_os.actions.documents import DocumentActionService
 from cognitive_os.actions.domains import GoDaddyActionService
-from cognitive_os.actions.drive import DriveError, DriveService, DriveUploadRequest
+from cognitive_os.actions.drive import (
+    DriveError,
+    DriveFolderRequest,
+    DriveOrganizeRequest,
+    DriveService,
+    DriveUploadRequest,
+)
 from cognitive_os.actions.mail import GmailActionService
 from cognitive_os.actions.payload_crypto import protect_payload, reveal_payload
 from cognitive_os.actions.policy import ActionPolicyViolation
@@ -42,11 +50,24 @@ from cognitive_os.core.db import session_scope
 from cognitive_os.db.models import ActionRequest, AuditEvent, HumanApproval, Job, JobEvent
 from cognitive_os.tools.policy import redact_tool_args
 
+logger = logging.getLogger(__name__)
+
 _ACTIVE_STATUSES: tuple[str, ...] = (
     "previewed",
     "pending_approval",
     "queued",
     "running",
+)
+
+# Action types that the dedicated_local profile is allowed to auto-approve.
+# Reversible and scoped to the agent's own workspace — no external comms, no
+# write over existing third-party data. Drive organize/upload-to-foreign-folder,
+# mail send, browser, openshell and code_build stay manual on purpose.
+_AUTO_APPROVABLE_REVERSIBLE_ACTIONS: frozenset[str] = frozenset(
+    {
+        "drive_ensure_folder",
+        "drive_upload",
+    }
 )
 
 # action_type values supported by the workflow.v1 export/import contract. Must
@@ -60,6 +81,8 @@ WORKFLOW_EXPORTABLE_TYPES: frozenset[str] = frozenset(
         "browser_interactive",
         "calendar_create_event",
         "drive_upload_file",
+        "drive_ensure_folder",
+        "drive_organize_files",
     }
 )
 
@@ -118,6 +141,13 @@ class ApprovalDecisionResult:
     # The caller dispatches `cognitive_os.run_code_build` after commit, same
     # post-transaction pattern as `openshell_dispatch`.
     code_build_job_id: str | None = None
+
+
+@dataclass(slots=True)
+class ActionDispatchReservation:
+    action_request: ActionRequestView
+    should_dispatch: bool
+    reason: str | None = None
 
 
 async def decide_approval(
@@ -721,6 +751,97 @@ class ActionRequestService:
             metadata={"requires_approval": True, "dry_run_only": False, "google": "drive"},
         )
 
+    async def create_drive_folder_request(
+        self,
+        request: DriveFolderRequest,
+        *,
+        requested_by: str,
+    ) -> ActionRequestView:
+        service = DriveService(app_settings=self._settings)
+        preview: dict[str, object]
+        blocked = False
+        reason: str | None = None
+        try:
+            preview_model = service.ensure_deliverables_folder(
+                request.model_copy(update={"dry_run": True}),
+                requested_by=requested_by,
+            )
+            preview = preview_model.model_dump(mode="json")
+            status = service.status()
+            if status.status != "ready":
+                blocked = True
+                reason = status.reason or "Google Drive is not ready."
+            elif not status.write_enabled:
+                blocked = True
+                reason = "ENABLE_GOOGLE_DRIVE_WRITE is false; refusing executable request."
+        except DriveError as exc:
+            preview = {"status": "blocked", "reason": str(exc)}
+            blocked = True
+            reason = str(exc)
+
+        executable = request.model_copy(update={"dry_run": False}).model_dump(mode="json")
+        redacted = redact_tool_args(executable)
+        return await self._persist_executable_request(
+            action_type="drive_ensure_folder",
+            payload_executable=executable,
+            payload_redacted=redacted,
+            preview=preview,
+            blocked=blocked,
+            reason=reason,
+            requested_by=requested_by,
+            approval_message="Google Drive deliverables folder creation requires human approval",
+            metadata={"requires_approval": True, "dry_run_only": False, "google": "drive"},
+        )
+
+    async def create_drive_organize_request(
+        self,
+        request: DriveOrganizeRequest,
+        *,
+        requested_by: str,
+    ) -> ActionRequestView:
+        service = DriveService(app_settings=self._settings)
+        preview: dict[str, object]
+        blocked = False
+        reason: str | None = None
+        frozen_file_ids: list[str] = []
+        try:
+            preview_model = service.organize_files(
+                request.model_copy(update={"dry_run": True}),
+                requested_by=requested_by,
+            )
+            preview = preview_model.model_dump(mode="json")
+            # Freeze the exact files the operator is approving so the execute
+            # path moves precisely this set (no re-search). See
+            # DriveOrganizeRequest.file_ids.
+            frozen_file_ids = [op.file.file_id for op in preview_model.operations]
+            status = service.status()
+            if status.status != "ready":
+                blocked = True
+                reason = status.reason or "Google Drive is not ready."
+            elif not status.write_enabled:
+                blocked = True
+                reason = "ENABLE_GOOGLE_DRIVE_WRITE is false; refusing executable request."
+        except DriveError as exc:
+            preview = {"status": "blocked", "reason": str(exc)}
+            blocked = True
+            reason = str(exc)
+
+        executable = request.model_copy(
+            update={"dry_run": False, "file_ids": frozen_file_ids}
+        ).model_dump(mode="json")
+        redacted = redact_tool_args(executable)
+        return await self._persist_executable_request(
+            action_type="drive_organize_files",
+            payload_executable=executable,
+            payload_redacted=redacted,
+            preview=preview,
+            blocked=blocked,
+            reason=reason,
+            requested_by=requested_by,
+            approval_message="Google Drive file organization requires human approval",
+            metadata={"requires_approval": True, "dry_run_only": False, "google": "drive"},
+        )
+
     async def create_browser_preview_request(
         self,
         request: BrowserPreviewRequest,
@@ -1104,7 +1225,108 @@ class ActionRequestService:
                 )
             )
             await session.flush()
-            return _view(action_request)
+            view = _view(action_request)
+            auto_approve_eligible = (
+                action_status == "pending_approval"
+                and self._settings.auto_approve_reversible_actions
+                and action_type in _AUTO_APPROVABLE_REVERSIBLE_ACTIONS
+                and action_request.approval_id is not None
+            )
+            approval_id_to_auto = action_request.approval_id if auto_approve_eligible else None
+
+        if approval_id_to_auto is not None:
+            view = await self._auto_approve_and_dispatch(
+                approval_id=approval_id_to_auto,
+                action_request_id=view.id,
+                requested_by=requested_by,
+            )
+        return view
+
+    async def _auto_approve_and_dispatch(
+        self,
+        *,
+        approval_id: UUID,
+        action_request_id: UUID,
+        requested_by: str,
+    ) -> ActionRequestView:
+        """Approve + dispatch an action that the dedicated_local whitelist allows.
+
+        Reuses `decide_approval` (which cascades approval → action_request →
+        Job state and emits audit events atomically) and the existing
+        `reserve_action_dispatch` reservation so retries / duplicate triggers
+        cannot fan out into two Celery tasks. Broker failures degrade to a
+        warning + AuditEvent: the action_request stays `queued` so the
+        action-request reaper can re-dispatch later.
+        """
+        try:
+            await decide_approval(
+                approval_id,
+                status_value="approved",
+                approver_user_id=f"auto:dedicated_local:{requested_by}",
+                payload_resolver=None,
+                app_settings=self._settings,
+            )
+        except ApprovalDecisionError:
+            return await self._reload_view(action_request_id)
+
+        try:
+            reservation = await self.reserve_action_dispatch(action_request_id)
+        except ActionRequestError:
+            return await self._reload_view(action_request_id)
+
+        action_request = reservation.action_request
+        if not reservation.should_dispatch or action_request.job_id is None:
+            return action_request
+
+        try:
+            from cognitive_os.workers.tasks import run_action_request_task_async
+
+            run_action_request_task_async.apply_async(
+                args=[str(action_request.id), str(action_request.job_id)],
+                queue="agent_longrun",
+            )
+        except Exception as exc:  # noqa: BLE001 - broker offline must not break the caller
+            logger.warning(
+                "auto_approve_dispatch_failed",
+                extra={
+                    "action_request_id": str(action_request.id),
+                    "error_type": type(exc).__name__,
+                },
+            )
+            with contextlib.suppress(Exception):
+                await self.record_action_dispatch_event(
+                    job_id=action_request.job_id,
+                    action_request_id=action_request.id,
+                    event_type="action_request_dispatch_failed",
+                    status="queued",
+                    message="Auto-approve dispatch failed before Celery accepted it",
+                    metadata_json={
+                        "error_type": type(exc).__name__,
+                        "surface": "auto_approve",
+                    },
+                )
+        else:
+            with contextlib.suppress(Exception):
+                await self.record_action_dispatch_event(
+                    job_id=action_request.job_id,
+                    action_request_id=action_request.id,
+                    event_type="action_request_dispatch_submitted",
+                    status="queued",
+                    message="Auto-approve submitted action request to Celery",
+                    metadata_json={
+                        "queue": "agent_longrun",
+                        "surface": "auto_approve",
+                    },
+                )
+        return action_request
+
+    async def _reload_view(self, action_request_id: UUID) -> ActionRequestView:
+        async with session_scope() as session:
+            current = await session.get(ActionRequest, action_request_id)
+            if current is None:
+                msg = f"Action request vanished while auto-approving: {action_request_id}"
+                raise ActionRequestError(msg)
+            return _view(current)
 
     async def cancel_action_request(
         self,
@@ -1264,6 +1486,16 @@ class ActionRequestService:
                 DriveUploadRequest.model_validate(payload),
                 requested_by=requested_by,
             )
+        if action_type == "drive_ensure_folder":
+            return await self.create_drive_folder_request(
+                DriveFolderRequest.model_validate(payload),
+                requested_by=requested_by,
+            )
+        if action_type == "drive_organize_files":
+            return await self.create_drive_organize_request(
+                DriveOrganizeRequest.model_validate(payload),
+                requested_by=requested_by,
+            )
         msg = f"Unsupported workflow action_type: {action_type!r}"
         raise ActionRequestError(msg)
 
@@ -1333,6 +1565,89 @@ class ActionRequestService:
             )
             await session.flush()
             return _view(action_request)
+
+    async def reserve_action_dispatch(self, action_request_id: UUID) -> ActionDispatchReservation:
+        async with session_scope() as session:
+            stmt = (
+                select(ActionRequest).where(ActionRequest.id == action_request_id).with_for_update()
+            )
+            action_request = (await session.execute(stmt)).scalar_one_or_none()
+            if action_request is None:
+                msg = f"Action request not found: {action_request_id}"
+                raise ActionRequestError(msg)
+            if action_request.status != "queued":
+                return ActionDispatchReservation(
+                    action_request=_view(action_request),
+                    should_dispatch=False,
+                    reason=f"Action request status is {action_request.status}; nothing queued.",
+                )
+
+            metadata = dict(action_request.metadata_json or {})
+            dispatch_state = str(metadata.get("dispatch_state") or "")
+            if dispatch_state == "submitted":
+                return ActionDispatchReservation(
+                    action_request=_view(action_request),
+                    should_dispatch=False,
+                    reason="Action request dispatch already submitted; waiting for worker.",
+                )
+            if dispatch_state == "submitting":
+                return ActionDispatchReservation(
+                    action_request=_view(action_request),
+                    should_dispatch=False,
+                    reason="Action request dispatch already in progress.",
+                )
+
+            metadata["dispatch_state"] = "submitting"
+            metadata["dispatch_claimed_at"] = datetime.now(UTC).isoformat()
+            action_request.metadata_json = metadata
+            await session.flush()
+            return ActionDispatchReservation(
+                action_request=_view(action_request),
+                should_dispatch=True,
+            )
+
+    async def record_action_dispatch_event(
+        self,
+        *,
+        job_id: UUID,
+        action_request_id: UUID,
+        event_type: str,
+        status: str,
+        message: str,
+        metadata_json: dict[str, object] | None = None,
+    ) -> None:
+        async with session_scope() as session:
+            action_request = await session.get(ActionRequest, action_request_id)
+            if action_request is not None:
+                metadata = dict(action_request.metadata_json or {})
+                metadata.pop("dispatch_claimed_at", None)
+                if event_type == "action_request_dispatch_submitted":
+                    metadata["dispatch_state"] = "submitted"
+                    metadata["dispatch_submitted_at"] = datetime.now(UTC).isoformat()
+                    queue_name = (metadata_json or {}).get("queue")
+                    if isinstance(queue_name, str):
+                        metadata["dispatch_queue"] = queue_name
+                    metadata.pop("dispatch_last_error_type", None)
+                elif event_type == "action_request_dispatch_failed":
+                    metadata["dispatch_state"] = "failed"
+                    metadata["dispatch_failed_at"] = datetime.now(UTC).isoformat()
+                    error_type = (metadata_json or {}).get("error_type")
+                    if isinstance(error_type, str):
+                        metadata["dispatch_last_error_type"] = error_type
+                action_request.metadata_json = metadata
+            session.add(
+                JobEvent(
+                    job_id=job_id,
+                    event_type=event_type,
+                    status=status,
+                    message=message,
+                    metadata_json={
+                        "action_request_id": str(action_request_id),
+                        **(metadata_json or {}),
+                    },
+                )
+            )
+            await session.flush()
 
     async def execute_action_request(self, action_request_id: UUID) -> ActionRequestView:
         # Atomic state transition: SELECT ... FOR UPDATE locks the row, and we only
@@ -1467,6 +1782,26 @@ class ActionRequestService:
                 return {**dumped, "status": "completed"}
             return {**dumped, "status": "failed"}
 
+        if action_type == "drive_ensure_folder":
+            folder_result = DriveService(app_settings=self._settings).ensure_deliverables_folder(
+                DriveFolderRequest.model_validate(payload),
+                requested_by=action_request.requested_by,
+            )
+            dumped = folder_result.model_dump(mode="json")
+            if folder_result.status in {"ready", "created"}:
+                return {**dumped, "status": "completed"}
+            return {**dumped, "status": "failed"}
+
+        if action_type == "drive_organize_files":
+            organize_result = DriveService(app_settings=self._settings).organize_files(
+                DriveOrganizeRequest.model_validate(payload),
+                requested_by=action_request.requested_by,
+            )
+            dumped = organize_result.model_dump(mode="json")
+            if organize_result.status == "completed":
+                return {**dumped, "status": "completed"}
+            return {**dumped, "status": "failed"}
+
         return {
             "status": "failed",
             "reason": f"No executor is enabled for action type: {action_type}",
@@ -1531,6 +1866,77 @@ class ActionRequestService:
                 )
                 reaped += 1
         return reaped
+
+    async def reap_stale_dispatch_reservations(self, *, max_minutes: int | None = None) -> int:
+        """Unstick ActionRequests whose dispatch reservation never resolved.
+
+        `reserve_action_dispatch` writes `metadata_json.dispatch_state =
+        'submitting'` before `apply_async`. If the process dies between the
+        reservation and the actual dispatch (or before the
+        submitted/failed event is recorded), the row stays `status='queued'`
+        with a sticky `submitting`/`submitted` and `reserve_action_dispatch`
+        refuses to ever dispatch it again — the action is stranded.
+
+        This sweeper ages those reservations out: a dispatch should resolve
+        in seconds, so a still-`queued` row whose reservation is older than
+        the cap is dead. We set `dispatch_state='failed'` (NOT remove it):
+        per the Fase 64 contract `failed` is the one state that *allows*
+        re-dispatch, so the next dispatch attempt (panel auto-dispatch,
+        Telegram, or REST) can re-reserve and proceed. Returns how many it
+        unstuck. Runs on Celery beat alongside the other reapers.
+        """
+        threshold = max_minutes or max(5, self._settings.action_request_running_max_minutes)
+        cutoff = datetime.now(UTC) - timedelta(minutes=max(1, threshold))
+        swept = 0
+        async with session_scope() as session:
+            stmt = (
+                select(ActionRequest)
+                .where(ActionRequest.status == "queued")
+                .where(ActionRequest.updated_at < cutoff)
+            )
+            rows = (await session.execute(stmt)).scalars().all()
+            for action_request in rows:
+                metadata = dict(action_request.metadata_json or {})
+                dispatch_state = str(metadata.get("dispatch_state") or "")
+                if dispatch_state not in {"submitting", "submitted"}:
+                    continue
+                metadata["dispatch_state"] = "failed"
+                metadata["dispatch_reaped_at"] = datetime.now(UTC).isoformat()
+                metadata["dispatch_last_error_type"] = "DispatchReservationStale"
+                metadata.pop("dispatch_claimed_at", None)
+                action_request.metadata_json = metadata
+                if action_request.job_id is not None:
+                    session.add(
+                        JobEvent(
+                            job_id=action_request.job_id,
+                            event_type="action_request_dispatch_reservation_reaped",
+                            status="queued",
+                            message=(
+                                "Stale dispatch reservation cleared; the action "
+                                "can be dispatched again."
+                            ),
+                            metadata_json={
+                                "action_request_id": str(action_request.id),
+                                "previous_dispatch_state": dispatch_state,
+                                "threshold_minutes": threshold,
+                            },
+                        )
+                    )
+                session.add(
+                    AuditEvent(
+                        actor_id="system.reaper",
+                        action="action_request.dispatch_reservation_reaped",
+                        resource_type="action_request",
+                        resource_id=str(action_request.id),
+                        metadata_json={
+                            "action_type": action_request.action_type,
+                            "previous_dispatch_state": dispatch_state,
+                            "threshold_minutes": threshold,
+                        },
+                    )
+                )
+                swept += 1
+        return swept
 
     async def reap_stale_pending_approvals(self, *, max_hours: int | None = None) -> int:
         """Flip `pending` HumanApproval rows older than the cap to `expired`.

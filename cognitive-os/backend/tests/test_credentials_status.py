@@ -40,8 +40,11 @@ def _placeholder_settings() -> Settings:
     """Build a Settings with the documented `CHANGEME` placeholders.
 
     `Settings()` would otherwise inherit values from the operator's local
-    `.env` (pydantic-settings reads it by default), so we force every secret
+    `.env` (pydantic-settings reads it by default), so we pass
+    `_env_file=None` (fully ignore the ambient .env) AND force every secret
     we care about back to its placeholder before asserting the inventory.
+    Overriding individual fields is not enough: capability *flags* like
+    `GMAIL_READ_ENABLED` would still leak from .env and trip the validators.
     """
     from pydantic import SecretStr
 
@@ -81,7 +84,7 @@ def _placeholder_settings() -> Settings:
         "langsmith_api_key": SecretStr("CHANGEME"),
         "telegram_bot_token": SecretStr("CHANGEME"),
     }
-    return Settings(**fields)
+    return Settings(_env_file=None, **fields)
 
 
 def test_build_status_reports_placeholder_as_missing() -> None:

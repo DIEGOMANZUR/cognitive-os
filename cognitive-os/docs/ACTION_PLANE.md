@@ -1,18 +1,33 @@
 # Action Plane
 
-> **Estado actual (2026-05-17, Fase 41 Code Director F9 cerrada):** capa **preview-first con
+> **Estado actual (2026-05-19, Fase 68 — GoDaddy DNS producción operativo):** capa **preview-first con
 > `ActionRequest` persistente** y carril activo de **mail personal aprobado**.
+> GoDaddy DNS verificado en vivo (auth producción HTTP 200) y habilitado en
+> postura segura: `GODADDY_DNS_DRY_RUN_ONLY=true` +
+> `GODADDY_ALLOW_PRODUCTION_WRITES=false` → solo preview/dry-run con
+> aprobación humana; ninguna escritura DNS real sin opt-in explícito del
+> operador. Bug de alias `ENABLE_GODADDY`→`GODADDY_ENABLED` corregido
+> (el primero era no-op). Estado previo (Fase 65 paridad UI/Telegram + bugfix CHECK):
+> **Fase 65 corrigió un bug crítico:** el CHECK `ck_ar_action_type` no
+> incluía `drive_ensure_folder` ni `drive_organize_files`, así que esos
+> dos `/request` daban `CheckViolation` (500) contra Postgres real
+> aunque los tests pasaran (mocan `session_scope`). Migración
+> `202605170001` amplía el constraint; un test de regresión
+> (`tests/test_action_request_check_constraint.py`) mantiene ORM,
+> última migración y `WORKFLOW_EXPORTABLE_TYPES` alineados para que no
+> vuelva a pasar.
 > Hay ejecución real para `computer_organize`, `document_generate`,
 > `browser_preview`, `browser_interactive`, GoDaddy DNS (solo con dry-run
-> desactivado, dominio allow-listed y aprobación), Google Calendar create y
-> Google Drive upload **solo vía `/request` + aprobación**, y mail GoDaddy SMTP
+> desactivado, dominio allow-listed y aprobación), Google Calendar create,
+> Google Drive upload/folder/organize **solo vía `/request` + aprobación**, y mail GoDaddy SMTP
 > (solo `/mail/messages/{id}/approve-send`, con `MAIL_REQUIRE_APPROVAL_FOR_SEND=true`).
 > Gmail sigue read-only para digest/label `TODOS`.
 > Google Maps es read-only con rutas de tráfico y link navegable. Las migraciones
 > Alembic relevantes ya activas: `action_requests` (v1 + browser_preview +
 > browser_interactive + document_generate + `payload_executable` separado),
 > `mail_*` (cuentas/mensajes/send_logs), `personal_tasks/notes` y nuevos action
-> types Google (`calendar_create_event`, `drive_upload_file`). Fase 33 añade
+> types Google (`calendar_create_event`, `drive_upload_file`,
+> `drive_ensure_folder`, `drive_organize_files`). Fase 33 añade
 > cifrado at-rest configurable de `payload_executable` y admin/RBAC explícito.
 > Fase 38/39 agregan: idempotency aplicativa + DB (índice parcial UNIQUE),
 > four-eyes en approvals (`APPROVAL_REQUIRE_FOUR_EYES=true`), reaper de
@@ -41,11 +56,12 @@ Hechos verificables (1:1 con `backend/src/cognitive_os/actions/` y `api/app.py`)
 - Google Maps: `geocode` y `route` son read-only; `route` incluye tráfico,
   duración estática, retraso y link Google Maps sin exponer API keys.
 - Google Calendar: `events/create` es preview-only; si llega `dry_run=false`
-  responde `409`. El carril comercial usa `events/request` -> `ActionRequest` ->
-  aprobación -> Celery.
-- Google Drive: `folders/ensure` gestiona la carpeta de entregables; `files/upload/request`
-  sube archivos permitidos por `COMPUTER_ALLOWED_ROOTS` y cap de tamaño. Los
-  endpoints directos `folders/ensure` y `files/upload` rechazan `dry_run=false`.
+  responde `409`. `freebusy` es read-only. El carril comercial usa
+  `events/request` -> `ActionRequest` -> aprobación -> Celery.
+- Google Drive: `folders/ensure` gestiona la carpeta de entregables;
+  `files/upload/request` sube archivos permitidos por raices de entregables o
+  `COMPUTER_ALLOWED_ROOTS` y cap de tamaño; `organize/request` mueve archivos
+  a carpeta destino sin borrar nada. Los endpoints directos rechazan writes.
 - Mail personal: `cognitive_os.mail` lee GoDaddy IMAP y Gmail label `TODOS`
   cuando está habilitado, persiste mensajes, propone respuestas como texto y
   envía desde GoDaddy SMTP solo tras aprobación humana.
@@ -74,6 +90,16 @@ Toda accion se modela en un ciclo controlado:
    registra `AuditEvent`. Si llega un worker duplicado y la fila ya esta
    `running`, sale sin marcar el job como fallido.
 
+El dispatch deja `JobEvent` explícito: `action_request_dispatch_submitted` cuando
+Celery acepta el job, o `action_request_dispatch_failed` si el broker falla antes
+de aceptarlo. En ese último caso la respuesta indica `dispatched=false` y la
+solicitud queda `queued` para reintentar cuando el broker esté sano.
+
+Antes de llamar a Celery, el API y Telegram reservan el dispatch bajo lock de la
+`ActionRequest`. La metadata usa `dispatch_state=submitting|submitted|failed`:
+`submitting` bloquea una llamada concurrente, `submitted` evita re-enviar el
+mismo trabajo mientras el worker procesa, y `failed` permite retry.
+
 ## Endpoints
 
 Todos requieren JWT.
@@ -99,12 +125,16 @@ Todos requieren JWT.
 | `POST /actions/maps/route` | Calcula ruta con tráfico/link Google Maps | No |
 | `GET /actions/calendar/status` | Estado Calendar/OAuth/write flag | No |
 | `POST /actions/calendar/events` | Lista eventos por rango | No |
+| `POST /actions/calendar/freebusy` | Lista bloques ocupados por calendario/rango | No |
 | `POST /actions/calendar/events/create` | Preview directo; rechaza `dry_run=false` con `409` | No |
 | `POST /actions/calendar/events/request` | Crea `ActionRequest` aprobable para evento Calendar | No directamente |
 | `GET /actions/drive/status` | Estado Drive/OAuth/upload cap/carpeta | No |
 | `POST /actions/drive/files` | Busca archivos Drive | No |
 | `GET /actions/drive/files/{file_id}` | Lee metadata de archivo Drive | No |
 | `POST /actions/drive/folders/ensure` | Preview de carpeta de entregables; rechaza `dry_run=false` con `409` | No |
+| `POST /actions/drive/folders/ensure/request` | Crea `ActionRequest` aprobable para crear/asegurar carpeta de entregables | No directamente |
+| `POST /actions/drive/organize/preview` | Previsualiza archivos Drive que se moverian a una carpeta destino | No |
+| `POST /actions/drive/organize/request` | Crea `ActionRequest` aprobable para mover archivos Drive a una carpeta | No directamente |
 | `POST /actions/drive/files/upload` | Preview/upload directo; rechaza `dry_run=false` con `409` | No |
 | `POST /actions/drive/files/upload/request` | Crea `ActionRequest` aprobable para upload Drive | No directamente |
 | `GET /mail/status` | Estado del carril mail personal y cuentas configuradas | No |
@@ -131,7 +161,7 @@ Todos requieren JWT.
 
 ## Workflow.v1 (export / import)
 
-Cada `ActionRequest` cuyo `action_type` está entre las siguientes 7 puede
+Cada `ActionRequest` cuyo `action_type` está entre las siguientes 9 puede
 serializarse a un documento JSON portátil y volver a someterse:
 
 - `computer_organize`
@@ -141,6 +171,8 @@ serializarse a un documento JSON portátil y volver a someterse:
 - `browser_interactive`
 - `calendar_create_event`
 - `drive_upload_file`
+- `drive_ensure_folder`
+- `drive_organize_files`
 
 El import siempre pasa por el mismo `create_*_request` que el endpoint
 estándar, así que **todos los guardrails se aplican intactos**: allow-lists,
@@ -342,7 +374,6 @@ Diseño:
 Variables:
 
 - `GOOGLE_MAPS_API_KEY=CHANGEME`
-- `ENABLE_MAPS_GEOCODING=false`
 - `ENABLE_MAPS_ROUTING=false`
 - `GOOGLE_CLIENT_ID=CHANGEME`
 - `GOOGLE_CLIENT_SECRET=CHANGEME`
@@ -358,18 +389,31 @@ Diseño:
 
 - Maps es read-only: no requiere aprobación porque no modifica servicios externos.
 - `RoutePlan` devuelve duración con tráfico, duración base, retraso estimado y
-  `google_maps_url` para abrir la ruta manualmente.
+  `google_maps_url` para abrir la ruta manualmente. Desde Fase 44 tambien
+  devuelve `traffic_severity`, ETA, labels de ruta, conteo de alternativas y
+  `route_advice` legible para el agente/operador.
 - Calendar list es read-only. Crear eventos reales exige
   `ENABLE_GOOGLE_CALENDAR_WRITE=true` y una `ActionRequest` aprobada
   (`calendar_create_event`). El endpoint directo `events/create` no ejecuta
-  writes reales.
-- Drive list/get es read-only. Upload real exige `ENABLE_GOOGLE_DRIVE_WRITE=true`,
-  path dentro de `COMPUTER_ALLOWED_ROOTS`, tamaño bajo
-  `GOOGLE_DRIVE_UPLOAD_MAX_BYTES` y aprobación vía `/request`. Los endpoints
-  directos de Drive no ejecutan writes reales.
+  writes reales. `freebusy` lee disponibilidad por rango y calendario sin
+  modificar Google.
+- Drive list/get es read-only. La busqueda soporta `name`, `full_text` y `all`
+  (`name OR fullText`) sobre `Mi unidad` o `allDrives`, siempre con
+  `trashed = false` y filtros seguros de carpetas/mime.
+- Upload real exige `ENABLE_GOOGLE_DRIVE_WRITE=true`, tamaño bajo
+  `GOOGLE_DRIVE_UPLOAD_MAX_BYTES`, aprobación vía `/request` y path dentro de
+  `DOCUMENT_OUTPUT_ROOT`, `LOCAL_STORAGE_DIR/workspaces`,
+  `OPENSHELL_ALLOWED_OUTPUT_DIR` o `COMPUTER_ALLOWED_ROOTS`. No se permite el
+  root completo de `LOCAL_STORAGE_DIR`, así `storage/oauth` queda fuera.
+- Organización real de Drive usa `drive_organize_files`: preview lista hasta 50
+  candidatos (`name`/`fullText`/`all`, `Mi unidad` o `allDrives`) y la ejecución
+  aprobada usa `files.update` con `addParents/removeParents` para mover archivos
+  a una carpeta destino. No borra, no mueve carpetas, no cambia permisos.
 - Drive usa por defecto la carpeta `GOOGLE_DRIVE_DELIVERABLES_FOLDER_NAME` para
-  entregables del sistema. `folders/ensure` previsualiza esa carpeta; la creación
-  real queda bajo el ciclo aprobable.
+  entregables del sistema. `folders/ensure` previsualiza esa carpeta;
+  `folders/ensure/request` crea la `ActionRequest` aprobable
+  `drive_ensure_folder`, y los uploads aprobados siguen asegurando la carpeta
+  durante la ejecución.
 - `/config/public` solo expone flags no sensibles de Google; nunca paths de token,
   client secrets ni API keys.
 - En producción, `ENABLE_GOOGLE_CALENDAR_WRITE=true` o
@@ -417,8 +461,9 @@ Ya implementado:
 3. Encolar ejecucion aprobada en worker Celery.
 4. Registrar `AuditEvent` al crear y al ejecutar.
 5. Guardar resultado o error en la solicitud.
-6. Crear/ejecutar `ActionRequest` para `calendar_create_event` y
-   `drive_upload_file` bajo doble compuerta.
+6. Crear/ejecutar `ActionRequest` para `calendar_create_event`,
+   `drive_upload_file`, `drive_ensure_folder` y `drive_organize_files` bajo
+   doble compuerta.
 7. Cifrar `payload_executable` con Fernet cuando `ACTION_PAYLOAD_ENCRYPTION_KEY`
    está configurado; producción exige cifrado requerido.
 
@@ -438,7 +483,7 @@ Pendiente para capacidades futuras:
 - No abrir dominios fuera de allow-list.
 - No enviar emails sin aprobacion.
 - No modificar DNS sin preview y aprobacion.
-- No mover archivos fuera de `COMPUTER_ALLOWED_ROOTS`.
+- No mover archivos locales fuera de `COMPUTER_ALLOWED_ROOTS`.
 - No leer secretos ni archivos `.env` desde acciones de computador.
 - No escribir documentos fuera de `DOCUMENT_OUTPUT_ROOT` ni mayores que
   `DOCUMENT_MAX_SIZE_BYTES`.

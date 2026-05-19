@@ -6,6 +6,12 @@
 node_modules/
 .next/
 frontend/.next/
+# Fase 68b: Next regenera `next-env.d.ts` en cada build con la ruta correcta
+# de `./.next/types/routes.d.ts`. Versionarlo provoca dos modos de falla:
+# (a) si `.next/` no existe (checkout limpio o CI), `tsc --noEmit` falla por
+# módulo faltante; (b) el archivo cambia cada build, contaminando diffs.
+# Que Next sea la fuente de verdad.
+frontend/next-env.d.ts
 __pycache__/
 *.py[cod]
 .mypy_cache/

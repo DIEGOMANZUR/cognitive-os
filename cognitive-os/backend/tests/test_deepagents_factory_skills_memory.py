@@ -50,7 +50,7 @@ def test_create_controlled_deep_agent_receives_skills_paths(
         )
         return captured
 
-    monkeypatch.setattr("cognitive_os.deepagents.factory.create_primary_chat_model", lambda: "llm")
+    monkeypatch.setattr("cognitive_os.deepagents.factory.create_agent_chat_model", lambda: "llm")
     monkeypatch.setattr("cognitive_os.deepagents.factory.create_deep_agent", fake_create_deep_agent)
 
     create_controlled_deep_agent(
@@ -78,7 +78,7 @@ def test_startup_memory_is_injected(tmp_path: Path, monkeypatch: Any) -> None:
         captured["memory"] = memory
         return captured
 
-    monkeypatch.setattr("cognitive_os.deepagents.factory.create_primary_chat_model", lambda: "llm")
+    monkeypatch.setattr("cognitive_os.deepagents.factory.create_agent_chat_model", lambda: "llm")
     monkeypatch.setattr("cognitive_os.deepagents.factory.create_deep_agent", fake_create_deep_agent)
 
     create_controlled_deep_agent(
@@ -111,7 +111,7 @@ def test_create_controlled_deep_agent_receives_safe_subagents(
         captured["subagents"] = subagents
         return captured
 
-    monkeypatch.setattr("cognitive_os.deepagents.factory.create_primary_chat_model", lambda: "llm")
+    monkeypatch.setattr("cognitive_os.deepagents.factory.create_agent_chat_model", lambda: "llm")
     monkeypatch.setattr("cognitive_os.deepagents.factory.create_deep_agent", fake_create_deep_agent)
 
     create_controlled_deep_agent(
@@ -148,7 +148,7 @@ def test_create_controlled_deep_agent_can_disable_subagents_per_task(
         return captured
 
     task = _task().model_copy(update={"metadata": {"enable_subagents": False}})
-    monkeypatch.setattr("cognitive_os.deepagents.factory.create_primary_chat_model", lambda: "llm")
+    monkeypatch.setattr("cognitive_os.deepagents.factory.create_agent_chat_model", lambda: "llm")
     monkeypatch.setattr("cognitive_os.deepagents.factory.create_deep_agent", fake_create_deep_agent)
 
     create_controlled_deep_agent(

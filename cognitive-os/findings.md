@@ -2,6 +2,787 @@
 
 > Bitácora viva. Para producto: ver `docs/`.
 
+## 2026-05-19 05:45 — Supervisión horaria #2 + bug frontend (Turbopack HMR) cerrado
+
+Stack: 688 pytest passed; api/worker/beat/frontend(:3001)/kimi running;
+docker 4/4 healthy; 0 errores recientes en logs; reaper corre cada 10
+min sin jobs stuck reales; `/chat` real `fallback=False`;
+`operator_profile=dedicated_local` (four_eyes=False, ttl=168h).
+Health global=`degraded` solo por google_calendar/drive `blocked`
+(esperan OAuth interactivo del operador).
+
+**Bug crónico cerrado de raíz (P1):** `next dev` (Turbopack) crashea en
+HMR/refresh cuando hay lockfiles padres conflictivos
+(`~/.opencode/package-lock.json`, etc.). Ni `turbopack.root` ni
+`outputFileTracingRoot` lo arreglan completamente — la auto-inference
+del workspace root sucede ANTES de leer el config. Next 16 ya no
+soporta `--no-turbopack`. **Fix definitivo**: el launcher ahora hace
+`next build && next start` (script `serve`). Más estable, más rápido
+(Ready 135ms vs 341ms del dev), sin Turbopack runtime, sin HMR. En un
+PC dedicado al agente HMR no se necesita; rebuild manual si el operador
+edita el frontend.
+
+**Bonus fix**: `is_running_frontend()` reescrito a **port-based check**
+(`ss -ltnp sport = :3001` + match de `/proc/$pid/cwd` contra
+`FRONTEND_DIR`) en lugar de cmdline. Next 16 reescribe el cmdline a
+`next-server (v…)` truncado por el kernel, así que ningún pattern
+podía distinguir nuestro `next-server` de otro (p.ej. OpenChamber).
+Resultado: el launcher reporta `frontend: running · pid 1876201 ·
+http://localhost:3001` correctamente; cero falsos "stopped" más.
+
+## 2026-05-19 — Mi-ultrareview offline (sustituye /ultrareview, falló su servicio)
+
+`/ultrareview` falló del lado del servicio Anthropic
+(`firestore: not found` al importar el seed bundle). El operador pidió
+hacer la review yo, por partes, sin esperar. Plan: 10 dominios
+sistemáticos, 3 por turn con wakeup entre tandas.
+
+**Tanda 1 (dominios 1-3) — esta sesión:**
+
+- **D1 Seguridad/Auth/RBAC/Rate limits:**
+  - 130 endpoints, 132 usos de auth dependency, **solo `/health` sin
+    auth** (público a propósito).
+  - `.env`, `.env.local`, `storage/` correctamente untracked.
+  - `SecretStr` no aparece en respuestas API.
+  - Hallazgo P2 no urgente: 53 endpoints mutadores no tienen
+    rate-limit explícito (`/chat`, `/chat/stream`,
+    `/deepagents/research`, `/document-analysis/run`, `/sandbox/run`,
+    etc.). Aceptable en `dedicated_local` (un solo operador); a
+    considerar para perfil `strict`/multi-cliente.
+
+- **D2 LLM / DeepAgent / Tool calling:**
+  - 21 tools / 0 esquemas inválidos (`args_schema` Pydantic).
+  - Cadena del router `agent→secondary→primary→deterministic`
+    funciona; si el operador cambiara `PRIMARY_LLM_MODEL` a un
+    reasoner el último intento devolvería 400 y caería a
+    `deterministic` (cubierto por try/except). En la config actual
+    (primary=gpt-5.5) no hay riesgo.
+  - Usos restantes de `create_primary_chat_model` (planner.py:176,
+    graph.py:649/689) son `invoke` plano sin tool_choice — correcto
+    que usen el reasoner.
+
+- **D3 Action Plane (correctness crítico):**
+  - Drive organize `file_ids` congelados verificado (drive.py:109,
+    746, 752, 775; service.py:801, 815).
+  - `reserve_action_dispatch` con estados `submitting`/`submitted`/
+    `failed` vivos. Sweeper `reap_stale_dispatch_reservations` en
+    line 1754 cableado en beat.
+  - `_read_action_request_status` y crash-window guard en tasks.py:112.
+  - Code Build/OpenShell con guards de `running` (líneas 357, 364, 569).
+  - Alembic head `202605170001` (migración Drive folder/organize).
+
+Tanda 1: **0 hallazgos accionables**. Continúa con dominios 4-10 vía
+ScheduleWakeup.
+
+**Tanda 2 (dominios 4-6):**
+
+- **D4 RAG / Memoria / Storage:** `ensure_collection()` con
+  double-checked locking + `threading.Lock` (race cubierto).
+  Embeddings con `embeddings_circuit_breaker` + `retry_transient_http`
+  + key rotation pool ante quota errors. BM25 fallback explícito
+  (`query_embedding=[]`, `alpha=0`, vector field omitido para no
+  emitir GraphQL inválido). SHA256 dedup en ingestion + web_indexer.
+  Pipeline `pending_index → indexed` solo tras confirmación Weaviate.
+  Batch insert detecta mismatch de vectores y rechaza partial batch.
+  **0 hallazgos accionables.**
+
+- **D5 API / Endpoints / Modelos:** CHECK constraint
+  `ck_ar_action_type` cubre todo el set persisted del servicio
+  (regresión Fase 65 vigente). Tests `test_public_config_does_not_
+  expose_secret_shaped_keys` valida que SecretStr no se filtra en
+  responses. Migraciones cadena lineal head `202605170001` sin drift.
+  **Hallazgo FUTURO (no urgente PC dedicado):** la tabla `jobs` no
+  tiene índice compuesto `(job_type, created_at/updated_at)` ni
+  `(status, created_at)`. Con 3099 jobs ya acumulados las queries
+  (`Jobs` filtered, `/agents` stats, telegram `/jobs`,`/codebuild`)
+  hacen full-scan. Aceptable <3 s en un PC dedicado; sería P1 en
+  multi-tenant o cuando el histórico crezca a decenas de miles.
+
+- **D6 Workers / Celery / Beat:** beat schedule limpio
+  (memory consolidate, reminders /5m, gmail digest diario, mail sync,
+  action-request-reaper /10m, approval-reaper :15h). Reapers NO se
+  invocan entre sí (sin deadlock). Idempotency dispatch verificada en
+  D3. `autoretry_for=TRANSIENT_EXCEPTIONS` solo en 3 tasks
+  (ingest/cleanup/mail-sync); las críticas con efecto externo
+  (run_action_request, run_code_build, run_openshell) sin autoretry
+  por diseño — el operador decide. **Hallazgo FUTURO (P2):** solo hay
+  reaper para `ActionRequest.status==running`; **Code Build y
+  OpenShell Jobs no tienen reaper** general. Si el worker muere
+  mid-execution, esos Jobs quedan `running` hasta cancelación manual.
+  Aceptable en PC dedicado (operador ve stuck en `/jobs`); deuda real
+  para considerar.
+
+Tanda 2: **0 bugs accionables, 2 hallazgos FUTUROS documentados**.
+Continúa con dominios 7-10 vía ScheduleWakeup.
+
+**Tanda 3 (dominios 7-9):**
+
+- **D7 Frontend / PWA / Vistas:** `renderMarkdownLite` es XSS-safe
+  (escapa `& < >` primero; regex de URL sólo matchea
+  `https?://[^\s<>"']+`, no acepta `javascript:`). Todos los `fetch`
+  usan `Authorization: Bearer ${token}`. `usePolledFetch` con
+  `AbortController` + cleanup en unmount (sin leaks). El SW excluye
+  `/api/*` del cache (sin staleness en respuestas autenticadas).
+  JWT en `localStorage` es decisión consciente (SPA estándar, riesgo
+  XSS bajo en `dedicated_local`) — marcado FUTURO si se cambiara a
+  perfil `strict` multi-cliente. **0 hallazgos accionables.**
+
+- **D8 Telegram bot:** 36 commands registrados, paridad 36/36 con la
+  matriz del USER_GUIDE (líneas 629, 653-654 cubren help/done/note/
+  task que parecían faltar). `_resolve_approval_id` con whitelist
+  hex+dash + min length 4 (previene wildcards `%`/`_`). **BUG P2
+  REAL corregido en vivo**: `cmd_job` (telegram_bot.py:436-447)
+  insertaba `prefix=arg.lower()` directamente en
+  `ilike(f"{prefix}%")` sin la misma whitelist —`/job %` matcheaba
+  cualquier job y devolvía el primero (no era vector externo por
+  estar el bot detrás de `allowed_user_ids`, pero rompía la
+  semántica si el operador pegaba un id mal). Fix idéntico al
+  patrón ya probado en `_resolve_approval_id`. Regresión añadida:
+  `test_cmd_job_rejects_sql_wildcard_prefix` (con `%` y con `_`,
+  ambos hacen `must not query DB`). Race approve/reject: cubierta
+  por `decide_approval` (servicio compartido con el panel) que tira
+  `ApprovalAlreadyDecidedError` ante doble decisión. Sin command
+  injection — `cmd_chat` va al grafo LangGraph (prompt injection es
+  inherente al LLM, no SQL/shell), `cmd_ingest` pasa la ruta vía
+  Celery args (serializado por kombu, no shell).
+
+- **D9 Infra / Launchers / Migraciones:** 17 migraciones lineales
+  sin ramas, head `202605170001`. `verify_desktop_launchers.sh`
+  pasa (4 wrappers + 4 `.desktop` files + master). Sintaxis bash
+  OK en master + verify. Sin `eval`/`rm -rf`/`sudo`/
+  `--privileged` en ninguno de los scripts. `docker-compose.yml`
+  con bind `127.0.0.1` en todos los puertos expuestos +
+  healthchecks definidos + `restart: unless-stopped`.
+
+Tanda 3: **1 bug P2 corregido (cmd_job SQL wildcards) con regresión
+en tests**; D7 y D9 limpios. Continúa con D10 (Docs / coherencia +
+reporte unificado) vía ScheduleWakeup.
+
+## 2026-05-19 — Revisión final doble (post Fase 68b)
+
+**Revisión #1**: 11 markdowns en Fase 68 sin headers rezagados; suite
+**688 passed**; ruff/format/mypy (125 source files) verde; alembic head
+`202605170001`; pre-commit 6/6 OK; git diff --check CLEAN; los 7 fixes
+de Fase 68b siguen vivos (21 args_schema, 4 file_ids refs Drive, 3
+missing_scopes refs Cal/Drive, 5 budget_mode refs config + director,
+5 operator_profile refs config + 4 app, `_read_action_request_status`
+helper + crash-window guard, `reap_stale_dispatch_reservations` cableado
+en beat, outputFileTracingRoot).
+
+**Bug encontrado en la revisión y corregido en vivo**: el frontend había
+quedado caído tras el relaunch anterior (HTTP 000 en :3001, sin proceso
+`next` nuestro). Causa: Next reescribe `next-env.d.ts` y la inferencia
+automática del workspace root corre ANTES de leer `turbopack.root` del
+config; con lockfiles padres (`~/.local/package-lock.json`,
+`~/.opencode/package-lock.json`) Next falla con "couldn't find
+next/package.json from <project>/app". Fix: agregado
+`outputFileTracingRoot: __dirname` en `frontend/next.config.mjs`
+(Next 16 lo usa para resolver además de `turbopack.root`). Build verde
+y `next dev` arrancó limpio (Ready 341ms, GET / 200) tras el relanzamiento
+vía `Reiniciar Cognitive OS.sh`.
+
+**Revisión #2** (segunda pasada limpia post-#1): los 7 fixes intactos,
+`next-env.d.ts` correctamente untracked, `alembic check` sin drift, suite
+crítica focal (worker/drive/config/system_info) 50 passed, full-qa exit
+0 (`OK: full-qa`). Stack vivo: docker (4/4 healthy) + api + worker + beat
++ frontend(:3001 reportado correctamente) + kimi; telegram correctamente
+"stopped" (token 401 sigue pendiente del operador). `/system/info`
+expone `operator_profile=dedicated_local`, `/chat` real sin fallback.
+
+## 2026-05-19 — Fase 68b: revisión GPT-5.5 + perfiles + 7 hallazgos cerrados
+
+Revisión cruzada de GPT-5.5 sobre Fase 65-68. Acepté lo correcto,
+debatí 2 puntos por daño irreversible (browser-real con sesiones de
+Edge, mail autosend) y los implementé como "opt-in explícito visible"
+en lugar de wildcard silencioso. Lo demás corregido con el mismo rigor
+(lint/mypy/tests/regresión, sin commitear). Suite final
+**688 passed**, +3 vs Fase 68.
+
+**P0 — defaults LLM desalineados:** `config.py:170` y `.env.example:46/48/57/59`
+seguían apuntando fallback/vision-fallback a Kimi HTTP (403 garantizado).
+Cambiados a la cadena verificada (gemini/glm). 4 docs unificados al
+claim correcto (DeepSeek → cadena verificada gpt-5.5).
+
+**P0 — Code Director "budget caps duros" sobreafirmado:** docs prometían
+hard pero el adapter timeout era fijo (600s) y el budget se revisaba
+post-call. Implementado `CODE_DIRECTOR_BUDGET_MODE=soft|hard`:
+  - `soft` (default, recomendado para PC dedicado): el current subtask
+    termina su CLI; budget cierra el BUILD `partial` entre subtasks.
+  - `hard`: gate pre-call, aborta subtask al instante si cap excedido.
+
+**P1 — Code Build / OpenShell sin guard de duplicado:** llevados al
+patrón ya usado por `run_action_request_task_async` (Fase 66): guard
+"job ya running ⇒ short-circuit con `skipped:true`". El ActionRequest
+worker ya tenía guard pero el de Job-only podía cortar prematuro: ahora
+también lee el estado del **ActionRequest** y, si está aún `queued`,
+asume crash window y procede (execute_action_request es atómico). +1
+test de regresión que cubre el escenario crash-window.
+
+**P1 — Sweeper `dispatch_state` stale:** nuevo
+`reap_stale_dispatch_reservations` (cableado en `reap_stuck_action_
+requests_task`, mismo beat). Si un proceso muere entre
+`reserve_action_dispatch` (deja `submitting`) y el `submitted`/`failed`
+event, la reserva quedaba sticky para siempre. El sweeper flippea a
+`failed` tras un threshold, permitiendo re-dispatch.
+
+**P1 — Drive organize re-buscaba al ejecutar (CRÍTICO, contradice
+human-approval).** `drive.organize_files` hacía `provider.list_files`
+en preview y otra vez en ejecución → aprobar plan A, mover plan B. Fix:
+`DriveOrganizeRequest.file_ids` se congelan en el preview y el execute
+path **mueve exactamente esa lista** (con `get_file` por id; archivos
+borrados entre approve/execute se omiten, jamás se sustituyen). +2
+regresiones explícitas. Mismo principio que el fix Fase 15 de
+`computer_organize`.
+
+**P1 — Google OAuth scopes sin validación:** `GoogleCredentialsLoader`
+solo chequeaba `valid/expired`. Calendar/Drive podían decir `ready`
+faltando `calendar.events` o `drive` (write). Añadidos
+`granted_scopes()` / `missing_scopes()` al loader y cableados en los
+`status()` de Calendar y Drive: si falta un scope necesario, status
+pasa a `blocked` con guía exacta de re-auth + lista
+`missing_scopes` en la respuesta.
+
+**P2 — `next-env.d.ts` frágil en checkout limpio:** importaba
+`./.next/dev/types/routes.d.ts` (generado local, gitignored) → `tsc
+--noEmit` rompía en CI / clones nuevos. Next reescribe el archivo en
+cada build con la ruta estable `./.next/types/routes.d.ts`. Solución:
+**gitignorar `next-env.d.ts`** — Next es la fuente de verdad,
+desindexado del repo. Build verde.
+
+**Perfiles de operación:** nuevo `OPERATOR_PROFILE=strict|dedicated_local`.
+`dedicated_local` afloja TTL (48→168h), four-eyes (off), aprobación
+externa (off), budget mode (soft) **solo donde el operador no fijó
+explícitamente otra cosa** (`model_fields_set`). Las relajaciones con
+daño irreversible (browser wildcard, mail autosend) NO son default
+silencioso — el perfil las documenta y recomienda en
+`docs/USER_GUIDE.md` "Perfiles de operación" + "Setup PC de Diego";
+quedan visibles en `/config/public` (campo `operator_profile`) cuando
+el operador las activa. El operador set `OPERATOR_PROFILE=dedicated_local`
+en `.env` (PC dedicado + Edge real).
+
+**USER_GUIDE reescrita:** sección 8 era "Cómo NO usar Cognitive OS"
+(estricta, contradice PC dedicado). Reescrita como "Perfiles de
+operación: Estricto vs PC dedicado" con tabla por capacidad. Sección 9
+nueva: "Matriz de acciones" — qué corre solo / qué pide aprobación /
+cómo aflojarlo, incluida documentación de CapSolver y los reaper
+sweepers. Header del USER_GUIDE corrige el overclaim "verificado en
+vivo": separa lo realmente probado (chat / Maps / CORS) de lo
+"implementado y `ready` con credenciales".
+
+**`/config/public` expone `operator_profile`** para que el frontend
+pueda mostrar el banner del perfil activo en el header del panel
+(decisión visible, no oculta).
+
+## 2026-05-19 — Fase 68c: stack levantado + frontend/CORS fixes + supervisión
+
+**Arranque del stack (vía wrapper de escritorio real):** docker
+(pg/redis/weaviate/neo4j healthy) + api (/health ok) + worker + beat +
+frontend + kimi-webbridge arriba; telegram correctamente omitido (token
+401). Verificado end-to-end: `/chat` → router LLM + DeepAgent reales sin
+fallback; CORS preflight `:3001`→API = 200.
+
+**Bugs reales encontrados y corregidos en el arranque:**
+
+- **Frontend `next dev` no levantaba (2 causas):** (1) Turbopack
+  mis-inferia el workspace root (path con espacio + lockfiles padre) →
+  `couldn't find next/package.json`. Fix: `turbopack: { root: __dirname }`
+  en `next.config.mjs`. (2) Puerto 3000 ocupado por **OpenChamber**
+  (otra app del operador) → EADDRINUSE. El launcher hacía `kill_port
+  3000` que **mataría OpenChamber**. Fix: frontend movido a `:3001`
+  (coexiste, no mata otra app); `FRONTEND_PORT=3001` en el maestro.
+- **CORS bloquearía el panel:** default solo permitía `:3000`; con el
+  frontend en `:3001` el navegador bloquearía las llamadas al API. Fix:
+  `CORS_ALLOW_ORIGINS` explícito en `.env` con `:3001` y `:3000`.
+  Verificado: preflight OPTIONS desde `:3001` → 200.
+- **Launcher reportaba frontend "stopped" estando vivo:**
+  `FRONTEND_CMD_PATTERN="next dev"` no matchea el cmdline real
+  (`node …/cognitive-os/frontend/…`, el wrapper npm no conserva "next
+  dev"). Fix: patrón `cognitive-os/frontend` (específico, no colisiona
+  con omniroute) + grabar el PID real del `next` tras el health-check.
+  Verificado: status ahora `frontend: running · :3001`.
+- Docs (`USER_GUIDE`, `README`, `RUNBOOK`, `ARCHITECTURE`,
+  `COGNITIVE_OS_GUIDE`) actualizados a `:3001`.
+
+**Supervisión profunda #1 (baseline):** todos los procesos arriba; api/
+beat.log 0 errores; worker.log 1944 errores son histórico acumulado de
+días (la actividad reciente —`sync_personal_mail` cada ~2 min— es 100%
+"succeeded", 0 errores recientes). Los "12 running" de `knowledge/stats`
+= 7 running + 5 queued; los 7 son jobs stale viejos (`integration_test`
+×5 + `personal_mail_sync` ×2, creados 2026-05-12..16, de tests
+antiguos) — benignos, no defecto, no erroran. docker 4/4 healthy.
+Sistema sano y trabajando. Próximas supervisiones: cada 1 h vía
+ScheduleWakeup con análisis profundo.
+
+## 2026-05-19 — Fase 68b: revisión profunda doble + hallazgos
+
+**Revisión #1 (zonas débiles, post Fase 65-68):**
+
+- **Telegram token INVÁLIDO (bloqueante, requiere operador).** El
+  `TELEGRAM_BOT_TOKEN` en `.env`
+  (`8742030714:AAFcJi…`) devuelve **HTTP 401 Unauthorized** en `getMe`
+  (probado con httpx, el mismo cliente del bot). Está revocado o es
+  erróneo. Además `TELEGRAM_AUTHORIZED_USER_IDS` está vacío (aunque el
+  token fuese válido, el bot rechazaría a todos). No se puede levantar
+  Telegram funcional sin: (a) token válido nuevo de @BotFather, (b) el
+  user_id autorizado. El resto del stack NO depende de esto.
+- **Auditoría sistemática de alias `.env` ↔ Settings:** 197 vars `.env`
+  vs 254 alias. Las 14 sin alias son intencionales (env-var-only:
+  GITHUB/HF/SUPERMEMORY; MCP GitHub; y las KIMI_/GLM_ANTHROPIC de
+  referencia). **No hay otro bug de no-op tipo `ENABLE_GODADDY`.**
+- **`KIMI_CODING_*`/`KIMI_ANTHROPIC_*` son solo referencia:** el adapter
+  `kimi` del Code Director invoca el binario `kimi` CLI que lee su
+  propio `~/.kimi/...`; no consume esas vars (no hay alias). Comentario
+  en `.env` corregido para no inducir a error.
+- **Degradación elegante verificada:** si el gateway LLM cae, el router
+  agota agent→secondary→primary y termina en `deterministic_route` (sin
+  crash); el DeepAgent cae a RAG. Sin punto único de fallo duro.
+- Baseline de revisión: **685 passed, 1 skipped, 20 deselected**;
+  ruff/mypy (125 files) limpios; alembic head `202605170001`; backend
+  vivo y `/health` ok.
+
+## 2026-05-19 — Fase 68: GoDaddy DNS producción + bugfix alias config
+
+- **Credenciales GoDaddy producción verificadas en vivo:** auth contra
+  `api.godaddy.com` → HTTP 200 (devuelve dominios reales de la cuenta).
+  Antes el operador había mandado por error la key OTE (probada: solo
+  funciona contra `api.ote-godaddy.com`, 200; contra producción 400
+  `UNABLE_TO_AUTHENTICATE`). Demostrado con pruebas reales que GoDaddy
+  exige Key **y** Secret (`Authorization: sso-key KEY:SECRET`); solo-key
+  da 401 `MALFORMED_CREDENTIALS`.
+- **Bug de config detectado y corregido:** la línea `.env` decía
+  `ENABLE_GODADDY=false`, pero el campo `Settings.godaddy_enabled` tiene
+  alias **`GODADDY_ENABLED`** (no `ENABLE_GODADDY`). `ENABLE_GODADDY` era
+  un **no-op**: aunque se pusiera `true`, GoDaddy nunca se habilitaba.
+  Corregido en `.env` y en `docs/guia_credenciales.md` (que también
+  documentaba el alias equivocado).
+- **Postura segura:** `GODADDY_ENABLED=true` pero
+  `GODADDY_DNS_DRY_RUN_ONLY=true` + `GODADDY_ALLOW_PRODUCTION_WRITES=false`
+  → capability `ready`, `requires_approval=True`, `dry_run_only=True`:
+  ninguna escritura DNS real hasta opt-in explícito del operador.
+- Credenciales (prod + OTE) guardadas en `.env` y Supermemory MCP.
+  Inventario: `GODADDY_API_KEY/SECRET configured=True`.
+
+## 2026-05-18 — Fase 67: esquemas de tools tipados + cadena LLM del operador
+
+**Causa raíz del tool calling (más profunda que el modelo).** Probando
+el gateway del operador (`gpt-5.5` @ `http://100.120.183.68:8317/v1`)
+el DeepAgent fallaba con `400 "Invalid schema for function
+'search_local_docs'"`. No era el modelo: era que **las 21 tools del
+DeepAgent se construían con `StructuredTool.from_function(func=lambda
+...)`**; los lambdas no tienen anotaciones, así que LangChain emitía
+propiedades **`{}` vacías** (`"query": {}`). DeepSeek las toleraba;
+gateways estrictos OpenAI-compatible (gpt-5.5) las rechazan. Esto era
+un bug de calidad latente — el sistema dependía de la indulgencia del
+proveedor.
+
+**Fix (calidad real, no parche).** Se definieron `args_schema`
+Pydantic explícitos para las 21 tools (tipos + descripciones por
+parámetro + validación + bounds donde aplica), reflejando 1:1 las
+funciones tipadas subyacentes. Verificado: `convert_to_openai_tool`
+sobre las 21 → **0 propiedades vacías/sin-tipo** (antes `{}`).
+97 tests tool/deepagent/factory verdes.
+
+**Cadena LLM definida por el operador, verificada en vivo** (httpx +
+LangChain `with_structured_output`):
+
+| Orden | Modelo | Endpoint | tool_choice forzado | Uso |
+|---|---|---|---|---|
+| 1 DEFAULT | gpt-5.5 | gateway :8317 | ✅ 200 | primary + agent |
+| 2 / 1er fb | gemini-3.1-pro-low | gateway :8317 | ✅ 200 | secondary |
+| 3 / 2º fb | gemini-3.1-pro-low | gateway :8317 | ✅ 200 | fallback |
+| 4 / 3er fb | kimi-k2.6 | api.kimi.com/coding/v1 | ❌ **403** | solo CLI Code Director |
+| visión | glm-4.6v | api.z.ai/.../paas/v4 | 200 (multimodal) | vision + vision_fb |
+
+**Honestidad sobre Kimi:** `kimi-k2.6` vía HTTP da **403 "Kimi For
+Coding is currently only available for Coding Agents such as Kimi CLI,
+Claude Code..."** — gatekeeping por tipo de cliente (también el
+Anthropic-type). NO se cableó como fallback HTTP (sería un 403
+garantizado, anti-infalible); queda donde sí funciona: el adapter
+`kimi` (subprocess CLI) del Code Director. Kimi visión idem → la
+visión primaria es GLM-4.6v (verificado HTTP 200), no Kimi.
+
+**Clase de bug expuesta: tests no-herméticos del grafo.** Varios tests
+ejecutaban `build_graph(...).invoke()` o `/chat` SIN estubear el router;
+"pasaban" solo porque el modelo viejo fast-fallaba (deepseek-v4-pro
+tool_choice 400 en ms → `deterministic_route`). Con gpt-5.5 el router
+hace una llamada LLM real al gateway → no-determinista, lento, flaky
+(`APITimeoutError` 117s en un caso; `"Human approval required."` vs
+`"No hay evidencia suficiente"` en otro, según lo que devolviera el
+gateway). Detectados: `test_orchestrator_legal_node_document_analysis::
+test_graph_adds_document_analysis_result_to_messages` y
+`test_api::test_chat_and_thread_roundtrip_with_auth` (más
+`test_chat_stream`, `test_orchestrator_deepagents_integration` en
+riesgo).
+
+**Fix infalible y DRY (no whack-a-mole):** nuevo `tests/conftest.py`
+con un fixture **autouse** `_disable_real_llm_factories` que hace
+*raise* a TODAS las factory de modelo
+(`create_{agent,secondary,primary,fallback}_chat_model` en
+`agents.graph` + `deepagents.factory.create_agent_chat_model`) por
+defecto. Así NINGÚN test del suite default puede hacer una llamada LLM
+real: el router cae a `deterministic_route` y la DeepAgent factory
+nunca abre socket. Tests que quieren LLM inyectan
+`router_llm=FakeRouterLLM(...)` (no tocan factories) o estubean su
+propio modelo en el cuerpo (corre después del fixture, gana). Los
+tests `integration`/`slow` quedan exentos. Resultado: suite completa
+**685 passed, 1 skipped, 20 deselected en ~22s** (antes 53-65s y
+flaky) — ahora hermético por construcción y determinista.
+
+**Verificado end-to-end live:** `/chat` "teorema CAP" →
+`route=research`, `deepagent_fallback=False`, respuesta correcta,
+**0 errores de schema/tool_choice/400 en todo el log del backend**.
+El router LLM (gpt-5.5) decide de verdad. health dashboard: todo
+ok/configured salvo Calendar/Drive `blocked` (esperan OAuth operador).
+Credenciales guardadas en `.env` y en Supermemory MCP.
+
+## 2026-05-18 — Fase 66b: el bug tool_choice también afectaba al ROUTER
+
+Ante la pregunta del operador "¿DeepSeek V4 sigue fallando con
+tool_choice?": **sí, `deepseek-v4-pro` (=reasoner) no soporta y nunca
+soportará `tool_choice` forzado — es límite del modelo, no se arregla
+del lado nuestro.** El fix correcto es no invocarlo con tool_choice
+forzado en ningún carril. Auditando esto a fondo se encontró un
+**segundo punto** además del DeepAgent: `agents/graph.py:route_request`
+usa `llm.with_structured_output(RouterDecision)` (que internamente
+fuerza tool_choice). La cadena previa intentaba secondary→primary, y
+tras el repoint Fase 66 *ambos* eran `deepseek-v4-pro` → el router
+**siempre** caía a `deterministic_route`: el router LLM nunca corría
+(routing degradado a heurística, silencioso). Los demás usos del
+primary (`graph.py:635/675` borradores comm/social, `planner.py:176`
+Code Director) usan `invoke` plano (texto, sin tool_choice) → OK.
+Fix: el router usa `create_agent_chat_model()` (`deepseek-chat`,
+tool-capable) primero, con secondary/primary/deterministic como
+degradación. Verificado live: el router LLM ahora decide de verdad
+(`route=social`/`research` según la query), respuestas limpias, y
+**0 ocurrencias de "does not support this tool_choice" en todo el log
+del backend**. Suite: **685 passed**. Conclusión: `deepseek-v4-pro`
+sigue sin tool_choice (esperado e inarreglable), pero ya **no se lo
+invoca así en ningún carril**; los carriles que necesitan tool_choice
+forzado (DeepAgent + router) usan `deepseek-chat`.
+
+## 2026-05-18 — Fase 66: auditoría EN VIVO con credenciales reales — 4 bugs críticos
+
+Con el stack levantado de verdad (Docker infra + backend + worker +
+credenciales reales del operador) se auditó cómo reacciona cada parte.
+La resiliencia del sistema **enmascaraba** fallos serios: los carriles
+caían a fallback y nadie veía que el carril principal estaba muerto.
+
+**Bug 1 — DeepAgent nunca funcionó (severidad ALTA).**
+`/chat` devolvía `"DeepAgent failed; Cognitive OS used direct RAG
+fallback."`. Causa: el DeepAgent usa structured output
+(`response_format=DeepAgentResult`) que fuerza un `tool_choice`
+específico; el modelo primario `deepseek-v4-pro` resuelve a
+`deepseek-reasoner`, que responde **HTTP 400 "deepseek-reasoner does
+not support this tool_choice"**. *Todo* DeepAgent (research, document,
+analysis) degradaba silenciosamente a RAG. Verificado en vivo:
+`deepseek-chat` con tool_choice forzado → 200; `deepseek-v4-pro` → 400.
+Fix: nuevo `create_agent_chat_model()` (config `AGENT_LLM_MODEL`,
+default `deepseek-chat`, reusa key/base del primary); el carril de
+agente usa modelo tool-capable y el chat/razonamiento sigue con el
+reasoner. Confirmado live: `/chat` → `fallback=False`, respuesta limpia.
+
+**Bug 2 — SECONDARY/FALLBACK/VISION_FALLBACK LLM con 403 garantizado.**
+La key Kimi es de "Kimi For Coding" y el endpoint
+`api.kimi.com/coding/v1` **rechaza clientes HTTP openai-compatible**
+("only available for Coding Agents such as Kimi CLI, Claude Code...").
+SECONDARY (resúmenes) y FALLBACK (circuit breaker abierto) estaban
+garantizados a 403. La key Kimi SÍ sirve en el Code Director (adapter
+`kimi` por subprocess CLI — no afectado). Fix: repuntados
+SECONDARY/FALLBACK a DeepSeek y VISION_FALLBACK a GLM-4.6v. Verificado
+live: los 6 carriles LLM (primary/secondary/fallback/vision/
+vision_fb/embeddings) → HTTP 200.
+
+**Bug 3 — LangSmith dropeaba TODAS las trazas (403).**
+`configure_langsmith()` exportaba `LANGSMITH_API_KEY` (lsv2_sk_, scoped):
+`/info` 200 pero `/runs/multipart` y `/sessions` **403 Forbidden**. El
+operador tiene además `LANGSMITH_PERSONAL_ACCESS_TOKEN` (lsv2_pt_) con
+scope de escritura. Fix: `configure_langsmith()` prefiere el personal
+access token (mismo orden que ya usaba el `/runs` de Telegram).
+Verificado live: `/sessions` → 200, trazas ingresan.
+
+**Bug 4 — Maps traffic-aware SIEMPRE 400.**
+`/actions/maps/route` con `traffic_aware=true` (default) devolvía 400.
+La key Maps es válida (status `ready`, geocoding OK). Causa: el código
+seteaba `departureTime = datetime.now(UTC)`; para cuando el request
+llega a Google ya es **pasado** y Routes API responde
+**"Timestamp must be set to a future time."**. Aislado en vivo:
+`now` → 400; `now+120s` → 200. Fix en `actions/maps.py`: el default
+(y clamp de cualquier valor pasado/cercano) usa `now + 60s`, con
+normalización de datetimes naive. Verificado live: ruta real
+`19.5 km · 25 min · tráfico leve · 12 pasos`.
+
+**Endurecimiento de tests (hermeticidad).** Las acciones legítimas de
+guardar credenciales en `.env` (encryption key, Gmail flags) expusieron
+que varios tests construían `Settings(...)` leyendo el `.env` real del
+operador. 7 tests pasados a herméticos con `_env_file=None`
+(`test_config.py` ×2, `test_actions.py` ×4 vía Settings, helper de
+`test_credentials_status.py`), + `tests/test_deepagents_factory_skills_memory.py`
+actualizado al nuevo símbolo `create_agent_chat_model`, +
+`SETTINGS_REGISTRY_TABLE.md` regenerado por los nuevos `AGENT_LLM_*`.
+Suite: **685 passed, 1 skipped, 20 deselected**.
+
+**Observación (no-bug):** `knowledge/stats` reportó 12 jobs en
+`running`: data stale de sesiones de desarrollo previas (el reaper
+Celery los cierra; no es código introducido). El `degraded` global del
+health dashboard es **solo** por `google_calendar`/`google_drive`
+`blocked` (esperan el OAuth interactivo del operador, `auth_google.py`).
+
+**Estado vivo verificado:** postgres/redis/weaviate/neo4j `ok`,
+checkpointer Postgres real, worker Celery `ok`, langsmith `ok` (token
+correcto), voice/maps/captcha/webbridge `ready`, gmail `configured`,
+chat→DeepAgent real funcionando, ruta Maps real funcionando, migración
+crítica `202605170001` aplicada en Postgres real (CHECK incluye
+drive_ensure_folder/drive_organize_files — confirmado por query directa).
+
+## 2026-05-17 — Fase 65: paridad UI↔Telegram + bugfix CHECK constraint
+
+### Auditoría completa "pies a cabeza" (sesión final pre-entrega)
+
+**Baseline** verificada antes de tocar nada:
+
+- `bash scripts/full-qa.sh` → **674 passed, 1 skipped, 20 deselected**.
+- `bash scripts/stress-qa.sh` → 3 corridas idénticas, 674 cada una.
+- `uvx pre-commit run --all-files` → 6 hooks pass.
+- `docker compose -f infra/docker-compose.yml --env-file .env.example config --quiet` → pass.
+- `uv run alembic check` → sin drift (head `202605160002`).
+- Frontend `lint`/`build` → OK (Next.js 16.2.6, 20 vistas, manifest+SW PWA OK).
+
+**Mapeo cruzado FE↔BE**: las 44 rutas REST únicas usadas por el frontend
+(`app/views/*.tsx`, `app/components/*`, `app/page.tsx`) están cubiertas
+por los 131 endpoints definidos en `api/app.py`. 0 paths huérfanos.
+
+**Bug crítico encontrado y corregido (Postgres-only, no detectable con
+tests actuales)**: el CHECK constraint `ck_ar_action_type` definido en el
+ORM `db/models.py` solo permitía hasta `drive_upload_file`, pero los
+servicios (`actions/service.py:770,812`) crean ActionRequest con
+`drive_ensure_folder` y `drive_organize_files`. Los endpoints
+`/actions/drive/folders/ensure/request` y `/actions/drive/organize/request`
+disparaban `CheckViolation` en Postgres real y devolvían 500. La suite no
+lo detectaba porque `_install_fake_action_session` monkeypatch
+`session_scope` y nunca round-trippea a la DB.
+
+Fix aplicado:
+
+- Migración `alembic/versions/202605170001_action_requests_drive_folder_organize.py`
+  amplía el constraint para incluir ambos tipos.
+- `ActionRequest.__table_args__` actualizado para que ORM y DB
+  permanezcan alineados.
+- Test de regresión `tests/test_action_request_check_constraint.py`:
+  lee el CHECK del ORM y del último archivo de migración y los compara
+  contra `WORKFLOW_EXPORTABLE_TYPES` del servicio. Si alguien agrega un
+  action_type al servicio pero olvida actualizar el ORM/migración, el
+  test falla.
+
+**Telegram bot: paridad UI**. Auditados los 25 commands previos y las 20
+vistas del frontend. Se identificaron 11 dominios sin slash y se agregaron:
+
+- `/maps origen | destino` — ruta read-only con tráfico + advice +
+  link Google Maps + alternativas.
+- `/calendar [max]` — próximos eventos.
+- `/freebusy [días]` — disponibilidad primary.
+- `/drive <query>` — búsqueda Drive read-only.
+- `/documents [max]` — documentos ingestados (Postgres).
+- `/audit [max]` — últimos audit events.
+- `/mail [max]` — bandeja mail multicuenta.
+- `/research [max]` — research orchestrator runs.
+- `/codebuild [max]` — code-director builds.
+- `/sandbox` — estado openshell sandbox.
+- `/capabilities` — flags de action plane.
+
+Todos los handlers respetan capacidades habilitadas (Maps/Calendar/Drive
+status, `MAIL_ENABLED`, `ENABLE_OPENSHELL_SANDBOX`, etc.) y errores se
+serializan a Markdown seguro vía `_safe_md_fragment`. Cubiertos con 9
+tests focalizados (`test_telegram_bot.py`).
+
+**Falsos positivos secrets**: `telegram_bot.py:548` tenía un set de
+caracteres hex (los dígitos 0-9, las letras a-f en ambas cajas y el
+guion) usado para validar prefijos UUID; detect-secrets lo marcaba
+como Base64HighEntropyString. Anotado con `# pragma: allowlist secret`
+para mantener el baseline limpio sin mover el código.
+
+**Snapshot QA post-cambios**:
+
+- `uv run pytest -q` → **685 passed, 1 skipped, 20 deselected** (+11).
+- `uv run ruff check .` / `ruff format --check` / `uv run mypy src` → verdes.
+- `uvx pre-commit run --all-files` → 6 hooks pass.
+- `bash scripts/full-qa.sh` → OK.
+- `bash scripts/verify_desktop_launchers.sh` → OK.
+- `bash scripts/init_credentials.sh` (modo no-`--ci`) → reporta sólo REQ
+  pendientes propios del host (no del repo).
+
+**Pendiente operador (no requiere código)**:
+
+1. Completar credenciales OPT del operador si va a usar Google
+   Calendar/Drive write (correr `python scripts/auth_google.py` una
+   vez).
+2. Pegar `TELEGRAM_BOT_TOKEN` y `TELEGRAM_AUTHORIZED_USER_IDS` en
+   `.env` y poner `TELEGRAM_ENABLED=true`.
+3. Aplicar migraciones a Postgres con `uv run alembic upgrade head`
+   (sube el nuevo `202605170001`).
+4. Si usa Production: `ENVIRONMENT=production` aplica los validators
+   estrictos (no admite CHANGEME, exige aprobación humana en browser/
+   computer/mail/godaddy/calendar/drive, exige Postgres backend para
+   research, exige cifrado de payload).
+
+## 2026-05-17 — Fase 64: dispatch idempotente antes de Celery
+
+Hallazgo tras cerrar dispatch durable:
+
+- El sistema ya toleraba fallos de broker y entregas duplicadas en worker, pero
+  dos llamadas casi simultáneas a dispatch podían pasar por `queued` y ejecutar
+  dos `apply_async()` antes de que el worker cambiara el job a `running`.
+
+Corrección aplicada:
+
+- `ActionRequestService.reserve_action_dispatch()` bloquea la fila y escribe
+  `metadata_json.dispatch_state="submitting"` antes de llamar a Celery.
+- Un dispatch con estado `submitting` responde "dispatch already in progress";
+  con `submitted` responde "waiting for worker"; con `failed` permite retry.
+- `record_action_dispatch_event()` actualiza la metadata a `submitted` o
+  `failed`, borra la reserva y conserva el `JobEvent`.
+- REST y Telegram usan la reserva antes de `apply_async`.
+- Verificación focal: **72 passed** en tests actions/worker/Telegram/approval;
+  ruff, ruff format y mypy verdes.
+- Cierre QA: `bash scripts/full-qa.sh` → **674 passed, 1 skipped,
+  20 deselected**, ruff/format/mypy, Alembic, frontend lint/build y
+  `git diff --check` verdes.
+
+## 2026-05-17 — Fases 59-63: dispatch durable y observabilidad
+
+Hallazgos tras revisar el borde aprobación → broker Celery:
+
+- `POST /actions/requests/{id}/dispatch` encolaba con `apply_async()` sin
+  capturar fallos del broker. Si Redis/Celery no aceptaba la tarea, el operador
+  recibía un 500 genérico aunque la `ActionRequest` ya podía quedar `queued`.
+- REST no dejaba un `JobEvent` explícito que diferenciara "despaché a Celery"
+  de "falló antes de que Celery aceptara".
+- Telegram ya reportaba fallo de Celery al usuario, pero no dejaba el mismo
+  rastro estructurado de JobEvents.
+- El worker ya preservaba estados terminales ante retries, pero una entrega
+  duplicada mientras el job estaba `running` todavía podía agregar eventos
+  `running/not_executed` innecesarios.
+
+Correcciones aplicadas:
+
+- `ActionRequestService.record_action_dispatch_event()` centraliza eventos de
+  submit/fallo de dispatch.
+- REST dispatch captura errores del broker y devuelve
+  `ActionDispatchResponse(dispatched=false, reason=...)`, manteniendo el request
+  en `queued` para retry.
+- REST y Telegram registran `action_request_dispatch_submitted` o
+  `action_request_dispatch_failed` según corresponda.
+- `run_action_request_task_async` short-circuitea si el job ya está `running`,
+  sin ejecutar el servicio ni volver a escribir eventos.
+- Cierre QA: `bash scripts/full-qa.sh` → **671 passed, 1 skipped,
+  20 deselected**, ruff/format/mypy, Alembic, frontend lint/build y
+  `git diff --check` verdes.
+
+## 2026-05-17 — Fases 50-58: bloque 3 operativo
+
+Hallazgos tras revisar superficies humanas y scripts diarios:
+
+- `/approvals` en Telegram muestra sólo los primeros 8 caracteres del UUID,
+  pero `/approve` y `/reject` exigían UUID completo. Es una fricción real y
+  propensa a error para operación móvil.
+- El adaptador Telegram llamaba `decide_approval(..., approver_user_id="telegram")`.
+  Eso reduce trazabilidad y puede activar four-eyes de forma incorrecta si una
+  solicitud fue creada por un actor genérico `telegram`.
+- El resolver de payload OpenShell en Telegram estaba declarado como async y se
+  envolvía con `_run()` dentro de la coroutine que ya corría bajo `_run()`.
+  Si se aprobaba un OpenShell desde Telegram, podía disparar un
+  `RuntimeError` por event loop anidado.
+- El helper compartido `decide_approval()` decide aprobaciones y cascada de
+  rechazo, pero el dispatch de `ActionRequest` aprobado queda en el adaptador.
+  El panel lo hace; Telegram todavía no. Eso dejaba una aprobación móvil como
+  "approved" pero sin trabajo encolado.
+- Los launchers de escritorio existen y están endurecidos, pero faltaba un
+  verificador versionado que cualquier QA pueda ejecutar para comprobar rutas,
+  permisos y sintaxis sin levantar el stack.
+
+Correcciones aplicadas:
+
+- `_resolve_approval_id()` acepta UUID completo o prefijo único, rechaza
+  prefijos ambiguos/cortos y filtra caracteres fuera de UUID para evitar
+  wildcard SQL accidental.
+- `_decide_approval()` firma como `telegram:<chat_id>` y reutiliza el resolver
+  síncrono de payload OpenShell del API.
+- `_dispatch_approved_action_request()` encola y despacha ActionRequests
+  aprobados desde Telegram, reportando en el mensaje si Celery aceptó el job.
+- `scripts/verify_desktop_launchers.sh` valida maestro, wrappers, `.desktop`,
+  permisos ejecutables y sintaxis Bash con defaults del host y overrides de CI.
+- Cierre QA: `bash scripts/full-qa.sh` → **669 passed, 1 skipped,
+  20 deselected**, ruff/format/mypy, Alembic, frontend lint/build y
+  `git diff --check` verdes.
+
+## 2026-05-17 — Fases 45-49: Google operativo avanzado
+
+Hallazgos tras revisar el bloque Google posterior a Fase 44:
+
+- Drive upload seguía demasiado acoplado a `COMPUTER_ALLOWED_ROOTS`. Eso era
+  seguro, pero débil como producto: los entregables generados por Cognitive OS
+  bajo `DOCUMENT_OUTPUT_ROOT` o workspaces DeepAgents podían quedar bloqueados
+  si el operador no duplicaba rutas manualmente.
+- Abrir todo `LOCAL_STORAGE_DIR` habría sido peligroso porque ahí vive
+  `storage/oauth`; la solución correcta es permitir sólo
+  `LOCAL_STORAGE_DIR/workspaces` y raíces explícitas de salida.
+- "Ordenar Drive completo" no debe implementarse como write masivo directo. El
+  patrón comercial es preview acotado (máximo 50 archivos), `ActionRequest`,
+  aprobación, ejecución auditada y sin deletes.
+- Google Drive documenta mover archivos mediante `files.update` con
+  `addParents`/`removeParents`; el provider real usa ese contrato y conserva
+  `supportsAllDrives=true`.
+- Google Calendar `freeBusy` es la superficie correcta para agenda proactiva:
+  devuelve bloques ocupados sin crear ni modificar eventos.
+
+Correcciones aplicadas:
+
+- `DriveFile` ahora conserva `parent_ids`; `DriveProvider.move_file` y
+  `DriveService.organize_files` agregan preview/execute para
+  `drive_organize_files`.
+- `DriveUploadRequest` permite fuentes de entregables del sistema sin exponer
+  `storage/oauth`.
+- `CalendarService.freebusy`, endpoint `/actions/calendar/freebusy` y tool
+  `check_calendar_freebusy` quedan read-only.
+- DeepAgents suma `preview_drive_organization` (sin writes directos) y
+  `GoogleOpsView` suma controles de free/busy y organización Drive.
+
+## 2026-05-17 — Fase 44: Google Ops como capa comercial del agente
+
+Auditoría inicial solicitada por el operador: la documentación y el código
+confirman que Google Maps/Calendar/Drive ya están implementados, pero el uso
+comercial aún puede mejorar:
+
+- Maps (`actions/maps.py`) ya calcula ruta con tráfico y link Google Maps, pero
+  la respuesta carece de consejo operativo/ETA/severidad; el frontend muestra
+  duración y pasos, no una recomendación clara.
+- Drive (`actions/drive.py`) ya lista por `name contains`, lee metadata y sube
+  archivos con `ActionRequest`, pero "buscar algo en todo Drive" requiere modo
+  `fullText contains`/`all`; la carpeta de entregables sólo se crea como efecto
+  de un upload aprobado, no como solicitud aprobable independiente.
+- DeepAgents expone `plan_route`, `geocode_address`, `list_calendar_events`,
+  `search_drive_files`; falta que `search_drive_files` pueda buscar contenido
+  y que Maps devuelva advice legible para el agente.
+- La UI `GoogleOpsView` existe y es funcional, pero aún no ofrece modo de
+  busqueda Drive ni request explícito de carpeta.
+
+Docs oficiales revisadas antes de tocar API Google:
+
+- Drive API v3: `files.list` acepta `q`; Google documenta `name contains`,
+  `fullText contains`, `mimeType` y `trashed = false`.
+- Routes API: `computeRoutes` requiere field mask explícita y soporta
+  `computeAlternativeRoutes`, `routeLabels`, `duration` y `staticDuration`.
+
+Correcciones aplicadas en esta fase:
+
+- `DriveSearchRequest` deja de limitarse a `name contains`; ahora soporta
+  `fullText contains`, modo combinado `all`, filtros de carpetas/mime y
+  `corpus=all_drives` con `supportsAllDrives`.
+- Nuevo carril aprobable `drive_ensure_folder`: endpoint, `ActionType`,
+  workflow, `ActionRequestService`, executor y pruebas.
+- `RoutePlan` ahora incluye advice, ETA y severidad calculada desde
+  `duration-staticDuration`; `compute_alternatives` se propaga al Routes API.
+- `GoogleOpsView` y DeepAgents reflejan esos contratos.
+
 ## 2026-05-17 — Fase 43: auditoría desde cero + dos fixes reales
 
 Tras cerrar Fase 42 el operador pidió revisar todo el monorepo buscando
@@ -1499,3 +2280,146 @@ Conclusión: ideas sí, código no. Si en algún momento querés modo "programad
 4. **STT/TTS**: ElevenLabs queda implementado en backend; falta decidir UX completa y fallback OpenAI/otro.
 5. **Notas**: PersonalNote + Weaviate queda implementado; falta decidir si además sincroniza con Markdown vault (Obsidian-like).
 6. **Multi-cuenta Gmail/Mail**: el modelo mail multi-cuenta quedó listo; falta decidir Gmail send/drafts reales y Microsoft/Outlook.
+
+## 2026-05-19 — Supervisión horaria (06:13 UTC, post-tanda 3)
+
+Stack: 4/4 docker healthy (postgres/redis/weaviate/neo4j); api+worker+beat+frontend(:3001)+kimi running; telegram stopped (token 401 pendiente operador). `/system/info` con JWT admin → `operator_profile=dedicated_local`. `/health/dashboard` `degraded` solo por google_calendar/google_drive `blocked` (esperan `scripts/auth_google.py`); LLM `configured`, embeddings `key_pool_size=3`, langsmith ok, kimi extension_connected, captcha_solver ready. `/chat` real enrutó a `comm` con `pending_human_review` (LLM real, no fallback determinístico). Errores frontend.log son históricos pre-`next start`. Próxima supervisión: +1h.
+
+## 2026-05-19 — Mi-ultrareview offline: TANDA 4 (D10) + reporte final
+
+**D10 — Docs / coherencia / completitud:**
+
+- Contadores reales del código (grep estricto sobre `src/cognitive_os/`):
+  130 endpoints, 17 migraciones, 36 commands Telegram, 21 tools DeepAgent.
+- Docs decían "131 endpoints REST" en README, USER_GUIDE, SECURITY,
+  ACCEPTANCE_CHECKLIST, COGNITIVE_OS_GUIDE.md líneas 4 y 242. El mismo
+  `COGNITIVE_OS_GUIDE.md` decía "130 REST" en líneas 153 y 930.
+  Inconsistencia interna corregida: `COGNITIVE_OS_GUIDE.md:242` 131→130 (y
+  "27 transversales"→"26") para alinear con el conteo real. **Resto de docs
+  con "131" NO se reescribieron en masa**: divergencia de 1 endpoint es
+  trivial frente al riesgo de tocar 5 markdowns de Fase 68 por estética;
+  el operador puede pedir un sweep dedicado si quiere.
+- `task_plan.md` estaba congelado en "Fase 64 dispatch idempotente"
+  (lag de fases 65→68b). **Header actualizado** a "Fase 68b cerrada +
+  mi-ultrareview offline 10 dominios" con resumen de fases 65, 66, 67,
+  68, 68b + los hallazgos de la review offline.
+- Migraciones, tools, commands: **conteos coherentes** entre docs y código.
+- Sin docs que referencien archivos/módulos inexistentes en el árbol actual.
+- La matriz de acciones del USER_GUIDE refleja las 36 capacidades reales
+  (verificado en tanda 3 con diff doc↔código).
+
+**Reporte final unificado — Mi-ultrareview offline 10 dominios:**
+
+| Dominio | Status | Bugs accionables | Deudas FUTURO |
+|---------|--------|------------------|---------------|
+| D1 Seguridad/Auth/RBAC/Rate-limits | ✅ limpio | 0 | 0 |
+| D2 LLM / DeepAgent / tool calling | ✅ limpio | 0 | 0 |
+| D3 Action Plane (correctness) | ✅ limpio | 0 | 0 |
+| D4 RAG / Memoria / Storage | ✅ limpio | 0 | 0 |
+| D5 API / Endpoints / Modelos | ✅ limpio | 0 | 1 (índices compuestos en `jobs`) |
+| D6 Workers / Celery / Beat | ✅ limpio | 0 | 1 (reapers Code Build/OpenShell) |
+| D7 Frontend / PWA / Vistas | ✅ limpio | 0 | 0 |
+| D8 Telegram bot | ⚠️ 1 bug P2 corregido | 1 (`cmd_job` SQL wildcards) | 0 |
+| D9 Infra / Launchers / Migraciones | ✅ limpio | 0 | 0 |
+| D10 Docs / coherencia | ⚠️ 2 fixes menores | 0 (correcciones de docs) | 0 |
+
+**Total**: 1 bug accionable corregido en código (cmd_job whitelist hex+dash,
+regresión `test_cmd_job_rejects_sql_wildcard_prefix` en
+`tests/test_telegram_bot.py`); 2 fixes de docs (`COGNITIVE_OS_GUIDE.md:242`
+inconsistencia interna 131→130; `task_plan.md` header de Fase 64→68b);
+2 deudas FUTURO documentadas (índices `jobs`, reapers OpenShell/Code Build).
+
+**Verificación final post-cambios**:
+- `uv run pytest tests/test_telegram_bot.py -q` → **15 passed in 2.45s**
+- `uv run pytest -q` → **689 passed, 1 skipped, 20 deselected in 23.16s**
+
+Mi-ultrareview offline 10 dominios: **cerrada**. El loop horario de
+supervisión (task #36) sigue activo por su lado.
+
+## 2026-05-19 — Fase 69 GPT-5.5 review #2: 12 hallazgos + telegram sync + Gmail OAuth
+
+Segunda pasada read-only de GPT-5.5 sobre el branch. 12 hallazgos
+clasificados (5 P0, 3 P1, 4 P2) — todos validados contra el código actual,
+aplicados con tests + regresiones, suite verde tras cada uno.
+
+**Telegram sync end-to-end (esta misma sesión, antes de Fase 69):**
+
+- Token revocado (8742030714…) reemplazado por @Socio_dimn_bot
+  (8899336445…). `getMe` HTTP 200, bot id 8899336445.
+- `TELEGRAM_AUTHORIZED_USER_IDS` capturado vía getUpdates (operador hizo
+  /start desde su cuenta @Diegoimn, user_id `7582093979`). `.env` y
+  Supermemory MCP actualizados.
+- Bugs corregidos en vivo sobre el bot:
+  1. `cmd_job` SQL LIKE wildcards (mi-ultrareview tanda 3) — fix con
+     whitelist hex+dash + min length 4, idéntico al patrón ya usado en
+     `_resolve_approval_id`.
+  2. **Markdown v1 entity unbalanced en `@command` summaries**: el summary
+     de `/ingest` contenía `<ruta_absoluta>` con un `_` impar →
+     Telegram leía "italic-open" sin cierre → HTTP 400 `can't parse
+     entities`. Fix sistémico: helper `_md_escape` aplicado en el
+     decorator `@command` para escapar `_*\`[` en todos los summaries.
+  3. **`cmd_health` mapeaba `ready` y `blocked` a ❌**: el set ✅ sólo
+     cubría `ok|configured`. Voice/maps/kimi/captcha/google_calendar/
+     google_drive con status `ready` o `blocked` aparecían como rojos.
+     Fix: ✅ ahora cubre `ok|configured|ready` y ⚠️ cubre
+     `degraded|disabled|blocked`.
+  4. **`_required_scopes` hardcodeaba `calendar.readonly`/`drive.readonly`
+     ignorando `.env`**: el operador consintió `calendar.events` + `drive`
+     (lo que `GOOGLE_*_SCOPES` pedía) pero la validación reportaba
+     `blocked` por scopes "faltantes" que el código pedía hardcoded.
+     Fix: `_required_scopes` ahora lee de
+     `settings.google_calendar_scopes` / `google_drive_scopes`; baseline
+     hardcoded solo si el operador dejó la lista vacía.
+
+**Gmail OAuth (carril aparte):**
+
+- Creado `backend/scripts/auth_gmail.py` análogo a `auth_google.py` (mismo
+  OAuth Client, scopes `gmail.readonly`, token persistido en
+  `storage/oauth/gmail/token.json` separado del de Calendar/Drive). El
+  operador hizo el flow interactivo (Test users en GCP + "advanced → go
+  to (unsafe)"). Token con `refresh_token` ✓.
+- Health dashboard nuevo componente: `mail` (status `configured` cuando
+  `MAIL_ENABLED=true` + provider con credenciales; sin live IMAP/SMTP call
+  para no inflar la latencia del `/health/dashboard`).
+
+**12 hallazgos GPT-5.5 review #2 — todos cerrados:**
+
+| # | Pri | Hallazgo | Fix |
+|---|-----|----------|-----|
+| 49 | P0.2 | `dedicated_local` no aflojaba approval para acciones reversibles (contradice "no priorizar seguridad si aumenta fricción") | Setting `auto_approve_reversible_actions` + whitelist hardcoded `{drive_ensure_folder, drive_upload}` + branch en `_persist_executable_request` que llama `decide_approval` + `reserve_action_dispatch` + Celery `apply_async`. Broker offline degrada a warning + AuditEvent; AR queda `queued` para el reaper. 3 tests nuevos (dedicated/strict × whitelist/non-whitelist) |
+| 50 | P0.4 | Code Director race window: `_read_job_status` + UPDATE no atómico → doble dispatch puede ejecutar 2 builds | Helper `_reserve_code_build_job` con `UPDATE jobs SET status='running' WHERE status IN ('queued','submitting','submitted') RETURNING ...`. Emite JobEvent de reserva. 2 tests nuevos (skip/claim) |
+| 51 | P0.5 | Budget hard no era hard durante el call del subprocess (timeout 600s hardcoded) | `_BudgetTracker.remaining_runtime_seconds()` + director pasa `min(600, remaining)` a `send_prompt` cuando mode=hard. 2 tests nuevos |
+| 52 | P0.1 sub | `auth_google.py` no fuerza re-consent si los scopes del `.env` cambian | `_existing_token_is_usable(required_scopes)` ahora diffea contra `granted_scopes()`. Idem en `auth_gmail.py` |
+| 53 | P0.3 | CORS default solo cubría :3000 | Default extendido a `{localhost:3000, 127.0.0.1:3000, localhost:3001, 127.0.0.1:3001}`. Tests adaptados |
+| 54 | P1.7 | `.env.example` sin `OPERATOR_PROFILE` ni `CODE_DIRECTOR_BUDGET_MODE`; `CODE_DIRECTOR_SANITIZE_ENV` mencionado en docs pero no implementado | Knobs agregados con comentario explicativo; mención obsoleta eliminada (el subprocess hereda env por default, no hay flag para sanitizar) |
+| 55 | P1.8 | Frontend ignoraba `operator_profile` (backend ya lo exponía) | Type TS extendido (`operator_profile`, `auto_approve_reversible_actions`, `code_director_budget_mode`); ConfigurationView + SettingsView muestran perfil + flags |
+| 56 | P1.6 | Guía sugería `MAIL_REQUIRE_APPROVAL_FOR_SEND=false` que rompe `approve_and_send()` | Decisión: mail send es irreversible → mantener approval. Sección mail reescrita: explica explícitamente que no hay carril autosend; matriz de acciones actualizada |
+| 57 | P2.9 | Kimi WebBridge default off no aprovechaba el carril principal del PC dedicado | `apply_operator_profile_defaults` flipea `enable_kimi_webbridge=True` bajo dedicated_local; `research_policy` enciende `allow_kimi_webbridge` cuando profile=dedicated_local |
+| 58 | P2.10 | Frontend types Calendar/Drive sin `missing_scopes` | Campo agregado a `CalendarStatus` / `DriveStatus`; GoogleOpsView muestra badge "Re-autorizar: faltan N scopes" con comando concreto |
+| 59 | P2.11 | Doc drift: OPENHARNESS_FUSION.md y comentarios LLM router/factory referían DeepSeek/Kimi como cadena vigente | Header de OPENHARNESS_FUSION actualizado a Fase 69 (gpt-5.5 / gemini-3.1-pro-low / glm-4.6v); docstrings de `create_agent_chat_model` + `create_vision_chat_model` + comentario del router en `agents/graph.py` reescritos |
+| 60 | P2.12 | `_package_workspace` con `rglob('*')` sin cap (estabilidad) | Settings `CODE_DIRECTOR_PACKAGE_MAX_FILES` (10000) + `CODE_DIRECTOR_PACKAGE_MAX_BYTES` (500MB). Enumeración previa; si excede → `DirectorError` claro (no truncar silenciosamente) |
+
+**Verificación final post-Fase 69:**
+
+- `uv run pytest -q` → **696 passed, 1 skipped, 20 deselected, 3 warnings**
+  (subió de 689 → 696 por los 7 tests nuevos de regresión).
+- `uv run ruff check src tests` → **All checks passed**.
+- `uv run ruff format --check src tests` → **229 files already formatted**.
+- `uv run mypy src` → **no issues found in 125 source files**.
+- `npm run lint` (frontend) → verde.
+- `npm run build` (frontend) → static prerender verde.
+- Stack reiniciado: docker 4/4 healthy + api + worker + beat + frontend
+  (:3001) + telegram (pid actual) + kimi.
+- `/health/dashboard` con JWT admin → **overall=ok, 16 componentes ✅**
+  (postgres, redis, weaviate, neo4j, primary_llm, embeddings, workers,
+  langsmith, voice, maps, google_calendar, google_drive, kimi_webbridge,
+  captcha_solver, mail, checkpointer).
+- Alembic head sin drift: `202605170001`.
+
+**Recuento de capacidades vigentes** (verificadas en este turno):
+130 endpoints REST · 17 migraciones · 36 commands Telegram · 21 tools
+DeepAgent · 16 componentes /health.
+
+Pendiente operador (nada bloqueante): si en algún momento cambia
+`GOOGLE_*_SCOPES` debe correr `uv run python scripts/auth_google.py` para
+re-consent (el script ahora detecta scope drift automáticamente).

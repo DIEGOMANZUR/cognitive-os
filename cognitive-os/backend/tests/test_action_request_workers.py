@@ -163,3 +163,165 @@ def test_run_action_request_short_circuits_when_job_already_terminal(
     assert result["status"] == "completed"
     assert service_calls == []
     assert calls == []
+
+
+def test_run_action_request_short_circuits_when_job_already_running(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Genuine duplicate (Job AND ActionRequest already running): short-circuit."""
+    action_request_id = UUID("77777777-7777-7777-7777-777777777777")
+    job_id = UUID("88888888-8888-8888-8888-888888888888")
+    calls: list[dict[str, Any]] = []
+    service_calls: list[UUID] = []
+
+    class FakeActionRequestService:
+        async def execute_action_request(
+            self, received_id: UUID
+        ) -> ActionRequestView:  # pragma: no cover - must not be reached
+            service_calls.append(received_id)
+            return _view("running", action_request_id=action_request_id, job_id=job_id)
+
+    async def fake_update_job(
+        *args: Any, **kwargs: Any
+    ) -> None:  # pragma: no cover - must not be reached
+        calls.append({"args": args, "kwargs": kwargs})
+
+    async def fake_read_job_status(_job_id: UUID) -> str | None:
+        return "running"
+
+    async def fake_read_ar_status(_ar_id: UUID) -> str | None:
+        return "running"
+
+    monkeypatch.setattr(tasks_module, "ActionRequestService", FakeActionRequestService)
+    monkeypatch.setattr(tasks_module, "_update_job", fake_update_job)
+    monkeypatch.setattr(tasks_module, "_read_job_status", fake_read_job_status)
+    monkeypatch.setattr(tasks_module, "_read_action_request_status", fake_read_ar_status)
+
+    result = tasks_module.run_action_request_task_async.run(
+        str(action_request_id),
+        str(job_id),
+    )
+
+    assert result["skipped"] is True
+    assert result["status"] == "running"
+    assert result["ar_status"] == "running"
+    assert "already running" in result["reason"]
+    assert service_calls == []
+    assert calls == []
+
+
+def test_run_action_request_proceeds_when_job_running_but_ar_still_queued(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression (GPT-5.5 P1): crash window Job→running before AR→running.
+
+    If the previous attempt crashed after setting Job=running but before
+    ActionRequestService flipped AR queued→running, a Celery retry that
+    only looked at Job.status would short-circuit and strand the AR
+    forever. The worker must inspect the ActionRequest itself and
+    proceed when it's still queued/pending. `execute_action_request` is
+    atomic (FOR UPDATE, only promotes from queued), so this is safe.
+    """
+    action_request_id = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+    job_id = UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+    service_calls: list[UUID] = []
+
+    class FakeActionRequestService:
+        async def execute_action_request(self, received_id: UUID) -> ActionRequestView:
+            service_calls.append(received_id)
+            return _view("completed", action_request_id=action_request_id, job_id=job_id)
+
+    async def fake_update_job(*_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    async def fake_read_job_status(_job_id: UUID) -> str | None:
+        return "running"  # crashed previous attempt left it as running
+
+    async def fake_read_ar_status(_ar_id: UUID) -> str | None:
+        return "queued"  # AR never got promoted: must proceed
+
+    monkeypatch.setattr(tasks_module, "ActionRequestService", FakeActionRequestService)
+    monkeypatch.setattr(tasks_module, "_update_job", fake_update_job)
+    monkeypatch.setattr(tasks_module, "_read_job_status", fake_read_job_status)
+    monkeypatch.setattr(tasks_module, "_read_action_request_status", fake_read_ar_status)
+
+    result = tasks_module.run_action_request_task_async.run(
+        str(action_request_id),
+        str(job_id),
+    )
+
+    assert result.get("skipped") is not True
+    assert service_calls == [action_request_id]
+    assert result["status"] == "completed"
+
+
+# -- Fase 69 P0.4 — Code Director atomic dispatch reservation -----------------
+
+
+def test_run_code_build_skips_when_reservation_finds_running(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two workers receive the same dispatch; the second finds `running` after
+    the first claimed the job and must skip without invoking the service.
+
+    Models `_reserve_code_build_job` returning ``("skip", "running")``.
+    """
+    job_id = UUID("33333333-3333-3333-3333-333333333333")
+    service_calls: list[UUID] = []
+
+    class FakeCodeDirectorService:
+        async def run_build(self, received_id: UUID) -> Any:
+            service_calls.append(received_id)
+            raise AssertionError("run_build must not be called when reservation skips")
+
+    async def fake_reserve(_job_id: UUID) -> tuple[str, str | None]:
+        assert _job_id == job_id
+        return ("skip", "running")
+
+    monkeypatch.setattr(
+        "cognitive_os.code_director.service.CodeDirectorService",
+        FakeCodeDirectorService,
+    )
+    monkeypatch.setattr(tasks_module, "_reserve_code_build_job", fake_reserve)
+
+    result = tasks_module.run_code_build_task_async.run(str(job_id))
+
+    assert service_calls == []
+    assert result["skipped"] is True
+    assert result["status"] == "running"
+    assert "Duplicate dispatch" in result["reason"]
+
+
+def test_run_code_build_proceeds_when_reservation_claims(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When the atomic UPDATE succeeds (status went queued→running) the worker
+    must run the build exactly once. Verifies the happy path."""
+    from pydantic import BaseModel  # noqa: PLC0415
+
+    class _BuildResult(BaseModel):
+        job_id: UUID
+        status: str
+
+    job_id = UUID("44444444-4444-4444-4444-444444444444")
+    service_calls: list[UUID] = []
+
+    class FakeCodeDirectorService:
+        async def run_build(self, received_id: UUID) -> _BuildResult:
+            service_calls.append(received_id)
+            return _BuildResult(job_id=received_id, status="completed")
+
+    async def fake_reserve(_job_id: UUID) -> tuple[str, str | None]:
+        return ("claimed", "queued")
+
+    monkeypatch.setattr(
+        "cognitive_os.code_director.service.CodeDirectorService",
+        FakeCodeDirectorService,
+    )
+    monkeypatch.setattr(tasks_module, "_reserve_code_build_job", fake_reserve)
+
+    result = tasks_module.run_code_build_task_async.run(str(job_id))
+
+    assert service_calls == [job_id]
+    assert result["status"] == "completed"
+    assert result.get("skipped") is not True

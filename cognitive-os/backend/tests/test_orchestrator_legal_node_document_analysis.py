@@ -79,6 +79,10 @@ def test_legal_node_draft_generates_human_review() -> None:
 
 
 def test_graph_adds_document_analysis_result_to_messages() -> None:
+    # Router stays deterministic via the autouse hermetic guard in
+    # tests/conftest.py: the query routes to `legal` deterministically
+    # (see test_deterministic_route_sends_document_analysis_to_legal) with
+    # no real LLM network call.
     def runner(task: DocumentAnalysisTask) -> DocumentAnalysisResult:
         del task
         return _result()

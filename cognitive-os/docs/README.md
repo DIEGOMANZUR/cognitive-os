@@ -1,9 +1,10 @@
 # Documentacion De Cognitive OS
 
-> **Estado actual (2026-05-17, Fase 41 Code Director F9 cerrada):**
+> **Estado actual (2026-05-19, Fase 68 — GoDaddy DNS prod operativo, doble revisión, `.env.example` actualizado; LLM gpt-5.5/gemini/glm; suite hermética 685 passed):**
 > producto en grado comercial operativo con backend FastAPI 0.115+
-> (**126 endpoints REST**, **16 tareas Celery** en **5 queues**,
-> **16 migraciones Alembic** head `202605160002`) + LangGraph 1.1.10 +
+> (**131 endpoints REST**, **16 tareas Celery** en **5 queues**,
+> **17 migraciones Alembic** head `202605170001`, **36 slash commands
+> Telegram**) + LangGraph 1.1.10 +
 > DeepAgents 0.6.x + Action Plane, correo personal multicuenta
 > GoDaddy/Gmail con aprobación humana
 > (`MAIL_REQUIRE_APPROVAL_FOR_SEND=true`), Google Maps/Calendar/Drive
@@ -27,9 +28,15 @@
 > credenciales operador, `workflow.v1` export/import, OAuth Google
 > self-healing, wizard `init_credentials.sh`, correlation IDs
 > `X-Request-ID`, approval reaper, four-eyes, AuditEvent simétrico
-> REST↔Telegram. QA: **642 pytest passed, 1 skipped, 20 deselected**;
-> ruff/mypy/lint/build, Compose config, Alembic head, `git diff --check`,
-> `pre-commit run --all-files` (6 hooks) y `detect-secrets scan` verdes.
+> REST↔Telegram. Fases 44-49 consolidaron Google Ops avanzado; Fases
+> 50-58 cerraron Telegram approvals con dispatch real de `ActionRequest`
+> y agregaron smoke reproducible de launchers de escritorio. Fases 59-63
+> endurecieron dispatch con broker failure controlado y JobEvents submit/fail.
+> Fase 64 agregó reserva atómica para impedir submits duplicados a Celery.
+> Fase 65 cerró paridad Telegram↔UI (36 slash commands) y corrigió el
+> CHECK `ck_ar_action_type` que rompía Drive folder/organize en Postgres.
+> QA: **685 pytest passed, 1 skipped, 20 deselected**; ruff/format/mypy,
+> frontend lint/build, Alembic head `202605170001` y `git diff --check` verdes.
 
 Este directorio contiene la documentacion estable del proyecto. Los archivos
 `task_plan.md`, `findings.md` y `progress.md` en la raiz no son documentacion de
@@ -47,7 +54,8 @@ producto: son bitacora de trabajo de la sesion actual.
 8. `SECURITY.md` - reglas de seguridad y controles obligatorios.
 9. `OPERATOR_VARIABLE_CHECKLIST.md` — variables de entorno ↔ `Settings` (auditoría operador).
 10. `SETTINGS_REGISTRY_TABLE.md` — tabla generada 1:1 desde `config.py` (no editar a mano).
-11. `IMPROVEMENT_EXECUTION_PLAN.md` — plan de mejoras continuas (config y docs).
+11. `guia_credenciales.md` — **paso a paso para obtener cada credencial**: a qué web entrar, qué botón apretar (nombre/ubicación/color), hasta pegar el valor en `.env`.
+12. `IMPROVEMENT_EXECUTION_PLAN.md` — plan de mejoras continuas (config y docs).
 
 ## Documentacion Por Area
 
@@ -77,9 +85,10 @@ Gmail label `TODOS`, Google Maps/Calendar/Drive y action plane con solicitudes p
 Hay ejecución real controlada para `computer_organize`,
 `computer_inventory` (read-only), `document_generate` (DOCX/XLSX/PPTX),
 `browser_preview` y `browser_interactive` (Playwright + vision multimodal),
-Google Calendar/Drive writes bajo `ActionRequest`, Maps read-only con tráfico,
-Gmail read-only, mail GoDaddy IMAP/SMTP con propuestas escritas y envío aprobado,
-GoDaddy DNS bajo dry-run, allow-lists, Celery y auditoría.
+Google Calendar create y Drive upload/folder/organize bajo `ActionRequest`,
+Maps read-only con tráfico, Calendar free/busy read-only, Gmail read-only, mail
+GoDaddy IMAP/SMTP con propuestas escritas y envío aprobado, GoDaddy DNS bajo
+dry-run, allow-lists, Celery y auditoría.
 
 Fase 33 cerró el núcleo de Fase 29: RBAC local explícito, cifrado at-rest
 de `payload_executable` y persistencia durable configurable del orquestador de research.

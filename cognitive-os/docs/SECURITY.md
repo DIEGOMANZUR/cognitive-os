@@ -1,6 +1,14 @@
 # Seguridad
 
-> **Estado actual (2026-05-17, Fase 39):** las reglas siguen vigentes. Google
+> **Estado actual (2026-05-19, Fase 68 — GoDaddy DNS prod con doble compuerta, doble revisión profunda):** GoDaddy
+> habilitado pero `GODADDY_DNS_DRY_RUN_ONLY=true` + `GODADDY_ALLOW_PRODUCTION_WRITES=false`
+> (cero escrituras DNS reales sin opt-in explícito + aprobación humana). `.env`
+> sigue gitignoreado/no-trackeado; credenciales también respaldadas en
+> Supermemory (memoria personal del operador, fuera del repo). Suite de tests
+> hermética por construcción (no hace llamadas LLM reales). Telegram queda
+> deshabilitado hasta token válido (el del `.env` da 401). Reglas previas
+> (Fase 65, revisión integral pre-entrega) siguen vigentes:
+> reglas siguen vigentes y fueron auditadas de punta a punta. Google
 > Calendar/Drive writes reales sólo pueden pasar por `ActionRequest` + aprobación
 > humana; los endpoints directos rechazan `dry_run=false`. Postgres, Redis,
 > Weaviate y Neo4j publican sólo en `127.0.0.1` por defecto. OAuth/Drive/health
@@ -8,7 +16,12 @@
 > API-like y añade headers de seguridad. La Fase 33 elimina admin implícito,
 > añade roles en JWT local, cifra `payload_executable` cuando hay clave y exige
 > `ACTION_PAYLOAD_ENCRYPTION_REQUIRED=true` + `RESEARCH_PERSISTENCE_BACKEND=postgres`
-> en producción.
+> en producción. **Auditoría Fase 65:** `pre-commit` (gitleaks +
+> detect-secrets, baseline limpio, 0 findings tras anotar el falso
+> positivo de `telegram_bot.py`), 132 usos de dependencia de auth sobre
+> 131 endpoints, validators de producción que rechazan `CHANGEME` y
+> capacidades externas sin aprobación, dispatch idempotente y CHECK
+> `ck_ar_action_type` corregido (migración `202605170001`).
 
 ## Reglas obligatorias
 
@@ -24,12 +37,19 @@
   o en modo preview-first/read-only. No promover a escritura real sin flags,
   allow-lists, auditoria, aprobaciones y pruebas.
 - No usar perfiles reales del navegador del usuario para automatizacion.
-- No mover archivos fuera de `COMPUTER_ALLOWED_ROOTS`.
+- No mover archivos locales fuera de `COMPUTER_ALLOWED_ROOTS`.
 - No despachar una `ActionRequest` si no esta en `queued` despues de aprobacion.
+- No ocultar fallos del broker Celery: registrar
+  `action_request_dispatch_failed` y dejar la solicitud `queued` para retry.
+- No hacer `apply_async` sin reserva previa de dispatch; la metadata
+  `dispatch_state` debe impedir submits duplicados.
 - No enviar emails ni modificar DNS sin aprobacion humana trazable.
-- No crear eventos Calendar ni subir/crear en Drive por endpoints directos: usar
-  `/actions/calendar/events/request` o `/actions/drive/files/upload/request` y
-  aprobación humana trazable.
+- No crear eventos Calendar ni subir/crear/organizar en Drive por endpoints
+  directos: usar `/actions/calendar/events/request`,
+  `/actions/drive/files/upload/request`, `/actions/drive/folders/ensure/request`
+  o `/actions/drive/organize/request` y aprobación humana trazable.
+- No permitir Drive upload desde el root completo de `LOCAL_STORAGE_DIR`; sólo
+  `LOCAL_STORAGE_DIR/workspaces` puede actuar como raíz de entregables.
 - No activar Google write flags en producción sin
   `REQUIRE_HUMAN_APPROVAL_FOR_EXTERNAL_ACTIONS=true`.
 - No crear drafts automáticos en Gmail. El Gmail productivo actual es read-only;

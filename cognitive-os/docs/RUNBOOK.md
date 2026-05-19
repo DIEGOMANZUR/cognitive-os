@@ -1,6 +1,6 @@
 # RUNBOOK Cognitive OS
 
-> **Estado actual (2026-05-17, Fase 41 Code Director F9 cerrada):**
+> **Estado actual (2026-05-19, Fase 68 — GoDaddy DNS prod operativo, doble revisión profunda, suite hermética 685 passed; Telegram requiere token válido nuevo):**
 > la ruta `research` está fusionada con OpenHarness opcional; el runtime
 > local usa **DeepSeek V4 Pro** (`deepseek-v4-pro`); el stack incluye mail
 > personal GoDaddy/Gmail-label con queue Celery `mail` integrada en
@@ -16,8 +16,17 @@
 > `bash scripts/init_credentials.sh` para checklist REQ/OPT/OK con
 > instrucciones específicas. Snapshot QA reproducible vía
 > `bash scripts/full-qa.sh` y `bash scripts/stress-qa.sh` (3 pasadas
-> pytest por defecto). QA actual: **642 passed, 1 skipped, 20
-> deselected**, head Alembic `202605160002`.
+> pytest por defecto). Fases 50-58 cerraron Telegram approvals con dispatch
+> de `ActionRequest` y smoke versionado de launchers. Fases 59-63 agregaron
+> dispatch durable con JobEvents submit/fail y fallo de broker controlado.
+> Fase 64 añadió reserva atómica de dispatch para impedir submits duplicados.
+> Fase 65 cerró paridad Telegram↔UI (**36 slash commands**: +`/maps`,
+> `/calendar`, `/freebusy`, `/drive`, `/documents`, `/audit`, `/mail`,
+> `/research`, `/codebuild`, `/sandbox`, `/capabilities`) y corrigió el
+> CHECK `ck_ar_action_type` que rompía Drive folder/organize en Postgres
+> (migración `202605170001`).
+> QA actual: **685 passed, 1 skipped, 20 deselected**, head Alembic
+> `202605170001`.
 
 ## Ejecutables de escritorio
 
@@ -46,6 +55,17 @@ Garantías:
 - **Header de sesión** por arranque en cada log.
 - Detalles completos en `~/Escritorio/cognitive-os-launchers-README.md`.
 
+Smoke reproducible sin levantar servicios:
+
+```bash
+bash cognitive-os/scripts/verify_desktop_launchers.sh
+```
+
+El smoke valida sintaxis Bash, permisos ejecutables y targets de
+`cognitive-os.sh`, los cuatro wrappers `.sh` y los cuatro accesos `.desktop`.
+Acepta overrides `COGOS_DESKTOP_DIR`, `COGOS_MASTER`, `COGOS_OPEN_TERMINAL` y
+`COGOS_REPO_ROOT` para CI/tests.
+
 ## Levantar
 
 1. `bash scripts/init_env.sh` — copia `.env.example` a `.env` y genera secretos
@@ -61,7 +81,7 @@ Garantías:
 5. Worker Celery: `bash scripts/dev_worker.sh` o worker con queues
    `ingestion,agent_longrun,maintenance,mail,default`.
 6. Beat (memoria diaria): `bash scripts/dev_beat.sh`.
-7. Frontend: `cd frontend && npm install && npm run dev` → <http://localhost:3000>.
+7. Frontend: `cd frontend && npm install && PORT=3001 npm run dev` → <http://localhost:3001> (3000 lo usa OpenChamber).
 
 ## Apagar
 
@@ -233,8 +253,16 @@ Notas:
   y no se puede despachar.
 * Si la aprobacion se rechaza, la solicitud queda en `rejected` y no encola
   worker.
-* El dispatch es idempotente: solo manda Celery cuando la solicitud esta en
-  `queued`.
+* El dispatch solo manda Celery cuando la solicitud esta en `queued`.
+* Si Celery/Redis no acepta el job, el endpoint devuelve `dispatched=false`
+  con una razón operativa; la solicitud queda `queued` para retry.
+* Los eventos `action_request_dispatch_submitted` y
+  `action_request_dispatch_failed` aparecen en `GET /jobs/{job_id}/events`.
+* Una reserva atómica en `ActionRequest.metadata_json.dispatch_state` impide
+  submits duplicados antes de Celery: `submitting` bloquea concurrencia,
+  `submitted` espera al worker y `failed` permite reintentar.
+* Si el broker entrega un task duplicado mientras el job ya esta `running`, el
+  worker sale temprano y no agrega eventos confusos ni marca fallo.
 
 ## Code Director (delegación a coding agents externos)
 
@@ -541,7 +569,7 @@ de infra (`JWT_SECRET`, `POSTGRES_PASSWORD`, `WEAVIATE_API_KEY`,
 | `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` | Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 client (Desktop app). Habilita la API "Gmail API" | Digest Gmail read-only |
 | `GMAIL_TOKEN_DIR/token.json` | Ejecuta `uv run python backend/scripts/auth_google.py gmail` y completa el flujo OAuth en el navegador | Gmail digest real |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Mismo client de Cloud Console (puedes reutilizar el de Gmail si scopes lo permiten) | Calendar/Drive |
-| `GOOGLE_TOKEN_DIR/token.json` | `uv run python backend/scripts/auth_google.py google` con scopes calendar.events + drive | Calendar create + Drive upload |
+| `GOOGLE_TOKEN_DIR/token.json` | `uv run python backend/scripts/auth_google.py google` con scopes calendar.events + calendar.freebusy + drive | Calendar create/freebusy + Drive upload/organize |
 | `GOOGLE_MAPS_API_KEY` | Google Cloud Console → APIs & Services → Maps API + Routes API habilitadas | `/actions/maps/route` |
 | `ELEVENLABS_API_KEY` | `https://elevenlabs.io/app/settings/api-keys` | `/voice/speak`, `/voice/transcribe` |
 | `GODADDY_API_KEY` / `GODADDY_API_SECRET` | `developer.godaddy.com` → Production keys (empezar con OTE) | `/actions/godaddy/dns/*` |
@@ -607,8 +635,9 @@ Antes de mover el cockpit fuera de tu host:
 - **Rate limit en proceso**: el limiter es local. Si despliegas múltiples
   réplicas del API necesitas un store compartido (Redis) — el módulo
   `core/rate_limit.py` expone la interfaz lista para ser sustituida.
-- **Telegram approve**: el comando `/approve` del bot Telegram registra
-  `AuditEvent` pero no cascadea `rejected` a `ActionRequest` ligados; el
-  flujo recomendado es aprobar desde el panel REST que sí cascadea.
+- **Telegram approve**: cerrado en Fases 50-58. `/approve` y `/reject` aceptan
+  UUID completo o prefijo único, firman como `telegram:<chat_id>`, comparten la
+  cascada de `decide_approval()` y, al aprobar un `execute_action_request:<id>`,
+  encolan y despachan la tarea Celery `run_action_request_task_async`.
 - **OpenChamber / OpenCode**: son cockpit-only y no parte del runtime
   productivo. No hace falta exponerlos hacia internet.

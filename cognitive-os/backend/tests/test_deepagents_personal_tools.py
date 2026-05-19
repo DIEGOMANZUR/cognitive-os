@@ -22,9 +22,11 @@ from cognitive_os.deepagents.policies import DeepAgentPolicyViolation
 from cognitive_os.deepagents.schemas import DeepAgentToolPolicy, DeepAgentWorkspace
 from cognitive_os.deepagents.tools import (
     build_deepagent_tools,
+    check_calendar_freebusy,
     geocode_address,
     list_calendar_events,
     plan_route,
+    preview_drive_organization,
     search_drive_files,
     search_notes,
 )
@@ -55,7 +57,10 @@ def _calendar_service(tmp_path: Path, *, enabled: bool = True) -> CalendarServic
         enable_google_calendar=enabled,
         google_client_id="id.apps",
         google_token_dir=tmp_path,
-        google_calendar_scopes=["https://www.googleapis.com/auth/calendar.events"],
+        google_calendar_scopes=[
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.freebusy",
+        ],
         http_timeout_seconds=5.0,
     )
     provider = FakeCalendarProvider(
@@ -114,6 +119,7 @@ def test_plan_route_returns_dump_when_policy_allows() -> None:
     assert result["origin"] == "Origen"
     assert result["destination"] == "Destino"
     assert result["distance_meters"] >= 0
+    assert "route_advice" in result
     assert "travel_mode" in result
 
 
@@ -197,14 +203,38 @@ def test_list_calendar_events_blocked_by_service(tmp_path: Path) -> None:
     assert result["error"] == "CalendarError"
 
 
+def test_check_calendar_freebusy_returns_busy_slots(tmp_path: Path) -> None:
+    result = check_calendar_freebusy(
+        days_ahead=7,
+        calendar_ids="primary",
+        policy=DeepAgentToolPolicy(),
+        calendar_service=_calendar_service(tmp_path),
+    )
+    assert result["busy_count"] == 1
+    assert result["calendars"][0]["busy"][0]["start"]
+
+
 def test_search_drive_files_returns_file_dumps(tmp_path: Path) -> None:
     result = search_drive_files(
         query="informe",
         max_results=5,
+        search_mode="all",
         policy=DeepAgentToolPolicy(),
         drive_service=_drive_service(tmp_path),
     )
     assert result["files"][0]["file_id"] == "f1"
+
+
+def test_search_drive_files_rejects_unknown_search_mode(tmp_path: Path) -> None:
+    result = search_drive_files(
+        query="x",
+        max_results=5,
+        search_mode="everywhere-ish",
+        policy=DeepAgentToolPolicy(),
+        drive_service=_drive_service(tmp_path),
+    )
+    assert result["error"] == "ValueError"
+    assert "search_mode" in result["detail"]
 
 
 def test_search_drive_files_blocked_by_service(tmp_path: Path) -> None:
@@ -215,6 +245,31 @@ def test_search_drive_files_blocked_by_service(tmp_path: Path) -> None:
         drive_service=_drive_service(tmp_path, enabled=False),
     )
     assert result["error"] == "DriveError"
+
+
+def test_preview_drive_organization_returns_operations(tmp_path: Path) -> None:
+    result = preview_drive_organization(
+        query="informe",
+        target_folder_name="Entregables",
+        max_files=5,
+        search_mode="all",
+        policy=DeepAgentToolPolicy(),
+        drive_service=_drive_service(tmp_path),
+    )
+    assert result["status"] == "preview"
+    assert result["operation_count"] == 1
+    assert result["operations"][0]["file"]["file_id"] == "f1"
+
+
+def test_preview_drive_organization_blocked_by_policy(tmp_path: Path) -> None:
+    result = preview_drive_organization(
+        query="informe",
+        target_folder_name="Entregables",
+        max_files=5,
+        policy=DeepAgentToolPolicy(allow_drive_read=False),
+        drive_service=_drive_service(tmp_path),
+    )
+    assert result["error"] == "policy_violation"
 
 
 def test_search_notes_isolates_by_user() -> None:
@@ -278,7 +333,9 @@ def test_build_deepagent_tools_exposes_new_personal_tools(tmp_path: Path) -> Non
         "plan_route",
         "geocode_address",
         "list_calendar_events",
+        "check_calendar_freebusy",
         "search_drive_files",
+        "preview_drive_organization",
         "search_notes",
         "solve_image_captcha",
         "solve_token_captcha",

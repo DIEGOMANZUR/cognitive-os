@@ -32,11 +32,23 @@ Slash commands:
     /tasks /task /done                — personal tasks (map chat→user with TELEGRAM_ASSIST_USER_MAP)
     /notes /note                      — personal notes Markdown
     /gmaildigest                      — Gmail sólo lectura (GMAIL_READ + token.json)
+    /maps origen | destino            — ruta con tráfico (read-only)
+    /calendar [max]                   — próximos eventos
+    /freebusy [días]                  — disponibilidad calendar
+    /drive <query>                    — buscar archivos Drive
+    /documents [max]                  — documentos ingestados
+    /audit [max]                      — últimos audit events
+    /mail [max]                       — bandeja mail multicuenta
+    /research [max]                   — research runs recientes
+    /codebuild [max]                  — code-director builds
+    /sandbox                          — estado OpenShell sandbox
+    /capabilities                     — capacidades de action plane
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import sys
@@ -92,10 +104,27 @@ POLL_TIMEOUT_SECONDS = 25
 MESSAGE_CHAR_LIMIT = 4000
 
 
+_MD_V1_RESERVED = ("_", "*", "[", "`")
+
+
+def _md_escape(text: str) -> str:
+    """Escape Telegram Markdown v1 reserved chars in dynamic text.
+
+    Why: summaries / responses may contain stray `_` (e.g. `<ruta_absoluta>`)
+    that Telegram interprets as italic-open without a matching close, returning
+    HTTP 400 ``can't parse entities``. Used by the ``@command`` decorator and
+    anywhere we splice user-controlled or doc-controlled strings into a
+    Markdown-rendered message.
+    """
+    for ch in _MD_V1_RESERVED:
+        text = text.replace(ch, f"\\{ch}")
+    return text
+
+
 def command(name: str, summary: str) -> Callable[[HandlerFn], HandlerFn]:
     def decorator(fn: HandlerFn) -> HandlerFn:
         COMMAND_HANDLERS[name] = fn
-        HELP_LINES.append(f"/{name} — {summary}")
+        HELP_LINES.append(f"/{name} — {_md_escape(summary)}")
         return fn
 
     return decorator
@@ -239,9 +268,9 @@ def cmd_health(bot: TelegramBot, chat_id: int, _arg: str) -> None:
     for component in dashboard.components:
         emoji = (
             "✅"
-            if component.status in {"ok", "configured"}
+            if component.status in {"ok", "configured", "ready"}
             else "⚠️"
-            if component.status in {"degraded", "disabled"}
+            if component.status in {"degraded", "disabled", "blocked"}
             else "❌"
         )
         latency = f" · {component.latency_ms}ms" if component.latency_ms else ""
@@ -424,12 +453,17 @@ def cmd_job(bot: TelegramBot, chat_id: int, arg: str) -> None:
             try:
                 job = await session.get(Job, UUID(arg))
             except ValueError:
-                # partial id: prefix match on stringified UUID
+                # partial id: prefix match on stringified UUID. Reject
+                # anything outside hex/dash so SQL LIKE wildcards ('%', '_')
+                # from user input never reach the pattern.
                 prefix = arg.lower()
-                result = await session.execute(
-                    select(Job).where(cast(Job.id, String).ilike(f"{prefix}%")).limit(1)
-                )
-                job = result.scalars().first()
+                if any(ch not in "0123456789abcdef-" for ch in prefix) or len(prefix) < 4:
+                    job = None
+                else:
+                    result = await session.execute(
+                        select(Job).where(cast(Job.id, String).ilike(f"{prefix}%")).limit(1)
+                    )
+                    job = result.scalars().first()
             events: list[JobEvent] = []
             if job is not None:
                 event_result = await session.execute(
@@ -531,6 +565,127 @@ def cmd_reject(bot: TelegramBot, chat_id: int, arg: str) -> None:
     _decide_approval(bot, chat_id, arg, "rejected")
 
 
+def _normalise_approval_arg(raw: str) -> str:
+    return raw.strip().strip("`").rstrip("…").rstrip(".").strip()
+
+
+async def _resolve_approval_id(raw: str) -> tuple[UUID | None, str | None]:
+    cleaned = _normalise_approval_arg(raw)
+    if not cleaned:
+        return None, None
+    try:
+        return UUID(cleaned), None
+    except ValueError:
+        pass
+
+    if any(ch not in "0123456789abcdefABCDEF-" for ch in cleaned):  # pragma: allowlist secret
+        return None, "id inválido"
+    if len(cleaned) < 4:
+        return None, "prefijo demasiado corto; usá al menos 4 caracteres"
+
+    async with session_scope() as session:
+        result = await session.execute(
+            select(HumanApproval.id)
+            .where(cast(HumanApproval.id, String).ilike(f"{cleaned}%"))
+            .order_by(desc(HumanApproval.created_at))
+            .limit(2)
+        )
+        matches = list(result.scalars().all())
+
+    if not matches:
+        return None, "no encontrado"
+    if len(matches) > 1:
+        return None, "prefijo ambiguo; usá más caracteres del approval_id"
+    return matches[0], None
+
+
+def _extract_action_request_id(requested_action: str) -> UUID | None:
+    prefix = "execute_action_request:"
+    if not requested_action.startswith(prefix):
+        return None
+    try:
+        return UUID(requested_action.removeprefix(prefix))
+    except ValueError:
+        return None
+
+
+async def _dispatch_approved_action_request(action_request_id: UUID) -> tuple[str, bool]:
+    from cognitive_os.actions.service import ActionRequestError, ActionRequestService
+    from cognitive_os.workers.tasks import run_action_request_task_async
+
+    action_service = ActionRequestService()
+    try:
+        action_request = await action_service.queue_approved_action_request(action_request_id)
+    except ActionRequestError as exc:
+        return f"ActionRequest `{str(action_request_id)[:8]}…` no encolado: {exc}", False
+
+    if action_request.job_id is None:
+        return (
+            f"ActionRequest `{str(action_request.id)[:8]}…` aprobado sin job para despachar.",
+            False,
+        )
+    if action_request.status != "queued":
+        return (
+            f"ActionRequest `{str(action_request.id)[:8]}…` quedó en `{action_request.status}`; "
+            "no se despachó tarea nueva.",
+            False,
+        )
+    try:
+        reservation = await action_service.reserve_action_dispatch(action_request.id)
+    except ActionRequestError as exc:
+        return f"ActionRequest `{str(action_request.id)[:8]}…` no reservado: {exc}", False
+    action_request = reservation.action_request
+    if not reservation.should_dispatch:
+        return (
+            f"ActionRequest `{str(action_request.id)[:8]}…`: "
+            f"{reservation.reason or 'dispatch no requerido'}",
+            False,
+        )
+    if action_request.job_id is None:
+        return (
+            f"ActionRequest `{str(action_request.id)[:8]}…` aprobado sin job para despachar.",
+            False,
+        )
+
+    try:
+        run_action_request_task_async.apply_async(
+            args=[str(action_request.id), str(action_request.job_id)],
+            queue="agent_longrun",
+        )
+    except Exception as exc:  # noqa: BLE001 - broker offline is an operator-facing state
+        logger.warning(
+            "telegram_action_request_dispatch_failed",
+            extra={
+                "action_request_id": str(action_request.id),
+                "error_type": type(exc).__name__,
+            },
+        )
+        with contextlib.suppress(Exception):
+            await action_service.record_action_dispatch_event(
+                job_id=action_request.job_id,
+                action_request_id=action_request.id,
+                event_type="action_request_dispatch_failed",
+                status="queued",
+                message="Telegram dispatch failed before Celery accepted it",
+                metadata_json={"error_type": type(exc).__name__, "surface": "telegram"},
+            )
+        return (
+            f"ActionRequest `{str(action_request.id)[:8]}…` aprobado, "
+            f"pero Celery no aceptó el dispatch ({type(exc).__name__}).",
+            False,
+        )
+    with contextlib.suppress(Exception):
+        await action_service.record_action_dispatch_event(
+            job_id=action_request.job_id,
+            action_request_id=action_request.id,
+            event_type="action_request_dispatch_submitted",
+            status="queued",
+            message="Telegram submitted action request to Celery",
+            metadata_json={"queue": "agent_longrun", "surface": "telegram"},
+        )
+    return f"ActionRequest `{str(action_request.id)[:8]}…` despachado en `agent_longrun`.", True
+
+
 def _decide_approval(bot: TelegramBot, chat_id: int, arg: str, status_value: str) -> None:
     """Telegram adapter for `actions.service.decide_approval`.
 
@@ -547,30 +702,24 @@ def _decide_approval(bot: TelegramBot, chat_id: int, arg: str, status_value: str
         ApprovalSelfDecisionError,
         decide_approval,
     )
+    from cognitive_os.api.app import _openshell_task_payload_from_job
 
     if not arg:
-        bot.send(chat_id, f"Uso: `/{status_value[:6]} <approval_id>`")
+        command_name = "approve" if status_value == "approved" else "reject"
+        bot.send(chat_id, f"Uso: `/{command_name} <approval_id>`")
         return
-    try:
-        approval_id = UUID(arg)
-    except ValueError:
-        bot.send(chat_id, "id inválido")
+    approval_id, resolve_error = _run(_resolve_approval_id(arg))
+    if approval_id is None:
+        bot.send(chat_id, resolve_error or "id inválido")
         return
-
-    async def _resolve_payload(job: Any) -> dict[str, Any]:
-        # Local import keeps the bot module decoupled from the API package
-        # while reusing the same payload reveal helper.
-        from cognitive_os.api.app import _openshell_task_payload_from_job
-
-        return _openshell_task_payload_from_job(job)
 
     async def _decide() -> tuple[str, object | None]:
         try:
             result = await decide_approval(
                 approval_id,
                 status_value=status_value,
-                approver_user_id="telegram",
-                payload_resolver=lambda job: _run(_resolve_payload(job)),
+                approver_user_id=f"telegram:{chat_id}",
+                payload_resolver=_openshell_task_payload_from_job,
             )
         except ApprovalNotFoundError:
             return "no encontrado", None
@@ -611,7 +760,18 @@ def _decide_approval(bot: TelegramBot, chat_id: int, arg: str, status_value: str
                 "telegram_code_build_dispatch_failed",
                 extra={"error_type": type(exc).__name__},
             )
-    bot.send(chat_id, f"`/approval {arg[:8]}…` → {status_label}")
+    dispatch_message: str | None = None
+    if decision is not None and status_value == "approved":
+        action_request_id = _extract_action_request_id(decision.approval.requested_action)
+        if action_request_id is not None:
+            dispatch_message, _dispatched = _run(
+                _dispatch_approved_action_request(action_request_id)
+            )
+
+    lines = [f"`/approval {str(approval_id)[:8]}…` → {status_label}"]
+    if dispatch_message:
+        lines.append(dispatch_message)
+    bot.send(chat_id, _join(lines))
 
 
 @command("threads", "últimos LangGraph threads")
@@ -927,6 +1087,377 @@ def cmd_runs(bot: TelegramBot, chat_id: int, _arg: str) -> None:
         latency_str = f" · {int(latency_ms)}ms" if latency_ms else ""
         emoji = "❌" if getattr(run, "error", None) else "✅"
         lines.append(f"{emoji} {name[:36]} · {status}{latency_str}")
+    bot.send(chat_id, _join(lines))
+
+
+# -- Google Ops / Action Plane (read-only) -----------------------------------
+
+
+def _parse_int_arg(arg: str, default: int, *, low: int = 1, high: int = 100) -> int:
+    """Parse `arg` as an integer constrained to [low, high]; fall back to default."""
+    raw = arg.strip()
+    if not raw:
+        return default
+    try:
+        return max(low, min(int(raw), high))
+    except ValueError:
+        return default
+
+
+@command("maps", "ruta con tráfico — uso: /maps origen | destino")
+def cmd_maps(bot: TelegramBot, chat_id: int, arg: str) -> None:
+    if "|" not in arg:
+        bot.send(chat_id, "Uso: `/maps origen | destino`")
+        return
+    origin, destination = (part.strip() for part in arg.split("|", 1))
+    if not origin or not destination:
+        bot.send(chat_id, "Tanto origen como destino son obligatorios.")
+        return
+    from cognitive_os.actions.maps import MapsError, MapsService
+
+    service = MapsService()
+    if service.status().status != "ready":
+        reason = service.status().reason or "Maps no está disponible."
+        bot.send(chat_id, f"Maps: `{reason}`")
+        return
+    try:
+        plan = service.plan_route(
+            origin=origin,
+            destination=destination,
+            traffic_aware=True,
+            compute_alternatives=True,
+        )
+    except MapsError as exc:
+        bot.send(chat_id, f"Maps error: `{exc}`")
+        return
+    lines = [
+        f"*{plan.distance_text} · {plan.duration_text}*",
+        f"{_safe_md_fragment(plan.route_advice, 240)}" if plan.route_advice else "",
+        f"Tráfico: `{plan.traffic_severity}`"
+        + (f" · retraso {plan.traffic_delay_text}" if plan.traffic_delay_text else "")
+        + (f" · alternativas {plan.alternative_count}" if plan.alternative_count else ""),
+    ]
+    if plan.google_maps_url:
+        lines.append(plan.google_maps_url)
+    bot.send(chat_id, _join([line for line in lines if line]))
+
+
+@command("calendar", "próximos eventos (lectura) — uso: /calendar [max]")
+def cmd_calendar(bot: TelegramBot, chat_id: int, arg: str) -> None:
+    from cognitive_os.actions.calendar import (
+        CalendarError,
+        CalendarService,
+        ListEventsRequest,
+    )
+
+    service = CalendarService()
+    if service.status().status != "ready":
+        reason = service.status().reason or "Calendar no está disponible."
+        bot.send(chat_id, f"Calendar: `{reason}`")
+        return
+    limit = _parse_int_arg(arg, default=10, low=1, high=25)
+    try:
+        events = service.list_events(ListEventsRequest(max_results=limit))
+    except CalendarError as exc:
+        bot.send(chat_id, f"Calendar error: `{exc}`")
+        return
+    if not events:
+        bot.send(chat_id, "Sin eventos próximos.")
+        return
+    lines = [f"*Eventos próximos ({len(events)})*"]
+    for event in events:
+        start = event.start.replace("T", " ")[:16] if event.start else "?"
+        title = _safe_md_fragment(event.summary, 80)
+        loc = f" · {_safe_md_fragment(event.location, 40)}" if event.location else ""
+        lines.append(f"• `{start}` · {title}{loc}")
+    bot.send(chat_id, _join(lines))
+
+
+@command("freebusy", "disponibilidad calendar — uso: /freebusy [días]")
+def cmd_freebusy(bot: TelegramBot, chat_id: int, arg: str) -> None:
+    from datetime import timedelta
+
+    from cognitive_os.actions.calendar import (
+        CalendarError,
+        CalendarService,
+        FreeBusyRequest,
+    )
+
+    service = CalendarService()
+    if service.status().status != "ready":
+        reason = service.status().reason or "Calendar no está disponible."
+        bot.send(chat_id, f"Calendar: `{reason}`")
+        return
+    days = _parse_int_arg(arg, default=7, low=1, high=30)
+    now = datetime.now(UTC)
+    try:
+        result = service.freebusy(
+            FreeBusyRequest(
+                time_min=now,
+                time_max=now + timedelta(days=days),
+                calendars=["primary"],
+            )
+        )
+    except CalendarError as exc:
+        bot.send(chat_id, f"Calendar error: `{exc}`")
+        return
+    lines = [
+        f"*Free/busy próximos {days} día(s)* · ocupados: {result.busy_count}",
+    ]
+    for calendar_item in result.calendars:
+        lines.append(f"• `{calendar_item.calendar_id}`")
+        for slot in calendar_item.busy[:8]:
+            start = slot.start[:16].replace("T", " ")
+            end = slot.end[:16].replace("T", " ")
+            lines.append(f"  ⛔ {start} → {end}")
+    bot.send(chat_id, _join(lines))
+
+
+@command("drive", "buscar en Drive — uso: /drive <query>")
+def cmd_drive(bot: TelegramBot, chat_id: int, arg: str) -> None:
+    query = arg.strip()
+    if not query:
+        bot.send(chat_id, "Uso: `/drive <texto a buscar>`")
+        return
+    from cognitive_os.actions.drive import (
+        DriveError,
+        DriveSearchRequest,
+        DriveService,
+    )
+
+    service = DriveService()
+    if service.status().status != "ready":
+        reason = service.status().reason or "Drive no está disponible."
+        bot.send(chat_id, f"Drive: `{reason}`")
+        return
+    try:
+        files = service.list_files(
+            DriveSearchRequest(query=query, max_results=15, search_mode="all")
+        )
+    except DriveError as exc:
+        bot.send(chat_id, f"Drive error: `{exc}`")
+        return
+    if not files:
+        bot.send(chat_id, "Sin coincidencias en Drive.")
+        return
+    lines = [f"*Drive · {len(files)} resultado(s)*"]
+    for file_view in files[:12]:
+        tag = "📁" if file_view.is_folder else "📄"
+        name = _safe_md_fragment(file_view.name, 80)
+        link = f" · {file_view.web_view_link}" if file_view.web_view_link else ""
+        lines.append(f"{tag} {name}{link}")
+    bot.send(chat_id, _join(lines))
+
+
+@command("documents", "documentos ingestados — uso: /documents [max]")
+def cmd_documents(bot: TelegramBot, chat_id: int, arg: str) -> None:
+    limit = _parse_int_arg(arg, default=10, low=1, high=25)
+
+    async def _query() -> list[Document]:
+        async with session_scope() as session:
+            result = await session.execute(
+                select(Document).order_by(desc(Document.created_at)).limit(limit)
+            )
+            return list(result.scalars().all())
+
+    docs = _run(_query())
+    if not docs:
+        bot.send(chat_id, "No hay documentos ingestados.")
+        return
+    lines = [f"*Documentos ({len(docs)})*"]
+    for doc in docs:
+        title = _safe_md_fragment(doc.title or doc.source_path, 80)
+        lines.append(
+            f"• `{str(doc.id)[:8]}…` · {title} · {doc.status} "
+            f"· {doc.page_count}p · {doc.chunk_count}ch · {_format_when(doc.created_at)}"
+        )
+    bot.send(chat_id, _join(lines))
+
+
+@command("audit", "últimos audit events — uso: /audit [max]")
+def cmd_audit(bot: TelegramBot, chat_id: int, arg: str) -> None:
+    from cognitive_os.db.models import AuditEvent  # noqa: PLC0415 - local import
+
+    limit = _parse_int_arg(arg, default=15, low=1, high=50)
+
+    async def _query() -> list[AuditEvent]:
+        async with session_scope() as session:
+            result = await session.execute(
+                select(AuditEvent).order_by(desc(AuditEvent.created_at)).limit(limit)
+            )
+            return list(result.scalars().all())
+
+    events = _run(_query())
+    if not events:
+        bot.send(chat_id, "Sin eventos de auditoría.")
+        return
+    lines = [f"*Audit ({len(events)})*"]
+    for event in events:
+        actor = event.actor_id or "—"
+        resource = (
+            f"{event.resource_type}:{str(event.resource_id)[:8]}…"
+            if event.resource_type and event.resource_id
+            else event.resource_type or "—"
+        )
+        lines.append(
+            f"• {_format_when(event.created_at)} · `{event.action}` · {actor} · {resource}"
+        )
+    bot.send(chat_id, _join(lines))
+
+
+@command("mail", "bandeja mail multicuenta — uso: /mail [max]")
+def cmd_mail(bot: TelegramBot, chat_id: int, arg: str) -> None:
+    from cognitive_os.db.models import MailMessage  # noqa: PLC0415 - local import
+
+    if not settings.mail_enabled:
+        bot.send(chat_id, "`MAIL_ENABLED=false` — mail multicuenta desactivado.", markdown=False)
+        return
+    limit = _parse_int_arg(arg, default=10, low=1, high=25)
+
+    async def _query() -> list[MailMessage]:
+        async with session_scope() as session:
+            result = await session.execute(
+                select(MailMessage).order_by(desc(MailMessage.created_at)).limit(limit)
+            )
+            return list(result.scalars().all())
+
+    messages = _run(_query())
+    if not messages:
+        bot.send(chat_id, "No hay mensajes.")
+        return
+    status_emoji = {
+        "new": "🆕",
+        "reply_proposed": "✍️",
+        "pending_send": "⏳",
+        "sent": "✅",
+        "ignored": "🙈",
+        "failed": "❌",
+    }
+    lines = [f"*Mail · {len(messages)} mensaje(s)*"]
+    for msg in messages:
+        emoji = status_emoji.get(msg.status, "•")
+        sender = _safe_md_fragment(msg.sender, 36)
+        subject = _safe_md_fragment(msg.subject or "(sin asunto)", 70)
+        lines.append(f"{emoji} `{str(msg.id)[:8]}…` · {sender} · {subject} · {msg.classification}")
+    bot.send(chat_id, _join(lines))
+
+
+@command("research", "últimos research runs — uso: /research [max]")
+def cmd_research(bot: TelegramBot, chat_id: int, arg: str) -> None:
+    from cognitive_os.db.models import ResearchRunRecord  # noqa: PLC0415 - local import
+
+    limit = _parse_int_arg(arg, default=8, low=1, high=20)
+
+    async def _query() -> list[ResearchRunRecord]:
+        async with session_scope() as session:
+            result = await session.execute(
+                select(ResearchRunRecord).order_by(desc(ResearchRunRecord.created_at)).limit(limit)
+            )
+            return list(result.scalars().all())
+
+    try:
+        runs = _run(_query())
+    except Exception as exc:  # noqa: BLE001 - research table may be missing in legacy installs
+        bot.send(chat_id, f"Research no disponible: `{type(exc).__name__}: {exc}`")
+        return
+    if not runs:
+        bot.send(chat_id, "Sin research runs.")
+        return
+    lines = [f"*Research runs ({len(runs)})*"]
+    for run in runs:
+        request_blob = run.request if isinstance(run.request, dict) else {}
+        raw_query = str(request_blob.get("query") or "")
+        query = _safe_md_fragment(raw_query or "(sin query)", 70)
+        lines.append(
+            f"• `{str(run.run_id)[:8]}…` · {run.status} · {query} · {_format_when(run.created_at)}"
+        )
+    bot.send(chat_id, _join(lines))
+
+
+@command("codebuild", "últimos code-director builds — uso: /codebuild [max]")
+def cmd_codebuild(bot: TelegramBot, chat_id: int, arg: str) -> None:
+    limit = _parse_int_arg(arg, default=10, low=1, high=25)
+
+    async def _query() -> list[Job]:
+        async with session_scope() as session:
+            result = await session.execute(
+                select(Job)
+                .where(Job.job_type == "code_build")
+                .order_by(desc(Job.created_at))
+                .limit(limit)
+            )
+            return list(result.scalars().all())
+
+    jobs = _run(_query())
+    if not jobs:
+        bot.send(chat_id, "Sin code builds recientes.")
+        return
+    lines = [f"*Code builds ({len(jobs)})*"]
+    for job in jobs:
+        rationale = _safe_md_fragment(
+            str((job.metadata_json or {}).get("objective", ""))[:80] or "—",
+            80,
+        )
+        lines.append(
+            f"• `{str(job.id)[:8]}…` · {job.status} ({job.progress}%) · "
+            f"{rationale} · {_format_when(job.updated_at)}"
+        )
+    bot.send(chat_id, _join(lines))
+
+
+@command("sandbox", "estado openshell sandbox — /sandbox")
+def cmd_sandbox(bot: TelegramBot, chat_id: int, _arg: str) -> None:
+    if not settings.enable_openshell_sandbox:
+        bot.send(chat_id, "`ENABLE_OPENSHELL_SANDBOX=false`.", markdown=False)
+        return
+
+    async def _query() -> list[Job]:
+        async with session_scope() as session:
+            result = await session.execute(
+                select(Job)
+                .where(Job.job_type == "openshell_sandbox")
+                .order_by(desc(Job.created_at))
+                .limit(10)
+            )
+            return list(result.scalars().all())
+
+    jobs = _run(_query())
+    lines = ["*OpenShell sandbox*"]
+    if not jobs:
+        lines.append("Sin tareas recientes.")
+    else:
+        for job in jobs:
+            lines.append(
+                f"• `{str(job.id)[:8]}…` · {job.status} ({job.progress}%) "
+                f"· {_format_when(job.updated_at)}"
+            )
+    bot.send(chat_id, _join(lines))
+
+
+@command("capabilities", "capacidades del action plane")
+def cmd_capabilities(bot: TelegramBot, chat_id: int, _arg: str) -> None:
+    lines = [
+        "*Action plane*",
+        f"`browser_automation` = {settings.enable_browser_automation}",
+        f"`computer_actions` = {settings.enable_computer_actions}",
+        f"`gmail_read` = {settings.gmail_read_enabled}"
+        f" · `gmail_send` = {settings.gmail_send_enabled}",
+        f"`maps_routing` = {settings.enable_maps_routing}",
+        f"`google_calendar` = {settings.enable_google_calendar}"
+        f" · write = {settings.enable_google_calendar_write}",
+        f"`google_drive` = {settings.enable_google_drive}"
+        f" · write = {settings.enable_google_drive_write}",
+        f"`godaddy_dns` = {settings.godaddy_enabled}"
+        f" · dry-only = {settings.godaddy_dns_dry_run_only}",
+        f"`mail_multi_account` = {settings.mail_enabled}"
+        f" · godaddy = {settings.mail_godaddy_enabled}"
+        f" · approval = {settings.mail_require_approval_for_send}",
+        f"`document_generation` = {settings.enable_document_generation}",
+        f"`research_orchestrator` = {settings.enable_research_orchestrator}",
+        f"`openshell_sandbox` = {settings.enable_openshell_sandbox}",
+        f"`voice` = {settings.voice_enabled}",
+        f"`webbridge` = {settings.enable_kimi_webbridge}",
+    ]
     bot.send(chat_id, _join(lines))
 
 

@@ -1,7 +1,12 @@
 # ACCEPTANCE CHECKLIST
 
-> **Estado actual (2026-05-17, Fase 42 legal-pack DeepAgents cerrada):** matriz
-> de aceptación vigente. Incluye OpenHarness opcional en *Chat /
+> **Estado actual (2026-05-19, Fase 68 — GoDaddy DNS prod operativo, doble revisión profunda, suite hermética 685 passed; Telegram requiere token nuevo):** matriz
+> de aceptación vigente. Fase 66 levantó el stack real con credenciales del
+> operador y auditó cada parte; 4 bugs críticos enmascarados por la
+> resiliencia fueron corregidos y verificados en vivo (DeepAgent/tool_choice,
+> LLM secondary/fallback 403, LangSmith trazas 403, Maps traffic 400). Ver
+> §"Verificado en vivo - Fase 66" abajo.
+> matriz de aceptación vigente. Incluye OpenHarness opcional en *Chat /
 > orquestación*, mail personal GoDaddy/Gmail-label con envío aprobado,
 > integraciones Google (Maps con tráfico/link, Calendar/Drive read +
 > writes solo por `ActionRequest`), voz ElevenLabs (STT/TTS), vista
@@ -9,17 +14,81 @@
 > Maps/Calendar/Drive y **`CodeDirectorView`** para delegar builds a
 > coding agents externos (Claude Code/Codex/Kimi/DeepAgents) bajo
 > HumanApproval + budget caps + audit; con planner LLM-driven y prompts
-> con contexto vivo del workspace (F9).
-> Snapshot QA persistente (Fase 41):
-> **632 pytest passed, 1 skipped, 20 deselected**; ruff/ruff format/mypy
-> (111 source files), frontend lint/build (20 vistas), Compose config,
-> Alembic head `202605160002` sin drift, `git diff --check`,
-> `pre-commit run --all-files` (6 hooks) y `detect-secrets scan` verdes.
+> con contexto vivo del workspace (F9). Fases 50-58 cerraron Telegram
+> approvals con dispatch real de `ActionRequest` y smoke versionado de
+> launchers de escritorio. Fases 59-63 agregaron dispatch durable:
+> fallos de broker visibles, JobEvents submit/fail y worker duplicate-running
+> short-circuit. Fase 64 añadió reserva atómica `dispatch_state` para impedir
+> submits duplicados a Celery. Fase 65 cerró paridad Telegram↔UI (36 slash
+> commands) y corrigió el CHECK `ck_ar_action_type` que rompía Drive
+> folder/organize en Postgres real (migración `202605170001` + test de
+> regresión que mantiene ORM/migración/servicio en sync).
+> Snapshot QA persistente (Fase 65):
+> **685 pytest passed, 1 skipped, 20 deselected**; ruff/ruff format/mypy
+> (125 source files), frontend lint/build (20 vistas), Alembic head
+> `202605170001` sin drift y `git diff --check` verdes.
 > Los snapshots con fecha por-fase más abajo son **históricos**: para
 > reverificar QA hoy ejecuta `bash scripts/full-qa.sh`.
 
 Este checklist separa lo verificado por pruebas automaticas de lo que requiere
 infraestructura local real, credenciales o aprobacion manual.
+
+## Verificado en vivo - 2026-05-18 (Fase 66, stack real + credenciales reales)
+
+- [x] Docker infra real `healthy`: postgres, redis, weaviate, neo4j (query directa).
+- [x] `alembic upgrade head` aplicado en Postgres real → `202605170001`; query
+  a `pg_constraint` confirma que `ck_ar_action_type` incluye
+  `drive_ensure_folder` + `drive_organize_files` (bugfix Fase 65 verificado vivo).
+- [x] `/health/dashboard` con JWT real: postgres/redis/weaviate/neo4j `ok`,
+  workers `ok`, langsmith `ok`, checkpointer Postgres real, voice/maps/
+  captcha/webbridge `ready`, gmail `configured`. `google_calendar`/`drive`
+  `blocked` (esperan OAuth interactivo — reacción correcta).
+- [x] Conectividad LLM real: primary/secondary/fallback (DeepSeek),
+  vision/vision_fb (GLM), embeddings (Gemini, dim=3072) → **HTTP 200**.
+- [x] `POST /chat` real → DeepAgent funcionando **sin** fallback RAG
+  (`fallback=False`) tras el fix `AGENT_LLM_MODEL=deepseek-chat`.
+- [x] `POST /actions/maps/route` traffic-aware real → `19.5 km · 25 min ·
+  tráfico leve · 12 pasos · google_maps_url` tras el fix `departureTime`.
+- [x] LangSmith `/sessions` con el personal access token → 200 (trazas
+  ingestables) tras el fix de precedencia de credencial.
+- [x] `bash scripts/full-qa.sh` → **685 passed, 1 skipped, 20 deselected**;
+  ruff/format/mypy (125 files)/eslint verdes tras los 4 fixes + 7 tests
+  endurecidos a herméticos.
+- [ ] OAuth Google (`scripts/auth_google.py`) — **pendiente operador**
+  (paso interactivo: login + consentimiento en navegador).
+- [ ] `GODADDY_API_SECRET` — **pendiente operador** (solo se recibió la key).
+
+## Verificado Automaticamente - 2026-05-17 (Fase 65 paridad UI/Telegram + bugfix CHECK)
+
+- [x] **Bug crítico Postgres-only corregido:** `ck_ar_action_type` no incluía `drive_ensure_folder`/`drive_organize_files`; los endpoints `/actions/drive/folders/ensure/request` y `/actions/drive/organize/request` daban `CheckViolation` en Postgres real (enmascarado porque los tests mocan `session_scope`). Migración `alembic/versions/202605170001_action_requests_drive_folder_organize.py` + ORM `__table_args__` sincronizado.
+- [x] `uv run pytest tests/test_action_request_check_constraint.py -q` → **2 passed** (regresión que mantiene ORM/migración/`WORKFLOW_EXPORTABLE_TYPES` en sync).
+- [x] Telegram: **+11 slash commands** (`/maps`, `/calendar`, `/freebusy`, `/drive`, `/documents`, `/audit`, `/mail`, `/research`, `/codebuild`, `/sandbox`, `/capabilities`) con gating de capacidades; `uv run pytest tests/test_telegram_bot.py -q` → **14 passed**.
+- [x] Mapeo FE↔BE: 44 rutas REST del frontend ↔ 131 endpoints backend, 0 huérfanos.
+- [x] `uv run pytest -q` → **685 passed, 1 skipped, 20 deselected**.
+- [x] `bash scripts/full-qa.sh` → verde (pytest + ruff + ruff format + mypy + Alembic check + npm ci + frontend lint/build + `git diff --check`).
+- [x] `bash scripts/stress-qa.sh` → 3 corridas (baseline 674 pre-fix; suite estable).
+- [x] `uvx pre-commit run --all-files` → 6 hooks Passed (large-files, merge-conflict, EOF, trailing-whitespace, gitleaks, detect-secrets).
+- [x] `uv run alembic heads` → `202605170001 (head)`; `alembic history` cadena lineal single-head; `alembic check` sin drift.
+- [x] `docker compose -f infra/docker-compose.yml --env-file .env.example config --quiet` → pass.
+- [x] `bash scripts/verify_desktop_launchers.sh` → launchers OK.
+
+## Verificado Automaticamente - 2026-05-17 (Fase 64 dispatch idempotente)
+
+- [x] `uv run pytest tests/test_actions.py tests/test_action_request_workers.py tests/test_telegram_bot.py tests/test_decide_approval_helper.py -q` → **72 passed**.
+- [x] `bash scripts/full-qa.sh` → **674 passed, 1 skipped, 20 deselected**; ruff check, ruff format, mypy, Alembic check, `npm ci`, frontend lint/build y `git diff --check` verdes.
+
+## Verificado Automaticamente - 2026-05-17 (Fases 59-63 dispatch durable)
+
+- [x] Tests focales dispatch/worker/Telegram → **12 passed**.
+- [x] `uv run pytest tests/test_actions.py tests/test_action_request_workers.py tests/test_telegram_bot.py tests/test_decide_approval_helper.py -q` → **69 passed**.
+- [x] `bash scripts/full-qa.sh` → **671 passed, 1 skipped, 20 deselected**; ruff check, ruff format, mypy, Alembic check, `npm ci`, frontend lint/build y `git diff --check` verdes.
+
+## Verificado Automaticamente - 2026-05-17 (Fases 50-58 bloque 3 operativo)
+
+- [x] `uv run pytest tests/test_telegram_bot.py tests/test_desktop_launchers.py -q` → **7 passed**.
+- [x] `uv run pytest tests/test_decide_approval_helper.py tests/test_actions.py tests/test_telegram_bot.py tests/test_desktop_launchers.py -q` → **65 passed**.
+- [x] `bash scripts/verify_desktop_launchers.sh` → launchers reales del Escritorio OK.
+- [x] `bash scripts/full-qa.sh` → **669 passed, 1 skipped, 20 deselected**; ruff check, ruff format, mypy, Alembic check, `npm ci`, frontend lint/build y `git diff --check` verdes.
 
 ## Verificado Automaticamente - 2026-05-17 (Fase 42 legal-pack DeepAgents cerrada)
 
@@ -37,6 +106,12 @@ infraestructura local real, credenciales o aprobacion manual.
 - [x] `uvx --from detect-secrets detect-secrets scan` → 0 findings.
 - [x] `bash scripts/init_credentials.sh` → 0 REQ faltantes en el host.
 - [x] Tests focalizados Fase 39: rate limit memory+redis (9), credentials inventory (7), workflow.v1 (7), decide_approval helper (4), correlation_id (7), google_oauth_instructions (4) → **38 passed**.
+
+## Verificado Automaticamente - 2026-05-17 (Fases 44-49 Google operativo avanzado)
+
+- [x] `uv run pytest tests/test_google_drive.py tests/test_google_calendar.py tests/test_actions.py tests/test_deepagents_personal_tools.py -q` → **118 passed**.
+- [x] `bash scripts/full-qa.sh` → **662 passed, 1 skipped, 20 deselected**; ruff check, ruff format, mypy, Alembic check, `npm ci`, frontend lint/build y `git diff --check` verdes.
+- [x] `docker compose -f infra/docker-compose.yml --env-file ../.env.example config --quiet` → pass con warnings esperados por variables unset del env de ejemplo.
 
 ## Verificado Automaticamente - 2026-05-15 (Fase 32 hardening comercial)
 
@@ -193,10 +268,22 @@ DeepAgents tools personales, SecretStore y endurecimiento de capacidades.
   `calendar_create_event` con `HumanApproval` y `Job` enlazados; la ejecución real
   mantiene doble compuerta (`ENABLE_GOOGLE_CALENDAR_WRITE` + aprobación).
 - [x] `POST /actions/drive/files/upload/request` crea `ActionRequest` ejecutable
-  `drive_upload_file`; Drive usa carpeta de entregables por defecto y conserva
-  allow-list de `COMPUTER_ALLOWED_ROOTS` + cap de tamaño.
-- [x] `POST /actions/maps/route` devuelve tráfico, retraso estimado y link Google
-  Maps sin exponer API keys.
+  `drive_upload_file`; Drive usa carpeta de entregables por defecto y acepta
+  solo fuentes bajo `DOCUMENT_OUTPUT_ROOT`, `LOCAL_STORAGE_DIR/workspaces`,
+  `OPENSHELL_ALLOWED_OUTPUT_DIR` o `COMPUTER_ALLOWED_ROOTS`, más cap de tamaño.
+- [x] `POST /actions/drive/folders/ensure/request` crea `ActionRequest`
+  ejecutable `drive_ensure_folder` para crear/asegurar la carpeta de
+  entregables bajo aprobación humana.
+- [x] `POST /actions/drive/organize/preview` previsualiza archivos Drive que se
+  moverían a carpeta destino; `POST /actions/drive/organize/request` crea
+  `ActionRequest` ejecutable `drive_organize_files` sin borrar ni cambiar
+  permisos.
+- [x] `POST /actions/drive/files` busca por `name`, `full_text` o `all`
+  (`name OR fullText`) en `Mi unidad` o `allDrives`, con `trashed=false`.
+- [x] `POST /actions/calendar/freebusy` devuelve bloques ocupados por rango y
+  calendario como lectura pura; DeepAgents expone `check_calendar_freebusy`.
+- [x] `POST /actions/maps/route` devuelve tráfico, retraso estimado, severidad,
+  ETA, advice operativo, alternativas y link Google Maps sin exponer API keys.
 - [x] `GoogleOpsView` ofrece UI dedicada para rutas Maps, eventos Calendar y
   entregables Drive bajo aprobación.
 - [x] La ejecucion de `document_generate` escribe DOCX/XLSX/PPTX dentro de

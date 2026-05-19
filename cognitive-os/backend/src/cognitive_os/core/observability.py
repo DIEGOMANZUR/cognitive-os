@@ -49,11 +49,24 @@ def configure_langsmith(app_settings: Settings | None = None) -> dict[str, Any]:
             "detail": "LANGSMITH_TRACING=false; set to true to enable.",
             "project": app_settings.langsmith_project,
         }
-    langsmith_credential = app_settings.langsmith_api_key.get_secret_value().strip()
+    # Prefer the personal access token (lsv2_pt_, full API scope) over a
+    # restricted API key. Audit Fase 66 (2026-05-18): a scoped LANGSMITH_API_KEY
+    # (lsv2_sk_) authenticates (/info 200) but cannot ingest runs
+    # (/runs/multipart 403), silently dropping every trace. The personal access
+    # token has the write scope. Mirrors the precedence already used by the
+    # Telegram `/runs` command.
+    personal_token = ""
+    if hasattr(app_settings, "langsmith_personal_access_token"):
+        personal_token = app_settings.langsmith_personal_access_token.get_secret_value().strip()
+    api_key = app_settings.langsmith_api_key.get_secret_value().strip()
+    if personal_token and personal_token != "CHANGEME":
+        langsmith_credential = personal_token
+    else:
+        langsmith_credential = api_key
     if not langsmith_credential or langsmith_credential == "CHANGEME":
         return {
             "status": "degraded",
-            "detail": "LANGSMITH_API_KEY missing while tracing is enabled.",
+            "detail": "LANGSMITH_API_KEY/PERSONAL_ACCESS_TOKEN missing while tracing is enabled.",
             "project": app_settings.langsmith_project,
         }
 

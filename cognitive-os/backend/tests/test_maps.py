@@ -88,10 +88,13 @@ def test_plan_route_passes_mode_and_intermediates_to_provider() -> None:
         destination="B",
         intermediates=["  ", "C"],
         travel_mode="walking",
+        compute_alternatives=True,
     )
     assert plan.travel_mode == "walking"
     assert plan.intermediates == ["C"]
     assert plan.google_maps_url.startswith("https://www.google.com/maps/dir/")
+    assert plan.alternative_count == 1
+    assert "ETA" not in plan.route_advice
     assert provider.calls == ["route:A->B"]
 
 
@@ -178,6 +181,8 @@ def test_google_provider_compute_route_parses_response(monkeypatch: pytest.Monke
     }
 
     def fake_post(url: str, **kwargs: object) -> httpx.Response:
+        assert kwargs["json"]["computeAlternativeRoutes"] is True
+        assert "routes.routeLabels" in kwargs["headers"]["X-Goog-FieldMask"]
         return httpx.Response(200, json=payload, request=httpx.Request("POST", url))
 
     monkeypatch.setattr(httpx, "post", fake_post)
@@ -188,13 +193,18 @@ def test_google_provider_compute_route_parses_response(monkeypatch: pytest.Monke
         travel_mode="driving",
         traffic_aware=True,
         departure_time=None,
+        compute_alternatives=True,
     )
     assert isinstance(plan, RoutePlan)
     assert plan.distance_meters == 5200
     assert plan.duration_seconds == 780
     assert plan.static_duration_seconds == 720
     assert plan.traffic_delay_seconds == 60
+    assert plan.traffic_severity == "light"
     assert plan.traffic_aware is True
+    assert plan.departure_time is not None
+    assert plan.arrival_time is not None
+    assert "Usa esta ruta" in plan.route_advice
     assert "origin=A" in plan.google_maps_url
     assert "destination=B" in plan.google_maps_url
     assert plan.distance_text == "5.2 km"

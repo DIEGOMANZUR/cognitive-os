@@ -107,6 +107,12 @@ def run_research_deepagent(task: DeepAgentTask) -> DeepAgentResult:
 
 
 def research_policy(task: DeepAgentTask) -> DeepAgentToolPolicy:
+    # Kimi WebBridge is allowed when the operator turned the bridge on AND we
+    # are in `dedicated_local` (single-operator PC with real browser sessions).
+    # The service still gates via `KIMI_WEBBRIDGE_ALLOWED_DOMAINS` and the
+    # mutations toggle, so allow_kimi_webbridge here just lets the DeepAgent
+    # see the tool at all.
+    allow_bridge = settings.enable_kimi_webbridge and settings.operator_profile == "dedicated_local"
     return DeepAgentToolPolicy(
         allow_local_rag=True,
         allow_neo4j_read=True,
@@ -117,6 +123,7 @@ def research_policy(task: DeepAgentTask) -> DeepAgentToolPolicy:
         allow_email=False,
         allow_social_posting=False,
         allow_delete=False,
+        allow_kimi_webbridge=allow_bridge,
     )
 
 

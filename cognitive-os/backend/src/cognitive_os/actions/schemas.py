@@ -17,6 +17,8 @@ ActionType = Literal[
     "browser_interactive",
     "calendar_create_event",
     "drive_upload_file",
+    "drive_ensure_folder",
+    "drive_organize_files",
 ]
 DocumentFormat = Literal["docx", "xlsx", "pptx"]
 ActionRequestStatus = Literal[
@@ -405,6 +407,8 @@ WorkflowActionType = Literal[
     "browser_interactive",
     "calendar_create_event",
     "drive_upload_file",
+    "drive_ensure_folder",
+    "drive_organize_files",
 ]
 
 

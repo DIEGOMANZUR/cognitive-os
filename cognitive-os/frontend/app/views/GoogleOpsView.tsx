@@ -12,12 +12,16 @@ import type {
   CalendarStatus,
   DriveFile,
   DriveFolderPreview,
+  DriveOrganizePreview,
   DriveStatus,
+  FreeBusyResult,
   MapsStatus,
   RoutePlan
 } from "../lib/types";
 
 type TravelMode = "driving" | "walking" | "bicycling" | "transit";
+type DriveSearchMode = "name" | "full_text" | "all";
+type DriveCorpus = "user" | "all_drives";
 
 function toIso(value: string): string {
   return new Date(value).toISOString();
@@ -44,17 +48,24 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [travelMode, setTravelMode] = useState<TravelMode>("driving");
+  const [computeAlternatives, setComputeAlternatives] = useState(true);
   const [route, setRoute] = useState<RoutePlan | null>(null);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  const [freeBusy, setFreeBusy] = useState<FreeBusyResult | null>(null);
   const [eventSummary, setEventSummary] = useState("");
   const [eventStart, setEventStart] = useState("");
   const [eventEnd, setEventEnd] = useState("");
   const [eventLocation, setEventLocation] = useState("");
   const [driveQuery, setDriveQuery] = useState("");
+  const [driveSearchMode, setDriveSearchMode] = useState<DriveSearchMode>("all");
+  const [driveCorpus, setDriveCorpus] = useState<DriveCorpus>("user");
+  const [driveIncludeFolders, setDriveIncludeFolders] = useState(true);
   const [driveFiles, setDriveFiles] = useState<DriveFile[]>([]);
   const [uploadPath, setUploadPath] = useState("");
   const [uploadName, setUploadName] = useState("");
   const [folderPreview, setFolderPreview] = useState<DriveFolderPreview | null>(null);
+  const [organizeTarget, setOrganizeTarget] = useState("");
+  const [organizePreview, setOrganizePreview] = useState<DriveOrganizePreview | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   const googleReady = useMemo(
@@ -73,7 +84,8 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
         origin: origin.trim(),
         destination: destination.trim(),
         travel_mode: travelMode,
-        traffic_aware: true
+        traffic_aware: true,
+        compute_alternatives: computeAlternatives
       });
       setRoute(result);
       toast.push("Ruta calculada con Google Maps.", "success");
@@ -91,6 +103,22 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
       const result = await client.post<CalendarEvent[]>("/actions/calendar/events", { max_results: 20 });
       setCalendarEvents(result);
       toast.push("Agenda cargada.", "success");
+    } catch (caught) {
+      toast.push(errorMessage(caught), "error");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function checkFreeBusy() {
+    if (busy) return;
+    setBusy("calendar-freebusy");
+    try {
+      const result = await client.post<FreeBusyResult>("/actions/calendar/freebusy", {
+        calendars: ["primary"]
+      });
+      setFreeBusy(result);
+      toast.push("Disponibilidad cargada.", "success");
     } catch (caught) {
       toast.push(errorMessage(caught), "error");
     } finally {
@@ -123,7 +151,10 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
     try {
       const result = await client.post<DriveFile[]>("/actions/drive/files", {
         query: driveQuery.trim(),
-        max_results: 30
+        max_results: 30,
+        search_mode: driveSearchMode,
+        corpus: driveCorpus,
+        include_folders: driveIncludeFolders
       });
       setDriveFiles(result);
       toast.push("Drive consultado.", "success");
@@ -168,6 +199,62 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
     }
   }
 
+  async function requestFolder() {
+    if (busy) return;
+    setBusy("folder-request");
+    try {
+      const request = await client.post<ActionRequestView>("/actions/drive/folders/ensure/request", {
+        dry_run: false
+      });
+      toast.push(`Solicitud de carpeta Drive creada: ${request.status}.`, "success");
+    } catch (caught) {
+      toast.push(errorMessage(caught), "error");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function previewDriveOrganize() {
+    if (busy) return;
+    setBusy("drive-organize-preview");
+    try {
+      const result = await client.post<DriveOrganizePreview>("/actions/drive/organize/preview", {
+        query: driveQuery.trim(),
+        target_folder_name: organizeTarget.trim() || null,
+        max_files: 30,
+        search_mode: driveSearchMode,
+        corpus: driveCorpus,
+        dry_run: true
+      });
+      setOrganizePreview(result);
+      toast.push(`Preview Drive: ${result.operation_count} archivo(s).`, "success");
+    } catch (caught) {
+      toast.push(errorMessage(caught), "error");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function requestDriveOrganize() {
+    if (busy) return;
+    setBusy("drive-organize-request");
+    try {
+      const request = await client.post<ActionRequestView>("/actions/drive/organize/request", {
+        query: driveQuery.trim(),
+        target_folder_name: organizeTarget.trim() || null,
+        max_files: 30,
+        search_mode: driveSearchMode,
+        corpus: driveCorpus,
+        dry_run: false
+      });
+      toast.push(`Solicitud de organización Drive creada: ${request.status}.`, "success");
+    } catch (caught) {
+      toast.push(errorMessage(caught), "error");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <div className="stack">
       <section className="section">
@@ -204,6 +291,14 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
               <option value="bicycling">Bicicleta</option>
               <option value="transit">Transporte público</option>
             </select>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={computeAlternatives}
+                onChange={(event) => setComputeAlternatives(event.target.checked)}
+              />
+              alternativas
+            </label>
             <button className="primary" disabled={busy !== null || !origin || !destination} onClick={planRoute} type="button">
               Calcular ruta
             </button>
@@ -211,9 +306,12 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
           {route && (
             <div className="card soft stack">
               <h3>{route.distance_text} · {route.duration_text}</h3>
+              {route.route_advice && <p>{route.route_advice}</p>}
               {route.traffic_aware && (
                 <p className="muted small">
-                  Tráfico considerado. Retraso estimado: {route.traffic_delay_text ?? "0 min"}.
+                  Tráfico: {route.traffic_severity}. Retraso estimado: {route.traffic_delay_text ?? "0 min"}.
+                  {route.arrival_time ? ` Llegada aprox.: ${new Date(route.arrival_time).toLocaleTimeString()}.` : ""}
+                  {route.alternative_count ? ` Alternativas: ${route.alternative_count}.` : ""}
                 </p>
               )}
               <a href={route.google_maps_url} target="_blank" rel="noreferrer">
@@ -234,8 +332,18 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
             <span className={statusClass(calendar.data?.status ?? "unknown")}>{calendar.data?.status ?? "?"}</span>
           </div>
           {calendar.data?.reason && <p className="badge warn">{calendar.data.reason}</p>}
+          {calendar.data?.missing_scopes && calendar.data.missing_scopes.length > 0 && (
+            <p className="badge warn small">
+              Re-autorizar: faltan {calendar.data.missing_scopes.length} scope(s) — borrá
+              <code> storage/oauth/google/token.json</code> y corré
+              <code> uv run python scripts/auth_google.py</code>. Scopes faltantes:
+              {" "}
+              {calendar.data.missing_scopes.join(", ")}.
+            </p>
+          )}
           <div className="row">
             <button onClick={listCalendar} disabled={busy !== null} type="button">Listar agenda</button>
+            <button onClick={checkFreeBusy} disabled={busy !== null} type="button">Disponibilidad</button>
             <span className="muted small">write={String(calendar.data?.write_enabled ?? false)}</span>
           </div>
           <div className="card soft stack">
@@ -246,8 +354,32 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
             <input value={eventLocation} onChange={(event) => setEventLocation(event.target.value)} placeholder="Ubicación opcional" />
             <button className="primary" disabled={busy !== null || !eventSummary || !eventStart || !eventEnd} onClick={requestCalendarEvent} type="button">
               Crear solicitud aprobable
-            </button>
-          </div>
+              </button>
+            </div>
+          {freeBusy && (
+            <div className="card soft stack">
+              <h3>Free/busy</h3>
+              <p className="muted small">
+                {new Date(freeBusy.time_min).toLocaleString()} - {new Date(freeBusy.time_max).toLocaleString()} · ocupados: {freeBusy.busy_count}
+              </p>
+              {freeBusy.calendars.map((calendarItem) => (
+                <div key={calendarItem.calendar_id} className="stack">
+                  <strong>{calendarItem.calendar_id}</strong>
+                  {calendarItem.busy.length === 0 ? (
+                    <span className="muted small">Sin bloques ocupados.</span>
+                  ) : (
+                    <ul className="small">
+                      {calendarItem.busy.slice(0, 5).map((slot) => (
+                        <li key={`${slot.start}-${slot.end}`}>
+                          {new Date(slot.start).toLocaleString()} - {new Date(slot.end).toLocaleString()}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
           <div className="table-wrap">
             <table className="table small">
               <tbody>
@@ -275,18 +407,65 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
           <span className={statusClass(drive.data?.status ?? "unknown")}>{drive.data?.status ?? "?"}</span>
         </div>
         {drive.data?.reason && <p className="badge warn">{drive.data.reason}</p>}
+        {drive.data?.missing_scopes && drive.data.missing_scopes.length > 0 && (
+          <p className="badge warn small">
+            Re-autorizar: faltan {drive.data.missing_scopes.length} scope(s) — borrá
+            <code> storage/oauth/google/token.json</code> y corré
+            <code> uv run python scripts/auth_google.py</code>. Scopes faltantes:
+            {" "}
+            {drive.data.missing_scopes.join(", ")}.
+          </p>
+        )}
         <div className="grid-2">
           <div className="card soft stack">
             <h3>Buscar en todo Drive</h3>
             <div className="row">
               <input value={driveQuery} onChange={(event) => setDriveQuery(event.target.value)} placeholder="nombre contiene…" />
+              <select value={driveSearchMode} onChange={(event) => setDriveSearchMode(event.target.value as DriveSearchMode)}>
+                <option value="all">Nombre + contenido</option>
+                <option value="name">Nombre</option>
+                <option value="full_text">Contenido</option>
+              </select>
+              <select value={driveCorpus} onChange={(event) => setDriveCorpus(event.target.value as DriveCorpus)}>
+                <option value="user">Mi unidad</option>
+                <option value="all_drives">Todo Drive</option>
+              </select>
               <button className="primary" onClick={searchDrive} disabled={busy !== null} type="button">Buscar</button>
             </div>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={driveIncludeFolders}
+                onChange={(event) => setDriveIncludeFolders(event.target.checked)}
+              />
+              incluir carpetas
+            </label>
             <button onClick={previewFolder} disabled={busy !== null} type="button">
               Validar carpeta de entregables
             </button>
+            <button onClick={requestFolder} disabled={busy !== null} type="button">
+              Crear solicitud de carpeta
+            </button>
+            <input
+              value={organizeTarget}
+              onChange={(event) => setOrganizeTarget(event.target.value)}
+              placeholder="Carpeta destino opcional"
+            />
+            <div className="row">
+              <button onClick={previewDriveOrganize} disabled={busy !== null} type="button">
+                Preview organización
+              </button>
+              <button onClick={requestDriveOrganize} disabled={busy !== null} type="button">
+                Solicitar organización
+              </button>
+            </div>
             {folderPreview && (
               <p className="muted small">Folder preview: {folderPreview.status} · {folderPreview.folder_name}</p>
+            )}
+            {organizePreview && (
+              <p className="muted small">
+                Organización: {organizePreview.status} · {organizePreview.operation_count} archivo(s) hacia {organizePreview.target_folder_name}
+              </p>
             )}
           </div>
           <div className="card soft stack">

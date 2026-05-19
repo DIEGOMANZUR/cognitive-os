@@ -255,3 +255,67 @@ def test_run_iterates_until_success_within_budget(tmp_path: Path) -> None:
     result = d.run(req, plan, build_id=bid)
     assert result.status == "completed"
     assert result.subtasks[0].llm_calls == 3
+
+
+# -- Fase 69 P0.5 — Budget hard timeout effective at the subprocess ----------
+
+
+def test_budget_tracker_remaining_runtime_seconds_clamps_to_zero() -> None:
+    """`remaining_runtime_seconds()` never returns a negative value, so a
+    blown budget produces timeout=0 and the caller short-circuits."""
+    import time as _time  # noqa: PLC0415
+
+    from cognitive_os.code_director.director import _BudgetTracker  # noqa: PLC0415
+
+    spec = BudgetSpec(max_runtime_minutes=1, max_total_llm_calls=10)
+    tracker = _BudgetTracker(spec, mode="hard")
+    # Force elapsed > spec by rewinding `_started_at` two minutes back.
+    tracker._started_at = _time.monotonic() - 120.0
+    assert tracker.remaining_runtime_seconds() == 0.0
+
+
+def test_budget_hard_passes_clamped_timeout_to_adapter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When `code_director_budget_mode='hard'` the director must forward
+    `timeout_seconds` to `send_prompt` clamped to the runtime remaining (not
+    the 600s default)."""
+    from cognitive_os.code_director.director import AdapterRegistry  # noqa: PLC0415
+    from cognitive_os.code_director.schemas import (  # noqa: PLC0415
+        CodeBuildRequest,
+    )
+
+    received_timeouts: list[float] = []
+
+    class TimeoutCapturingAdapter(FakeAdapter):
+        def send_prompt(
+            self,
+            session: object,
+            prompt: str,
+            *,
+            timeout_seconds: float = 600.0,
+        ) -> StepResult:
+            received_timeouts.append(timeout_seconds)
+            return super().send_prompt(session, prompt, timeout_seconds=timeout_seconds)
+
+    # The director re-imports `settings` inside `_run_subtasks`. Patch the
+    # canonical Settings instance attribute so the import picks up our value.
+    from cognitive_os.core.config import settings as _runtime_settings  # noqa: PLC0415
+
+    monkeypatch.setattr(_runtime_settings, "code_director_budget_mode", "hard")
+
+    adapter = TimeoutCapturingAdapter()
+    registry = AdapterRegistry({"fake": adapter})
+    d = CodeDirector(adapters=registry, local_storage_dir=Path("/tmp"))
+    req = CodeBuildRequest(
+        objective="hard budget timeout" + " " * 100,
+        budget=BudgetSpec(max_runtime_minutes=2, max_total_llm_calls=3),
+        adapter_preference=AdapterPreference(default_adapter="fake"),
+    )
+    plan = HeuristicPlanner().plan(req, workspace_dir=Path("/tmp"))
+    plan.subtasks = plan.subtasks[:1]
+    d.run(req, plan, build_id="test-budget-hard")
+
+    assert received_timeouts, "send_prompt must be called at least once in hard mode"
+    # 2 minutes budget = 120s; subprocess default cap is 600s → min(600, ~120)
+    assert 0.0 < received_timeouts[0] <= 120.0

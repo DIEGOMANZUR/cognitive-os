@@ -23,6 +23,19 @@ const GROUPS: Array<{
     fields: [
       { label: "ENVIRONMENT", extract: (c) => c.environment },
       {
+        label: "OPERATOR_PROFILE",
+        extract: (c) => c.operator_profile,
+        danger: (c) => c.environment === "production" && c.operator_profile === "dedicated_local"
+      },
+      {
+        label: "AUTO_APPROVE_REVERSIBLE_ACTIONS",
+        extract: (c) => String(c.auto_approve_reversible_actions)
+      },
+      {
+        label: "CODE_DIRECTOR_BUDGET_MODE",
+        extract: (c) => c.code_director_budget_mode
+      },
+      {
         label: "TOOLS_READONLY_MODE",
         extract: (c) => String(c.tools_readonly_mode),
         danger: (c) => !c.tools_readonly_mode

@@ -1,7 +1,20 @@
+import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // The project path contains a space ("PROYECTO COGNITIVE OS") and there
+  // are parent lockfiles outside the project (~/.local, ~/.opencode), so
+  // Next.js 16 mis-infers the workspace root and refuses to compile
+  // (`couldn't find next/package.json from <project>/app`) BEFORE reading
+  // `turbopack.root` (the auto-inference runs first). Pin BOTH the
+  // turbopack root and the file-tracing root to this directory.
+  turbopack: { root: __dirname },
+  outputFileTracingRoot: __dirname,
   async headers() {
     return [
       {

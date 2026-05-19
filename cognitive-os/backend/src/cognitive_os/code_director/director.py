@@ -57,8 +57,12 @@ class DirectorError(RuntimeError):
 class _BudgetTracker:
     """Single-build accounting; raises a sentinel when any cap is hit."""
 
-    def __init__(self, spec: BudgetSpec) -> None:
+    def __init__(self, spec: BudgetSpec, *, mode: str = "soft") -> None:
         self._spec = spec
+        # "soft" (default) = budget is a guideline; the build ends `partial`
+        # between subtasks but a subtask is never killed mid-call.
+        # "hard" = callers gate every adapter call on status() first.
+        self.mode = mode if mode in {"soft", "hard"} else "soft"
         self._started_at = time.monotonic()
         self.snapshot = BudgetSnapshot()
 
@@ -68,7 +72,12 @@ class _BudgetTracker:
         self.snapshot.cost_usd_used += cost_usd
 
     def status(self) -> tuple[bool, str | None]:
-        """Return (within_budget, reason_if_exceeded)."""
+        """Return (within_budget, reason_if_exceeded).
+
+        Recomputes elapsed runtime so a *pre-call* check (hard mode) is
+        accurate even when no `record()` happened since the last call.
+        """
+        self.snapshot.runtime_minutes_used = (time.monotonic() - self._started_at) / 60.0
         if self.snapshot.runtime_minutes_used >= self._spec.max_runtime_minutes:
             self.snapshot.runtime_exhausted = True
             return False, "runtime_exhausted"
@@ -80,6 +89,12 @@ class _BudgetTracker:
             self.snapshot.cost_exhausted = True
             return False, "cost_exhausted"
         return True, None
+
+    def remaining_runtime_seconds(self) -> float:
+        """Seconds left under the runtime cap, recomputed live (>=0)."""
+        elapsed_minutes = (time.monotonic() - self._started_at) / 60.0
+        remaining_minutes = max(0.0, self._spec.max_runtime_minutes - elapsed_minutes)
+        return remaining_minutes * 60.0
 
 
 def _topological_order(subtasks: list[SubtaskSpec]) -> list[SubtaskSpec]:
@@ -161,7 +176,9 @@ class CodeDirector:
         sink = emit or (lambda _ev: None)
         workspace = Path(plan.workspace_dir)
         workspace.mkdir(parents=True, exist_ok=True)
-        tracker = _BudgetTracker(request.budget)
+        from cognitive_os.core.config import settings as _settings  # noqa: PLC0415
+
+        tracker = _BudgetTracker(request.budget, mode=_settings.code_director_budget_mode)
         started_at = datetime.now(UTC)
         outcomes: list[SubtaskOutcome] = []
         status: CodeBuildStatus = "running"
@@ -211,9 +228,7 @@ class CodeDirector:
                 completed[subtask.subtask_id] = outcome
                 continue
 
-            upstream = [
-                prior_results[d] for d in subtask.depends_on if d in prior_results
-            ]
+            upstream = [prior_results[d] for d in subtask.depends_on if d in prior_results]
             outcome, last = self._run_subtask(
                 build_id=build_id,
                 subtask=subtask,
@@ -354,7 +369,44 @@ class CodeDirector:
                         },
                     )
                 )
-                result = adapter.send_prompt(session, prompt)
+                if tracker.mode == "hard":
+                    # Gate BEFORE spending the call: in hard mode an exceeded
+                    # cap aborts the subtask immediately (no extra cost).
+                    within_pre, reason_pre = tracker.status()
+                    if not within_pre:
+                        emit(
+                            BuildEvent(
+                                build_id=build_id,
+                                kind="budget_exceeded",
+                                payload={
+                                    "subtask_id": subtask.subtask_id,
+                                    "reason": reason_pre,
+                                    "phase": "pre_call",
+                                },
+                            )
+                        )
+                        break
+                # Hard mode: cap the subprocess wall-clock to whatever runtime
+                # is left in the budget. Soft mode keeps the adapter default
+                # (600s) so a long-running subtask is never killed mid-flight.
+                if tracker.mode == "hard":
+                    effective_timeout = min(600.0, tracker.remaining_runtime_seconds())
+                    if effective_timeout <= 0.0:
+                        emit(
+                            BuildEvent(
+                                build_id=build_id,
+                                kind="budget_exceeded",
+                                payload={
+                                    "subtask_id": subtask.subtask_id,
+                                    "reason": "runtime_exhausted",
+                                    "phase": "pre_call_timeout_zero",
+                                },
+                            )
+                        )
+                        break
+                    result = adapter.send_prompt(session, prompt, timeout_seconds=effective_timeout)
+                else:
+                    result = adapter.send_prompt(session, prompt)
                 last_result = result
                 calls_this_subtask += 1
                 cost_this_subtask += result.estimated_cost_usd or 0.0

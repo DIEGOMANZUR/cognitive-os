@@ -13,7 +13,7 @@ Geocoding API (`maps.googleapis.com`) with a restricted API key. Tests inject
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, Protocol
 from urllib.parse import urlencode
 
@@ -24,6 +24,7 @@ from cognitive_os.core.config import Settings, settings
 from cognitive_os.core.resilience import retry_transient_http
 
 TravelMode = Literal["driving", "walking", "bicycling", "transit"]
+TrafficSeverity = Literal["unknown", "none", "light", "moderate", "heavy"]
 _TRAVEL_MODE_API = {
     "driving": "DRIVE",
     "walking": "WALK",
@@ -68,8 +69,14 @@ class RoutePlan(BaseModel):
     static_duration_text: str | None = None
     traffic_delay_seconds: int | None = None
     traffic_delay_text: str | None = None
+    traffic_severity: TrafficSeverity = "unknown"
     traffic_aware: bool = False
+    departure_time: datetime | None = None
+    arrival_time: datetime | None = None
+    route_advice: str = ""
     google_maps_url: str = ""
+    route_labels: list[str] = Field(default_factory=list)
+    alternative_count: int = 0
     steps: list[RouteStep] = Field(default_factory=list)
     intermediates: list[str] = Field(default_factory=list)
 
@@ -91,6 +98,7 @@ class RouteRequest(BaseModel):
     travel_mode: TravelMode | None = None
     traffic_aware: bool = True
     departure_time: datetime | None = None
+    compute_alternatives: bool = False
 
 
 class MapsProvider(Protocol):
@@ -105,6 +113,7 @@ class MapsProvider(Protocol):
         travel_mode: TravelMode,
         traffic_aware: bool,
         departure_time: datetime | None,
+        compute_alternatives: bool,
     ) -> RoutePlan: ...
 
 
@@ -146,31 +155,71 @@ class FakeMapsProvider:
         travel_mode: TravelMode,
         traffic_aware: bool,
         departure_time: datetime | None,
+        compute_alternatives: bool,
     ) -> RoutePlan:
         self.calls.append(f"route:{origin}->{destination}")
         if "route" in self._raise_on:
             raise MapsError("fake route failure")
         if self._route is not None:
             return self._route
+        effective_traffic = traffic_aware and travel_mode == "driving"
+        effective_departure = departure_time
+        if effective_traffic and effective_departure is None:
+            effective_departure = datetime.now(tz=UTC)
+        duration_seconds = 600
+        static_duration_seconds = 540 if effective_traffic else None
+        traffic_delay_seconds = (
+            max(0, duration_seconds - static_duration_seconds)
+            if static_duration_seconds is not None
+            else None
+        )
+        arrival_time = (
+            _arrival_time(effective_departure, duration_seconds)
+            if effective_departure is not None
+            else None
+        )
+        severity = _traffic_severity(traffic_delay_seconds, duration_seconds)
         return RoutePlan(
             origin=origin,
             destination=destination,
             travel_mode=travel_mode,
             distance_meters=1000,
-            duration_seconds=600,
+            duration_seconds=duration_seconds,
             distance_text="1.0 km",
             duration_text="10 min",
-            static_duration_seconds=540 if traffic_aware and travel_mode == "driving" else None,
-            static_duration_text="9 min" if traffic_aware and travel_mode == "driving" else None,
-            traffic_delay_seconds=60 if traffic_aware and travel_mode == "driving" else None,
-            traffic_delay_text="1 min" if traffic_aware and travel_mode == "driving" else None,
-            traffic_aware=traffic_aware and travel_mode == "driving",
+            static_duration_seconds=static_duration_seconds,
+            static_duration_text=(
+                _format_duration(static_duration_seconds)
+                if static_duration_seconds is not None
+                else None
+            ),
+            traffic_delay_seconds=traffic_delay_seconds,
+            traffic_delay_text=(
+                _format_duration(traffic_delay_seconds)
+                if traffic_delay_seconds is not None
+                else None
+            ),
+            traffic_severity=severity,
+            traffic_aware=effective_traffic,
+            departure_time=effective_departure,
+            arrival_time=arrival_time,
+            route_advice=_route_advice(
+                travel_mode=travel_mode,
+                traffic_aware=effective_traffic,
+                traffic_severity=severity,
+                traffic_delay_seconds=traffic_delay_seconds,
+                duration_seconds=duration_seconds,
+                arrival_time=arrival_time,
+                alternative_count=1 if compute_alternatives else 0,
+            ),
             google_maps_url=_build_google_maps_url(
                 origin=origin,
                 destination=destination,
                 intermediates=intermediates,
                 travel_mode=travel_mode,
             ),
+            route_labels=["DEFAULT_ROUTE"],
+            alternative_count=1 if compute_alternatives else 0,
             steps=[RouteStep(instruction="Head to destination", distance_meters=1000)],
             intermediates=list(intermediates),
         )
@@ -188,6 +237,72 @@ def _format_duration(seconds: int) -> str:
         hours, rem = divmod(minutes, 60)
         return f"{hours} h {rem} min" if rem else f"{hours} h"
     return f"{minutes} min" if minutes else f"{seconds} s"
+
+
+def _arrival_time(departure_time: datetime | None, duration_seconds: int) -> datetime | None:
+    if departure_time is None:
+        return None
+    from datetime import timedelta
+
+    return departure_time.astimezone(UTC) + timedelta(seconds=max(0, duration_seconds))
+
+
+def _traffic_severity(
+    traffic_delay_seconds: int | None,
+    duration_seconds: int,
+) -> TrafficSeverity:
+    if traffic_delay_seconds is None:
+        return "unknown"
+    if traffic_delay_seconds <= 0:
+        return "none"
+    ratio = traffic_delay_seconds / max(duration_seconds, 1)
+    if traffic_delay_seconds >= 900 or ratio >= 0.25:
+        return "heavy"
+    if traffic_delay_seconds >= 300 or ratio >= 0.10:
+        return "moderate"
+    return "light"
+
+
+def _route_advice(
+    *,
+    travel_mode: TravelMode,
+    traffic_aware: bool,
+    traffic_severity: TrafficSeverity,
+    traffic_delay_seconds: int | None,
+    duration_seconds: int,
+    arrival_time: datetime | None,
+    alternative_count: int,
+) -> str:
+    eta = f" ETA {arrival_time.astimezone(UTC).strftime('%H:%M UTC')}." if arrival_time else ""
+    alternatives = (
+        f" Google devolvio {alternative_count} alternativa(s); abre el link para comparar."
+        if alternative_count
+        else ""
+    )
+    if travel_mode != "driving" or not traffic_aware:
+        return (
+            f"Ruta calculada para {travel_mode} sin ajuste de trafico en vivo.{eta}{alternatives}"
+        )
+    delay = _format_duration(traffic_delay_seconds or 0)
+    if traffic_severity in {"none", "light"}:
+        return (
+            f"Usa esta ruta ahora; el trafico esta normal o leve "
+            f"(retraso {delay}).{eta}{alternatives}"
+        )
+    if traffic_severity == "moderate":
+        return (
+            f"Usa esta ruta, pero considera salir con margen: retraso estimado {delay} "
+            f"sobre {_format_duration(duration_seconds)}.{eta}{alternatives}"
+        )
+    if traffic_severity == "heavy":
+        return (
+            f"Trafico alto: revisa alternativas antes de salir; retraso estimado {delay} "
+            f"sobre {_format_duration(duration_seconds)}.{eta}{alternatives}"
+        )
+    return (
+        "Ruta calculada con trafico solicitado, pero Google no devolvio "
+        f"demora comparable.{eta}{alternatives}"
+    )
 
 
 def _parse_duration_seconds(raw: object) -> int:
@@ -271,6 +386,7 @@ class GoogleMapsProvider:
         travel_mode: TravelMode,
         traffic_aware: bool,
         departure_time: datetime | None,
+        compute_alternatives: bool,
     ) -> RoutePlan:
         url = "https://routes.googleapis.com/directions/v2:computeRoutes"
         body: dict[str, Any] = {
@@ -280,13 +396,35 @@ class GoogleMapsProvider:
         }
         if intermediates:
             body["intermediates"] = [{"address": stop} for stop in intermediates]
+        if compute_alternatives:
+            body["computeAlternativeRoutes"] = True
         effective_traffic = traffic_aware and travel_mode == "driving"
+        effective_departure = departure_time
         if effective_traffic:
+            # Routes API rejects `departureTime` that is not strictly in the
+            # future ("Timestamp must be set to a future time."). Using
+            # `now` fails by the time the request reaches Google (network +
+            # processing latency lands it in the past). Default — and clamp
+            # any past/too-close caller value — to a small future buffer.
+            min_departure = datetime.now(tz=UTC) + timedelta(seconds=60)
+            if effective_departure is not None and effective_departure.tzinfo is None:
+                effective_departure = effective_departure.replace(tzinfo=UTC)
+            if effective_departure is None or effective_departure < min_departure:
+                effective_departure = min_departure
+        if effective_traffic:
+            assert effective_departure is not None
             body["routingPreference"] = "TRAFFIC_AWARE_OPTIMAL"
-            departure = departure_time or datetime.now(tz=UTC)
-            body["departureTime"] = departure.astimezone(UTC).isoformat().replace("+00:00", "Z")
+            body["departureTime"] = (
+                effective_departure.astimezone(UTC)
+                .isoformat()
+                .replace(
+                    "+00:00",
+                    "Z",
+                )
+            )
         field_mask = (
             "routes.distanceMeters,routes.duration,routes.staticDuration,"
+            "routes.routeLabels,"
             "routes.legs.steps.navigationInstruction,"
             "routes.legs.steps.distanceMeters"
         )
@@ -319,6 +457,9 @@ class GoogleMapsProvider:
         traffic_delay_seconds = None
         if static_duration_seconds is not None:
             traffic_delay_seconds = max(0, duration_seconds - static_duration_seconds)
+        severity = _traffic_severity(traffic_delay_seconds, duration_seconds)
+        arrival_time = _arrival_time(effective_departure, duration_seconds)
+        alternative_count = max(0, len(routes) - 1)
         steps: list[RouteStep] = []
         for leg in route.get("legs") or []:
             for step in leg.get("steps") or []:
@@ -350,13 +491,27 @@ class GoogleMapsProvider:
                 if traffic_delay_seconds is not None
                 else None
             ),
+            traffic_severity=severity,
             traffic_aware=effective_traffic,
+            departure_time=effective_departure,
+            arrival_time=arrival_time,
+            route_advice=_route_advice(
+                travel_mode=travel_mode,
+                traffic_aware=effective_traffic,
+                traffic_severity=severity,
+                traffic_delay_seconds=traffic_delay_seconds,
+                duration_seconds=duration_seconds,
+                arrival_time=arrival_time,
+                alternative_count=alternative_count,
+            ),
             google_maps_url=_build_google_maps_url(
                 origin=origin,
                 destination=destination,
                 intermediates=intermediates,
                 travel_mode=travel_mode,
             ),
+            route_labels=[str(label) for label in route.get("routeLabels") or []],
+            alternative_count=alternative_count,
             steps=steps,
             intermediates=list(intermediates),
         )
@@ -416,6 +571,7 @@ class MapsService:
         travel_mode: TravelMode | None = None,
         traffic_aware: bool = True,
         departure_time: datetime | None = None,
+        compute_alternatives: bool = False,
     ) -> RoutePlan:
         origin_clean = origin.strip()
         destination_clean = destination.strip()
@@ -433,4 +589,5 @@ class MapsService:
             travel_mode=mode,
             traffic_aware=traffic_aware,
             departure_time=departure_time,
+            compute_alternatives=compute_alternatives,
         )

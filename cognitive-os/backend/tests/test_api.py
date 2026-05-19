@@ -60,6 +60,9 @@ async def test_chat_requires_auth() -> None:
 
 @pytest.mark.asyncio
 async def test_chat_and_thread_roundtrip_with_auth(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Router stays deterministic via the autouse hermetic guard in
+    # tests/conftest.py (no real LLM network call); `deepagent_runner` is
+    # stubbed below so the research path falls to the deterministic RAG reply.
     test_graph = build_graph(
         checkpointer=api_app.MemorySaver(),
         retriever=api_app._empty_retriever,

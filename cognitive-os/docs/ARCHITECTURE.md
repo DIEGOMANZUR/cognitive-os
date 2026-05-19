@@ -1,16 +1,17 @@
 # Cognitive OS — Architecture
 
-> **Status (2026-05-17, Phase 39 — residual risks closed):** stack
-> operational at commercial grade. Verified counts (no inflation): **122
-> REST endpoints** (100 Cognitive-OS-owned + 26 orchestration), **15 Celery
+> **Status (2026-05-19, Phase 68 — GoDaddy DNS production live, double deep review, hermetic test suite 685 passed; LLM primary/agent gpt-5.5, fallbacks gemini-3.1-pro-low, vision glm-4.6v; Telegram needs a fresh valid token):** stack
+> operational at commercial grade. Verified counts (no inflation): **131
+> REST endpoints** (104 Cognitive-OS-owned + 27 orchestration), **16 Celery
 > tasks** across **5 queues** (`default`, `ingestion`, `agent_longrun`,
-> `maintenance`, `mail`), **16 Alembic migrations** (head
-> `202605160002`), **20 Next.js views** under `frontend/app/views/*.tsx`
+> `maintenance`, `mail`), **17 Alembic migrations** (head
+> `202605170001`), **20 Next.js views** under `frontend/app/views/*.tsx`
 > (including `AssistView`, `GoogleOpsView` and `ResearchView` — animated
 > plan over SSE), **21 MCP servers** wired via the OpenCode cockpit,
 > **15 skills**, 7 subagents, 7 slash commands. Local runtime:
-> **DeepSeek V4 Pro** (`deepseek-v4-pro`); secondary Kimi
-> K2.6-code-preview; vision GLM-4.6v primary, Kimi 2.6 fallback.
+> **primary+agent `gpt-5.5`** (operator gateway), **secondary/fallback
+> `gemini-3.1-pro-low`**, **vision `glm-4.6v`** (verified Fase 67/68). Kimi
+> K2.6 only via the Code Director CLI adapter (its HTTP endpoint 403s).
 >
 > Phase 39 closed every technical residual risk: pluggable rate limiter
 > (memory/Redis), `/system/credentials-status` admin endpoint with the
@@ -21,12 +22,30 @@
 > `X-Request-ID` propagation, approval reaper
 > (`APPROVAL_PENDING_MAX_HOURS=48`), four-eyes approvals
 > (`APPROVAL_REQUIRE_FOUR_EYES=true`) and AuditEvent symmetry between the
-> REST and Telegram approval paths.
+> REST and Telegram approval paths. Phases 44-49 consolidated Google Ops
+> (Maps advice/ETA, Calendar free/busy, Drive search/upload/folder/organize
+> through ActionRequest). Phases 50-58 closed the human operations path:
+> Telegram approvals resolve full UUIDs or unique prefixes, sign as
+> `telegram:<chat_id>`, dispatch approved `ActionRequest` jobs, and desktop
+> launchers have a reproducible read-only smoke test. Phases 59-63 made
+> dispatch observable and durable: REST/Telegram record submitted/failed
+> JobEvents, broker failures return controlled retry reasons, and duplicate
+> worker deliveries short-circuit when the job is already `running`. Phase 64
+> added an atomic `dispatch_state=submitting|submitted|failed` reservation
+> before `apply_async`, preventing duplicate Celery submits. Phase 65 closed
+> Telegram↔UI parity (36 slash commands including `/maps`, `/calendar`,
+> `/freebusy`, `/drive`, `/documents`, `/audit`, `/mail`, `/research`,
+> `/codebuild`, `/sandbox`, `/capabilities`) and fixed a Postgres-only bug:
+> the `ck_ar_action_type` CHECK constraint omitted `drive_ensure_folder`
+> and `drive_organize_files`, so `/actions/drive/folders/ensure/request`
+> and `/actions/drive/organize/request` raised `CheckViolation` on real
+> Postgres (masked by tests that monkeypatch the session). Migration
+> `202605170001` widens the constraint; a regression test keeps the ORM,
+> the latest migration and the service's persisted set in sync.
 >
-> QA snapshot: **642 pytest passed, 1 skipped, 20 deselected**;
-> ruff/mypy/lint/build, Compose config, Alembic head with no drift,
-> `git diff --check`, `pre-commit run --all-files` (6 hooks) and
-> `detect-secrets scan` all green.
+> QA snapshot: **685 pytest passed, 1 skipped, 20 deselected**;
+> ruff/format/mypy, frontend lint/build, Alembic head with no drift and
+> `git diff --check` all green.
 
 Cognitive OS is a local-first cognitive operating system. LangGraph orchestrates
 flows, DeepAgents do the deep work, **OpenHarness optionally augments the `research`
@@ -117,7 +136,7 @@ The active backend is reported in `GET /health/dashboard` as the
 
 ## Connections at runtime
 
-* **Frontend → FastAPI**: JWT bearer; CORS allows `localhost:3000`.
+* **Frontend → FastAPI**: JWT bearer; CORS allows `localhost:3001` (frontend) and `localhost:3000` (legacy); set via CORS_ALLOW_ORIGINS.
 * **FastAPI → LangGraph**: `_api_graph` is a module-level compiled graph;
   the lifespan rebinds it to a Postgres-backed graph at startup.
 * **FastAPI → OpenHarness bridge**: llamada síncrona `run_openharness_research_sync`

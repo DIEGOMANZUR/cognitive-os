@@ -253,6 +253,9 @@ export type KnowledgeStats = {
 
 export type PublicConfig = {
   environment: string;
+  operator_profile: "strict" | "dedicated_local";
+  auto_approve_reversible_actions: boolean;
+  code_director_budget_mode: "soft" | "hard";
   web_search_enabled: boolean;
   tools_readonly_mode: boolean;
   require_human_approval_for_external_actions: boolean;
@@ -350,7 +353,9 @@ export type ActionType =
   | "browser_preview"
   | "browser_interactive"
   | "calendar_create_event"
-  | "drive_upload_file";
+  | "drive_upload_file"
+  | "drive_ensure_folder"
+  | "drive_organize_files";
 
 export type ActionRequestView = {
   id: string;
@@ -396,8 +401,14 @@ export type RoutePlan = {
   static_duration_text: string | null;
   traffic_delay_seconds: number | null;
   traffic_delay_text: string | null;
+  traffic_severity: "unknown" | "none" | "light" | "moderate" | "heavy";
   traffic_aware: boolean;
+  departure_time: string | null;
+  arrival_time: string | null;
+  route_advice: string;
   google_maps_url: string;
+  route_labels: string[];
+  alternative_count: number;
   steps: RouteStep[];
   intermediates: string[];
 };
@@ -407,6 +418,7 @@ export type CalendarStatus = {
   reason: string | null;
   calendar_id: string;
   write_enabled: boolean;
+  missing_scopes?: string[];
 };
 
 export type CalendarEvent = {
@@ -419,12 +431,31 @@ export type CalendarEvent = {
   html_link: string | null;
 };
 
+export type FreeBusySlot = {
+  start: string;
+  end: string;
+};
+
+export type FreeBusyCalendar = {
+  calendar_id: string;
+  busy: FreeBusySlot[];
+  errors: string[];
+};
+
+export type FreeBusyResult = {
+  time_min: string;
+  time_max: string;
+  calendars: FreeBusyCalendar[];
+  busy_count: number;
+};
+
 export type DriveStatus = {
   status: "disabled" | "blocked" | "ready";
   reason: string | null;
   write_enabled: boolean;
   upload_max_bytes: number;
   deliverables_folder_name: string;
+  missing_scopes?: string[];
 };
 
 export type DriveFile = {
@@ -436,6 +467,7 @@ export type DriveFile = {
   web_view_link: string | null;
   owner: string | null;
   is_folder: boolean;
+  parent_ids: string[];
 };
 
 export type DriveFolderPreview = {
@@ -443,6 +475,25 @@ export type DriveFolderPreview = {
   reason: string | null;
   folder_name: string;
   folder: DriveFile | null;
+};
+
+export type DriveOrganizeOperation = {
+  file: DriveFile;
+  target_folder_name: string;
+  target_folder_id: string | null;
+  removed_parent_ids: string[];
+  status: "planned" | "moved" | "skipped";
+  reason: string | null;
+};
+
+export type DriveOrganizePreview = {
+  status: "preview" | "blocked" | "completed";
+  reason: string | null;
+  query: string;
+  target_folder_name: string;
+  dry_run: boolean;
+  operation_count: number;
+  operations: DriveOrganizeOperation[];
 };
 
 export type StreamEvent = {
@@ -678,7 +729,9 @@ export type WorkflowActionType =
   | "browser_preview"
   | "browser_interactive"
   | "calendar_create_event"
-  | "drive_upload_file";
+  | "drive_upload_file"
+  | "drive_ensure_folder"
+  | "drive_organize_files";
 
 export type WorkflowSource = {
   exported_at: string;
