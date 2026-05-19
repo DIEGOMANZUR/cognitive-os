@@ -17,6 +17,17 @@ import type {
 
 type LocalEntry = ThreadMessage & { ts?: number; optimisticId?: string };
 
+function threadLabel(threadId: string): string {
+  // Fase 72 J: para Telegram threads (`telegram-chat-<id>-<salt>`) los
+  // primeros 8 chars son siempre "telegram", lo que hace que todos se vean
+  // idénticos en la lista. Para esos casos mostrar el sufijo informativo.
+  if (threadId.startsWith("telegram-chat-")) {
+    const tail = threadId.slice(-8);
+    return `tg…${tail}`;
+  }
+  return `${threadId.slice(0, 8)}…`;
+}
+
 export function ChatView({ client }: { client: ApiClient }) {
   const [message, setMessage] = useState("");
   const [threadId, setThreadId] = useState("");
@@ -206,7 +217,7 @@ export function ChatView({ client }: { client: ApiClient }) {
                 }}
               >
                 <div className="stack" style={{ gap: 2, alignItems: "flex-start" }}>
-                  <code className="small">{thread.thread_id.slice(0, 8)}…</code>
+                  <code className="small">{threadLabel(thread.thread_id)}</code>
                   <span className="muted small">
                     {thread.last_route ?? "—"}
                     {thread.last_active_at &&
@@ -229,7 +240,7 @@ export function ChatView({ client }: { client: ApiClient }) {
             <div className="row">
               {currentThreadId && (
                 <code className="small" onClick={() => copyText(currentThreadId)} role="button">
-                  {currentThreadId.slice(0, 8)}… (copiar)
+                  {threadLabel(currentThreadId)} (copiar)
                 </code>
               )}
             </div>

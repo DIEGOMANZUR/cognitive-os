@@ -51,9 +51,25 @@ export function HealthView({ client }: { client: ApiClient }) {
                   <td>{component.latency_ms ? `${component.latency_ms} ms` : "—"}</td>
                   <td className="small">{component.detail ?? "—"}</td>
                   <td>
-                    <pre style={{ margin: 0, maxHeight: 120 }}>
-                      {JSON.stringify(component.metadata, null, 2)}
-                    </pre>
+                    {component.metadata &&
+                    Object.keys(component.metadata).length > 0 ? (
+                      <ul className="small" style={{ margin: 0, paddingLeft: "1rem" }}>
+                        {Object.entries(component.metadata).map(([k, v]) => (
+                          <li key={k}>
+                            <code>{k}</code>:{" "}
+                            <span className="muted">
+                              {typeof v === "string" ||
+                              typeof v === "number" ||
+                              typeof v === "boolean"
+                                ? String(v)
+                                : JSON.stringify(v)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <span className="muted small">—</span>
+                    )}
                   </td>
                 </tr>
               ))}

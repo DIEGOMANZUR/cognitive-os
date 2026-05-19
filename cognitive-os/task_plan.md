@@ -1,29 +1,30 @@
 # Cognitive OS Hardening And Action Plane Plan
 
-> **Estado actual (2026-05-19, Fase 68b cerrada + mi-ultrareview offline 10 dominios):**
-> Fases 1–64 cubren la base hasta dispatch idempotente. **Fase 65** cerró
-> paridad Telegram↔UI (36 slash commands) y el bugfix Postgres-only del
-> CHECK `ck_ar_action_type` (migración `202605170001`). **Fase 66**
-> auditoría en vivo con credenciales reales. **Fase 67** reescribió las
+> **Estado actual (2026-05-19, Fase 72 cerrada — GPT-5.5 review #4):**
+> Fases 1–64 base + dispatch idempotente. **Fase 65** paridad Telegram↔UI
+> (37 slash commands tras Fase 70 con `/reset`) + CHECK `ck_ar_action_type`
+> migración `202605170001`. **Fase 66** auditoría en vivo. **Fase 67**
 > 21 tools del DeepAgent con `args_schema` Pydantic + cadena LLM operador
 > (primary+agent `gpt-5.5`, secondary/fallback `gemini-3.1-pro-low`,
-> visión `glm-4.6v`). **Fase 68** GoDaddy DNS prod operativo + doble
-> revisión profunda. **Fase 68b** revisión cruzada GPT-5.5 cerró 7
-> hallazgos: alineación defaults LLM, Code Director budget soft|hard,
-> ActionRequest worker crash-window + `dispatch_state` sweeper, Drive
-> organize con `file_ids` congelados, Google OAuth `missing_scopes` en
-> status, `next-env.d.ts` robusto en checkout limpio, perfil
-> `OPERATOR_PROFILE=dedicated_local` (sin fricción para PC dedicada).
-> **Mi-ultrareview offline 10 dominios (2026-05-19)**: 1 bug P2 corregido
-> (`cmd_job` SQL LIKE wildcards en Telegram), 2 deudas FUTURO documentadas
-> (índices compuestos en `jobs`, reapers Code Build/OpenShell). Snapshot
-> QA persistente: **685+ pytest passed** (verificar con
-> `bash scripts/full-qa.sh`); Alembic head `202605170001` sin drift.
-> Único pendiente operador: token Telegram nuevo (revocado, da 401) y
-> autorizar `scripts/auth_google.py` (1 click browser) para Calendar/Drive.
+> visión `glm-4.6v`). **Fase 68/68b** GoDaddy DNS prod + 7 fixes GPT
+> review #1. **Mi-ultrareview offline 10 dominios** + 1 bug `cmd_job`.
+> **Fase 69** GPT review #2: auto-approve reversibles, Code Director race,
+> budget hard timeout, CORS 3001, .env.example, perfil UI, scope retrieval,
+> Kimi default, missing_scopes UI, doc drift, packaging caps. **Fase 70**
+> AGENT_SELF.md + Telegram conversacional + thread persistente.
+> **Fase 71** GPT review #3: auto-approve no-op (queue faltante!),
+> mail idempotente, markdown silent fail, dispatch helper, packaging history,
+> /reset Redis, JWT localStorage, scope memoria, build_partial, doc sync.
+> **Fase 72** GPT review #4: no-friction readiness + UI semantics,
+> stale jobs reaper, mail partial failure, Kimi smoke real (list_tabs),
+> dispatch Telegram unificado, DocAnalysis Kimi opt-in, frontend buttons
+> disabled, UX menores, doc sync 36→37. Snapshot QA: **703+ pytest passed**
+> (verificar con `bash scripts/full-qa.sh`); Alembic head `202605170001`.
+> Pendiente operador: token Telegram (revocado) y `scripts/auth_google.py`.
 > Documentación de producto autoritativa: `docs/COGNITIVE_OS_GUIDE.md`,
 > `docs/PROJECT_GUIDE.md`, `docs/ARCHITECTURE.md`,
-> `docs/OPENHARNESS_FUSION.md`, `docs/RUNBOOK.md`, `docs/SECURITY.md`.
+> `docs/OPENHARNESS_FUSION.md`, `docs/RUNBOOK.md`, `docs/SECURITY.md`,
+> `docs/AGENT_SELF.md` (soul/capacities canónicos del agente).
 
 ## Objetivo
 

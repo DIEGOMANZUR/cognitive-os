@@ -852,6 +852,11 @@ class Settings(BaseSettings):
     # or fill the document_output volume. The reaper fails the build with a
     # clear error if either threshold is exceeded — we never truncate
     # silently.
+    # How long a job can stay queued/running before the stale-jobs reaper
+    # gives up on it. Surfaces zombie jobs (worker crashed before transitioning
+    # to terminal) without forever-skewing /knowledge/stats. (Fase 72 C.)
+    stale_job_max_hours: int = Field(default=24, ge=1, le=168, alias="STALE_JOB_MAX_HOURS")
+
     code_director_package_max_files: int = Field(
         default=10_000, ge=1, alias="CODE_DIRECTOR_PACKAGE_MAX_FILES"
     )

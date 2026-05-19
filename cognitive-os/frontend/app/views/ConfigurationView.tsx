@@ -38,12 +38,17 @@ const GROUPS: Array<{
       {
         label: "TOOLS_READONLY_MODE",
         extract: (c) => String(c.tools_readonly_mode),
-        danger: (c) => !c.tools_readonly_mode
+        // strict expects readonly=true; dedicated_local lo afloja para capacity.
+        danger: (c) =>
+          c.operator_profile === "strict" ? !c.tools_readonly_mode : false
       },
       {
         label: "REQUIRE_HUMAN_APPROVAL_FOR_EXTERNAL_ACTIONS",
         extract: (c) => String(c.require_human_approval_for_external_actions),
-        danger: (c) => !c.require_human_approval_for_external_actions
+        danger: (c) =>
+          c.operator_profile === "strict"
+            ? !c.require_human_approval_for_external_actions
+            : false
       },
       { label: "ENABLE_EMAIL_SEND", extract: (c) => String(c.enable_email_send) },
       {
@@ -140,13 +145,17 @@ const GROUPS: Array<{
       {
         label: "ENABLE_GOOGLE_CALENDAR_WRITE",
         extract: (c) => String(c.enable_google_calendar_write),
-        danger: (c) => c.enable_google_calendar_write
+        // En strict el write es la cosa "peligrosa"; en dedicated_local NO
+        // tener write es la cosa "incompleta" (capacidad faltante).
+        danger: (c) =>
+          c.operator_profile === "strict" ? c.enable_google_calendar_write : false
       },
       { label: "ENABLE_GOOGLE_DRIVE", extract: (c) => String(c.enable_google_drive) },
       {
         label: "ENABLE_GOOGLE_DRIVE_WRITE",
         extract: (c) => String(c.enable_google_drive_write),
-        danger: (c) => c.enable_google_drive_write
+        danger: (c) =>
+          c.operator_profile === "strict" ? c.enable_google_drive_write : false
       },
       {
         label: "GOOGLE_DRIVE_UPLOAD_MAX_BYTES",

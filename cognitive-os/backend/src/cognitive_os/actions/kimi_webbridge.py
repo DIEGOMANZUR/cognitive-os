@@ -149,18 +149,39 @@ class HttpWebBridgeProvider:
         return payload
 
     def status_probe(self) -> dict[str, Any]:
-        # The daemon exposes /command for actions; status is a CLI concern. We
-        # probe by hitting the root with a short timeout — any 2xx/4xx means
-        # the HTTP layer is alive (daemon running).
+        # Step 1: HTTP root probe — daemon process reachable?
         try:
             response = httpx.get(self._endpoint("/"), timeout=2.0)
         except httpx.HTTPError as exc:
             return {"running": False, "extension_connected": False, "error": str(exc)}
         running = 200 <= response.status_code < 500
-        # The extension-connected bit is only exposed via the CLI; treat it as
-        # "unknown but daemon reachable". The frontend can call /command with a
-        # cheap `list_tabs` to confirm extension wiring.
-        return {"running": running, "extension_connected": running, "status": response.status_code}
+        if not running:
+            return {
+                "running": False,
+                "extension_connected": False,
+                "status": response.status_code,
+            }
+        # Step 2 (Fase 72 E): real smoke against the daemon /command endpoint.
+        # `list_tabs` is the cheapest action that requires the extension to
+        # answer (status_probe before would say `extension_connected=true`
+        # even when the extension was disabled/stale). Failure here means the
+        # daemon is up but the browser extension is not actually wired.
+        try:
+            payload = self.call("list_tabs", {}, session=None)
+        except KimiWebBridgeError as exc:
+            return {
+                "running": True,
+                "extension_connected": False,
+                "status": response.status_code,
+                "error": str(exc),
+            }
+        extension_ok = bool(payload.get("success") and "tabs" in payload)
+        return {
+            "running": True,
+            "extension_connected": extension_ok,
+            "status": response.status_code,
+            "tabs": len(payload.get("tabs", [])) if extension_ok else 0,
+        }
 
 
 class FakeWebBridgeProvider:

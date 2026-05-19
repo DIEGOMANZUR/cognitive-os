@@ -225,6 +225,7 @@
 | `secondary_llm_model` | `SECONDARY_LLM_MODEL` | str |
 | `secondary_llm_provider` | `SECONDARY_LLM_PROVIDER` | str |
 | `serper_api_key` | `SERPER_API_KEY` | SecretStr |
+| `stale_job_max_hours` | `STALE_JOB_MAX_HOURS` | int |
 | `storage_backend` | `STORAGE_BACKEND` | str |
 | `tavily_api_key` | `TAVILY_API_KEY` | SecretStr |
 | `telegram_assist_user_map` | `TELEGRAM_ASSIST_USER_MAP` | list[str] |

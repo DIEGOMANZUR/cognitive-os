@@ -326,13 +326,29 @@ def sync_personal_mail_task() -> dict[str, Any]:
     )
     try:
         result = _run(PersonalMailService().sync_now())
+        # Fase 72 D: si el sync tuvo errores parciales (uno de los providers
+        # falló) reportamos `completed_with_warnings` en vez de `completed`,
+        # y promovemos los errores a campo top-level en metadata para que la
+        # UI los muestre sin tener que abrir el JSON entero.
+        had_errors = bool(result.errors)
+        final_status = "completed_with_warnings" if had_errors else "completed"
+        event_type = (
+            "personal_mail_sync_completed_with_warnings"
+            if had_errors
+            else "personal_mail_sync_completed"
+        )
+        message = (
+            f"Fetched {result.fetched}; inserted {result.inserted}; errors={len(result.errors)}"
+            if had_errors
+            else f"Fetched {result.fetched}; inserted {result.inserted}"
+        )
         _run(
             _update_job(
                 job_id,
-                status="completed",
+                status=final_status,
                 progress=100,
-                event_type="personal_mail_sync_completed",
-                message=f"Fetched {result.fetched}; inserted {result.inserted}",
+                event_type=event_type,
+                message=message,
                 metadata_json=result.model_dump(mode="json"),
             )
         )
@@ -819,6 +835,57 @@ async def _cleanup_old_terminal_jobs(*, days: int) -> int:
         )
         rowcount = getattr(result, "rowcount", 0)
         return int(rowcount or 0)
+
+
+async def _reap_stale_running_jobs(*, max_hours: int) -> int:
+    """Mark queued/running/waiting_approval jobs older than `max_hours` as
+    `failed` with a `job_reaped_stale` JobEvent.
+
+    Zombie jobs (worker crashed before transitioning to terminal) otherwise
+    sit forever in /knowledge/stats jobs_running and inflate the count. This
+    reaper is conservative: only acts on jobs whose `updated_at` hasn't moved
+    in `max_hours` AND whose status indicates the worker should have made
+    progress by now. (Fase 72 C.)
+    """
+    from sqlalchemy import select  # noqa: PLC0415
+
+    cutoff = datetime.now(UTC) - timedelta(hours=max_hours)
+    stuck_statuses = ("queued", "running", "submitting", "submitted")
+    reaped = 0
+    async with session_scope() as session:
+        result = await session.execute(
+            select(Job).where(
+                Job.status.in_(stuck_statuses),
+                Job.updated_at < cutoff,
+            )
+        )
+        for job in result.scalars().all():
+            previous_status = job.status
+            job.status = "failed"
+            job.progress = 100
+            session.add(
+                JobEvent(
+                    job_id=job.id,
+                    event_type="job_reaped_stale",
+                    status="failed",
+                    message=(
+                        f"Job stuck in `{previous_status}` for more than "
+                        f"{max_hours}h. Reaped by stale-jobs reaper."
+                    ),
+                    metadata_json={
+                        "previous_status": previous_status,
+                        "max_hours": max_hours,
+                    },
+                )
+            )
+            reaped += 1
+    return reaped
+
+
+@celery_app.task(name="cognitive_os.reap_stale_running_jobs")
+def reap_stale_running_jobs_task() -> dict[str, int]:
+    reaped = _run(_reap_stale_running_jobs(max_hours=settings.stale_job_max_hours))
+    return {"reaped": reaped, "max_hours": settings.stale_job_max_hours}
 
 
 @celery_app.task(name="cognitive_os.deliver_personal_reminders")

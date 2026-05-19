@@ -106,7 +106,7 @@ export function DashboardView({
             value={health.data?.status ?? "…"}
             sub={
               health.data
-                ? `${health.data.components.filter((c) => c.status === "ok" || c.status === "configured").length}/${health.data.components.length} componentes ok`
+                ? `${health.data.components.filter((c) => ["ok", "configured", "ready"].includes(c.status)).length}/${health.data.components.length} componentes ok`
                 : "Consultando…"
             }
           />

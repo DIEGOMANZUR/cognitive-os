@@ -18,7 +18,7 @@
 > **suite hermética por construcción** (ningún test hace llamadas LLM
 > reales; guard autouse en `tests/conftest.py`). **131 endpoints REST**,
 > **16 tareas Celery** en 5 colas, **17 migraciones Alembic**, **20
-> vistas frontend**, **36 slash commands de Telegram** con paridad real.
+> vistas frontend**, **37 slash commands de Telegram** con paridad real.
 >
 > **Realidad del stack LLM (importante — entendé cómo reacciona el
 > sistema):** todo está cableado en `.env`, no tenés que tocar nada; esto
@@ -78,7 +78,7 @@ funcionando. Si ya lo conocés, andá directo al capítulo que necesites.
 2. [Cómo arranca y cómo se apaga](#2-cómo-arranca-y-cómo-se-apaga)
 3. [El frontend, vista por vista](#3-el-frontend-vista-por-vista)
 4. [Pipelines internos (qué pasa cuando hacés click)](#4-pipelines-internos)
-5. [Usarlo desde Telegram (36 comandos)](#5-usarlo-desde-telegram-36-comandos)
+5. [Usarlo desde Telegram (37 comandos)](#5-usarlo-desde-telegram-37-comandos)
 6. [Ejemplos impresionantes para sacarle el máximo](#6-ejemplos-impresionantes)
 7. [Qué hace el agente y qué NO hace](#7-qué-hace-el-agente-y-qué-no-hace)
 8. [Perfiles de operación: estricto vs PC dedicado](#8-perfiles-de-operación-estricto-vs-pc-dedicado)
@@ -248,7 +248,7 @@ uv run python -m cognitive_os.integrations.telegram_bot
 
 (Los ejecutables de escritorio levantan el bot automáticamente si
 `TELEGRAM_ENABLED=true`.) Mandale `/start` al bot: si tu user_id está en
-la allow-list, te responde con los 36 comandos.
+la allow-list, te responde con los 37 comandos.
 
 ### 0.10 Verificación de que todo está sano
 
@@ -610,7 +610,7 @@ POST /code-director/run  (objective + adapter_preference + budget)
 
 ---
 
-## 5. Usarlo desde Telegram (36 comandos)
+## 5. Usarlo desde Telegram (37 comandos)
 
 > **Nota:** el sistema integra **Telegram** (long-poll, sin webhook,
 > funciona detrás de NAT). **No** integra Instagram ni otras redes.
@@ -786,7 +786,7 @@ para revisar qué tocó el sistema. Todo deja el mismo audit que el panel.
   reintentos error-dirigidos; budget caps.
 - **Skills** y **memoria persistente** con propuesta + aprobación.
 - **Sandbox de código** (OpenShell, opt-in).
-- **Telegram bot** simétrico al panel (mismo audit), 36 comandos.
+- **Telegram bot** simétrico al panel (mismo audit), 37 comandos.
 
 ### NO hace
 

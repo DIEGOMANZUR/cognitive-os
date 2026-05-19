@@ -2560,3 +2560,70 @@ documentos. Decisión consciente.
 - `npm run lint + npm run build` (frontend) → verde.
 - Stack reiniciado: docker 4/4 + api + worker + beat + frontend(:3001)
   + telegram + kimi. `/health/dashboard` → **overall=ok, 16 componentes ✅**.
+
+## 2026-05-19 — Fase 72 — GPT-5.5 review #4: 10 fixes "el producto deja de parecer ok"
+
+GPT-5.5 detectó que el stack reporta "todo verde" mientras la realidad
+operativa esconde fricción + métricas falsas + componentes que mienten.
+**10 de 11 hallazgos aceptados, 1 rechazo del rechazo previo
+(Document Analysis Kimi opt-in).**
+
+- **F72-A no-friction readiness diagnostic:** nuevo módulo
+  `core/readiness.py` + endpoint `/system/readiness` + tile UI en
+  `SettingsView`. Para `dedicated_local` reporta 8 capacidades bloqueadas
+  por `.env` (TOOLS_READONLY_MODE, ENABLE_BROWSER_AUTOMATION,
+  ENABLE_COMPUTER_ACTIONS, ENABLE_GOOGLE_*_WRITE,
+  KIMI_WEBBRIDGE_ALLOW_MUTATIONS, RESEARCH_PERSISTENCE_BACKEND,
+  ENABLE_EMAIL_SEND). NO escribe nada — el operador decide. En `strict`
+  reporta lo contrario (warnings si algo se aflojó).
+- **F72-B UI semántica por perfil:** ConfigurationView ahora marca
+  `!tools_readonly_mode` y similares como danger **solo** en `strict`;
+  en `dedicated_local` la ausencia de capacidad NO es alarma.
+- **F72-C stale jobs reaper:** nueva task Celery
+  `reap_stale_running_jobs` (beat 03:30 UTC). Filtro adicional por
+  `updated_at >= now-STALE_JOB_MAX_HOURS` en `/knowledge/stats jobs_running`
+  + telegram `/stats` para no contar zombies mientras el reaper aún no
+  los procesó. Setting nuevo `STALE_JOB_MAX_HOURS=24`.
+- **F72-D mail partial failure visible:** worker `sync_personal_mail_task`
+  ahora marca `completed_with_warnings` (en vez de `completed`) cuando
+  `MailSyncResult.errors` no está vacío + mensaje incluye errors=N.
+- **F72-E Kimi WebBridge smoke real:** `status_probe()` antes hacía solo
+  GET `/`. Ahora dos pasos: HTTP probe + `call("list_tabs")` para
+  detectar cuando el daemon está vivo pero la extensión no contesta.
+- **F72-F dispatch Telegram unificado:** nuevo módulo
+  `actions/dispatch_audit.py` con `dispatch_celery_with_audit` (helper
+  shared). REST y Telegram lo usan ahora; antes Telegram hacía
+  `apply_async` directo sin JobEvent.
+- **F72-G `get_relevant_memory` scope:** la lambda en `tools.py:307`
+  ignoraba kwargs que la función SÍ soportaba. Ahora propaga
+  `user_id=user_id` + `thread_id=workspace.thread_id`.
+- **F72-H Document Analysis Kimi opt-in:** rechazo previo revertido
+  parcialmente. Nuevo campo `request_kimi_webbridge: bool = False` en
+  `DeepAgentTask`. La policy lo enciende **solo** cuando
+  `dedicated_local + enable_kimi_webbridge + request_kimi_webbridge=True`.
+  Off por default para prompt-injection desde docs hostiles.
+- **F72-I frontend buttons disabled sin capacidad:** GoogleOpsView
+  (Calendar event create, Drive folder/upload/organize) ahora
+  `disabled={!write_enabled}` con tooltip que dice qué flag activar.
+  CodeDirectorView `Probar en sandbox` checkbox `disabled` cuando
+  `enable_openshell_sandbox=false`. ResearchView oculta el badge
+  "queued" cuando no hay run en marcha.
+- **F72-J UX menor:** DashboardView "Estado global" cuenta `ready`
+  como ok. HealthView reemplaza `<pre>JSON crudo</pre>` por lista
+  compacta key=value. ChatView muestra `tg…<last 8>` para threads de
+  Telegram en vez de `telegram…` genérico.
+- **F72-K doc sync 36→37 commands:** README, USER_GUIDE,
+  COGNITIVE_OS_GUIDE bulk-replace 36→37 (Telegram tiene 37 commands
+  desde F70 con `/reset`). task_plan.md actualizado a Fase 72.
+
+**Verificación final post-Fase 72:**
+
+- `uv run pytest -q` → **703 passed, 1 skipped, 20 deselected, 3 warnings**.
+- `ruff check + format`, `mypy src` → todo verde (231 files, 127 modules).
+- `npm run lint + npm run build` (frontend) → verde.
+- Stack reiniciado: docker 4/4 + api + worker + beat + frontend(:3001) +
+  telegram + kimi. `/health/dashboard` → **overall=ok, 16 componentes ✅**.
+- `/system/readiness` (endpoint nuevo) → **8 gaps reportados** con
+  comando concreto por cada flag bloqueado en .env. Verificado: el
+  operador puede leer en tiempo real qué capacidad está bloqueada y
+  cómo desbloquearla, sin abrir docs.

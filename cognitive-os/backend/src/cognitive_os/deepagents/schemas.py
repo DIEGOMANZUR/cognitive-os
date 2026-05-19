@@ -14,6 +14,11 @@ class DeepAgentTask(BaseModel):
     query: str
     allowed_doc_ids: list[str] = Field(default_factory=list)
     web_allowed: bool = False
+    # Fase 72 H: opt-in para que document_analysis pueda pedir Kimi WebBridge
+    # ad-hoc (validación cruzada de un dato del documento). Off por default
+    # para no exponer el bridge a documentos hostiles; solo se activa cuando
+    # `dedicated_local + enable_kimi_webbridge + request_kimi_webbridge=True`.
+    request_kimi_webbridge: bool = False
     max_iterations: int = 12
     budget_usd_limit: float = 3.0
     require_citations: bool = True

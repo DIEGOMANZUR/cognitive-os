@@ -10,6 +10,7 @@ import type {
   ActionCapabilityStatus,
   ActionRequestView,
   PublicConfig,
+  ReadinessReport,
   Theme
 } from "../lib/types";
 
@@ -31,6 +32,11 @@ export function SettingsView({
   setTheme: (value: Theme) => void;
 }) {
   const config = usePolledFetch<PublicConfig>(client, "/config/public", 30000);
+  const readiness = usePolledFetch<ReadinessReport>(
+    client,
+    "/system/readiness",
+    60000
+  );
   const capabilities = usePolledFetch<ActionCapabilityStatus[]>(
     client,
     "/actions/capabilities",
@@ -106,6 +112,30 @@ export function SettingsView({
           </button>
         </div>
       </section>
+
+      {readiness.data && readiness.data.gaps.length > 0 && (
+        <section className="section stack">
+          <div className="section-head">
+            <h2>Capacidades bloqueadas por <code>.env</code></h2>
+            <span className="muted small">
+              {readiness.data.target_capabilities_unlocked}/
+              {readiness.data.target_capabilities_total} activas
+            </span>
+          </div>
+          <p className="muted small">{readiness.data.summary}</p>
+          <ol className="small" style={{ paddingLeft: "1.2rem", margin: 0 }}>
+            {readiness.data.gaps.map((gap) => (
+              <li key={gap.env_var} style={{ marginBottom: "0.4rem" }}>
+                <code>{gap.env_var}</code>: <code>{gap.current_value}</code>
+                {" → "}
+                <code>{gap.suggested_value}</code>
+                <br />
+                <span className="muted">{gap.capability}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
 
       <section className="section stack">
         <h2>Configuración del backend</h2>

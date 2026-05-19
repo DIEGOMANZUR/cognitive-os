@@ -171,7 +171,10 @@ export function ResearchView({ client }: { client: ApiClient }) {
     <section className="section">
       <div className="section-head">
         <h2>Investigación</h2>
-        <span className={statusClass(live.status)}>{live.status}</span>
+        {/* Fase 72 I: ocultar el badge "queued" pre-run para no mentir. */}
+        {(live.subtasks.length > 0 || live.error || live.synthesis) && (
+          <span className={statusClass(live.status)}>{live.status}</span>
+        )}
       </div>
 
       <div className="research-grid">

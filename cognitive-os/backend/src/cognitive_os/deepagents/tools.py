@@ -304,7 +304,12 @@ def build_deepagent_tools(
             description="Lee una skill habilitada por nombre sin aceptar rutas arbitrarias.",
         ),
         StructuredTool.from_function(
-            func=lambda scope, query: get_relevant_memory(scope, query),
+            func=lambda scope, query: get_relevant_memory(
+                scope,
+                query,
+                user_id=user_id,
+                thread_id=workspace.thread_id,
+            ),
             args_schema=GetRelevantMemoryArgs,
             name="get_relevant_memory",
             description="Devuelve memoria persistente relevante, filtrada y redactada.",

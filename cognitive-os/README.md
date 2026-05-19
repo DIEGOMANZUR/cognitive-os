@@ -24,7 +24,7 @@
 > Ejecutables de escritorio (`Levantar/Reiniciar/Detener/Estado Cognitive OS`)
 > levantan/reinician/detienen el stack completo —incluido el worker Celery
 > de la queue `mail` y Kimi WebBridge— y se verifican con
-> `bash scripts/verify_desktop_launchers.sh`. Telegram bot expone **36 slash
+> `bash scripts/verify_desktop_launchers.sh`. Telegram bot expone **37 slash
 > commands** con paridad real frente a la consola: además de approvals,
 > jobs y memoria suma `/maps`, `/calendar`, `/freebusy`, `/drive`,
 > `/documents`, `/audit`, `/mail`, `/research`, `/codebuild`, `/sandbox` y
@@ -104,7 +104,7 @@ Google interactivo (`auth_google.py`) y `GODADDY_API_SECRET`.
 - **Regresión `test_action_request_check_constraint.py`** mantiene
   alineados el ORM, la migración más reciente y `WORKFLOW_EXPORTABLE_TYPES`
   del servicio.
-- **Telegram bot** sube de 25 → 36 commands: `/maps origen | destino`,
+- **Telegram bot** sube de 25 → 37 commands: `/maps origen | destino`,
   `/calendar [max]`, `/freebusy [días]`, `/drive <query>`,
   `/documents [max]`, `/audit [max]`, `/mail [max]`, `/research [max]`,
   `/codebuild [max]`, `/sandbox`, `/capabilities`. Todos respetan los

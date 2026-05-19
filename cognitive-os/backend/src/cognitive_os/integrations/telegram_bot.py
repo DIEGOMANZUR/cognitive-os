@@ -312,9 +312,17 @@ def cmd_stats(bot: TelegramBot, chat_id: int, _arg: str) -> None:
         async with session_scope() as session:
             docs = await session.scalar(select(func.count(Document.id))) or 0
             chunks = await session.scalar(select(func.count(DocumentChunk.id))) or 0
+            # Fase 72 C: filtrar jobs cuya `updated_at` haya pasado del cap de
+            # stale para no contar zombies que el reaper aún no procesó.
+            from datetime import timedelta  # noqa: PLC0415
+
+            stale_cutoff = datetime.now(UTC) - timedelta(hours=settings.stale_job_max_hours)
             running = (
                 await session.scalar(
-                    select(func.count(Job.id)).where(Job.status.in_(("queued", "running")))
+                    select(func.count(Job.id)).where(
+                        Job.status.in_(("queued", "running")),
+                        Job.updated_at >= stale_cutoff,
+                    )
                 )
                 or 0
             )
@@ -762,32 +770,56 @@ def _decide_approval(bot: TelegramBot, chat_id: int, arg: str, status_value: str
         return status_value, result
 
     status_label, decision = _run(_decide())
+    # Fase 72 F: usar el helper compartido para que el Telegram path emita el
+    # mismo JobEvent submitted/failed que el REST path. Antes Telegram hacía
+    # apply_async directo; un broker caído dejaba el job en silencio.
+    from cognitive_os.actions.dispatch_audit import (  # noqa: PLC0415
+        dispatch_celery_with_audit,
+    )
+
     if decision is not None and decision.openshell_dispatch is not None:
-        try:
-            from cognitive_os.workers.tasks import run_openshell_task_async
+        from cognitive_os.workers.tasks import (  # noqa: PLC0415
+            run_openshell_task_async,
+        )
 
-            run_openshell_task_async.apply_async(
-                args=[decision.openshell_dispatch.task_payload, decision.openshell_dispatch.job_id],
+        openshell_payload = decision.openshell_dispatch.task_payload
+        openshell_job_id_str = decision.openshell_dispatch.job_id
+
+        def _apply_openshell() -> object:
+            return run_openshell_task_async.apply_async(
+                args=[openshell_payload, openshell_job_id_str],
                 queue="agent_longrun",
             )
-        except Exception as exc:  # noqa: BLE001 - Celery may be offline; report it
-            logging.getLogger(__name__).warning(
-                "telegram_openshell_dispatch_failed",
-                extra={"error_type": type(exc).__name__},
+
+        _run(
+            dispatch_celery_with_audit(
+                task_name="openshell",
+                apply_async=_apply_openshell,
+                job_id=UUID(openshell_job_id_str),
+                surface="telegram",
             )
+        )
     if decision is not None and decision.code_build_job_id is not None:
-        try:
-            from cognitive_os.workers.tasks import run_code_build_task_async
+        from cognitive_os.workers.tasks import (  # noqa: PLC0415
+            run_code_build_task_async,
+        )
 
-            run_code_build_task_async.apply_async(
-                args=[decision.code_build_job_id],
+        code_build_job_id_str = decision.code_build_job_id
+
+        def _apply_code_build() -> object:
+            return run_code_build_task_async.apply_async(
+                args=[code_build_job_id_str],
                 queue="agent_longrun",
             )
-        except Exception as exc:  # noqa: BLE001 - Celery may be offline; report it
-            logging.getLogger(__name__).warning(
-                "telegram_code_build_dispatch_failed",
-                extra={"error_type": type(exc).__name__},
+
+        _run(
+            dispatch_celery_with_audit(
+                task_name="code_build",
+                apply_async=_apply_code_build,
+                job_id=UUID(code_build_job_id_str),
+                surface="telegram",
             )
+        )
     dispatch_message: str | None = None
     if decision is not None and status_value == "approved":
         action_request_id = _extract_action_request_id(decision.approval.requested_action)

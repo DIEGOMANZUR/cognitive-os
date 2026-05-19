@@ -251,6 +251,22 @@ export type KnowledgeStats = {
   approvals_pending: number;
 };
 
+export type ReadinessGap = {
+  env_var: string;
+  current_value: string;
+  suggested_value: string;
+  capability: string;
+  severity: "info" | "suggestion" | "warning";
+};
+
+export type ReadinessReport = {
+  operator_profile: string;
+  summary: string;
+  target_capabilities_unlocked: number;
+  target_capabilities_total: number;
+  gaps: ReadinessGap[];
+};
+
 export type PublicConfig = {
   environment: string;
   operator_profile: "strict" | "dedicated_local";

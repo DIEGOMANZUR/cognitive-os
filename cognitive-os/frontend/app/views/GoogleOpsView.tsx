@@ -352,9 +352,21 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
             <input type="datetime-local" value={eventStart} onChange={(event) => setEventStart(event.target.value)} />
             <input type="datetime-local" value={eventEnd} onChange={(event) => setEventEnd(event.target.value)} />
             <input value={eventLocation} onChange={(event) => setEventLocation(event.target.value)} placeholder="Ubicación opcional" />
-            <button className="primary" disabled={busy !== null || !eventSummary || !eventStart || !eventEnd} onClick={requestCalendarEvent} type="button">
+            <button
+              className="primary"
+              disabled={
+                busy !== null ||
+                !eventSummary ||
+                !eventStart ||
+                !eventEnd ||
+                !calendar.data?.write_enabled
+              }
+              onClick={requestCalendarEvent}
+              type="button"
+              title={calendar.data?.write_enabled ? "" : "ENABLE_GOOGLE_CALENDAR_WRITE=true para habilitar"}
+            >
               Crear solicitud aprobable
-              </button>
+            </button>
             </div>
           {freeBusy && (
             <div className="card soft stack">
@@ -443,7 +455,12 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
             <button onClick={previewFolder} disabled={busy !== null} type="button">
               Validar carpeta de entregables
             </button>
-            <button onClick={requestFolder} disabled={busy !== null} type="button">
+            <button
+              onClick={requestFolder}
+              disabled={busy !== null || !drive.data?.write_enabled}
+              type="button"
+              title={drive.data?.write_enabled ? "" : "ENABLE_GOOGLE_DRIVE_WRITE=true para habilitar"}
+            >
               Crear solicitud de carpeta
             </button>
             <input
@@ -455,7 +472,12 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
               <button onClick={previewDriveOrganize} disabled={busy !== null} type="button">
                 Preview organización
               </button>
-              <button onClick={requestDriveOrganize} disabled={busy !== null} type="button">
+              <button
+                onClick={requestDriveOrganize}
+                disabled={busy !== null || !drive.data?.write_enabled}
+                type="button"
+                title={drive.data?.write_enabled ? "" : "ENABLE_GOOGLE_DRIVE_WRITE=true para habilitar"}
+              >
                 Solicitar organización
               </button>
             </div>
@@ -472,7 +494,13 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
             <h3>Solicitar upload aprobado</h3>
             <input value={uploadPath} onChange={(event) => setUploadPath(event.target.value)} placeholder="Ruta local permitida" />
             <input value={uploadName} onChange={(event) => setUploadName(event.target.value)} placeholder="Nombre en Drive opcional" />
-            <button className="primary" disabled={busy !== null || !uploadPath.trim()} onClick={requestUpload} type="button">
+            <button
+              className="primary"
+              disabled={busy !== null || !uploadPath.trim() || !drive.data?.write_enabled}
+              onClick={requestUpload}
+              type="button"
+              title={drive.data?.write_enabled ? "" : "ENABLE_GOOGLE_DRIVE_WRITE=true para habilitar"}
+            >
               Crear solicitud Drive
             </button>
             <p className="muted small">

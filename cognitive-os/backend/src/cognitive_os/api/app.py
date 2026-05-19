@@ -6,7 +6,7 @@ import json
 import os
 from collections.abc import AsyncIterator, Callable
 from contextlib import ExitStack, asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
@@ -41,6 +41,7 @@ from cognitive_os.actions.captcha import (
     TokenCaptchaRequest,
 )
 from cognitive_os.actions.computer import ComputerActionService
+from cognitive_os.actions.dispatch_audit import dispatch_celery_with_audit
 from cognitive_os.actions.documents import DocumentActionService
 from cognitive_os.actions.domains import GoDaddyActionService
 from cognitive_os.actions.drive import (
@@ -163,6 +164,7 @@ from cognitive_os.core.health import HealthDashboard, check_health_dashboard
 from cognitive_os.core.observability import configure_langsmith, disable_langsmith
 from cognitive_os.core.path_policy import IngestPathPolicyError, resolve_ingest_document_path
 from cognitive_os.core.rate_limit import rate_limit_dependency
+from cognitive_os.core.readiness import ReadinessReport, compute_readiness
 from cognitive_os.db.models import (
     AuditEvent,
     Document,
@@ -799,6 +801,20 @@ async def system_info(
         alembic_head=_SYSTEM_ALEMBIC_HEAD,
         started_at=_SYSTEM_STARTED_AT,
     )
+
+
+@app.get("/system/readiness", response_model=ReadinessReport)
+async def system_readiness(
+    user: AuthenticatedUser = _auth_dependency,
+) -> ReadinessReport:
+    """No-friction readiness diagnostic for the active operator profile.
+
+    Returns a punch-list of `.env` flags that block capabilities the profile
+    would otherwise enable. The diagnostic is informational — no flag is ever
+    auto-flipped: the operator opts in explicitly. (Fase 72 A.)
+    """
+    del user
+    return compute_readiness()
 
 
 @app.get(
@@ -1875,9 +1891,17 @@ async def knowledge_stats(
     async with session_scope() as session:
         documents = await session.scalar(select(func.count(Document.id))) or 0
         chunks = await session.scalar(select(func.count(DocumentChunk.id))) or 0
+        # Filter by updated_at so zombie jobs (worker crashed before flipping
+        # to terminal) stop inflating the dashboard count. The stale-jobs
+        # reaper eventually marks them `failed`; until then we hide them from
+        # the live count. (Fase 72 C.)
+        stale_cutoff = datetime.now(UTC) - timedelta(hours=settings.stale_job_max_hours)
         jobs_running = (
             await session.scalar(
-                select(func.count(Job.id)).where(Job.status.in_(("queued", "running")))
+                select(func.count(Job.id)).where(
+                    Job.status.in_(("queued", "running")),
+                    Job.updated_at >= stale_cutoff,
+                )
             )
             or 0
         )
@@ -3494,52 +3518,18 @@ async def _dispatch_celery_with_audit(
     apply_async: Callable[[], Any],
     job_id: UUID,
 ) -> None:
-    """Submit a Celery task and emit a visible JobEvent if the broker is down.
+    """Thin REST-side wrapper around the shared dispatch_audit helper.
 
-    Mirrors the contract of `_dispatch_approved_action_request` for ActionRequest
-    Celery dispatch (Fase 64). Without this wrapper, an `apply_async` failure
-    after `decide_approval` commits would leave the operator with an approved
-    decision and a job stuck silently in `queued` — there is no signal
-    surfaced anywhere. Now we always emit either a submitted or a failed
-    JobEvent so `/jobs/{id}/events` tells the truth. (Fase 71 P1.D.)
+    Kept as a 1-arg adapter so the existing call sites in this module stay
+    short. The real logic now lives in `cognitive_os.actions.dispatch_audit`
+    so the Telegram bot can call the same audited path (Fase 72 F).
     """
-    try:
-        apply_async()
-    except Exception as exc:  # noqa: BLE001 - broker offline is operator-facing
-        logger.warning(
-            "decide_approval_celery_dispatch_failed task=%s error=%s",
-            task_name,
-            type(exc).__name__,
-        )
-        with contextlib.suppress(Exception):
-            async with session_scope() as session:
-                session.add(
-                    JobEvent(
-                        job_id=job_id,
-                        event_type=f"{task_name}_dispatch_failed",
-                        status="queued",
-                        message=(
-                            f"Celery refused {task_name} dispatch after approval "
-                            f"({type(exc).__name__}). Job remains queued."
-                        ),
-                        metadata_json={
-                            "error_type": type(exc).__name__,
-                            "surface": "_decide_approval",
-                        },
-                    )
-                )
-        return
-    with contextlib.suppress(Exception):
-        async with session_scope() as session:
-            session.add(
-                JobEvent(
-                    job_id=job_id,
-                    event_type=f"{task_name}_dispatch_submitted",
-                    status="queued",
-                    message=f"{task_name} submitted to Celery after approval.",
-                    metadata_json={"surface": "_decide_approval"},
-                )
-            )
+    await dispatch_celery_with_audit(
+        task_name=task_name,
+        apply_async=apply_async,
+        job_id=job_id,
+        surface="rest",
+    )
 
 
 def _openshell_task_payload_from_job(job: Job) -> dict[str, Any]:

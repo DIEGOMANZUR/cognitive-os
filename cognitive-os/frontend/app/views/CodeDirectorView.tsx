@@ -4,12 +4,14 @@ import { useCallback, useRef, useState } from "react";
 
 import type { ApiClient } from "../lib/api";
 import { errorMessage, statusClass } from "../lib/api";
+import { usePolledFetch } from "../lib/hooks";
 import { useToast } from "../lib/toasts";
 import type {
   CodeAdapterChoice,
   CodeBuildCreateResponse,
   CodeBuildEvent,
-  CodeBuildPlan
+  CodeBuildPlan,
+  PublicConfig
 } from "../lib/types";
 
 const ADAPTERS: { value: CodeAdapterChoice; label: string }[] = [
@@ -30,6 +32,8 @@ interface TimelineEntry {
 
 export function CodeDirectorView({ client }: { client: ApiClient }) {
   const toast = useToast();
+  const config = usePolledFetch<PublicConfig>(client, "/config/public", 60000);
+  const sandboxEnabled = config.data?.enable_openshell_sandbox ?? false;
   const [objective, setObjective] = useState("");
   const [notes, setNotes] = useState("");
   const [adapter, setAdapter] = useState<CodeAdapterChoice>("claude_code");
@@ -254,14 +258,23 @@ export function CodeDirectorView({ client }: { client: ApiClient }) {
               style={{ marginLeft: 8, width: 90 }}
             />
           </label>
-          <label className="muted small">
+          <label
+            className="muted small"
+            title={
+              sandboxEnabled
+                ? ""
+                : "ENABLE_OPENSHELL_SANDBOX=false en .env — sandbox no disponible."
+            }
+            style={{ opacity: sandboxEnabled ? 1 : 0.55 }}
+          >
             <input
               type="checkbox"
-              checked={runTestsInSandbox}
+              checked={sandboxEnabled && runTestsInSandbox}
+              disabled={!sandboxEnabled}
               onChange={(e) => setRunTestsInSandbox(e.target.checked)}
               style={{ marginRight: 6 }}
             />
-            Probar en sandbox
+            Probar en sandbox{sandboxEnabled ? "" : " (off)"}
           </label>
           <button className="primary" onClick={submit} disabled={submitting} type="button">
             {submitting ? "Planificando…" : "Planificar build"}

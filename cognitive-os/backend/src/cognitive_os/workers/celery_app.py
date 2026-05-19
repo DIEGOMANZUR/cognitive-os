@@ -129,6 +129,12 @@ beat_schedule["approval-reaper"] = {
     "task": "cognitive_os.reap_stale_approvals",
     "schedule": crontab(minute=15),
 }
+# Stale jobs reaper: rescata zombies queued/running/waiting_approval cuya
+# updated_at hace > STALE_JOB_MAX_HOURS. Diario a las 03:30 UTC. (Fase 72 C.)
+beat_schedule["stale-jobs-reaper"] = {
+    "task": "cognitive_os.reap_stale_running_jobs",
+    "schedule": crontab(minute=30, hour=3),
+}
 if beat_schedule:
     celery_app.conf.beat_schedule = beat_schedule
 
