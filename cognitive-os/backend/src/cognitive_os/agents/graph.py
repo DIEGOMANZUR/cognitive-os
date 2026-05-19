@@ -4,10 +4,11 @@ import asyncio
 import re
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import asynccontextmanager, contextmanager, suppress
+from pathlib import Path
 from typing import Any, Literal, cast
 
 import structlog
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
@@ -1010,6 +1011,31 @@ def resume_graph(
     )
 
 
+_AGENT_SELF_MESSAGE_ID = "agent_self_system_prompt"
+
+# Resolved from this file's location, not from CWD, so the loader works the
+# same from API processes, Celery workers and the Telegram bot.
+_AGENT_SELF_PATH = (
+    Path(__file__).resolve().parent.parent.parent.parent.parent / "docs" / "AGENT_SELF.md"
+)
+
+
+def load_agent_self_prompt() -> str:
+    """Return the content of `docs/AGENT_SELF.md` or "" when missing.
+
+    Read on every call so the operator can edit the file and have the next
+    `initial_state()` pick the new identity up without restarting the API.
+    A missing file is non-fatal — the orchestrator just runs without the
+    self-identity system message (back to pre-Fase 70 behavior).
+    """
+    try:
+        return _AGENT_SELF_PATH.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return ""
+    except OSError:
+        return ""
+
+
 def initial_state(
     message: str,
     *,
@@ -1018,8 +1044,17 @@ def initial_state(
     doc_ids: list[str] | None = None,
     case_id: str | None = None,
 ) -> CognitiveState:
+    # SystemMessage with a stable id so `add_messages` upserts (does not
+    # duplicate) on subsequent turns of the same thread. If the operator edits
+    # docs/AGENT_SELF.md the next initial_state() reload picks the new content
+    # up; LangGraph replaces the old SystemMessage in-place by id.
+    messages: list[Any] = []
+    agent_self = load_agent_self_prompt()
+    if agent_self:
+        messages.append(SystemMessage(content=agent_self, id=_AGENT_SELF_MESSAGE_ID))
+    messages.append(HumanMessage(content=message))
     state: CognitiveState = {
-        "messages": [HumanMessage(content=message)],
+        "messages": messages,
         "thread_id": thread_id,
         "user_id": user_id,
         "budget": BudgetState(),

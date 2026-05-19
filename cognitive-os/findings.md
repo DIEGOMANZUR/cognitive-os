@@ -2423,3 +2423,74 @@ DeepAgent · 16 componentes /health.
 Pendiente operador (nada bloqueante): si en algún momento cambia
 `GOOGLE_*_SCOPES` debe correr `uv run python scripts/auth_google.py` para
 re-consent (el script ahora detecta scope drift automáticamente).
+
+## 2026-05-19 — Fase 70: identidad del agente + Telegram conversacional + memoria
+
+Pedido del operador: que el bot acepte mensajes sin slash como un chatbot,
+que recuerde la conversación, y que el agente tenga un doc-canon de
+identidad (algo tipo `SOUL.md` / `CAPACITY.md`). Implementado en 4 cambios:
+
+**T1 — `docs/AGENT_SELF.md` (doc-canon del agente):**
+Un solo doc, no fragmentado en SOUL/CAPACITY/FUNCTION para evitar drift.
+Secciones: SOUL (quién soy, filosofía), CAPACITIES (qué puedo hacer real,
+agrupado por superficie: knowledge, personal assistant, mail, Google Ops,
+Kimi WebBridge, CapSolver, computer_actions, GoDaddy DNS, Code Director,
+OpenShell, voice, document analysis), CÓMO ME HABLA EL OPERADOR (Telegram
+sin slash + slash commands + panel + REST), GROUNDING (qué NO puedo),
+ESTILO DE RESPUESTA, CONTEXTO PERSISTENTE. Editable en vivo — el next turn
+del orquestador lo recarga.
+
+**T2 — Telegram sin slash → `/chat` (dedicated_local only):**
+`_dispatch` (telegram_bot.py:188-208) ahora: si `OPERATOR_PROFILE=
+dedicated_local` y el texto no empieza con `/`, invoca `cmd_chat(self,
+chat_id, text)`. En `strict` mantiene el mensaje "Usá un slash command"
+para no abrir LLM open-ended por accidente en perfiles compartidos.
+
+**T3 — Thread persistente por chat_id:**
+Helper `_thread_id_for_chat(chat_id)` → `f"telegram-chat-{chat_id}-{salt}"`.
+Mismo chat_id, mismo thread_id, mismo state del PostgresCheckpointer →
+turnos siguientes leen el contexto previo. Sin migración Alembic nueva (el
+checkpointer ya está cableado desde Fase 60+). Nuevo comando `/reset`
+rota el salt (in-memory `_CHAT_THREAD_SALT`) para empezar de cero sin
+dropear la DB.
+
+**T4 — AGENT_SELF.md como SystemMessage del orquestador:**
+`initial_state()` (agents/graph.py) ahora carga `docs/AGENT_SELF.md` y lo
+prepende como `SystemMessage(id="agent_self_system_prompt")`. El id estable
+hace que el reducer `add_messages` de LangGraph haga upsert (no duplica)
+cuando el thread continúa. Si el operador edita el doc, el next turn
+recarga el contenido. `load_agent_self_prompt()` con path resuelto desde
+`__file__` (no CWD) → funciona desde API, Celery workers y Telegram bot
+por igual. Path missing es non-fatal: degrada al comportamiento pre-Fase 70.
+
+**Tests nuevos (5):**
+
+- `test_thread_id_for_chat_is_deterministic` — same chat_id → same thread_id.
+- `test_cmd_reset_rotates_thread_salt` — /reset cambia el thread_id.
+- `test_plain_message_routes_to_chat_in_dedicated_local` — sin slash en
+  dedicated_local invoca `cmd_chat`.
+- `test_plain_message_rejected_in_strict_profile` — sin slash en strict
+  mantiene el mensaje legacy.
+- `test_initial_state_injects_agent_self_system_message` — el SystemMessage
+  está presente, con id estable, y contiene texto del doc-canon.
+
+**Verificación final post-Fase 70:**
+
+- `uv run pytest -q` → **701 passed, 1 skipped, 20 deselected** (+5 vs
+  Fase 69).
+- `ruff check + format` → All checks passed (229 files).
+- `mypy src` → 0 issues / 125 files.
+- Stack reiniciado con docker 4/4 + api + worker + beat + frontend(:3001)
+  + telegram (pid actual) + kimi. /health/dashboard sigue 16/16 ✅.
+- E2E manual desde API: `POST /chat` con `thread_id="telegram-chat-..."`
+  entra al carril correctamente. El graph enruta según semántica (research/
+  legal/comm/social/etc); en `comm`/`social` puede disparar
+  `pending_human_review` por diseño existente — ese matiz queda para el
+  operador.
+
+**Deuda FUTURO (documentada, no bloqueante):**
+- **Carril `chat_plain`** que evite la intercepción comm/social cuando el
+  mensaje es claramente informacional (ej. "qué hace este sistema?"). Hoy
+  el router los manda igual a `comm` que pide approval. Solucionable con
+  una sub-ruta nueva en `route_request` que detecte intent="informational"
+  → respuesta directa del LLM sin pasar por los nodos comm/social.

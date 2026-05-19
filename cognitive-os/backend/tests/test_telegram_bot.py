@@ -373,3 +373,118 @@ def test_every_view_has_at_least_one_slash_command() -> None:
     registered = set(telegram_bot.COMMAND_HANDLERS.keys())
     missing = expected - registered
     assert not missing, f"Missing slash commands: {sorted(missing)}"
+
+
+# -- Fase 70 — plain messages + persistent thread + /reset --------------------
+
+
+def test_thread_id_for_chat_is_deterministic() -> None:
+    """Same chat_id must yield the same thread_id across calls so the
+    PostgresCheckpointer joins consecutive turns into one conversation."""
+    a = telegram_bot._thread_id_for_chat(7582093979)
+    b = telegram_bot._thread_id_for_chat(7582093979)
+    c = telegram_bot._thread_id_for_chat(99)
+    assert a == b
+    assert a != c
+    assert "telegram-chat-7582093979" in a
+
+
+def test_cmd_reset_rotates_thread_salt() -> None:
+    """/reset must regenerate the per-chat salt so the next message starts a
+    fresh thread without dropping the old DB state."""
+    telegram_bot._CHAT_THREAD_SALT.pop(42, None)
+    before = telegram_bot._thread_id_for_chat(42)
+    bot = DummyBot()
+    telegram_bot.cmd_reset(bot, 42, "")
+    after = telegram_bot._thread_id_for_chat(42)
+    assert before != after
+    assert bot.sent and "thread nuevo" in bot.sent[-1][1]
+
+
+def test_plain_message_routes_to_chat_in_dedicated_local(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """In dedicated_local a non-slash message must invoke cmd_chat instead of
+    erroring out. In strict the legacy "Usá un slash command" message stays."""
+    from cognitive_os.core.config import settings as runtime_settings  # noqa: PLC0415
+
+    monkeypatch.setattr(runtime_settings, "operator_profile", "dedicated_local")
+    bot = telegram_bot.TelegramBot(token="fake", allowed_user_ids={42})
+    sent: list[str] = []
+    monkeypatch.setattr(
+        bot,
+        "send",
+        lambda chat_id, text, markdown=True: sent.append(text),
+    )
+    captured: dict[str, object] = {}
+
+    def fake_chat(_bot: object, chat_id: int, arg: str) -> None:
+        captured["chat_id"] = chat_id
+        captured["arg"] = arg
+
+    monkeypatch.setattr(telegram_bot, "cmd_chat", fake_chat)
+
+    bot._dispatch(
+        {
+            "message": {
+                "text": "hola, qué reuniones tengo hoy",
+                "chat": {"id": 42},
+                "from": {"id": 42},
+            }
+        }
+    )
+
+    assert captured == {"chat_id": 42, "arg": "hola, qué reuniones tengo hoy"}
+
+
+def test_plain_message_rejected_in_strict_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from cognitive_os.core.config import settings as runtime_settings  # noqa: PLC0415
+
+    monkeypatch.setattr(runtime_settings, "operator_profile", "strict")
+    bot = telegram_bot.TelegramBot(token="fake", allowed_user_ids={42})
+    sent: list[str] = []
+    monkeypatch.setattr(
+        bot,
+        "send",
+        lambda chat_id, text, markdown=True: sent.append(text),
+    )
+    chat_calls: list[object] = []
+    monkeypatch.setattr(
+        telegram_bot,
+        "cmd_chat",
+        lambda *_a, **_kw: chat_calls.append(True),
+    )
+
+    bot._dispatch(
+        {
+            "message": {
+                "text": "qué reuniones tengo",
+                "chat": {"id": 42},
+                "from": {"id": 42},
+            }
+        }
+    )
+
+    assert chat_calls == []
+    assert any("slash" in s for s in sent)
+
+
+def test_initial_state_injects_agent_self_system_message() -> None:
+    """Every conversation turn must carry the AGENT_SELF.md SystemMessage with
+    a stable id so add_messages upserts (not duplicates) on follow-ups."""
+    from langchain_core.messages import HumanMessage, SystemMessage  # noqa: PLC0415
+
+    from cognitive_os.agents.graph import (  # noqa: PLC0415
+        _AGENT_SELF_MESSAGE_ID,
+        initial_state,
+    )
+
+    state = initial_state("hola", thread_id="t-test", user_id="telegram:42")
+    messages = state["messages"]
+    system_msgs = [m for m in messages if isinstance(m, SystemMessage)]
+    assert len(system_msgs) == 1
+    assert system_msgs[0].id == _AGENT_SELF_MESSAGE_ID
+    assert "AGENT_SELF" in str(system_msgs[0].content)
+    assert any(isinstance(m, HumanMessage) for m in messages)

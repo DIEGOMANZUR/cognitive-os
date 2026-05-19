@@ -186,6 +186,21 @@ class TelegramBot:
             )
             return
         if not text.startswith("/"):
+            # Plain message routing. In `dedicated_local` (single operator, his
+            # own PC) we treat any non-slash message as a chat turn with the
+            # orchestrator — same lane as `/chat`. In `strict` we still demand
+            # explicit commands so an unintended LLM call can never happen.
+            if settings.operator_profile == "dedicated_local":
+                try:
+                    cmd_chat(self, chat_id, text)
+                except Exception:  # noqa: BLE001 - report and continue polling
+                    logger.exception("plain_message_chat_failed")
+                    self.send(
+                        chat_id,
+                        "❌ No pude procesar el mensaje como chat. /help para los comandos.",
+                        markdown=False,
+                    )
+                return
             self.send(
                 chat_id,
                 "Usá un slash command. /help para la lista.",
@@ -817,6 +832,24 @@ def cmd_threads(bot: TelegramBot, chat_id: int, _arg: str) -> None:
     bot.send(chat_id, _join(lines))
 
 
+def _thread_id_for_chat(chat_id: int) -> str:
+    """Deterministic thread per Telegram chat.
+
+    Same `chat_id` → same `thread_id` → the LangGraph PostgresCheckpointer
+    keeps every turn's state on disk, so consecutive messages share context.
+    `/reset` (cmd below) regenerates a salt to start a fresh conversation
+    without dropping history (the old thread just stops being addressed).
+    """
+    salt = _CHAT_THREAD_SALT.get(chat_id, "v1")
+    return f"telegram-chat-{chat_id}-{salt}"
+
+
+# In-memory salt registry. Telegram bot reboots wipe it, which is the right
+# behavior: a restart is implicit "fresh start" intent. The DB still holds
+# old thread states (cheap, just rows in the checkpoint table).
+_CHAT_THREAD_SALT: dict[int, str] = {}
+
+
 @command("chat", "chat con el orquestador — uso: /chat <mensaje>")
 def cmd_chat(bot: TelegramBot, chat_id: int, arg: str) -> None:
     if not arg:
@@ -825,8 +858,8 @@ def cmd_chat(bot: TelegramBot, chat_id: int, arg: str) -> None:
     bot.send(chat_id, "🧠 procesando…", markdown=False)
     from cognitive_os.api.app import _api_graph
 
-    thread_id = str(uuid4())
-    state = initial_state(arg, thread_id=thread_id, user_id="telegram")
+    thread_id = _thread_id_for_chat(chat_id)
+    state = initial_state(arg, thread_id=thread_id, user_id=f"telegram:{chat_id}")
     raw = _api_graph.invoke(
         state,
         config={"configurable": {"thread_id": thread_id}},
@@ -834,7 +867,7 @@ def cmd_chat(bot: TelegramBot, chat_id: int, arg: str) -> None:
     if isinstance(raw, dict) and "__interrupt__" in raw:
         bot.send(
             chat_id,
-            f"⏸ El thread `{thread_id[:8]}…` requiere aprobación humana. Revisá /approvals.",
+            f"⏸ El thread `{thread_id[-8:]}` requiere aprobación humana. Revisá /approvals.",
         )
         return
     values = raw if isinstance(raw, dict) else {}
@@ -844,7 +877,20 @@ def cmd_chat(bot: TelegramBot, chat_id: int, arg: str) -> None:
     route = str(values.get("active_route") or "?")
     bot.send(
         chat_id,
-        f"*ruta:* `{route}` · *thread:* `{thread_id[:8]}…`\n\n{content[:3500]}",
+        f"*ruta:* `{route}` · *thread:* `{thread_id[-8:]}`\n\n{content[:3500]}",
+    )
+
+
+@command("reset", "reinicia la memoria de la conversación (thread nuevo)")
+def cmd_reset(bot: TelegramBot, chat_id: int, _arg: str) -> None:
+    _CHAT_THREAD_SALT[chat_id] = uuid4().hex[:8]
+    bot.send(
+        chat_id,
+        (
+            "🧹 listo, empezás un thread nuevo. Los turnos previos siguen "
+            "guardados en DB pero no los voy a leer."
+        ),
+        markdown=False,
     )
 
 
