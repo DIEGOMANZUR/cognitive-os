@@ -62,8 +62,10 @@ BuildEventKind = Literal[
     "budget_warning",
     "budget_exceeded",
     "delivery_packaged",
+    "packaging_failed",
     "build_completed",
     "build_failed",
+    "build_partial",
     "build_cancelled",
 ]
 

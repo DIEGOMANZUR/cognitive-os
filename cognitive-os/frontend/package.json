@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --max-warnings 0",
-    "serve": "next build && next start -H 127.0.0.1"
+    "serve": "next build && next start -H 127.0.0.1 -p 3001"
   },
   "dependencies": {
     "next": "^16.2.6",

@@ -315,6 +315,9 @@ def build_deepagent_tools(
                 content,
                 reason,
                 scope,
+                user_id=user_id,
+                thread_id=workspace.thread_id,
+                source_task_id=workspace.task_id,
             ),
             args_schema=ProposeMemoryUpdateArgs,
             name="propose_memory_update",
@@ -859,6 +862,10 @@ def propose_memory_update(
     *,
     memory_service: DeepAgentMemoryService | None = None,
     proposed_by_agent: str = "deepagent",
+    user_id: str | None = None,
+    thread_id: str | None = None,
+    source_task_id: str | None = None,
+    case_id: str | None = None,
 ) -> dict[str, Any]:
     args_redacted: dict[str, Any] = {"scope": scope, "kind": kind, "reason_length": len(reason)}
     try:
@@ -873,6 +880,10 @@ def propose_memory_update(
                     proposed_content=content,
                     sensitivity="internal",
                     requires_approval=True,
+                    user_id=user_id,
+                    case_id=case_id,
+                    thread_id=thread_id,
+                    source_task_id=source_task_id,
                 )
             )
         )

@@ -48,6 +48,12 @@ class DeepAgentMemoryProposal(BaseModel):
     sensitivity: DeepAgentMemorySensitivity
     source_task_id: str | None = None
     requires_approval: bool = True
+    # Fase 71 P2.J: scoping context propagated from the calling task so the
+    # materialised memory can be recalled per-user / per-case / per-thread.
+    # Optional + nullable to preserve back-compat with existing proposals.
+    user_id: str | None = None
+    case_id: str | None = None
+    thread_id: str | None = None
 
 
 class DeepAgentSkillDescriptor(BaseModel):

@@ -28,6 +28,7 @@ from cognitive_os.code_director.schemas import (
     BudgetSnapshot,
     BudgetSpec,
     BuildEvent,
+    BuildEventKind,
     BuildPlan,
     CodeBuildRequest,
     CodeBuildResult,
@@ -263,12 +264,23 @@ class CodeDirector:
                 )
 
         finished_at = datetime.now(UTC)
+        # Map the build's final status to a precise event kind so the timeline
+        # tells the truth. Pre-Fase 71 anything that wasn't `completed`/
+        # `failed` was emitted as `build_cancelled` — including soft-budget
+        # `partial` runs, which is misleading. (Fase 71 P2.K.9.)
+        event_kind: BuildEventKind
+        if status == "completed":
+            event_kind = "build_completed"
+        elif status == "failed":
+            event_kind = "build_failed"
+        elif status == "partial":
+            event_kind = "build_partial"
+        else:
+            event_kind = "build_cancelled"
         sink(
             BuildEvent(
                 build_id=build_id,
-                kind="build_completed"
-                if status == "completed"
-                else ("build_failed" if status == "failed" else "build_cancelled"),
+                kind=event_kind,
                 payload={"status": status},
             )
         )

@@ -471,14 +471,28 @@ def test_plain_message_rejected_in_strict_profile(
     assert any("slash" in s for s in sent)
 
 
-def test_initial_state_injects_agent_self_system_message() -> None:
+def test_initial_state_injects_agent_self_system_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Every conversation turn must carry the AGENT_SELF.md SystemMessage with
-    a stable id so add_messages upserts (not duplicates) on follow-ups."""
+    a stable id so add_messages upserts (not duplicates) on follow-ups.
+
+    Robustness note (Fase 71 P1.G): the test monkeypatches the loader so it
+    does NOT depend on the live content of docs/AGENT_SELF.md. The operator
+    is supposed to edit that file freely; this test asserts the wiring
+    (presence + id + structure), not the contents."""
     from langchain_core.messages import HumanMessage, SystemMessage  # noqa: PLC0415
 
+    from cognitive_os.agents import graph as graph_module  # noqa: PLC0415
     from cognitive_os.agents.graph import (  # noqa: PLC0415
         _AGENT_SELF_MESSAGE_ID,
         initial_state,
+    )
+
+    monkeypatch.setattr(
+        graph_module,
+        "load_agent_self_prompt",
+        lambda: "TEST_AGENT_SELF_PROMPT_FIXTURE",
     )
 
     state = initial_state("hola", thread_id="t-test", user_id="telegram:42")
@@ -486,5 +500,23 @@ def test_initial_state_injects_agent_self_system_message() -> None:
     system_msgs = [m for m in messages if isinstance(m, SystemMessage)]
     assert len(system_msgs) == 1
     assert system_msgs[0].id == _AGENT_SELF_MESSAGE_ID
-    assert "AGENT_SELF" in str(system_msgs[0].content)
+    assert str(system_msgs[0].content) == "TEST_AGENT_SELF_PROMPT_FIXTURE"
     assert any(isinstance(m, HumanMessage) for m in messages)
+
+
+def test_initial_state_omits_system_message_when_doc_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If docs/AGENT_SELF.md is missing/unreadable, initial_state must not
+    inject an empty SystemMessage — the orchestrator runs without the
+    self-identity prompt (pre-Fase 70 behavior)."""
+    from langchain_core.messages import SystemMessage  # noqa: PLC0415
+
+    from cognitive_os.agents import graph as graph_module  # noqa: PLC0415
+    from cognitive_os.agents.graph import initial_state  # noqa: PLC0415
+
+    monkeypatch.setattr(graph_module, "load_agent_self_prompt", lambda: "")
+
+    state = initial_state("hola", thread_id="t-test", user_id="telegram:42")
+    messages = state["messages"]
+    assert [m for m in messages if isinstance(m, SystemMessage)] == []

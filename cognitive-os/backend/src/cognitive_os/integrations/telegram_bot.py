@@ -145,9 +145,22 @@ class TelegramBot:
         if markdown:
             body["parse_mode"] = "Markdown"
         try:
-            httpx.post(self.url("sendMessage"), json=body, timeout=10)
+            response = httpx.post(self.url("sendMessage"), json=body, timeout=10)
         except Exception as exc:
             logger.warning("telegram_send_failed: %s", exc)
+            return
+        # Telegram answers HTTP 200 + ok=true on success; surface non-2xx
+        # (and parse_mode parse errors that return 400) so a silent UI failure
+        # never goes unnoticed in the operator's logs. We do NOT raise: send
+        # is best-effort from the bot's perspective (the handler logic
+        # already ran), but observability is non-negotiable. (Fase 71 P0.C.)
+        if response.status_code >= 400:
+            logger.warning(
+                "telegram_send_non_2xx status=%d markdown=%s body=%s",
+                response.status_code,
+                markdown,
+                response.text[:300],
+            )
 
     def run_forever(self) -> None:
         configure_langsmith()
@@ -832,22 +845,55 @@ def cmd_threads(bot: TelegramBot, chat_id: int, _arg: str) -> None:
     bot.send(chat_id, _join(lines))
 
 
-def _thread_id_for_chat(chat_id: int) -> str:
-    """Deterministic thread per Telegram chat.
+_REDIS_SALT_KEY = "telegram:thread_salt:{chat_id}"
+_REDIS_SALT_DEFAULT = "v1"
 
-    Same `chat_id` → same `thread_id` → the LangGraph PostgresCheckpointer
-    keeps every turn's state on disk, so consecutive messages share context.
-    `/reset` (cmd below) regenerates a salt to start a fresh conversation
-    without dropping history (the old thread just stops being addressed).
+
+def _thread_id_for_chat(chat_id: int) -> str:
+    """Deterministic thread per Telegram chat, salted.
+
+    Same `chat_id` + same salt → same `thread_id` → the LangGraph
+    PostgresCheckpointer keeps every turn's state on disk so consecutive
+    messages share context. `/reset` rotates the salt to start a fresh
+    conversation without dropping history.
+
+    The salt is persisted in Redis (key `telegram:thread_salt:{chat_id}`) so
+    a bot restart does NOT silently reopen the previous thread the operator
+    explicitly closed. Falls back to in-memory + "v1" if Redis is offline.
+    (Fase 71 P1.F.)
     """
-    salt = _CHAT_THREAD_SALT.get(chat_id, "v1")
+    salt = _load_salt_from_redis(chat_id) or _CHAT_THREAD_SALT.get(chat_id, _REDIS_SALT_DEFAULT)
     return f"telegram-chat-{chat_id}-{salt}"
 
 
-# In-memory salt registry. Telegram bot reboots wipe it, which is the right
-# behavior: a restart is implicit "fresh start" intent. The DB still holds
-# old thread states (cheap, just rows in the checkpoint table).
+# In-memory salt registry. Used as fallback when Redis is unavailable.
 _CHAT_THREAD_SALT: dict[int, str] = {}
+
+
+def _load_salt_from_redis(chat_id: int) -> str | None:
+    try:
+        import redis as redis_lib  # noqa: PLC0415
+
+        client = redis_lib.Redis.from_url(settings.redis_url, socket_timeout=1.0)
+        value = client.get(_REDIS_SALT_KEY.format(chat_id=chat_id))
+        if value is None:
+            return None
+        return value.decode("utf-8") if isinstance(value, bytes) else str(value)
+    except Exception:  # noqa: BLE001 - Redis down → fall back to in-memory
+        return None
+
+
+def _persist_salt_to_redis(chat_id: int, salt: str) -> bool:
+    try:
+        import redis as redis_lib  # noqa: PLC0415
+
+        client = redis_lib.Redis.from_url(settings.redis_url, socket_timeout=1.0)
+        # 365d TTL — long enough to survive month-long pauses, short enough
+        # that abandoned chats eventually expire.
+        client.set(_REDIS_SALT_KEY.format(chat_id=chat_id), salt, ex=365 * 24 * 3600)
+    except Exception:  # noqa: BLE001 - best-effort persistence
+        return False
+    return True
 
 
 @command("chat", "chat con el orquestador — uso: /chat <mensaje>")
@@ -875,20 +921,25 @@ def cmd_chat(bot: TelegramBot, chat_id: int, arg: str) -> None:
     last = messages[-1] if messages else None
     content = str(getattr(last, "content", "")) if last else "(sin respuesta)"
     route = str(values.get("active_route") or "?")
-    bot.send(
-        chat_id,
-        f"*ruta:* `{route}` · *thread:* `{thread_id[-8:]}`\n\n{content[:3500]}",
-    )
+    # LLM output may contain unescaped Markdown V1 reserved chars (`_`, `*`,
+    # `[`, backtick) that Telegram refuses with HTTP 400 silent. The header
+    # we control still goes Markdown; the LLM body goes as plain text. Two
+    # separate sends so the header stays formatted (Fase 71 P0.C).
+    bot.send(chat_id, f"*ruta:* `{route}` · *thread:* `{thread_id[-8:]}`")
+    bot.send(chat_id, content[:3500] or "(sin respuesta)", markdown=False)
 
 
 @command("reset", "reinicia la memoria de la conversación (thread nuevo)")
 def cmd_reset(bot: TelegramBot, chat_id: int, _arg: str) -> None:
-    _CHAT_THREAD_SALT[chat_id] = uuid4().hex[:8]
+    new_salt = uuid4().hex[:8]
+    _CHAT_THREAD_SALT[chat_id] = new_salt
+    persisted = _persist_salt_to_redis(chat_id, new_salt)
+    suffix = "" if persisted else " (⚠ no pude persistir el reset en Redis)"
     bot.send(
         chat_id,
         (
             "🧹 listo, empezás un thread nuevo. Los turnos previos siguen "
-            "guardados en DB pero no los voy a leer."
+            "guardados en DB pero no los voy a leer." + suffix
         ),
         markdown=False,
     )

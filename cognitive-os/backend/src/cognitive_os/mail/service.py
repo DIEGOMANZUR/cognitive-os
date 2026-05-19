@@ -193,6 +193,34 @@ class PersonalMailService:
             message = await session.get(MailMessage, message_id)
             if message is None:
                 raise MailServiceError("Mail message not found.")
+            # Idempotency guard (Fase 71 P0.B): mail send is IRREVERSIBLE so
+            # double-click / retry must NOT trigger a second SMTP call. We
+            # short-circuit on already-terminal states and reject duplicate
+            # in-flight requests. The mapping below keeps existing UI
+            # behaviour: `sent` returns the historical view; `pending_send`
+            # bails out so the operator can wait or retry after a failure.
+            if message.status == "sent":
+                # Already delivered; surface the latest log for traceability
+                # without doing any work. Fase 71 P0.B idempotency.
+                existing = await session.execute(
+                    select(MailSendLog)
+                    .where(MailSendLog.message_id == message.id)
+                    .order_by(desc(MailSendLog.created_at))
+                    .limit(1)
+                )
+                prev_log = existing.scalar_one_or_none()
+                if prev_log is not None:
+                    return MailSendResult(
+                        message=self._message_view(message),
+                        send_log_id=str(prev_log.id),
+                        sent=True,
+                    )
+                raise MailServiceError("Message already marked sent.")
+            if message.status == "pending_send":
+                raise MailServiceError(
+                    "A send is already in flight for this message. Wait for it "
+                    "to complete or fail before retrying."
+                )
             account = await self._default_sender_account(session)
             body = request.body_text or message.proposed_reply_text
             if not body:

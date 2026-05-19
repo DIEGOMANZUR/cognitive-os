@@ -56,7 +56,11 @@ export default function Home() {
 function App() {
   const [tab, setTab] = useLocalState<Tab>("cogos.tab", "dashboard");
   const [apiBase, setApiBase] = useLocalState<string>("cogos.api", "http://127.0.0.1:8000");
-  const [token, setToken] = useState("");
+  // Persist JWT in localStorage so a page reload does not force the operator
+  // to paste it again. Aligned with the AGENT_SELF.md / docs/USER_GUIDE.md
+  // contract that says "JWT en localStorage" for dedicated_local. XSS risk
+  // is low on a single-operator PC without third-party scripts. (Fase 71 P1.H)
+  const [token, setToken] = useLocalState<string>("cogos.token", "");
   const [theme, setTheme] = useLocalState<Theme>("cogos.theme", "dark");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);

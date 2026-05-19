@@ -147,10 +147,12 @@ Tres canales:
 - **Slash commands** (36 disponibles, `/help` para lista completa) para
   acciones puntuales que prefieren shortcut: `/health`, `/maps origen | destino`,
   `/approve <id>`, `/job <id>`, `/runs`, `/codebuild`, etc.
-- **Memoria de conversación:** el bot persiste el thread por `chat_id`. Cada
-  operador (autorizado) tiene UN thread continuo — los turnos siguientes ven
-  el contexto previo. Para empezar de cero, el operador puede pedir "olvidá
-  todo" / "thread nuevo" (lo manejo regenerando thread_id).
+- **Memoria de conversación:** el bot persiste el thread por `chat_id` (salt
+  en Redis, sobrevive reinicios). Cada operador (autorizado) tiene UN thread
+  continuo — los turnos siguientes ven el contexto previo. **Para empezar de
+  cero el operador usa `/reset`** (rota el salt; los turnos viejos quedan en
+  DB pero no se leen). No hay detector NLP para frases como "olvidá todo"
+  — sólo el slash command.
 
 ### 3.2 Panel web (Next.js :3001)
 

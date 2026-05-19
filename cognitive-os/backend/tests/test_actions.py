@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import httpx
@@ -2552,3 +2553,87 @@ async def test_drive_folder_request_does_not_auto_approve_in_strict(
 
     assert not called
     assert view.status == "pending_approval"
+
+
+# -- Fase 71 P0.A — _auto_approve_and_dispatch end-to-end (no spy) -----------
+
+
+@pytest.mark.asyncio
+async def test_auto_approve_calls_queue_then_reserve_then_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """End-to-end: _auto_approve_and_dispatch must call decide_approval →
+    queue_approved_action_request → reserve_action_dispatch → Celery in that
+    exact order. Without the queue step the AR stays `pending_approval` and
+    `reserve` returns should_dispatch=False (silent no-op). Fase 71 P0.A.
+    """
+    from cognitive_os.actions import service as service_module  # noqa: PLC0415
+
+    _install_fake_action_session(monkeypatch)
+    call_order: list[str] = []
+
+    async def fake_decide(
+        approval_id: UUID,
+        *,
+        status_value: str,
+        approver_user_id: str,
+        payload_resolver: object | None = None,
+        app_settings: object | None = None,
+    ) -> object:
+        call_order.append("decide_approval")
+        return SimpleNamespace(
+            approval=SimpleNamespace(requested_action="execute_action_request:xx"),
+            openshell_dispatch=None,
+            code_build_job_id=None,
+        )
+
+    async def fake_queue(self: object, action_request_id: UUID) -> object:
+        call_order.append("queue_approved_action_request")
+        return SimpleNamespace(id=action_request_id, status="queued")
+
+    async def fake_reserve(self: object, action_request_id: UUID) -> object:
+        call_order.append("reserve_action_dispatch")
+        ar_view = SimpleNamespace(
+            id=action_request_id,
+            status="queued",
+            job_id=UUID("11111111-1111-1111-1111-111111111111"),
+        )
+        return SimpleNamespace(
+            action_request=ar_view,
+            should_dispatch=True,
+            reason=None,
+        )
+
+    async def fake_record(*args: object, **kwargs: object) -> None:
+        return None
+
+    class FakeTaskWithApply:
+        @staticmethod
+        def apply_async(*args: object, **kwargs: object) -> None:
+            call_order.append("celery_apply_async")
+
+    monkeypatch.setattr(service_module, "decide_approval", fake_decide)
+    monkeypatch.setattr(ActionRequestService, "queue_approved_action_request", fake_queue)
+    monkeypatch.setattr(ActionRequestService, "reserve_action_dispatch", fake_reserve)
+    monkeypatch.setattr(ActionRequestService, "record_action_dispatch_event", fake_record)
+    monkeypatch.setattr(
+        "cognitive_os.workers.tasks.run_action_request_task_async",
+        FakeTaskWithApply,
+    )
+
+    service = ActionRequestService(Settings(_env_file=None))
+    await service._auto_approve_and_dispatch(
+        approval_id=UUID("22222222-2222-2222-2222-222222222222"),
+        action_request_id=UUID("33333333-3333-3333-3333-333333333333"),
+        requested_by="operator-1",
+    )
+
+    assert call_order == [
+        "decide_approval",
+        "queue_approved_action_request",
+        "reserve_action_dispatch",
+        "celery_apply_async",
+    ], (
+        "Without queue_approved_action_request between decide and reserve, "
+        "the AR stays in pending_approval and dispatch silently no-ops."
+    )

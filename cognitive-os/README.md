@@ -254,7 +254,7 @@ Motor opcional **OpenHarness**: `uv sync --extra openharness` + `ENABLE_OPENHARN
 
 Variables de entorno: copia `.env.example` en la raíz a `.env` y ajusta secretos.
 
-- **CORS**: `CORS_ALLOW_ORIGINS` (lista CSV). Vacío ⇒ `http://localhost:3000`/`127.0.0.1:3000`; el `.env` ya incluye `:3001` (frontend real, OpenChamber ocupa :3000). No uses `*` con credenciales habilitadas (lo rechaza la configuración).
+- **CORS**: `CORS_ALLOW_ORIGINS` (lista CSV). Vacío ⇒ defaults `http://localhost:{3000,3001}` y `http://127.0.0.1:{3000,3001}` (frontend real corre en :3001 porque OpenChamber ocupa :3000; :3000 queda para compatibilidad). No uses `*` con credenciales habilitadas (lo rechaza la configuración).
 - **Action Plane y mail personal**: las acciones externas arrancan desactivadas o con aprobación humana. Configura `ENABLE_BROWSER_AUTOMATION`, `ENABLE_COMPUTER_ACTIONS`, `GMAIL_*`, `GODADDY_*`, `MAIL_*` y sus allow-lists antes de cualquier ejecución real. `MAIL_REQUIRE_APPROVAL_FOR_SEND=true` es la política obligatoria inicial.
 
 ## Infra local (Docker)
@@ -270,7 +270,10 @@ docker compose --env-file ../.env up -d
 cd frontend
 cp .env.example .env.local   # opcional: fija NEXT_PUBLIC_API_BASE_URL en build/prod
 npm ci
-npm run dev
+# Dev:
+PORT=3001 npm run dev        # (OpenChamber ocupa :3000)
+# Prod local:
+npm run serve                # build + next start -H 127.0.0.1 -p 3001
 npm run lint
 npm run build
 ```

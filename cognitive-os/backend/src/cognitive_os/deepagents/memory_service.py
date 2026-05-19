@@ -153,7 +153,16 @@ class DeepAgentMemoryService:
                 source_task_id=normalized.source_task_id,
                 status="pending",
                 approval_id=approval_id,
-                metadata_json={"requires_approval": requires_approval},
+                # Persist scope context (user_id/case_id/thread_id) inside
+                # metadata_json — `approve_memory_proposal` reads from here to
+                # populate the materialised memory row's scoping columns. No
+                # new table columns: keeps Alembic clean. (Fase 71 P2.J.)
+                metadata_json={
+                    "requires_approval": requires_approval,
+                    "user_id": normalized.user_id,
+                    "case_id": normalized.case_id,
+                    "thread_id": normalized.thread_id,
+                },
             )
             session.add(record)
             session.add(
@@ -177,9 +186,9 @@ class DeepAgentMemoryService:
             item = DeepAgentMemoryItem(
                 memory_id=str(uuid4()),
                 scope=proposal.scope,
-                user_id=None,
-                case_id=None,
-                thread_id=None,
+                user_id=proposal.user_id,
+                case_id=proposal.case_id,
+                thread_id=proposal.thread_id,
                 agent_name=proposal.proposed_by_agent,
                 kind="lesson",
                 content=await self.redact_memory_content(proposal.proposed_content),
@@ -201,11 +210,18 @@ class DeepAgentMemoryService:
                 raise DeepAgentMemoryError(msg)
             record.status = "applied"
             record.decided_at = now
+            # Fase 71 P2.J: read scope context from the proposal's metadata_json
+            # (in-memory path already propagates it via the Pydantic schema).
+            # No new columns yet — that would need an Alembic migration. The
+            # deepagent_memory_proposals table already has `metadata_json`, so
+            # we store/read user_id/case_id/thread_id there without schema
+            # drift, and surface them on the materialised memory.
+            proposal_meta = record.metadata_json or {}
             item_record = DeepAgentMemoryRecord(
                 scope=record.scope,
-                user_id=None,
-                case_id=None,
-                thread_id=None,
+                user_id=proposal_meta.get("user_id"),
+                case_id=proposal_meta.get("case_id"),
+                thread_id=proposal_meta.get("thread_id"),
                 agent_name=record.proposed_by_agent,
                 kind="lesson",
                 content_redacted=record.proposed_content_redacted,

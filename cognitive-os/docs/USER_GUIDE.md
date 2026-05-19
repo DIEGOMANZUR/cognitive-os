@@ -81,9 +81,10 @@ funcionando. Si ya lo conocés, andá directo al capítulo que necesites.
 5. [Usarlo desde Telegram (36 comandos)](#5-usarlo-desde-telegram-36-comandos)
 6. [Ejemplos impresionantes para sacarle el máximo](#6-ejemplos-impresionantes)
 7. [Qué hace el agente y qué NO hace](#7-qué-hace-el-agente-y-qué-no-hace)
-8. [Cómo NO usar Cognitive OS](#8-cómo-no-usar-cognitive-os)
-9. [Seguridad operativa en una página](#9-seguridad-operativa-en-una-página)
-10. [Troubleshooting express](#10-troubleshooting-express)
+8. [Perfiles de operación: estricto vs PC dedicado](#8-perfiles-de-operación-estricto-vs-pc-dedicado)
+9. [Matriz de acciones (qué pide aprobación, cómo aflojarla)](#9-matriz-de-acciones-qué-pide-aprobación-cómo-aflojarla)
+10. [Seguridad operativa en una página](#10-seguridad-operativa-en-una-página)
+11. [Troubleshooting express](#11-troubleshooting-express)
 
 ---
 
@@ -988,7 +989,7 @@ Detalle completo en `docs/SECURITY.md`.
 
 ---
 
-## 10. Troubleshooting express
+## 11. Troubleshooting express
 
 | Síntoma | Causa probable | Comando que arregla |
 |---|---|---|

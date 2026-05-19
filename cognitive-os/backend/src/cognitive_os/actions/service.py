@@ -1249,14 +1249,23 @@ class ActionRequestService:
         action_request_id: UUID,
         requested_by: str,
     ) -> ActionRequestView:
-        """Approve + dispatch an action that the dedicated_local whitelist allows.
+        """Approve + queue + dispatch an action whitelisted by dedicated_local.
 
-        Reuses `decide_approval` (which cascades approval → action_request →
-        Job state and emits audit events atomically) and the existing
-        `reserve_action_dispatch` reservation so retries / duplicate triggers
-        cannot fan out into two Celery tasks. Broker failures degrade to a
-        warning + AuditEvent: the action_request stays `queued` so the
-        action-request reaper can re-dispatch later.
+        Three-step cascade that mirrors what the REST and Telegram surfaces do
+        when the operator manually approves an ActionRequest:
+
+        1. `decide_approval` flips the HumanApproval to ``approved`` and emits
+           AuditEvents atomically. Note that this only moves the AR to
+           ``queued`` for the OpenShell sandbox carrier — Drive/Calendar
+           ActionRequests stay in ``pending_approval``.
+        2. `queue_approved_action_request` is the canonical step that flips
+           the Drive/Calendar/etc AR to ``queued`` and primes the Job. Without
+           this call, step 3 would find no AR in ``queued`` state and the
+           dispatch silently no-ops (Fase 71 P0.1 fix from GPT-5.5 review #3).
+        3. `reserve_action_dispatch` atomically reserves the AR with the
+           ``submitting`` dispatch_state so a retry / duplicate trigger
+           cannot fan out into two Celery tasks. Broker failures degrade to
+           a warning + AuditEvent: the AR stays ``queued`` for the reaper.
         """
         try:
             await decide_approval(
@@ -1267,6 +1276,11 @@ class ActionRequestService:
                 app_settings=self._settings,
             )
         except ApprovalDecisionError:
+            return await self._reload_view(action_request_id)
+
+        try:
+            await self.queue_approved_action_request(action_request_id)
+        except ActionRequestError:
             return await self._reload_view(action_request_id)
 
         try:

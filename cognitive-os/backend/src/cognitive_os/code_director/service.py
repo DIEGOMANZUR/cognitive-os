@@ -190,10 +190,31 @@ class CodeDirectorService:
 
         result = self._director.run(request, plan, build_id=build_id, emit=_sink)
 
+        # Packaging is the very last step. If it fails (workspace exceeded
+        # CODE_DIRECTOR_PACKAGE_MAX_FILES/_MAX_BYTES, disk full, etc.) we still
+        # want the operator to keep the build history + events — only the
+        # artifact is missing. Pre-Fase 71 a packaging failure left the whole
+        # build with no persisted result. Now we record artifact_error in the
+        # CodeBuildResult metadata and continue to _persist_result.
         artifact_path: str | None = None
+        artifact_error: str | None = None
         if result.status in {"completed", "partial"}:
-            artifact_path = self._package_workspace(build_id, Path(result.workspace_dir))
-            result.artifact_path = artifact_path
+            try:
+                artifact_path = self._package_workspace(build_id, Path(result.workspace_dir))
+                result.artifact_path = artifact_path
+            except DirectorError as exc:
+                artifact_error = str(exc)
+                events.append(
+                    BuildEvent(
+                        build_id=build_id,
+                        kind="packaging_failed",
+                        payload={"error": artifact_error},
+                    )
+                )
+                if hasattr(result, "metadata") and isinstance(result.metadata, dict):
+                    result.metadata["artifact_error"] = artifact_error
+                elif hasattr(result, "model_extra") and isinstance(result.model_extra, dict):
+                    result.model_extra["artifact_error"] = artifact_error
 
         await self._persist_result(job_id, build_id, result, events)
         return result

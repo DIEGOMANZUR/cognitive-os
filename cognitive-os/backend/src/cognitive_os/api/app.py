@@ -4,7 +4,7 @@ import asyncio
 import contextlib
 import json
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import ExitStack, asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -3460,18 +3460,86 @@ async def _decide_approval(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     if result.openshell_dispatch is not None:
-        run_openshell_task_async.apply_async(
-            args=[result.openshell_dispatch.task_payload, result.openshell_dispatch.job_id],
-            queue="agent_longrun",
+        openshell_task_payload = result.openshell_dispatch.task_payload
+        openshell_job_id_str = result.openshell_dispatch.job_id
+
+        def _apply_openshell() -> Any:
+            return run_openshell_task_async.apply_async(
+                args=[openshell_task_payload, openshell_job_id_str],
+                queue="agent_longrun",
+            )
+
+        await _dispatch_celery_with_audit(
+            task_name="openshell",
+            apply_async=_apply_openshell,
+            job_id=UUID(openshell_job_id_str),
         )
     if result.code_build_job_id is not None:
         from cognitive_os.workers.tasks import run_code_build_task_async
 
-        run_code_build_task_async.apply_async(
-            args=[result.code_build_job_id],
-            queue="agent_longrun",
+        await _dispatch_celery_with_audit(
+            task_name="code_build",
+            apply_async=lambda: run_code_build_task_async.apply_async(
+                args=[result.code_build_job_id],
+                queue="agent_longrun",
+            ),
+            job_id=UUID(result.code_build_job_id),
         )
     return _approval_response(result.approval)
+
+
+async def _dispatch_celery_with_audit(
+    *,
+    task_name: str,
+    apply_async: Callable[[], Any],
+    job_id: UUID,
+) -> None:
+    """Submit a Celery task and emit a visible JobEvent if the broker is down.
+
+    Mirrors the contract of `_dispatch_approved_action_request` for ActionRequest
+    Celery dispatch (Fase 64). Without this wrapper, an `apply_async` failure
+    after `decide_approval` commits would leave the operator with an approved
+    decision and a job stuck silently in `queued` — there is no signal
+    surfaced anywhere. Now we always emit either a submitted or a failed
+    JobEvent so `/jobs/{id}/events` tells the truth. (Fase 71 P1.D.)
+    """
+    try:
+        apply_async()
+    except Exception as exc:  # noqa: BLE001 - broker offline is operator-facing
+        logger.warning(
+            "decide_approval_celery_dispatch_failed task=%s error=%s",
+            task_name,
+            type(exc).__name__,
+        )
+        with contextlib.suppress(Exception):
+            async with session_scope() as session:
+                session.add(
+                    JobEvent(
+                        job_id=job_id,
+                        event_type=f"{task_name}_dispatch_failed",
+                        status="queued",
+                        message=(
+                            f"Celery refused {task_name} dispatch after approval "
+                            f"({type(exc).__name__}). Job remains queued."
+                        ),
+                        metadata_json={
+                            "error_type": type(exc).__name__,
+                            "surface": "_decide_approval",
+                        },
+                    )
+                )
+        return
+    with contextlib.suppress(Exception):
+        async with session_scope() as session:
+            session.add(
+                JobEvent(
+                    job_id=job_id,
+                    event_type=f"{task_name}_dispatch_submitted",
+                    status="queued",
+                    message=f"{task_name} submitted to Celery after approval.",
+                    metadata_json={"surface": "_decide_approval"},
+                )
+            )
 
 
 def _openshell_task_payload_from_job(job: Job) -> dict[str, Any]:
@@ -3979,7 +4047,24 @@ _CODE_BUILD_TERMINAL = frozenset({"completed", "failed", "cancelled", "rejected"
 async def _code_build_events_stream(job_id: UUID) -> AsyncIterator[str]:
     last_seen = 0
     poll_interval = 0.5
-    max_ticks = 7200  # 0.5s * 7200 = 1h safety ceiling for a hung stream
+    # Default safety ceiling: 1h. Frontend `maxRuntime` defaults to 120 (min),
+    # so a hard-coded 1h cap would silently disconnect long builds. We try to
+    # read the request's `max_runtime_minutes` from the job metadata and use
+    # min(it + 20% margin, 6h absolute cap). (Fase 71 P2.K.8.)
+    max_ticks = 7200  # 0.5s * 7200 = 1h fallback
+    try:
+        async with session_scope() as session:
+            job_for_budget = await session.get(Job, job_id)
+            if job_for_budget is not None:
+                meta = job_for_budget.metadata_json or {}
+                req = meta.get("request") or {}
+                budget_req = req.get("budget") or {}
+                budget_minutes = float(budget_req.get("max_runtime_minutes") or 0)
+                if budget_minutes > 0:
+                    target_seconds = min(budget_minutes * 60 * 1.2, 6 * 3600)
+                    max_ticks = int(target_seconds / poll_interval)
+    except Exception:  # noqa: BLE001 - any DB hiccup falls back to default
+        pass
     for _tick in range(max_ticks):
         async with session_scope() as session:
             job = await session.get(Job, job_id)

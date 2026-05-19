@@ -2494,3 +2494,69 @@ por igual. Path missing es non-fatal: degrada al comportamiento pre-Fase 70.
   el router los manda igual a `comm` que pide approval. Solucionable con
   una sub-ruta nueva en `route_request` que detecte intent="informational"
   → respuesta directa del LLM sin pasar por los nodos comm/social.
+
+## 2026-05-19 — Fase 71 — GPT-5.5 review #3: 11 fixes (P0+P1+P2)
+
+Tercera pasada de GPT-5.5 sobre el branch detectó **bugs reales** sobre código
+recién agregado en F69+F70. **De 15 hallazgos: 13 aceptados, 1 stale, 1
+rechazado con razón documentada.**
+
+**P0/P1 (críticos):**
+
+- **F71-A (P0 CRÍTICO):** `_auto_approve_and_dispatch` saltaba
+  `queue_approved_action_request` entre `decide_approval` y
+  `reserve_action_dispatch`. Resultado: el AR quedaba en `pending_approval`,
+  `reserve` no encontraba qué reservar, y el dispatch era **no-op silencioso**.
+  Fix: meter la llamada faltante. Test e2e NUEVO sin spy
+  (`test_auto_approve_calls_queue_then_reserve_then_dispatch`) verifica el
+  orden exacto: decide → queue → reserve → Celery apply_async.
+- **F71-B (P0 IRREVERSIBLE):** `mail/service.py:approve_and_send` no chequeaba
+  `message.status` antes del SMTP. Doble-click / retry → DOBLE envío.
+  Fix: short-circuit si `status==sent` (devuelve el `MailSendResult` con el
+  log previo) y rechazo si `status==pending_send`.
+- **F71-C (P1):** `cmd_chat` mandaba contenido LLM con `parse_mode=Markdown`
+  por default. `_`, `[`, backtick imparares del LLM → HTTP 400 silencioso.
+  Fix: split del mensaje en header (Markdown) + body (plain), y
+  `TelegramBot.send` ahora loguea cuando status >= 400.
+- **F71-D (P1):** `_decide_approval` en `app.py` dispatcheba OpenShell +
+  Code Build con `apply_async` directo sin try/except + JobEvent visible.
+  Fix: helper nuevo `_dispatch_celery_with_audit` que emite JobEvent
+  `<task>_dispatch_submitted` o `<task>_dispatch_failed`.
+- **F71-E (P1):** `_package_workspace` puede lanzar `DirectorError` (caps
+  F69 P2.12). Antes eso saltaba `_persist_result` y se perdía toda la
+  historia. Fix: captura + `artifact_error` en metadata + `packaging_failed`
+  event.
+
+**Mejoras de capacidad / menos fricción:**
+
+- **F71-F:** salt `/reset` ahora persistido en Redis (TTL 365d). AGENT_SELF.md
+  ajustado para no prometer NLP que no existe (sólo `/reset`).
+- **F71-G:** test AGENT_SELF robusto vía monkeypatch + test nuevo de fallback
+  cuando el doc falta.
+- **F71-H:** JWT del frontend ahora persistente en localStorage via
+  `useLocalState`.
+- **F71-I (triviales):** `serve` script con `-p 3001`; USER_GUIDE.md
+  numeración alineada (TOC + `## 11. Troubleshooting`); README CORS
+  actualizado.
+- **F71-J:** Memoria DeepAgent propaga `user_id`/`case_id`/`thread_id`
+  desde el workspace; path DB usa `metadata_json` para evitar migración.
+- **F71-K:** SSE `/code-director/{job_id}/events` calcula su cap desde el
+  budget del job (`min(budget*60*1.2, 6h)`); director marca `build_partial`
+  cuando corresponde (nuevo Literal + `packaging_failed`).
+
+**Stale:** GPT #5 decía AGENT_SELF.md sin trackear; ya estaba commited en
+`5c31482`. Apliqué su sugerencia secundaria (monkeypatch en el test) como
+F71-G.
+
+**Rechazado con razón:** GPT #13 "Document Analysis sin Kimi". La ruta legal
+opera con `allow_browser=False` para mitigar prompt injection desde
+documentos. Decisión consciente.
+
+**Verificación final post-Fase 71:**
+
+- `uv run pytest -q` → **703 passed, 1 skipped, 20 deselected, 3 warnings**
+  (+2 vs Fase 70: e2e auto-approve + omits-system-message).
+- `ruff check + format`, `mypy src` → todo verde (229 files, 125 modules).
+- `npm run lint + npm run build` (frontend) → verde.
+- Stack reiniciado: docker 4/4 + api + worker + beat + frontend(:3001)
+  + telegram + kimi. `/health/dashboard` → **overall=ok, 16 componentes ✅**.
