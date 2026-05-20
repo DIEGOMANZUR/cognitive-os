@@ -142,6 +142,9 @@
 | `langsmith_personal_access_token` | `LANGSMITH_PERSONAL_ACCESS_TOKEN` | SecretStr |
 | `langsmith_project` | `LANGSMITH_PROJECT` | str |
 | `langsmith_tracing` | `LANGSMITH_TRACING` | bool |
+| `llm_prompt_cache_enabled` | `LLM_PROMPT_CACHE_ENABLED` | bool |
+| `llm_prompt_cache_namespace` | `LLM_PROMPT_CACHE_NAMESPACE` | str |
+| `llm_use_responses_api` | `LLM_USE_RESPONSES_API` | bool |
 | `local_storage_dir` | `LOCAL_STORAGE_DIR` | str |
 | `log_level` | `LOG_LEVEL` | str |
 | `mail_default_sender` | `MAIL_DEFAULT_SENDER` | str |

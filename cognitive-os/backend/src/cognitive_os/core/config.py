@@ -1096,6 +1096,39 @@ class Settings(BaseSettings):
     )
 
     # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Fase 79.1 — Responses API + prompt caching (24h gateway-side retention).
+    #
+    # The operator's gateway (`PRIMARY_LLM_BASE_URL` :8317) implements the
+    # OpenAI Responses API at `/v1/responses` with `prompt_cache_retention`
+    # of 24h. Enabling Responses API mode in `langchain-openai` lets us:
+    # * Reuse a stable `prompt_cache_key` per role so the system prompt +
+    #   few-shots only get billed once per 24h window (huge win for the
+    #   recipe extractor and the router LLM which reuse long prompts).
+    # * Use `text.format=json_schema` for structured output instead of
+    #   forced tool_choice (cleaner, no model-family footguns).
+    # * Surface reasoning summaries on the agent lane via `reasoning.summary`.
+    #
+    # Default ON because the gateway already speaks the protocol. Operators
+    # who point a non-Responses-capable provider can flip the flag to false.
+    # ------------------------------------------------------------------
+    llm_use_responses_api: bool = Field(
+        default=True,
+        alias="LLM_USE_RESPONSES_API",
+    )
+    llm_prompt_cache_enabled: bool = Field(
+        default=True,
+        alias="LLM_PROMPT_CACHE_ENABLED",
+    )
+    # Stable namespace prepended to the per-role `prompt_cache_key`. Bump this
+    # when you make a non-trivial change to the system prompt of any lane so
+    # the gateway treats it as a fresh cache entry instead of serving stale
+    # cached tokens.
+    llm_prompt_cache_namespace: str = Field(
+        default="cognitive-os-v1",
+        alias="LLM_PROMPT_CACHE_NAMESPACE",
+    )
+
     # Fase 78 — Recipe extractor (Fase A of the agent learning plan).
     # Distils successful long-running jobs into procedural memory
     # proposals. All defaults match docs/AGENT_LEARNING_PLAN.md so the
