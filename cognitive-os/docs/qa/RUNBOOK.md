@@ -100,11 +100,20 @@ npm run build   # next build
 
 ```bash
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/backend"
-uv run pytest -q          # 712 passed esperado
+uv run pytest -q          # 800 passed esperado
 uv run ruff check src tests
 uv run ruff format --check src tests
 uv run mypy src
 ```
+
+**Aislamiento de DB:** `pytest` **nunca** toca la base de producción.
+`tests/conftest.py` redirige `DATABASE_URL` a una base `_test` dedicada
+(`cognitive_os_test` por defecto), que se **dropea + recrea + migra a
+head** al inicio de cada corrida. El header de pytest lo confirma:
+`test database: cognitive_os_test (isolated — production DB is never
+touched)`. Para apuntar a otra base, exportá `TEST_DATABASE_URL` (su
+nombre debe contener `test`; el conftest se niega a correr si no, o si
+la URL coincide con la de producción).
 
 ## 8. Troubleshooting
 
