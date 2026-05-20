@@ -120,4 +120,4 @@ con el operador y guardar el token OAuth local ignorado por git.
 
 ## Documento hermano
 
-Plan de mejoras y estado de ejecución: [`IMPROVEMENT_EXECUTION_PLAN.md`](./IMPROVEMENT_EXECUTION_PLAN.md). Fusión OpenHarness: [`OPENHARNESS_FUSION.md`](./OPENHARNESS_FUSION.md).
+Tabla canónica autogenerada: [`SETTINGS_REGISTRY_TABLE.md`](./SETTINGS_REGISTRY_TABLE.md). Fusión OpenHarness: [`OPENHARNESS_FUSION.md`](./OPENHARNESS_FUSION.md).

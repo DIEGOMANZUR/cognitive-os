@@ -1023,7 +1023,7 @@ Cada nueva capacidad debe traer: flag de configuración, provider fake para test
 - [`OPERATOR_VARIABLE_CHECKLIST.md`](./OPERATOR_VARIABLE_CHECKLIST.md): mapeo ENV ↔ Settings + procedimiento operador.
 - [`SETTINGS_REGISTRY_TABLE.md`](./SETTINGS_REGISTRY_TABLE.md): tabla generada (no editar a mano).
 - [`PERSONAL_ASSISTANT_ROADMAP.md`](./PERSONAL_ASSISTANT_ROADMAP.md): roadmap de capacidades pendientes.
-- [`IMPROVEMENT_EXECUTION_PLAN.md`](./IMPROVEMENT_EXECUTION_PLAN.md): mejoras continuas de configuración y docs.
+- [`AGENT_LEARNING_PLAN.md`](./AGENT_LEARNING_PLAN.md): plan de aprendizaje autónomo del agente (Fases A-E, cerradas).
 
 ---
 

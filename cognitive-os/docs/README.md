@@ -70,7 +70,7 @@ producto: son bitacora de trabajo de la sesion actual.
 9. `OPERATOR_VARIABLE_CHECKLIST.md` — variables de entorno ↔ `Settings` (auditoría operador).
 10. `SETTINGS_REGISTRY_TABLE.md` — tabla generada 1:1 desde `config.py` (no editar a mano).
 11. `guia_credenciales.md` — **paso a paso para obtener cada credencial**: a qué web entrar, qué botón apretar (nombre/ubicación/color), hasta pegar el valor en `.env`.
-12. `IMPROVEMENT_EXECUTION_PLAN.md` — plan de mejoras continuas (config y docs).
+12. `AGENT_LEARNING_PLAN.md` — plan de aprendizaje autónomo del agente (Fases A-E, todas cerradas).
 
 ## Documentacion Por Area
 
@@ -85,7 +85,7 @@ producto: son bitacora de trabajo de la sesion actual.
 | `DEEPAGENTS_SKILLS_MEMORY.md` | Skills (core/user) y memoria con propuestas + aprobación humana |
 | `DOCUMENT_ANALYSIS_AGENT.md` | Subagente legal: matriz, timeline, contradicciones, borradores controlados |
 | `OPENSHELL_SANDBOX.md` | Ejecución de código aislada vendor-side, deshabilitada por defecto |
-| `IMPROVEMENT_EXECUTION_PLAN.md` | Estado de las fases A→E para hardening de configuración, docs y sala de máquinas |
+| `AGENT_LEARNING_PLAN.md` | Plan de aprendizaje autónomo del agente: Fases A-E (recetas, warnings, scorecard, skill promotion, reflexión nocturna) — todas en producción |
 
 ## Estado Actual
 
