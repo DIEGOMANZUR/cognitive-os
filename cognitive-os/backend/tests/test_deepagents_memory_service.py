@@ -76,3 +76,58 @@ async def test_archives_memory() -> None:
     exported = await service.export_memory("agent")
 
     assert exported["items"] == []
+
+
+@pytest.mark.asyncio
+async def test_proposal_kind_propagates_through_approve() -> None:
+    """Fase 78: approving a procedure proposal must materialise kind=procedure.
+
+    Pre-Fase-78 the approve path hardcoded kind="lesson" and silently
+    dropped the proposal's intended kind, which would have prevented the
+    recipe extractor from ever surfacing a procedure record. Regression
+    test.
+    """
+    service = _service()
+    proposal = await service.propose_memory_update(
+        DeepAgentMemoryProposal(
+            proposal_id=str(uuid4()),
+            proposed_by_agent="research",
+            scope="agent",
+            reason="distilled recipe",
+            proposed_content="Procedure: do X then Y.",
+            sensitivity="internal",
+            kind="procedure",
+            confidence=0.42,
+            metadata={"recipe": {"title": "do X then Y"}},
+        )
+    )
+
+    item = await service.approve_memory_proposal(proposal.proposal_id, "admin-1")
+
+    assert item.kind == "procedure"
+    assert item.confidence == pytest.approx(0.42)
+    assert item.metadata["recipe"] == {"title": "do X then Y"}
+
+
+@pytest.mark.asyncio
+async def test_list_memory_proposals_filters_by_kind() -> None:
+    service = _service()
+    await service.propose_memory_update(_proposal())  # default lesson
+    await service.propose_memory_update(
+        DeepAgentMemoryProposal(
+            proposal_id=str(uuid4()),
+            proposed_by_agent="research",
+            scope="agent",
+            reason="recipe",
+            proposed_content="procedure body",
+            sensitivity="internal",
+            kind="procedure",
+        )
+    )
+
+    procedures = await service.list_memory_proposals(kind="procedure")
+    lessons = await service.list_memory_proposals(kind="lesson")
+
+    assert len(procedures) == 1
+    assert len(lessons) == 1
+    assert procedures[0]["proposed_content"] == "procedure body"

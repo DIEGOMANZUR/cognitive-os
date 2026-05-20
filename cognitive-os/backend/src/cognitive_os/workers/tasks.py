@@ -28,6 +28,7 @@ from cognitive_os.deepagents.memory_consolidation import DeepAgentMemoryConsolid
 from cognitive_os.deepagents.openshell_adapter import OpenShellAdapter
 from cognitive_os.deepagents.openshell_policy import OpenShellPolicyViolation
 from cognitive_os.deepagents.openshell_schemas import OpenShellTask
+from cognitive_os.deepagents.recipe_extractor import extract_pending_recipes
 from cognitive_os.deepagents.research_deepagent import create_workspace
 from cognitive_os.deepagents.schemas import DeepAgentTask
 from cognitive_os.deepagents.service import run_deepagent_task
@@ -891,6 +892,23 @@ def reap_stale_running_jobs_task() -> dict[str, int]:
 @celery_app.task(name="cognitive_os.deliver_personal_reminders")
 def deliver_personal_reminders_task() -> dict[str, Any]:
     return _run(deliver_personal_task_reminders(settings))
+
+
+@celery_app.task(name="cognitive_os.extract_pending_recipes")
+def extract_pending_recipes_task() -> dict[str, Any]:
+    """Beat target for Fase 78: distil successful long-running jobs into
+    procedural memory proposals.
+
+    Idempotent: the extractor scopes its work to ``Job`` rows whose
+    ``extracted_recipe_at`` column is NULL, sets the timestamp on each
+    successful pass (proposal OR explicit LLM skip), and leaves the
+    column untouched on transient LLM errors so the next beat cycle
+    retries. Safe to run more often than 30 min if the operator wants
+    faster feedback.
+    """
+    if not settings.recipe_extractor_enabled:
+        return {"skipped": True, "reason": "RECIPE_EXTRACTOR_ENABLED=false"}
+    return _run(extract_pending_recipes())
 
 
 @celery_app.task(name="cognitive_os.telegram_gmail_digest")

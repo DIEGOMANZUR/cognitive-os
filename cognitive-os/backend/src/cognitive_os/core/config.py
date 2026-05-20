@@ -1095,6 +1095,48 @@ class Settings(BaseSettings):
         alias="DEEPAGENTS_MEMORY_REDACT_PII",
     )
 
+    # ------------------------------------------------------------------
+    # Fase 78 — Recipe extractor (Fase A of the agent learning plan).
+    # Distils successful long-running jobs into procedural memory
+    # proposals. All defaults match docs/AGENT_LEARNING_PLAN.md so the
+    # extractor can ship with no environment overrides.
+    # ------------------------------------------------------------------
+    recipe_extractor_enabled: bool = Field(
+        default=True,
+        alias="RECIPE_EXTRACTOR_ENABLED",
+    )
+    recipe_extractor_cron: str = Field(
+        default="*/30 * * * *",
+        alias="RECIPE_EXTRACTOR_CRON",
+    )
+    recipe_extractor_min_tool_calls: int = Field(
+        default=5,
+        alias="RECIPE_EXTRACTOR_MIN_TOOL_CALLS",
+    )
+    recipe_extractor_min_duration_seconds: int = Field(
+        default=30,
+        alias="RECIPE_EXTRACTOR_MIN_DURATION_SECONDS",
+    )
+    recipe_extractor_max_per_cycle: int = Field(
+        default=20,
+        alias="RECIPE_EXTRACTOR_MAX_PER_CYCLE",
+    )
+    # Job types worth distilling. Empty list = consider every job_type
+    # (useful for tests). The default list excludes infra/maintenance
+    # jobs (health_check, cleanup_old_jobs, reap_*, mail_sync) because
+    # they don't represent reusable agent procedures. Comma-separated
+    # in env (parsed by `StringList`) — matches the existing convention.
+    recipe_extractor_eligible_job_types: StringList = Field(
+        default=[
+            "deepagent_research",
+            "document_analysis",
+            "openshell_sandbox",
+            "code_build",
+            "external_action",
+        ],
+        alias="RECIPE_EXTRACTOR_ELIGIBLE_JOB_TYPES",
+    )
+
     _production_secret_fields: ClassVar[tuple[str, ...]] = (
         "jwt_secret",
         "primary_llm_api_key",

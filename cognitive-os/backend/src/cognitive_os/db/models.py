@@ -167,6 +167,15 @@ class Job(UUIDPrimaryKeyMixin, TimestampMixin, StatusMixin, MetadataMixin, Base)
         ForeignKey("conversation_threads.id"),
         nullable=True,
     )
+    # Fase 78 (Fase A): NULL = the recipe extractor has not yet looked at
+    # this job. A timestamp means it was processed — whether a procedure
+    # proposal was emitted or the LLM signalled "skip". The beat task
+    # filters on `IS NULL`, so this is the idempotency anchor.
+    extracted_recipe_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+    )
 
     thread: Mapped[ConversationThread | None] = relationship(back_populates="jobs")
     events: Mapped[list[JobEvent]] = relationship(

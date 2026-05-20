@@ -81,6 +81,13 @@ celery_app.conf.update(
             "routing_key": "maintenance",
         },
         "cognitive_os.sync_personal_mail": {"queue": "mail", "routing_key": "mail"},
+        # Fase 78 — recipe extractor reuses the maintenance queue, same
+        # tier as the existing memory consolidator. Cheap CPU work plus
+        # one short LLM call per job; no need for a dedicated queue.
+        "cognitive_os.extract_pending_recipes": {
+            "queue": "maintenance",
+            "routing_key": "maintenance",
+        },
     },
     timezone="UTC",
     enable_utc=True,
@@ -135,6 +142,22 @@ beat_schedule["stale-jobs-reaper"] = {
     "task": "cognitive_os.reap_stale_running_jobs",
     "schedule": crontab(minute=30, hour=3),
 }
+# Fase 78 (Fase A) — recipe extractor beat. Gated by a feature flag so
+# operators can disable the autonomous loop without redeploying. The
+# cron string lives in settings (default `*/30 * * * *`) so on-call can
+# tune cadence without touching code.
+if settings.recipe_extractor_enabled:
+    re_minute, re_hour, re_dom, re_moy, re_dow = settings.recipe_extractor_cron.split()
+    beat_schedule["recipe-extractor"] = {
+        "task": "cognitive_os.extract_pending_recipes",
+        "schedule": crontab(
+            minute=re_minute,
+            hour=re_hour,
+            day_of_month=re_dom,
+            month_of_year=re_moy,
+            day_of_week=re_dow,
+        ),
+    }
 if beat_schedule:
     celery_app.conf.beat_schedule = beat_schedule
 

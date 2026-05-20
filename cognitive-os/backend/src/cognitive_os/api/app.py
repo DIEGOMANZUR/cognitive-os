@@ -201,6 +201,7 @@ from cognitive_os.voice.schemas import SpeakRequest, TranscriptionResult, VoiceS
 from cognitive_os.voice.service import VoiceError, VoiceService
 from cognitive_os.workers.tasks import (
     consolidate_all_deepagent_memory_task,
+    extract_pending_recipes_task,
     ingest_pdf_task,
     run_action_request_task_async,
     run_deepagent_task_async,
@@ -3126,6 +3127,35 @@ async def trigger_memory_consolidation(
     """
     del user
     async_result = consolidate_all_deepagent_memory_task.apply_async(queue="maintenance")
+    return {"task_id": str(async_result.id), "status": "dispatched"}
+
+
+@app.get("/deepagents/memory/recipes", response_model=list[dict[str, Any]])
+async def list_recipe_proposals(
+    user: AuthenticatedUser = _auth_dependency,
+) -> list[dict[str, Any]]:
+    """Fase 78 (Fase A): proposals with ``kind == "procedure"`` only.
+
+    Thin filter on top of `/deepagents/memory/proposals` so the Memory
+    UI can render the new ``Recetas`` section without spelunking through
+    a generic list of all kinds.
+    """
+    del user
+    return await DeepAgentMemoryService().list_memory_proposals(kind="procedure")
+
+
+@app.post("/deepagents/memory/recipes/extract-now", response_model=dict[str, Any])
+async def trigger_recipe_extraction(
+    user: AuthenticatedUser = _admin_auth_dependency,
+) -> dict[str, Any]:
+    """Admin-gated: run the recipe extractor immediately (Fase 78).
+
+    Useful for operator demos and when the operator just finished a
+    long-running job and wants the proposal to show up without waiting
+    for the next 30-minute beat tick.
+    """
+    del user
+    async_result = extract_pending_recipes_task.apply_async(queue="maintenance")
     return {"task_id": str(async_result.id), "status": "dispatched"}
 
 

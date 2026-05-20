@@ -1,6 +1,17 @@
 # ACCEPTANCE CHECKLIST
 
-> **Estado actual (2026-05-20, Fase 74 — auditoría completa + cliente MCP; suite hermética 712 passed):** matriz
+> **Estado actual (2026-05-20, Fase 78 — recipe extractor; suite hermética 735 passed):**
+> Fase 78 abrió la **Fase A** del plan de aprendizaje
+> (`docs/AGENT_LEARNING_PLAN.md`). El agente extrae procedimientos
+> reutilizables de jobs exitosos como
+> `DeepAgentMemoryProposal(kind="procedure")` y los expone bajo
+> approval del operador en `MemoryView → Recetas propuestas`.
+> Migración Alembic head ahora **`202605200001`**. 23 tests nuevos
+> verdes (cobertura de happy path, idempotencia, LLM-failure, skip
+> signal, batch sweep, round-trip a `kind=procedure`). Endpoint live
+> verificado.
+>
+> **Estado anterior (Fase 74 — auditoría completa + cliente MCP; suite hermética 712 passed):** matriz
 > de aceptación vigente. Fase 66 levantó el stack real con credenciales del
 > operador y auditó cada parte; 4 bugs críticos enmascarados por la
 > resiliencia fueron corregidos y verificados en vivo (DeepAgent/tool_choice,

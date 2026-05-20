@@ -1,6 +1,21 @@
 # Cognitive OS
 
-> **Estado actual (2026-05-20, Fase 74 — auditoría completa + cliente MCP + Telegram conversacional + acceso total al PC):** monorepo en grado
+> **Estado actual (2026-05-20, Fase 78 — recipe extractor en producción):**
+> Primera fase del plan de aprendizaje (`docs/AGENT_LEARNING_PLAN.md`)
+> cerrada. El agente distila trayectorias de jobs exitosos en
+> `DeepAgentMemoryProposal(kind="procedure")` cada 30 min vía Celery
+> beat (`*/30 * * * *`). Aprobación del operador en
+> `MemoryView → Recetas propuestas` materializa la propuesta como
+> `DeepAgentMemoryRecord(kind="procedure")` y queda disponible para
+> futuras tareas similares. Cero auto-deploy, cero modificación de
+> `AGENT_SELF.md`. Migración Alembic head: `202605200001`. Suite
+> hermética **735 passed** (+23 vs Fase 76). Endpoints nuevos:
+> `GET /deepagents/memory/recipes` (filtra `kind=procedure`),
+> `POST /deepagents/memory/recipes/extract-now` (admin). Live
+> evidence: proposal real distilada por el extractor, payload
+> estructurado, beat schedule confirmado.
+>
+> **Estado anterior (Fase 74 — auditoría completa + cliente MCP + Telegram conversacional + acceso total al PC):** monorepo en grado
 > comercial operativo y **verificado funcionando con el stack real
 > levantado** (Docker infra + API + worker + credenciales del operador).
 > Backend FastAPI 0.115+ (**130 endpoints REST**, **17 tareas Celery**

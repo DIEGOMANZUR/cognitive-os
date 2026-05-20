@@ -1,6 +1,24 @@
 # AGENTS.md
 
-> **Estado actual (2026-05-19, Fase 68 — GoDaddy DNS producción operativo + doble revisión profunda):**
+> **Estado actual (2026-05-20, Fase 78 — recipe extractor / Fase A del plan de aprendizaje):**
+> Primera fase del plan documentado en `cognitive-os/docs/AGENT_LEARNING_PLAN.md`
+> está cerrada. El agente ahora **distila trayectorias de jobs exitosos
+> en procedimientos reutilizables** (`DeepAgentMemoryProposal(kind="procedure")`)
+> que pasan por el approval gate del operador en `MemoryView →
+> Recetas propuestas`. Cero auto-deploy, cero mutación del system prompt.
+> Migración Alembic head: `202605200001`. Beat schedule corre cada 30
+> min. Suite hermética: **735 passed**. 23 tests nuevos cubren el
+> happy path, ineligibilidad por threshold/duración/tipo, LLM-failure
+> sin marcar el job, skip signal, batch sweep, round-trip a memoria
+> activa con `kind=procedure`. Live verificado: endpoint retorna
+> proposal real con payload estructurado (recipe JSON + tool_call_count
+> + duration); beat task registrada; `/health/dashboard` mantiene 17
+> componentes. Frontend `MemoryView.tsx` agrega sección plegable con
+> botones Aprobar / Rechazar / Extraer ahora. **Pendiente operador**:
+> en futuras fases puede correr `bash scripts/full-qa.sh` para
+> reverificación.
+>
+> **Estado anterior (Fase 68 — GoDaddy DNS producción operativo + doble revisión profunda):**
 > GoDaddy DNS verificado en vivo (auth prod HTTP 200), seguro (dry-run +
 > aprobación, sin prod-writes); bug de alias `ENABLE_GODADDY`→`GODADDY_ENABLED`
 > corregido; `.env.example` actualizado (documenta `AGENT_LLM_*`); suite

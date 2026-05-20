@@ -173,6 +173,11 @@ export type DeepAgentMemoryProposal = {
   created_at?: string;
   decided_at?: string | null;
   metadata?: Record<string, unknown>;
+  // Fase 78: surfaced from `metadata_json` so the UI can render the
+  // recipe section without spelunking through nested JSON.
+  kind?: string;
+  confidence?: number | null;
+  payload?: Record<string, unknown>;
 };
 
 export type DocumentAnalysisMode =

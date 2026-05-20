@@ -2,6 +2,57 @@
 
 > Bitácora viva. La documentación estable de producto vive en `docs/`.
 
+## 2026-05-20 — Fase 78: Recipe extractor (Fase A del plan de aprendizaje)
+
+Primera fase del plan documentado en `docs/AGENT_LEARNING_PLAN.md`.
+El agente ya distila procedimientos a partir de jobs exitosos.
+
+- **Migración Alembic `202605200001`**: `jobs.extracted_recipe_at` (nullable +
+  index). NULL = pendiente; timestamp = procesado (con o sin proposal).
+- **Schema delta `DeepAgentMemoryProposal`**: campos `kind` (default
+  `lesson`), `confidence` y `metadata` propagados a `metadata_json` para que
+  `approve_memory_proposal` honre el `kind` declarado en vez del hardcoded
+  `lesson` previo. Backwards-compatible.
+- **Módulos nuevos**:
+  - `deepagents/recipe_prompts.py` — system prompt, few-shots curados,
+    parser estricto con tolerancia a fences markdown y skip signal.
+  - `deepagents/recipe_extractor.py` — `extract_recipe_for_job` +
+    `extract_pending_recipes`. Filtros: status ∈ {completed,
+    completed_with_warnings}, tool_call_count ≥ 5, duración ≥ 30s,
+    job_type ∈ allowlist. LLM secundario inyectable (gemini-3.1-pro-low
+    en prod; stub en tests). Idempotencia anclada al marcador
+    `extracted_recipe_at`. LLM-failure NO marca procesado (retry en próximo
+    beat); skip signal SÍ marca (no preguntar dos veces).
+- **Celery**: nueva task `cognitive_os.extract_pending_recipes` en queue
+  `maintenance`. Beat schedule `recipe-extractor` cada 30 min (cron
+  configurable via `RECIPE_EXTRACTOR_CRON`).
+- **5 settings nuevos**: `RECIPE_EXTRACTOR_ENABLED/CRON/MIN_TOOL_CALLS/
+  MIN_DURATION_SECONDS/MAX_PER_CYCLE/ELIGIBLE_JOB_TYPES`. Default ON, cron
+  `*/30 * * * *`, allowlist excluye jobs de infra (`health_check`,
+  `cleanup_old_jobs`, reapers, mail sync).
+- **API REST**: `GET /deepagents/memory/recipes` (filtro `kind=procedure`
+  sobre `/memory/proposals`) + `POST /deepagents/memory/recipes/extract-now`
+  (admin-gated, despacha la beat task fuera de banda).
+- **UI**: `MemoryView.tsx` agrega sección "Recetas propuestas" con preview
+  legible (title + summary + primeros 6 pasos) + JSON colapsable +
+  botones Aprobar/Rechazar/Extraer ahora. `data-testid` para Playwright.
+- **Tests**: 23 nuevos verdes (12 extractor + 9 prompts + 2 memory_service
+  round-trip). Suite total **735 passed**. Cobertura: happy path,
+  ineligibilidad (status, tipo, threshold, duración, ya procesado),
+  LLM-failure no marca, skip-signal sí marca, garbage JSON sí es treated
+  como error transient, idempotencia, batch sweep, approve round-trip a
+  `DeepAgentMemoryRecord(kind=procedure)`.
+- **Live evidence**: API reiniciado + Celery beat/worker reiniciados.
+  Endpoint `/deepagents/memory/recipes` retorna proposal real con
+  `kind="procedure"`, payload completo (recipe JSON + tool_call_count +
+  duration). `extract-now` despacha task Celery (task_id devuelto).
+  `/health/dashboard` mantiene 17 componentes (sin regression).
+- **QA**: ruff (check + format) 0 issues; mypy 0 issues; frontend lint +
+  build OK; Alembic upgrade clean.
+- **Anti-pattern verificado**: el extractor no toca `AGENT_SELF.md`, no
+  promueve skills, no escribe directo en `deepagent_memory_records` —
+  todo el aprendizaje pasa por el approval gate del operador.
+
 ## 2026-05-20 — Fase 69-74: hardening cruzado + capacidades nuevas
 
 - **Fase 69** (GPT-5.5 review #2): auto-approve reversibles, Code Director

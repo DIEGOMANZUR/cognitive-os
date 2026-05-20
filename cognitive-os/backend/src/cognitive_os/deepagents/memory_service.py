@@ -157,11 +157,19 @@ class DeepAgentMemoryService:
                 # metadata_json — `approve_memory_proposal` reads from here to
                 # populate the materialised memory row's scoping columns. No
                 # new table columns: keeps Alembic clean. (Fase 71 P2.J.)
+                # Fase 78 (Fase A): also persist `kind`, `confidence` and an
+                # arbitrary payload (e.g. the recipe JSON). The proposals
+                # table still lacks a `kind` column; storing it here lets us
+                # filter via metadata_json->>'kind' and materialise the
+                # right row on approve without an extra migration.
                 metadata_json={
                     "requires_approval": requires_approval,
                     "user_id": normalized.user_id,
                     "case_id": normalized.case_id,
                     "thread_id": normalized.thread_id,
+                    "kind": normalized.kind,
+                    "confidence": normalized.confidence,
+                    "payload": normalized.metadata,
                 },
             )
             session.add(record)
@@ -183,6 +191,9 @@ class DeepAgentMemoryService:
         now = datetime.now(UTC)
         if not self._use_database:
             proposal = self._get_in_memory_proposal(proposal_id)
+            # Fase 78: honor the proposal's declared kind / confidence so
+            # `procedure` proposals (recipes) materialise as procedure rows
+            # instead of being silently flattened to `lesson`.
             item = DeepAgentMemoryItem(
                 memory_id=str(uuid4()),
                 scope=proposal.scope,
@@ -190,15 +201,19 @@ class DeepAgentMemoryService:
                 case_id=proposal.case_id,
                 thread_id=proposal.thread_id,
                 agent_name=proposal.proposed_by_agent,
-                kind="lesson",
+                kind=proposal.kind,
                 content=await self.redact_memory_content(proposal.proposed_content),
                 source="agent_proposed",
-                confidence=0.7,
+                confidence=proposal.confidence,
                 sensitivity=proposal.sensitivity,
                 status="active",
                 created_at=now,
                 updated_at=now,
-                metadata={"approved_by": approver_user_id, "proposal_id": proposal_id},
+                metadata={
+                    "approved_by": approver_user_id,
+                    "proposal_id": proposal_id,
+                    **(proposal.metadata or {}),
+                },
             )
             self._memory[item.memory_id] = item
             self._proposals.pop(proposal_id, None)
@@ -216,23 +231,35 @@ class DeepAgentMemoryService:
             # deepagent_memory_proposals table already has `metadata_json`, so
             # we store/read user_id/case_id/thread_id there without schema
             # drift, and surface them on the materialised memory.
+            # Fase 78: also read `kind`, `confidence` and an arbitrary
+            # payload (e.g. the structured recipe JSON the recipe extractor
+            # emitted). Fall back to the legacy lesson/0.7 defaults so
+            # proposals written before Fase 78 still materialise cleanly.
             proposal_meta = record.metadata_json or {}
+            kind = proposal_meta.get("kind") or "lesson"
+            confidence_raw = proposal_meta.get("confidence")
+            try:
+                confidence = float(confidence_raw) if confidence_raw is not None else 0.7
+            except (TypeError, ValueError):
+                confidence = 0.7
+            payload = proposal_meta.get("payload") or {}
             item_record = DeepAgentMemoryRecord(
                 scope=record.scope,
                 user_id=proposal_meta.get("user_id"),
                 case_id=proposal_meta.get("case_id"),
                 thread_id=proposal_meta.get("thread_id"),
                 agent_name=record.proposed_by_agent,
-                kind="lesson",
+                kind=kind,
                 content_redacted=record.proposed_content_redacted,
                 source="agent_proposed",
-                confidence=0.7,
+                confidence=confidence,
                 sensitivity=record.sensitivity,
                 status="active",
                 metadata_json={
                     "approved_by": approver_user_id,
                     "proposal_id": proposal_id,
                     "source_task_id": record.source_task_id,
+                    **(payload if isinstance(payload, dict) else {}),
                 },
             )
             session.add(item_record)
@@ -242,7 +269,7 @@ class DeepAgentMemoryService:
                     "deepagents.memory.approve",
                     approver_user_id,
                     str(item_record.id),
-                    {"proposal_id": proposal_id},
+                    {"proposal_id": proposal_id, "kind": kind},
                 )
             )
             return _item_from_record(item_record)
@@ -394,16 +421,33 @@ class DeepAgentMemoryService:
             "items": [item.model_dump(mode="json") for item in items],
         }
 
-    async def list_memory_proposals(self) -> list[dict[str, Any]]:
+    async def list_memory_proposals(
+        self,
+        kind: DeepAgentMemoryKind | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return all proposals, optionally filtered by ``kind``.
+
+        Fase 78: the proposals table has no ``kind`` column; the value is
+        stored inside ``metadata_json["kind"]`` by :meth:`propose_memory_update`.
+        Filtering happens in Python (small N of pending proposals) rather
+        than via a JSONB expression so the in-memory path and the DB path
+        share one implementation.
+        """
         if not self._use_database:
-            return [proposal.model_dump(mode="json") for proposal in self._proposals.values()]
-        async with session_scope() as session:
-            result = await session.execute(
-                select(DeepAgentMemoryProposalRecord).order_by(
-                    DeepAgentMemoryProposalRecord.created_at.desc()
+            items: list[dict[str, Any]] = [
+                proposal.model_dump(mode="json") for proposal in self._proposals.values()
+            ]
+        else:
+            async with session_scope() as session:
+                result = await session.execute(
+                    select(DeepAgentMemoryProposalRecord).order_by(
+                        DeepAgentMemoryProposalRecord.created_at.desc()
+                    )
                 )
-            )
-            return [_proposal_record_to_dict(record) for record in result.scalars().all()]
+                items = [_proposal_record_to_dict(record) for record in result.scalars().all()]
+        if kind is None:
+            return items
+        return [item for item in items if (item.get("kind") or "lesson") == kind]
 
     async def redact_memory_content(self, content: str) -> str:
         redacted = content
@@ -472,6 +516,11 @@ def _audit_event(
 
 
 def _proposal_record_to_dict(record: DeepAgentMemoryProposalRecord) -> dict[str, Any]:
+    # Fase 78: expose `kind`/`confidence`/`payload` at the top level so the
+    # frontend can filter recipe proposals without spelunking through
+    # metadata_json. Keep legacy keys (`metadata`, `proposed_content`) for
+    # back-compat with existing consumers.
+    meta = record.metadata_json or {}
     return {
         "proposal_id": str(record.id),
         "proposed_by_agent": record.proposed_by_agent,
@@ -484,5 +533,8 @@ def _proposal_record_to_dict(record: DeepAgentMemoryProposalRecord) -> dict[str,
         "approval_id": str(record.approval_id) if record.approval_id else None,
         "created_at": record.created_at.isoformat(),
         "decided_at": record.decided_at.isoformat() if record.decided_at else None,
-        "metadata": record.metadata_json,
+        "kind": meta.get("kind") or "lesson",
+        "confidence": meta.get("confidence"),
+        "payload": meta.get("payload") or {},
+        "metadata": meta,
     }

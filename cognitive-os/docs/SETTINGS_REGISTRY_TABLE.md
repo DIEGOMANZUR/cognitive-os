@@ -217,6 +217,12 @@
 | `primary_llm_thinking_enabled` | `PRIMARY_LLM_THINKING_ENABLED` | bool |
 | `rate_limit_backend` | `RATE_LIMIT_BACKEND` | Literal[memory, redis] |
 | `rate_limit_redis_url` | `RATE_LIMIT_REDIS_URL` | str |
+| `recipe_extractor_cron` | `RECIPE_EXTRACTOR_CRON` | str |
+| `recipe_extractor_eligible_job_types` | `RECIPE_EXTRACTOR_ELIGIBLE_JOB_TYPES` | list[str] |
+| `recipe_extractor_enabled` | `RECIPE_EXTRACTOR_ENABLED` | bool |
+| `recipe_extractor_max_per_cycle` | `RECIPE_EXTRACTOR_MAX_PER_CYCLE` | int |
+| `recipe_extractor_min_duration_seconds` | `RECIPE_EXTRACTOR_MIN_DURATION_SECONDS` | int |
+| `recipe_extractor_min_tool_calls` | `RECIPE_EXTRACTOR_MIN_TOOL_CALLS` | int |
 | `redis_url` | `REDIS_URL` | str |
 | `require_human_approval_for_external_actions` | `REQUIRE_HUMAN_APPROVAL_FOR_EXTERNAL_ACTIONS` | bool |
 | `reranker_enabled` | `RERANKER_ENABLED` | bool |

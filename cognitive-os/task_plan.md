@@ -1,6 +1,23 @@
 # Cognitive OS Hardening And Action Plane Plan
 
-> **Estado actual (2026-05-20, Fase 74 cerrada — auditoría completa + cliente MCP):**
+> **Estado actual (2026-05-20, Fase 78 cerrada — recipe extractor en producción):**
+> Fase 78 implementó la **Fase A** del `docs/AGENT_LEARNING_PLAN.md`: el
+> agente distila trayectorias de jobs exitosos en propuestas
+> `kind=procedure` que pasan por el approval gate del operador. Cero
+> auto-deploy. Cero mutación de `AGENT_SELF.md`. Migración Alembic
+> `202605200001` (`jobs.extracted_recipe_at`), módulos
+> `deepagents/recipe_extractor.py` + `recipe_prompts.py`, Celery beat
+> cada 30 min, endpoints `/deepagents/memory/recipes` (list) +
+> `/deepagents/memory/recipes/extract-now` (admin), sección "Recetas
+> propuestas" en `MemoryView`. 23 tests nuevos verdes (12 extractor + 9
+> prompts + 2 memory_service round-trip), suite total **735 passed**.
+> Live evidence: endpoint live retorna proposal real con payload
+> estructurado (title + steps + tool_call_count + duration);
+> `/health/dashboard` mantiene 17 componentes; ruff/mypy/build/lint 0
+> issues. Siguiente paso del plan: Fase 79 (failure post-mortem →
+> warnings proactivos).
+>
+> **Estado anterior (Fase 74 — auditoría completa + cliente MCP):**
 > Fase 73 cableó el cliente MCP nativo (DeepAgent carga tools de
 > servidores externos: Supermemory, GitHub, filesystem). Fase 74 hizo una
 > auditoría de 10 dominios + sumó `mcp_client` a `/health/dashboard` (17

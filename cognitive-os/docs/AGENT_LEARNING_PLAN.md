@@ -8,6 +8,39 @@
 Fecha: 2026-05-20 · Branch: `codex/fase-34-baseline-hardening` · Último commit
 relevante: `cbdb96a` (Fase 76 — Playwright E2E QA audit).
 
+## 🟢 Status — Fase A implementada (F78, 2026-05-20)
+
+La primera fase del plan está cerrada en producción. Cambios respecto a
+lo descrito originalmente en §2:
+
+- Migración Alembic real: **`202605200001_jobs_extracted_recipe_at.py`** (head).
+- Pydantic `DeepAgentMemoryProposal` extendido con `kind` (default `lesson`),
+  `confidence` y `metadata` para que `approve_memory_proposal` materialice
+  el `kind` declarado en vez del hardcoded `lesson` previo.
+- `DeepAgentMemoryService.list_memory_proposals(kind=...)` ahora filtra
+  vía `metadata_json["kind"]` (no columna nueva).
+- El extractor reutiliza `propose_memory_update` (redact PII + HumanApproval
+  row); no escribe directo en la tabla de proposals.
+- LLM secundario inyectable (`llm_invoker` parameter) para que los tests
+  puedan correr sin tocar `conftest.py` ni el guard hermético.
+- Beat queue real = `maintenance` (no existe `memory` queue).
+- Filtros aplicados: `status IN {completed, completed_with_warnings}`,
+  `tool_call_count ≥ 5` (con fallback a "eventos con metadata.tool" si
+  algún agente no emite tipos canónicos), `duration ≥ 30s`,
+  `job_type ∈ allowlist` (allowlist configurable, excluye infra).
+- Endpoints publicados: `GET /deepagents/memory/recipes` (público a
+  authenticated) + `POST /deepagents/memory/recipes/extract-now` (admin).
+- UI: `MemoryView.tsx` agregó sección "Recetas propuestas" con preview
+  legible + JSON colapsable + `data-testid` para Playwright.
+- Tests: **23 nuevos verdes** (12 extractor + 9 prompts + 2 service
+  round-trip). Suite total **735 passed**.
+- Live evidence: endpoint retornó proposal real con `kind="procedure"` y
+  payload completo (recipe JSON + tool_call_count + duration); beat task
+  visible en Celery; `/health/dashboard` mantiene 17 componentes.
+
+**Siguiente paso del plan:** Fase 79 (failure post-mortem → warnings
+proactivos) — ver §3.
+
 ---
 
 ## 0. Contexto rápido del chat anterior (handoff)

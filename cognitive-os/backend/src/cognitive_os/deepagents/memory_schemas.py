@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 DeepAgentMemoryScope = Literal["global", "user", "case", "thread", "agent"]
 DeepAgentMemoryKind = Literal[
@@ -54,6 +54,17 @@ class DeepAgentMemoryProposal(BaseModel):
     user_id: str | None = None
     case_id: str | None = None
     thread_id: str | None = None
+    # Fase 78 (Fase A): proposals can now carry a kind so the recipe
+    # extractor can emit `procedure` rows that the approval pipeline
+    # materialises with the correct kind. Defaults keep backwards compat
+    # with the consolidator that historically only emitted lessons.
+    kind: DeepAgentMemoryKind = "lesson"
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    # `metadata` overlaps with BaseModel.metadata in some pydantic versions;
+    # silence the protected-namespace warning since we own the field.
+    model_config = ConfigDict(protected_namespaces=())
 
 
 class DeepAgentSkillDescriptor(BaseModel):
