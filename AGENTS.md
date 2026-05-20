@@ -270,3 +270,25 @@ When generating instructions for Claude Code:
 - forbid unrelated changes
 
 <!-- CODEX_CLAUDE_SUPERVISION_END -->
+
+<!-- COMPREHENSIVE_PROJECT_AUDIT_START -->
+
+## Comprehensive Project Audit Mode
+
+When the user asks for a complete audit, review, validation, hardening, or inspection of this project, use the local skill:
+
+.codex/skills/comprehensive-project-audit/SKILL.md
+
+Rules:
+- First map the repository.
+- Do not rely only on README.
+- Use file evidence and command output.
+- Do not claim the app works unless verified.
+- Mark uncertainty explicitly.
+- Run safe verification commands when appropriate.
+- Do not modify source files during audit mode.
+- Produce a severity-ranked report.
+- Use subagents when the task is broad.
+- Always perform a red-team second pass.
+
+<!-- COMPREHENSIVE_PROJECT_AUDIT_END -->

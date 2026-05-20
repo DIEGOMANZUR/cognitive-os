@@ -41,3 +41,8 @@ opencode.local.json
 opencode.jsonc
 .opencode/local/
 *.bak-*
+
+# Playwright (Fase 76 QA suite)
+frontend/playwright-report/
+frontend/test-results/
+frontend/playwright/.cache/
