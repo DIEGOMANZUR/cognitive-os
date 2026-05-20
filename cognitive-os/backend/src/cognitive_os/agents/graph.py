@@ -239,11 +239,61 @@ def deterministic_route(text: str) -> RouterDecision:
         "resumen del caso",
         "borrador con citas",
     )
+    # `comm`/`social` require an explicit *action intent*, not just a topic
+    # noun. Pre-Fase 74 a plain informational message that merely mentioned
+    # "mensaje" or "telegram" (e.g. "qué mensajes tengo") was misrouted to
+    # `comm`, which triggers a human-review interrupt. Now we demand a verb
+    # that signals the operator wants something SENT/DRAFTED. Pure questions
+    # fall through to `research`, which answers directly without interrupt.
+    comm_action = (
+        "redact",
+        "enviá",
+        "envia",
+        "enviar",
+        "mandá",
+        "manda",
+        "mandar",
+        "responder",
+        "respondé",
+        "contestá",
+        "contestar",
+        "escrib",
+        "prepar",
+        "armá",
+        "arma",
+        "armar",
+        "creá",
+        "crea",
+        "crear",
+    )
+    social_action = (
+        "publicá",
+        "publica",
+        "publicar",
+        "postear",
+        "posteá",
+        "tuiteá",
+        "tweet",
+        "prepar",
+        "armá",
+        "arma",
+        "armar",
+        "creá",
+        "crea",
+        "crear",
+        "escrib",
+    )
+    mentions_comm = any(
+        k in lowered for k in ("email", "correo", "mail", "comunica", "mensaje", "telegram")
+    )
+    mentions_social = any(
+        k in lowered for k in ("social", "post", "twitter", "linkedin", "instagram")
+    )
     if any(keyword in lowered for keyword in legal_keywords):
         route = "legal"
-    elif any(keyword in lowered for keyword in ("email", "comunica", "mensaje", "telegram")):
+    elif mentions_comm and any(verb in lowered for verb in comm_action):
         route = "comm"
-    elif any(keyword in lowered for keyword in ("social", "post", "twitter", "linkedin")):
+    elif mentions_social and any(verb in lowered for verb in social_action):
         route = "social"
     else:
         route = "research"

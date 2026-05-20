@@ -99,6 +99,21 @@ def test_deterministic_routing() -> None:
     assert deterministic_route("Investiga Cognitive OS").route == "research"
 
 
+def test_deterministic_routing_informational_not_comm() -> None:
+    """Fase 74: un mensaje informacional que sólo MENCIONA un canal no debe
+    caer en comm/social (eso disparaba un interrupt de human-review). Sólo
+    un verbo de acción explícito enruta a comm/social."""
+    # Menciona "mensaje"/"telegram"/"email" pero sin verbo de acción → research.
+    assert deterministic_route("qué mensajes tengo sin leer").route == "research"
+    assert deterministic_route("cuántos email me llegaron hoy").route == "research"
+    assert deterministic_route("revisá mi correo y decime").route == "research"
+    # Menciona "post"/"instagram" sin verbo de publicación → research.
+    assert deterministic_route("qué postee la semana pasada").route == "research"
+    # Con verbo de acción explícito sí enruta.
+    assert deterministic_route("enviá un correo a Juan").route == "comm"
+    assert deterministic_route("publicá esto en instagram").route == "social"
+
+
 def test_routing_with_mock_llm() -> None:
     graph = build_graph(
         checkpointer=MemorySaver(),

@@ -48,6 +48,7 @@ async def check_health_dashboard() -> HealthDashboard:
         _safe_check("kimi_webbridge", _check_webbridge()),
         _safe_check("captcha_solver", _check_captcha()),
         _safe_check("mail", _check_mail()),
+        _safe_check("mcp_client", _check_mcp()),
     )
     overall = (
         "ok"
@@ -335,6 +336,42 @@ async def _check_mail() -> ComponentHealth:
             "providers": providers,
             "approval_required": settings.mail_require_approval_for_send,
             "gmail_label": settings.mail_gmail_label,
+        },
+    )
+
+
+async def _check_mcp() -> ComponentHealth:
+    """Report the MCP client wiring without live RPC calls.
+
+    Live connectivity is exposed by the dedicated `/system/mcp` endpoint
+    (which DOES dial every server). Here we only surface the parsed config
+    so `/health/dashboard` stays fast — matching the `mail` contract.
+    (Fase 74.)
+    """
+    if not settings.enable_mcp_client:
+        return ComponentHealth(
+            name="mcp_client",
+            status="disabled",
+            detail="ENABLE_MCP_CLIENT=false",
+            metadata={"declared_servers": 0},
+        )
+    from cognitive_os.integrations.mcp_client import parse_mcp_servers
+
+    specs = parse_mcp_servers(settings.mcp_servers)
+    if not specs:
+        return ComponentHealth(
+            name="mcp_client",
+            status="degraded",
+            detail="ENABLE_MCP_CLIENT=true but MCP_SERVERS declares no valid server.",
+            metadata={"declared_servers": 0},
+        )
+    return ComponentHealth(
+        name="mcp_client",
+        status="configured",
+        detail=(f"{len(specs)} MCP server(s) declared; live status at /system/mcp."),
+        metadata={
+            "declared_servers": len(specs),
+            "server_names": [s.name for s in specs],
         },
     )
 

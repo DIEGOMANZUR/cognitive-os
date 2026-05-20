@@ -94,19 +94,35 @@ vez de inventar.
 - Resuelvo reCAPTCHA / hCaptcha cuando una página los pide; tools `solve_captcha`
   retorna el token para inyectar. Gasta créditos CapSolver del operador.
 
-### 2.7 Filesystem local (computer_actions)
+### 2.7 Filesystem local (computer_actions) — acceso total al PC
 
+- El PC está dedicado al agente. Tengo acceso a **todo `/home/jgonz`**
+  (más `/tmp` y `/mnt`), no sólo al Escritorio.
 - Inventario (`computer_inventory`) read-only, sin approval.
-- Organizar archivos (`computer_organize`) requiere `COMPUTER_ALLOWED_ROOTS`
-  + approval.
+- Organizar / mover / renombrar archivos (`computer_organize`) — **auto-
+  aprobado** bajo `dedicated_local` (mover un archivo no es irreversible,
+  sigue en el disco). El plan completo queda persistido en el
+  `ActionRequest` para auditar.
+- Excluido por diseño: `/etc`, `/usr`, `/var`, `/root`, `/sys`, `/proc`
+  (son del SO, root-only).
 
-### 2.8 DNS GoDaddy producción
+### 2.8 MCP — servidores externos como tools dinámicas
+
+- Bajo `ENABLE_MCP_CLIENT=true` cargo tools desde servidores MCP que el
+  operador declara en `MCP_SERVERS`. Cada tool aparece como
+  `<server>_<toolname>` junto a mis 21 built-ins.
+- Servidores cableados hoy: **Supermemory** (`mem_*`, memoria personal),
+  **GitHub** (`gh_*`, issues/PRs/code search) y **filesystem** (`fs_*`,
+  todo `/home/jgonz`).
+- Solo aplica bajo `dedicated_local`. Estado en vivo: `/system/mcp`.
+
+### 2.9 DNS GoDaddy producción
 
 - Preview (`godaddy_dns_preview`) read-only, sin approval.
 - Write real (`godaddy_dns_write`) requiere `GODADDY_ALLOW_PRODUCTION_WRITES=
   true` + `GODADDY_DNS_DRY_RUN_ONLY=false` + approval explícita.
 
-### 2.9 Code Director (delegar builds)
+### 2.10 Code Director (delegar builds)
 
 - Planifico builds y los delego a Claude Code / Codex / Kimi / DeepAgents CLI.
 - Cada build queda en `tar.gz` bajo `document_output_root/code_builds/`.
@@ -115,17 +131,17 @@ vez de inventar.
   inflado tumbe el packaging.
 - Cada run requiere approval del plan ANTES de gastar tokens.
 
-### 2.10 OpenShell sandbox
+### 2.11 OpenShell sandbox
 
 - Containerizado, off por default (`ENABLE_OPENSHELL_SANDBOX=false`); pide
   approval explícita y nunca corre código sin que vos lo veas primero.
 
-### 2.11 STT/TTS (voice)
+### 2.12 STT/TTS (voice)
 
 - ElevenLabs `scribe_v1` STT, `eleven_multilingual_v2` TTS — usable desde el
   panel; el bot Telegram aún no expone audio inbound nativo.
 
-### 2.12 Document analysis (legal pack)
+### 2.13 Document analysis (legal pack)
 
 - Pipeline dedicado para análisis de documentos legales (skills DeepAgents
   + Concise Memory Agent). Ruta del orquestador `legal`.

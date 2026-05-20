@@ -209,9 +209,7 @@ async def load_mcp_tools_async(
             # but typing the whole branching union here would force us to
             # restructure the parser around literals. `cast` keeps the runtime
             # contract and silences mypy without sacrificing the dataclass.
-            client = MultiServerMCPClient(
-                cast(Any, {spec.name: connection}), tool_name_prefix=True
-            )
+            client = MultiServerMCPClient(cast(Any, {spec.name: connection}), tool_name_prefix=True)
             server_tools = await client.get_tools(server_name=spec.name)
         except Exception as exc:  # noqa: BLE001 — fail-open per server
             logger.warning(
