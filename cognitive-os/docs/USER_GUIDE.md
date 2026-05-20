@@ -419,10 +419,25 @@ comandos (buscás cualquier vista o acción por nombre).
 
 #### Memoria (◉)
 - **Qué hace:** consolidación, propuestas pendientes, búsqueda por
-  query, export.
+  query, export — más el panel completo del **plan de aprendizaje
+  autónomo** (Fases A-E, ver `docs/AGENT_LEARNING_PLAN.md`).
 - **Click "Consolidar ahora":** dispara
   `cognitive_os.consolidate_all_deepagent_memory` en `maintenance`.
 - **Click "Aprobar propuesta":** la promueve a memoria persistente.
+- **Recetas propuestas (Fase A):** jobs exitosos con ≥5 tool calls se
+  distilan en recetas `kind=procedure`. Botón "Extraer ahora".
+- **Warnings detectadas (Fase D):** patrones fallo→recuperación; se
+  auto-promueven tras 3 ocurrencias sin rechazo. Botón "Scan ahora".
+- **Scorecard de tools (Fase C):** confiabilidad por (agente, tool),
+  inyectada al system prompt. Botón "Agregar ahora".
+- **Promociones a skill (Fase B):** un procedure usado con ≥3 éxitos y
+  <30% de fallos se propone como skill YAML. Al aprobar, se materializa
+  en `storage/deepagents/skills/user/_auto/<slug>/SKILL.md` y queda
+  invocable. Rollback automático si falla >50% en 30 días.
+- **Reflexiones nocturnas (Fase E):** cada noche el LLM revisa los
+  threads del día y propone preferences/lessons, **siempre** con la
+  quote literal del usuario como evidencia (validador estricto). Botón
+  "Reflexionar ahora". Se auto-desactiva si rechazás >50% en 30 días.
 
 #### Asistente (◌)
 - **Qué hace:** tareas y notas personales del operador. Mapeo

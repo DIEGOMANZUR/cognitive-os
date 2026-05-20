@@ -102,6 +102,21 @@ def test_render_yaml_skill_text_includes_frontmatter() -> None:
     assert "drive_search" in text
 
 
+def test_render_yaml_skill_text_sanitises_dashes_in_description() -> None:
+    """A description with `---` must not break the YAML frontmatter parser."""
+    text = render_yaml_skill_text(
+        name="x",
+        description="Paso 1 --- luego --- el paso 2.",
+        recipe=None,
+        source_memory_id=uuid.uuid4(),
+    )
+    # The frontmatter block is delimited by the first two `---`. The
+    # description line must not introduce a third one.
+    _, frontmatter, _ = text.split("---", 2)
+    assert "description:" in frontmatter
+    assert "---" not in frontmatter
+
+
 @pytest.mark.asyncio
 async def test_gather_stats_counts_outcomes() -> None:
     memory_id = await _make_procedure_record()
@@ -122,6 +137,16 @@ async def test_evaluate_below_threshold_does_not_propose() -> None:
     await _log_invocations(memory_id, ["success"])
     summary = await evaluate_pending_promotions()
     assert summary.get("proposals_created", 0) == 0
+
+
+@pytest.mark.asyncio
+async def test_evaluate_handles_procedure_with_empty_content() -> None:
+    """A procedure whose content is empty must not crash the promoter."""
+    memory_id = await _make_procedure_record(content="")
+    await _log_invocations(memory_id, ["success", "success", "success"])
+    # Should not raise IndexError on empty content_redacted.splitlines().
+    summary = await evaluate_pending_promotions()
+    assert summary["proposals_created"] >= 1
 
 
 @pytest.mark.asyncio

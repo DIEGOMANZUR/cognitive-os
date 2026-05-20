@@ -39,7 +39,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -343,6 +343,12 @@ def parse_reflection_response(raw: str | None) -> list[dict[str, Any]]:
     return [item for item in parsed if isinstance(item, dict)]
 
 
+# Quotes shorter than this are too generic to count as evidence — a
+# 3-char "el" appears in almost any Spanish transcript and would let a
+# hallucinating model "prove" anything. 12 chars forces a real phrase.
+_MIN_QUOTE_LEN = 12
+
+
 def validate_proposal(
     raw: dict[str, Any],
     transcript: Transcript,
@@ -353,6 +359,7 @@ def validate_proposal(
 
     Rules (matches §6.5 of AGENT_LEARNING_PLAN.md):
     * Quotes must be literal substrings of the transcript.
+    * Quotes must be at least ``_MIN_QUOTE_LEN`` chars (no trivial tokens).
     * Message IDs must reference real transcript segments.
     * Confidence must clear ``min_confidence``.
     * Sensitivity may not be ``secret`` (would block storage anyway).
@@ -377,6 +384,8 @@ def validate_proposal(
     quotes = [str(q).strip() for q in quotes_raw if isinstance(q, str) and q.strip()]
     ids = [str(i).strip() for i in ids_raw if isinstance(i, str) and i.strip()]
     if not quotes or not ids:
+        return None
+    if any(len(q) < _MIN_QUOTE_LEN for q in quotes):
         return None
     if not all(transcript.has_quote(q) for q in quotes):
         return None
@@ -678,12 +687,11 @@ async def list_recent_reflections(*, days: int = 7) -> list[dict[str, Any]]:
         return rows
 
 
-# Help mypy: re-export the UUID type so the linter does not gripe.
 __all__ = [
-    "Transcript",
-    "TranscriptSegment",
     "ReflectionProposal",
     "ReflectionRunResult",
+    "Transcript",
+    "TranscriptSegment",
     "build_transcript_for_thread",
     "is_auto_disabled",
     "list_recent_reflections",
@@ -691,5 +699,4 @@ __all__ = [
     "reflect_on_thread",
     "run_nightly_reflection",
     "validate_proposal",
-    "UUID",
 ]

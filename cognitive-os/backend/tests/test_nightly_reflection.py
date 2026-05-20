@@ -99,17 +99,31 @@ def test_validate_rejects_unknown_message_id() -> None:
 
 
 def test_validate_rejects_low_confidence() -> None:
-    transcript = _transcript(segments=[("event:1", "user", "El usuario lo dijo.")])
+    transcript = _transcript(segments=[("event:1", "user", "El usuario lo dijo claramente hoy.")])
     low = validate_proposal(
         _proposal_payload(
             confidence=0.4,
             message_ids=["event:1"],
-            quotes=["lo dijo"],
+            quotes=["lo dijo claramente"],
         ),
         transcript,
         min_confidence=0.7,
     )
     assert low is None
+
+
+def test_validate_rejects_too_short_quote() -> None:
+    transcript = _transcript(segments=[("event:1", "user", "El usuario lo dijo.")])
+    short = validate_proposal(
+        _proposal_payload(
+            confidence=0.9,
+            message_ids=["event:1"],
+            quotes=["lo dijo"],  # 7 chars < _MIN_QUOTE_LEN
+        ),
+        transcript,
+        min_confidence=0.7,
+    )
+    assert short is None
 
 
 def test_parse_reflection_response_extracts_fenced_json() -> None:

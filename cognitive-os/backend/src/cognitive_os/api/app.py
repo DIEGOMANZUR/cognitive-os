@@ -3280,7 +3280,10 @@ async def approve_skill_promotion(
         materialise_yaml_skill,
     )
 
-    return await materialise_yaml_skill(proposal_id, approver_user_id=user.user_id)
+    try:
+        return await materialise_yaml_skill(proposal_id, approver_user_id=user.user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @app.get("/deepagents/learning/reflection", response_model=list[dict[str, Any]])

@@ -51,7 +51,7 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cognitive_os.core.config import Settings, settings
@@ -158,27 +158,40 @@ async def log_procedure_usage_for_job(
     limit: int = 8,
 ) -> list[UUID]:
     """Log one ``pending`` invocation per active procedure that could have
-    been injected into the agent's startup memory.
+    been injected into this agent's startup memory.
 
-    Called from the worker before the agent runs. We over-count (every
-    matching record gets a log row) on purpose — the recipe extractor
-    only emits a small number of procedures, so even with the cap of 8
-    the cost is negligible compared to the value of having a usage
-    signal at all. The eventual ``mark_outcome_for_job`` call collapses
-    all of these to the right outcome.
+    Called from the worker before the agent runs. A procedure shows up
+    in an agent's system prompt only when it is either *not* agent-scoped
+    (global / user / case / thread procedures reach everyone) OR its
+    ``agent_name`` matches the running agent — that's exactly what
+    ``DeepAgentMemoryService.get_startup_memory`` does. We mirror that
+    filter here so the usage signal is accurate: a procedure is credited
+    only for jobs whose prompt actually contained it.
+
+    The eventual ``mark_outcome_for_job`` call collapses all of these
+    pending rows to the right outcome (success / failure).
     """
     jid = job_id if isinstance(job_id, UUID) else UUID(str(job_id))
     async with session_scope() as session:
+        where_clause = and_(
+            DeepAgentMemoryRecord.kind == "procedure",
+            DeepAgentMemoryRecord.status == "active",
+        )
+        if agent_name:
+            # Agent-scoped procedures only count for their own agent;
+            # broader scopes reach every agent's prompt.
+            where_clause = and_(
+                where_clause,
+                or_(
+                    DeepAgentMemoryRecord.scope != "agent",
+                    DeepAgentMemoryRecord.agent_name == agent_name,
+                ),
+            )
         candidates = (
             (
                 await session.execute(
                     select(DeepAgentMemoryRecord)
-                    .where(
-                        and_(
-                            DeepAgentMemoryRecord.kind == "procedure",
-                            DeepAgentMemoryRecord.status == "active",
-                        )
-                    )
+                    .where(where_clause)
                     .order_by(DeepAgentMemoryRecord.updated_at.desc())
                     .limit(max(1, limit))
                 )
@@ -277,7 +290,12 @@ def render_yaml_skill_text(
     (``_parse_frontmatter`` in ``skills_registry.py``) can read it
     verbatim — a frontmatter block plus a markdown body.
     """
-    safe_desc = description.replace("\n", " ").strip()[:300] or "Skill auto-promovido."
+    # Sanitise the description so it can never break the YAML frontmatter:
+    # newlines collapse to spaces and any run of dashes (which would be
+    # read as a `---` frontmatter delimiter by `_parse_frontmatter`) is
+    # squashed to a single em dash.
+    safe_desc = re.sub(r"-{2,}", "—", description.replace("\n", " ")).strip()[:300]
+    safe_desc = safe_desc or "Skill auto-promovido."
     steps_lines: list[str] = []
     if recipe and isinstance(recipe.get("steps"), list):
         for raw in recipe["steps"][:12]:
@@ -383,12 +401,13 @@ async def propose_skill_promotion(
     if not isinstance(recipe, dict):
         recipe = None
     suggested_title = (recipe or {}).get("title") if recipe else None
-    fallback_title = record.content_redacted.splitlines()[0] if record.content_redacted else ""
-    base_name = suggested_title or fallback_title
+    content_lines = (record.content_redacted or "").splitlines()
+    first_content_line = content_lines[0] if content_lines else ""
+    base_name = suggested_title or first_content_line
     skill_name = _slugify(str(base_name) or f"procedure-{record.id.hex[:8]}")
     description = (recipe or {}).get("summary") if recipe else None
     if not isinstance(description, str) or not description.strip():
-        description = (record.content_redacted or "").splitlines()[0][:280] or skill_name
+        description = first_content_line[:280] or skill_name
 
     proposal_id = str(uuid4())
     yaml_text = render_yaml_skill_text(
@@ -397,7 +416,7 @@ async def propose_skill_promotion(
         recipe=recipe,
         source_memory_id=record.id,
     )
-    scope_value: DeepAgentMemoryScope = (record.scope or "agent")  # type: ignore[assignment]
+    scope_value: DeepAgentMemoryScope = record.scope or "agent"  # type: ignore[assignment]
     proposal = DeepAgentMemoryProposal(
         proposal_id=proposal_id,
         proposed_by_agent="skill_promoter",

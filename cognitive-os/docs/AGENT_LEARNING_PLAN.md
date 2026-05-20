@@ -8,6 +8,46 @@
 Fecha: 2026-05-20 · Branch: `codex/fase-34-baseline-hardening` · Último commit
 relevante: `cbdb96a` (Fase 76 — Playwright E2E QA audit).
 
+## 🟢 Status — Plan completo: las 5 fases en producción (F78-F81, 2026-05-20)
+
+| Fase | Commit | Estado |
+|---|---|---|
+| **A — Recipe extractor** | F78 | ✅ Cerrada |
+| **D — Failure post-mortem** | F79.3 | ✅ Cerrada |
+| **C — Tool scorecard** | F79.4 | ✅ Cerrada |
+| **B — Skill promotion** | F80 | ✅ Cerrada |
+| **E — Nightly reflection** | F81 | ✅ Cerrada |
+
+Notas de implementación de las dos últimas fases:
+
+- **Fase B (F80):** nueva tabla `procedure_invocation_log` + ORM
+  `ProcedureInvocationLog`. El worker DeepAgent loguea las invocaciones
+  de cada `kind=procedure` activo al arrancar y marca el outcome
+  (success/failure) al terminar — filtrado por agente para que el conteo
+  refleje sólo procedures realmente inyectados en ese prompt. El promoter
+  (`deepagents/skill_promoter.py`) emite una proposal cuando un procedure
+  tiene ≥3 éxitos y <30% de fallos; al aprobarla se materializa un skill
+  YAML en `storage/deepagents/skills/user/_auto/<slug>/SKILL.md`. Rollback
+  automático si el `failure_rate` post-promoción supera 50% en 30 días.
+  **No hay auto-promoción** — toda promoción requiere approval explícito
+  del operador (§7). La ruta B.2 (code-based vía Code Director) queda como
+  follow-up: la proposal registra la intención (`route="yaml"`).
+- **Fase E (F81):** `deepagents/nightly_reflection.py` construye un
+  transcript auditado desde Jobs/JobEvents/HumanApprovals (no toca las
+  tablas internas de LangGraph) y pide al LLM primario preferences/lessons.
+  El validador descarta cualquier proposal cuyas `evidence_quotes` no
+  aparezcan **literalmente** en el transcript, cuyas quotes midan menos de
+  12 caracteres, o cuyos `evidence_message_ids` no existan. Circuit breaker
+  de auto-disable si el operador rechaza >50% de las proposals en 30 días.
+- Endpoints nuevos: `GET/POST /deepagents/learning/skill-promotions[/…]`,
+  `GET/POST /deepagents/learning/reflection[/run-now]`.
+- UI: secciones "Promociones a skill" y "Reflexiones nocturnas" en
+  `MemoryView.tsx`, con quotes literales visibles como evidencia.
+- Celery beat: `skill-promoter` (04:45 UTC) y `nightly-reflection`
+  (03:00 UTC), ambos detrás de feature flags.
+- Tests: +21 nuevos (12 skill promoter, 9 nightly reflection). Suite total
+  **797 passed**.
+
 ## 🟢 Status — Fase A implementada (F78, 2026-05-20)
 
 La primera fase del plan está cerrada en producción. Cambios respecto a
