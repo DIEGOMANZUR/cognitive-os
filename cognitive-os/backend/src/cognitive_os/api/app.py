@@ -202,8 +202,10 @@ from cognitive_os.voice.service import VoiceError, VoiceService
 from cognitive_os.workers.tasks import (
     aggregate_tool_scorecard_task,
     consolidate_all_deepagent_memory_task,
+    evaluate_skill_promotions_task,
     extract_pending_recipes_task,
     ingest_pdf_task,
+    nightly_reflection_task,
     run_action_request_task_async,
     run_deepagent_task_async,
     run_document_analysis_task_async,
@@ -3226,6 +3228,91 @@ async def trigger_tool_scorecard_aggregation(
     """
     del user
     async_result = aggregate_tool_scorecard_task.apply_async(queue="maintenance")
+    return {"task_id": str(async_result.id), "status": "dispatched"}
+
+
+@app.get("/deepagents/learning/skill-promotions", response_model=list[dict[str, Any]])
+async def list_skill_promotion_proposals_endpoint(
+    user: AuthenticatedUser = _auth_dependency,
+) -> list[dict[str, Any]]:
+    """Fase 80 (Fase B): proposals carrying ``metadata.skill_promotion``.
+
+    The Memory UI uses this to surface procedures the skill promoter has
+    decided are ready to become first-class YAML skills. Pending entries
+    need an explicit operator approval; auto-promotion of executable
+    behaviour is forbidden by §7 of AGENT_LEARNING_PLAN.md.
+    """
+    del user
+    from cognitive_os.deepagents.skill_promoter import (  # noqa: PLC0415
+        list_skill_promotion_proposals,
+    )
+
+    return await list_skill_promotion_proposals()
+
+
+@app.post("/deepagents/learning/skill-promotions/evaluate-now", response_model=dict[str, Any])
+async def trigger_skill_promoter(
+    user: AuthenticatedUser = _admin_auth_dependency,
+) -> dict[str, Any]:
+    """Admin-gated: run the skill promoter immediately (Fase 80). Also
+    triggers the post-promotion rollback safety pass."""
+    del user
+    async_result = evaluate_skill_promotions_task.apply_async(queue="maintenance")
+    return {"task_id": str(async_result.id), "status": "dispatched"}
+
+
+@app.post(
+    "/deepagents/learning/skill-promotions/{proposal_id}/approve",
+    response_model=dict[str, Any],
+)
+async def approve_skill_promotion(
+    proposal_id: str,
+    user: AuthenticatedUser = _admin_auth_dependency,
+) -> dict[str, Any]:
+    """Materialise an approved skill promotion proposal as a YAML skill.
+
+    Admin-gated. Writes ``storage/deepagents/skills/user/_auto/<slug>/SKILL.md``
+    and emits a derived ``DeepAgentMemoryRecord`` so the skill is
+    discoverable by future agent builds. Idempotent: re-running on an
+    already-applied proposal returns the same descriptor.
+    """
+    from cognitive_os.deepagents.skill_promoter import (  # noqa: PLC0415
+        materialise_yaml_skill,
+    )
+
+    return await materialise_yaml_skill(proposal_id, approver_user_id=user.user_id)
+
+
+@app.get("/deepagents/learning/reflection", response_model=list[dict[str, Any]])
+async def list_reflection_proposals(
+    user: AuthenticatedUser = _auth_dependency,
+    days: int = Query(14, ge=1, le=90),
+) -> list[dict[str, Any]]:
+    """Fase 81 (Fase E): nightly reflection proposals with evidence quotes.
+
+    The UI uses ``evidence_quotes`` to render each proposal alongside the
+    literal substring of the conversation that justified it — so the
+    operator never has to take the agent's word for the inference.
+    """
+    del user
+    from cognitive_os.deepagents.nightly_reflection import (  # noqa: PLC0415
+        list_recent_reflections,
+    )
+
+    return await list_recent_reflections(days=days)
+
+
+@app.post("/deepagents/learning/reflection/run-now", response_model=dict[str, Any])
+async def trigger_nightly_reflection(
+    user: AuthenticatedUser = _admin_auth_dependency,
+) -> dict[str, Any]:
+    """Admin-gated: run the nightly reflection immediately (Fase 81).
+
+    Honours the auto-disable circuit breaker: if the operator has
+    rejected too many recent proposals, the task returns early.
+    """
+    del user
+    async_result = nightly_reflection_task.apply_async(queue="maintenance")
     return {"task_id": str(async_result.id), "status": "dispatched"}
 
 

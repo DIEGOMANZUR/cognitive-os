@@ -185,6 +185,14 @@
 | `neo4j_password` | `NEO4J_PASSWORD` | SecretStr |
 | `neo4j_uri` | `NEO4J_URI` | str |
 | `neo4j_user` | `NEO4J_USER` | str |
+| `nightly_reflection_cron` | `NIGHTLY_REFLECTION_CRON` | str |
+| `nightly_reflection_enabled` | `NIGHTLY_REFLECTION_ENABLED` | bool |
+| `nightly_reflection_lookback_hours` | `NIGHTLY_REFLECTION_LOOKBACK_HOURS` | int |
+| `nightly_reflection_max_proposals_per_thread` | `NIGHTLY_REFLECTION_MAX_PROPOSALS_PER_THREAD` | int |
+| `nightly_reflection_max_rejection_rate` | `NIGHTLY_REFLECTION_MAX_REJECTION_RATE` | float |
+| `nightly_reflection_max_threads_per_cycle` | `NIGHTLY_REFLECTION_MAX_THREADS_PER_CYCLE` | int |
+| `nightly_reflection_min_confidence` | `NIGHTLY_REFLECTION_MIN_CONFIDENCE` | float |
+| `nightly_reflection_rejection_watch_days` | `NIGHTLY_REFLECTION_REJECTION_WATCH_DAYS` | int |
 | `notion_api_key` | `NOTION_API_KEY` | SecretStr |
 | `nvidia_api_key` | `NVIDIA_API_KEY` | UnionType[SecretStr, NoneType] |
 | `nvidia_api_key_2` | `NVIDIA_API_KEY_2` | UnionType[SecretStr, NoneType] |
@@ -244,6 +252,13 @@
 | `secondary_llm_model` | `SECONDARY_LLM_MODEL` | str |
 | `secondary_llm_provider` | `SECONDARY_LLM_PROVIDER` | str |
 | `serper_api_key` | `SERPER_API_KEY` | SecretStr |
+| `skill_promoter_cron` | `SKILL_PROMOTER_CRON` | str |
+| `skill_promoter_enabled` | `SKILL_PROMOTER_ENABLED` | bool |
+| `skill_promoter_max_failure_rate` | `SKILL_PROMOTER_MAX_FAILURE_RATE` | float |
+| `skill_promoter_max_per_cycle` | `SKILL_PROMOTER_MAX_PER_CYCLE` | int |
+| `skill_promoter_min_successes` | `SKILL_PROMOTER_MIN_SUCCESSES` | int |
+| `skill_promoter_rollback_max_failure_rate` | `SKILL_PROMOTER_ROLLBACK_MAX_FAILURE_RATE` | float |
+| `skill_promoter_rollback_window_days` | `SKILL_PROMOTER_ROLLBACK_WINDOW_DAYS` | int |
 | `stale_job_max_hours` | `STALE_JOB_MAX_HOURS` | int |
 | `storage_backend` | `STORAGE_BACKEND` | str |
 | `tavily_api_key` | `TAVILY_API_KEY` | SecretStr |

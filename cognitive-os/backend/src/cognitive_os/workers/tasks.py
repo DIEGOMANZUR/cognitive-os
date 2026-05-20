@@ -26,6 +26,9 @@ from cognitive_os.deepagents.document_analysis.schemas import DocumentAnalysisTa
 from cognitive_os.deepagents.document_analysis.service import DocumentAnalysisService
 from cognitive_os.deepagents.failure_postmortem import scan_recent_jobs as scan_failure_patterns
 from cognitive_os.deepagents.memory_consolidation import DeepAgentMemoryConsolidator
+from cognitive_os.deepagents.nightly_reflection import (
+    run_nightly_reflection as run_nightly_reflection_async,
+)
 from cognitive_os.deepagents.openshell_adapter import OpenShellAdapter
 from cognitive_os.deepagents.openshell_policy import OpenShellPolicyViolation
 from cognitive_os.deepagents.openshell_schemas import OpenShellTask
@@ -33,6 +36,12 @@ from cognitive_os.deepagents.recipe_extractor import extract_pending_recipes
 from cognitive_os.deepagents.research_deepagent import create_workspace
 from cognitive_os.deepagents.schemas import DeepAgentTask
 from cognitive_os.deepagents.service import run_deepagent_task
+from cognitive_os.deepagents.skill_promoter import (
+    disable_underperforming_auto_skills,
+    evaluate_pending_promotions,
+    log_procedure_usage_for_job,
+    mark_outcome_for_job,
+)
 from cognitive_os.deepagents.tool_scorecard import (
     aggregate_previous_day as aggregate_tool_scorecard,
 )
@@ -398,6 +407,22 @@ def run_deepagent_task_async(task_dict: dict[str, Any], job_id: str) -> dict[str
                 message="DeepAgent invocation started",
             )
         )
+        # Fase 80 — record which active procedures could have shaped this
+        # job's startup memory. The outcome is filled in after the agent
+        # finishes; the skill promoter relies on this to decide when a
+        # procedure has earned promotion to a first-class skill.
+        import contextlib  # noqa: PLC0415
+
+        # Best-effort: never block the agent on usage bookkeeping.
+        with contextlib.suppress(Exception):
+            _run(
+                log_procedure_usage_for_job(
+                    job_id=active_job_id,
+                    thread_id=task.thread_id,
+                    user_id=task.user_id,
+                    agent_name=task.task_type,
+                )
+            )
         result = run_deepagent_task(task)
         (workspace.root_dir / "result.json").write_text(
             json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False),
@@ -414,8 +439,17 @@ def run_deepagent_task_async(task_dict: dict[str, Any], job_id: str) -> dict[str
                 metadata_json={"result": result.model_dump(mode="json")},
             )
         )
+        with contextlib.suppress(Exception):
+            _run(
+                mark_outcome_for_job(
+                    job_id=active_job_id,
+                    outcome="success" if terminal_status == "completed" else "failure",
+                )
+            )
         return result.model_dump(mode="json")
     except Exception as exc:
+        with contextlib.suppress(Exception):
+            _run(mark_outcome_for_job(job_id=active_job_id, outcome="failure"))
         _run(_mark_job_failed(active_job_id, exc))
         raise
 
@@ -939,6 +973,38 @@ def extract_pending_recipes_task() -> dict[str, Any]:
     if not settings.recipe_extractor_enabled:
         return {"skipped": True, "reason": "RECIPE_EXTRACTOR_ENABLED=false"}
     return _run(extract_pending_recipes())
+
+
+@celery_app.task(name="cognitive_os.evaluate_skill_promotions")
+def evaluate_skill_promotions_task() -> dict[str, Any]:
+    """Beat target for Fase 80 (Fase B): scan procedure records and propose
+    YAML skill promotions when usage statistics clear the threshold.
+
+    Two passes per cycle:
+    * ``evaluate_pending_promotions`` — emit new promotion proposals.
+    * ``disable_underperforming_auto_skills`` — rollback safety. Disables
+      auto-promoted skills whose post-promotion failure rate is too high.
+    """
+    if not settings.skill_promoter_enabled:
+        return {"skipped": True, "reason": "SKILL_PROMOTER_ENABLED=false"}
+    summary = _run(evaluate_pending_promotions())
+    rollback = _run(disable_underperforming_auto_skills())
+    summary["rollback"] = rollback
+    return summary
+
+
+@celery_app.task(name="cognitive_os.nightly_reflection")
+def nightly_reflection_task() -> dict[str, Any]:
+    """Beat target for Fase 81 (Fase E): LLM reflection over recent threads.
+
+    Each thread is processed in its own session so a model hiccup never
+    poisons the rest of the night's work. The auto-disable circuit
+    breaker exits early when the operator has rejected too many of the
+    scanner's prior proposals.
+    """
+    if not settings.nightly_reflection_enabled:
+        return {"skipped": True, "reason": "NIGHTLY_REFLECTION_ENABLED=false"}
+    return _run(run_nightly_reflection_async())
 
 
 @celery_app.task(name="cognitive_os.telegram_gmail_digest")

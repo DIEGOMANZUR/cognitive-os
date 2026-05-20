@@ -1227,6 +1227,105 @@ class Settings(BaseSettings):
         alias="RECIPE_EXTRACTOR_ELIGIBLE_JOB_TYPES",
     )
 
+    # ------------------------------------------------------------------
+    # Fase 80 — Skill promotion (Fase B of the learning plan).
+    #
+    # The promoter scans active ``kind=procedure`` memory records and the
+    # ``procedure_invocation_log`` table; when a procedure has been used
+    # ≥ N times with low failure rate, the promoter emits a "skill
+    # promotion" proposal that materialises a YAML skill on operator
+    # approval. Auto-promotion is OFF by default — every skill needs an
+    # explicit yes from the operator (§7 of AGENT_LEARNING_PLAN.md).
+    # ------------------------------------------------------------------
+    skill_promoter_enabled: bool = Field(
+        default=True,
+        alias="SKILL_PROMOTER_ENABLED",
+    )
+    skill_promoter_cron: str = Field(
+        default="45 4 * * *",  # daily, 04:45 UTC (after tool_scorecard)
+        alias="SKILL_PROMOTER_CRON",
+    )
+    skill_promoter_min_successes: int = Field(
+        default=3,
+        alias="SKILL_PROMOTER_MIN_SUCCESSES",
+        description=(
+            "Minimum recorded successful invocations of a procedure record "
+            "before a promotion proposal is created."
+        ),
+    )
+    skill_promoter_max_failure_rate: float = Field(
+        default=0.3,
+        alias="SKILL_PROMOTER_MAX_FAILURE_RATE",
+        description=(
+            "Procedure rolled forward only if `failures / total ≤ this`. "
+            "0.3 → at most 30% of invocations failed."
+        ),
+    )
+    skill_promoter_max_per_cycle: int = Field(
+        default=20,
+        alias="SKILL_PROMOTER_MAX_PER_CYCLE",
+    )
+    skill_promoter_rollback_window_days: int = Field(
+        default=30,
+        alias="SKILL_PROMOTER_ROLLBACK_WINDOW_DAYS",
+        description=(
+            "How long after promotion the auto-rollback checker keeps watching the "
+            "skill. If post-promotion failure_rate > rollback_max_failure_rate within "
+            "this window, the skill is auto-disabled."
+        ),
+    )
+    skill_promoter_rollback_max_failure_rate: float = Field(
+        default=0.5,
+        alias="SKILL_PROMOTER_ROLLBACK_MAX_FAILURE_RATE",
+    )
+
+    # ------------------------------------------------------------------
+    # Fase 81 — Nightly reflection (Fase E of the learning plan).
+    #
+    # Daily LLM pass over recent threads to surface preference / lesson
+    # proposals. Strict evidence validation: every proposal must cite
+    # message IDs whose literal quotes appear in the conversation. Auto-
+    # disables when operator rejection rate exceeds the threshold over
+    # the watch window.
+    # ------------------------------------------------------------------
+    nightly_reflection_enabled: bool = Field(
+        default=True,
+        alias="NIGHTLY_REFLECTION_ENABLED",
+    )
+    nightly_reflection_cron: str = Field(
+        default="0 3 * * *",  # daily, 03:00 UTC
+        alias="NIGHTLY_REFLECTION_CRON",
+    )
+    nightly_reflection_lookback_hours: int = Field(
+        default=24,
+        alias="NIGHTLY_REFLECTION_LOOKBACK_HOURS",
+    )
+    nightly_reflection_max_threads_per_cycle: int = Field(
+        default=30,
+        alias="NIGHTLY_REFLECTION_MAX_THREADS_PER_CYCLE",
+    )
+    nightly_reflection_max_proposals_per_thread: int = Field(
+        default=3,
+        alias="NIGHTLY_REFLECTION_MAX_PROPOSALS_PER_THREAD",
+    )
+    nightly_reflection_min_confidence: float = Field(
+        default=0.7,
+        alias="NIGHTLY_REFLECTION_MIN_CONFIDENCE",
+    )
+    nightly_reflection_max_rejection_rate: float = Field(
+        default=0.5,
+        alias="NIGHTLY_REFLECTION_MAX_REJECTION_RATE",
+        description=(
+            "If the operator has rejected more than this fraction of the "
+            "reflection's proposals over the watch window (30 days), the "
+            "scanner auto-disables itself until the operator re-enables."
+        ),
+    )
+    nightly_reflection_rejection_watch_days: int = Field(
+        default=30,
+        alias="NIGHTLY_REFLECTION_REJECTION_WATCH_DAYS",
+    )
+
     _production_secret_fields: ClassVar[tuple[str, ...]] = (
         "jwt_secret",
         "primary_llm_api_key",

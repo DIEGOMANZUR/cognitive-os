@@ -645,6 +645,46 @@ class ToolInvocationMetric(UUIDPrimaryKeyMixin, TimestampMixin, MetadataMixin, B
     reliability_score: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
+class ProcedureInvocationLog(UUIDPrimaryKeyMixin, TimestampMixin, MetadataMixin, Base):
+    """Tracks every time a ``kind=procedure`` memory record is referenced
+    by an agent build, plus the eventual outcome of the job that used it.
+
+    Fase 80 (Fase B of the agent learning plan). The skill promoter joins
+    this table against ``deepagent_memory_records`` to decide when a
+    procedure deserves to be lifted into a YAML skill (≥3 successes with
+    <30% failure rate).
+    """
+
+    __tablename__ = "procedure_invocation_log"
+    __table_args__ = (
+        CheckConstraint(
+            "outcome IN ('pending','success','failure','partial')",
+            name="ck_procedure_invocation_log_outcome",
+        ),
+        Index(
+            "ix_procedure_invocation_log_memory_outcome",
+            "memory_id",
+            "outcome",
+        ),
+        Index(
+            "ix_procedure_invocation_log_job",
+            "job_id",
+        ),
+    )
+
+    memory_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    job_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    thread_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    user_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    agent_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    invoked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    outcome: Mapped[str] = mapped_column(String(32), default="pending", nullable=False)
+
+
 class PersonalNote(UUIDPrimaryKeyMixin, TimestampMixin, MetadataMixin, Base):
     __tablename__ = "personal_notes"
     __table_args__ = (Index("ix_personal_notes_user_updated", "user_id", "updated_at"),)

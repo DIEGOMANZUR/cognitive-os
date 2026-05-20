@@ -52,6 +52,17 @@ class DeepAgentSkillsRegistry:
                 root = user_root
         return self._discover(root, allow_missing=True)
 
+    def discover_auto_promoted_skills(self) -> list[DeepAgentSkillDescriptor]:
+        """Fase 80: skills materialised by the skill promoter live in
+        ``<user_skills_dir>/_auto/`` so an operator can wipe them with
+        a single ``rm -rf``. They follow the same SKILL.md format as
+        core / user skills and use ``risk_level=approval_required``.
+        """
+        root = self._settings.deepagents_user_skills_dir / "_auto"
+        if not root.exists():
+            return []
+        return self._discover(root, allow_missing=True)
+
     def get_enabled_skill_paths(
         self,
         agent_name: str,
@@ -61,7 +72,11 @@ class DeepAgentSkillsRegistry:
         del agent_name
         if not self._settings.deepagents_enable_skills:
             return []
-        skills = self.discover_core_skills() + self.discover_user_skills(user_id)
+        skills = (
+            self.discover_core_skills()
+            + self.discover_user_skills(user_id)
+            + self.discover_auto_promoted_skills()
+        )
         enabled: list[str] = []
         for skill in skills:
             if not skill.enabled:

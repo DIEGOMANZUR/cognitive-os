@@ -100,6 +100,19 @@ celery_app.conf.update(
             "queue": "maintenance",
             "routing_key": "maintenance",
         },
+        # Fase 80 — skill promoter. Daily, reads procedure records +
+        # procedure_invocation_log and emits skill_promotion proposals.
+        "cognitive_os.evaluate_skill_promotions": {
+            "queue": "maintenance",
+            "routing_key": "maintenance",
+        },
+        # Fase 81 — nightly reflection. Pulls last 24h of threads,
+        # runs the primary LLM, emits preference/lesson proposals with
+        # mandatory evidence quotes.
+        "cognitive_os.nightly_reflection": {
+            "queue": "maintenance",
+            "routing_key": "maintenance",
+        },
     },
     timezone="UTC",
     enable_utc=True,
@@ -194,6 +207,32 @@ if settings.tool_scorecard_enabled:
             day_of_month=ts_dom,
             month_of_year=ts_moy,
             day_of_week=ts_dow,
+        ),
+    }
+# Fase 80 — skill promoter. Gated by SKILL_PROMOTER_ENABLED.
+if settings.skill_promoter_enabled:
+    sp_minute, sp_hour, sp_dom, sp_moy, sp_dow = settings.skill_promoter_cron.split()
+    beat_schedule["skill-promoter"] = {
+        "task": "cognitive_os.evaluate_skill_promotions",
+        "schedule": crontab(
+            minute=sp_minute,
+            hour=sp_hour,
+            day_of_month=sp_dom,
+            month_of_year=sp_moy,
+            day_of_week=sp_dow,
+        ),
+    }
+# Fase 81 — nightly reflection. Gated by NIGHTLY_REFLECTION_ENABLED.
+if settings.nightly_reflection_enabled:
+    nr_minute, nr_hour, nr_dom, nr_moy, nr_dow = settings.nightly_reflection_cron.split()
+    beat_schedule["nightly-reflection"] = {
+        "task": "cognitive_os.nightly_reflection",
+        "schedule": crontab(
+            minute=nr_minute,
+            hour=nr_hour,
+            day_of_month=nr_dom,
+            month_of_year=nr_moy,
+            day_of_week=nr_dow,
         ),
     }
 if beat_schedule:

@@ -85,6 +85,48 @@ export function MemoryView({ client }: { client: ApiClient }) {
     "/deepagents/learning/tool-scorecard?days=14&limit=100",
     30000
   );
+  type SkillPromotion = {
+    proposal_id: string;
+    status: string;
+    proposed_by_agent: string;
+    reason: string;
+    skill_name?: string | null;
+    route?: string | null;
+    source_memory_id?: string | null;
+    stats?: {
+      success_count: number;
+      failure_count: number;
+      partial_count: number;
+      failure_rate: number;
+    } | null;
+    created_at: string;
+    decided_at?: string | null;
+  };
+  const skillPromotions = usePolledFetch<SkillPromotion[]>(
+    client,
+    "/deepagents/learning/skill-promotions",
+    30000
+  );
+  type ReflectionProposal = {
+    proposal_id: string;
+    status: string;
+    kind: string;
+    scope: string;
+    reason: string;
+    proposed_content: string;
+    evidence_message_ids: string[];
+    evidence_quotes: string[];
+    confidence: number | null;
+    thread_id?: string | null;
+    user_id?: string | null;
+    created_at: string;
+    decided_at?: string | null;
+  };
+  const reflections = usePolledFetch<ReflectionProposal[]>(
+    client,
+    "/deepagents/learning/reflection?days=14",
+    30000
+  );
   const [exported, setExported] = useState<unknown>(null);
   const [decidingProposalId, setDecidingProposalId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -92,6 +134,9 @@ export function MemoryView({ client }: { client: ApiClient }) {
   const [extractingRecipes, setExtractingRecipes] = useState(false);
   const [scanningFailures, setScanningFailures] = useState(false);
   const [aggregatingScorecard, setAggregatingScorecard] = useState(false);
+  const [evaluatingSkills, setEvaluatingSkills] = useState(false);
+  const [reflectingNow, setReflectingNow] = useState(false);
+  const [applyingPromotionId, setApplyingPromotionId] = useState<string | null>(null);
   const toast = useToast();
 
   useEffect(() => {
@@ -204,6 +249,56 @@ export function MemoryView({ client }: { client: ApiClient }) {
       toast.push(errorMessage(caught), "error");
     } finally {
       setAggregatingScorecard(false);
+    }
+  }
+
+  async function evaluateSkillsNow() {
+    if (evaluatingSkills) return;
+    setEvaluatingSkills(true);
+    try {
+      await client.post("/deepagents/learning/skill-promotions/evaluate-now", {});
+      toast.push("Promoter de skills encolado.", "success");
+    } catch (caught) {
+      toast.push(errorMessage(caught), "error");
+    } finally {
+      setEvaluatingSkills(false);
+    }
+  }
+
+  async function approveSkillPromotion(id: string) {
+    if (applyingPromotionId) return;
+    setApplyingPromotionId(id);
+    try {
+      const response = await client.post<{ skill_slug?: string; already_existed?: boolean }>(
+        `/deepagents/learning/skill-promotions/${id}/approve`,
+        {}
+      );
+      const slug = response?.skill_slug ?? "skill";
+      const already = response?.already_existed;
+      toast.push(
+        already
+          ? `Skill ${slug} ya estaba materializado.`
+          : `Skill ${slug} materializado.`,
+        "success"
+      );
+      void skillPromotions.refetch();
+    } catch (caught) {
+      toast.push(errorMessage(caught), "error");
+    } finally {
+      setApplyingPromotionId(null);
+    }
+  }
+
+  async function runReflectionNow() {
+    if (reflectingNow) return;
+    setReflectingNow(true);
+    try {
+      await client.post("/deepagents/learning/reflection/run-now", {});
+      toast.push("Reflexión nocturna encolada.", "success");
+    } catch (caught) {
+      toast.push(errorMessage(caught), "error");
+    } finally {
+      setReflectingNow(false);
     }
   }
 
@@ -546,6 +641,195 @@ export function MemoryView({ client }: { client: ApiClient }) {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+      </section>
+
+      {/* Fase 80 — Skill promotion proposals. */}
+      <section className="section" data-testid="skill-promotions-section">
+        <div className="section-head">
+          <h2>Promociones a skill ({skillPromotions.data?.length ?? 0})</h2>
+          <div className="row">
+            <button
+              className="primary"
+              disabled={evaluatingSkills}
+              onClick={evaluateSkillsNow}
+              type="button"
+            >
+              {evaluatingSkills ? "Evaluando…" : "Evaluar ahora"}
+            </button>
+            <button
+              className="ghost"
+              onClick={() => {
+                void skillPromotions.refetch();
+              }}
+              type="button"
+            >
+              Refrescar
+            </button>
+          </div>
+        </div>
+        <p className="muted small">
+          Procedures con ≥3 éxitos y &lt;30% de fallos se proponen como skills YAML.
+          Aprueba para materializar el archivo bajo{" "}
+          <code>storage/deepagents/skills/user/_auto/</code>.
+        </p>
+        {skillPromotions.data === undefined && <p className="muted">Cargando…</p>}
+        {skillPromotions.data && skillPromotions.data.length === 0 && (
+          <p className="muted small">
+            Sin promociones pendientes. El promoter corre diario a las 04:45 UTC.
+          </p>
+        )}
+        {skillPromotions.data && skillPromotions.data.length > 0 && (
+          <div className="stack">
+            {skillPromotions.data.map((promo) => (
+              <article
+                key={promo.proposal_id}
+                className="card"
+                data-testid="skill-promotion-card"
+              >
+                <header className="row" style={{ justifyContent: "space-between" }}>
+                  <div>
+                    <strong>{promo.skill_name ?? "(sin nombre)"}</strong>
+                    <span className="muted small" style={{ marginLeft: 8 }}>
+                      {promo.route ?? "yaml"} · memoria origen{" "}
+                      <code>{promo.source_memory_id?.slice(0, 8) ?? "—"}</code>
+                    </span>
+                  </div>
+                  <span className={statusClass(promo.status)}>{promo.status}</span>
+                </header>
+                <p className="small" style={{ marginTop: 6 }}>
+                  {promo.reason}
+                </p>
+                {promo.stats && (
+                  <p className="small muted">
+                    Éxitos: {promo.stats.success_count} · Fallos: {promo.stats.failure_count}
+                    {" · "}
+                    Failure rate: {(promo.stats.failure_rate * 100).toFixed(0)}%
+                  </p>
+                )}
+                <div className="row" style={{ marginTop: 8 }}>
+                  <button
+                    className="primary"
+                    disabled={
+                      promo.status !== "pending" || applyingPromotionId !== null
+                    }
+                    onClick={() => approveSkillPromotion(promo.proposal_id)}
+                    type="button"
+                  >
+                    {applyingPromotionId === promo.proposal_id
+                      ? "Materializando…"
+                      : "Aprobar (materializar)"}
+                  </button>
+                  <button
+                    className="danger"
+                    disabled={
+                      promo.status !== "pending" || decidingProposalId !== null
+                    }
+                    onClick={() => reject(promo.proposal_id)}
+                    type="button"
+                  >
+                    Rechazar
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Fase 81 — Nightly reflection. */}
+      <section className="section" data-testid="reflection-proposals-section">
+        <div className="section-head">
+          <h2>Reflexiones nocturnas ({reflections.data?.length ?? 0})</h2>
+          <div className="row">
+            <button
+              className="primary"
+              disabled={reflectingNow}
+              onClick={runReflectionNow}
+              type="button"
+            >
+              {reflectingNow ? "Encolando…" : "Reflexionar ahora"}
+            </button>
+            <button
+              className="ghost"
+              onClick={() => {
+                void reflections.refetch();
+              }}
+              type="button"
+            >
+              Refrescar
+            </button>
+          </div>
+        </div>
+        <p className="muted small">
+          Propuestas <code>preference</code> / <code>lesson</code> derivadas
+          de la conversación, con quote literal del transcript original como
+          evidencia.
+        </p>
+        {reflections.data === undefined && <p className="muted">Cargando…</p>}
+        {reflections.data && reflections.data.length === 0 && (
+          <p className="muted small">Sin reflexiones aún.</p>
+        )}
+        {reflections.data && reflections.data.length > 0 && (
+          <div className="stack">
+            {reflections.data.map((proposal) => (
+              <article
+                key={proposal.proposal_id}
+                className="card"
+                data-testid="reflection-proposal-card"
+              >
+                <header className="row" style={{ justifyContent: "space-between" }}>
+                  <div>
+                    <strong>{proposal.kind}</strong>
+                    <span className="muted small" style={{ marginLeft: 8 }}>
+                      conf {(proposal.confidence ?? 0).toFixed(2)} · scope{" "}
+                      {proposal.scope}
+                    </span>
+                  </div>
+                  <span className={statusClass(proposal.status)}>{proposal.status}</span>
+                </header>
+                <p className="small" style={{ marginTop: 6 }}>
+                  {proposal.proposed_content}
+                </p>
+                {proposal.evidence_quotes && proposal.evidence_quotes.length > 0 && (
+                  <details>
+                    <summary className="small">
+                      Evidencia ({proposal.evidence_quotes.length})
+                    </summary>
+                    <ul className="small">
+                      {proposal.evidence_quotes.map((quote, idx) => (
+                        <li key={idx}>
+                          <em>“{quote}”</em>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+                <div className="row" style={{ marginTop: 8 }}>
+                  <button
+                    className="primary"
+                    disabled={
+                      proposal.status !== "pending" || decidingProposalId !== null
+                    }
+                    onClick={() => approve(proposal.proposal_id)}
+                    type="button"
+                  >
+                    Aprobar
+                  </button>
+                  <button
+                    className="danger"
+                    disabled={
+                      proposal.status !== "pending" || decidingProposalId !== null
+                    }
+                    onClick={() => reject(proposal.proposal_id)}
+                    type="button"
+                  >
+                    Rechazar
+                  </button>
+                </div>
+              </article>
+            ))}
           </div>
         )}
       </section>
