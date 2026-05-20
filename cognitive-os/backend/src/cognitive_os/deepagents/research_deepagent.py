@@ -161,6 +161,22 @@ def _skills_and_memory(task: DeepAgentTask, agent_name: str) -> tuple[list[str],
         )
     except Exception:
         startup_memory = None
+    # Fase 79.4: append the tool reliability scorecard so the agent has a
+    # quick reference of which tools are trustworthy. We do this here (and
+    # not inside DeepAgentMemoryService.get_startup_memory) because the
+    # scorecard is a *derived* rollup, not a structured memory record.
+    try:
+        from cognitive_os.deepagents.tool_scorecard import (  # noqa: PLC0415
+            render_scorecard_for_prompt,
+        )
+
+        scorecard_section = asyncio.run(render_scorecard_for_prompt(agent_role=agent_name))
+    except Exception:
+        scorecard_section = ""
+    if scorecard_section:
+        startup_memory = (
+            f"{startup_memory}\n\n{scorecard_section}" if startup_memory else scorecard_section
+        )
     return skills_paths, startup_memory
 
 

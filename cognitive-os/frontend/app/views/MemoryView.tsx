@@ -65,11 +65,33 @@ export function MemoryView({ client }: { client: ApiClient }) {
     "/deepagents/memory/recipes",
     15000
   );
+  const warnings = usePolledFetch<DeepAgentMemoryProposal[]>(
+    client,
+    "/deepagents/memory/warnings",
+    15000
+  );
+  type ScorecardRow = {
+    id: string;
+    agent_role: string;
+    tool_name: string;
+    period_start: string;
+    invoke_count: number;
+    success_count: number;
+    failure_count: number;
+    reliability_score: number | null;
+  };
+  const scorecard = usePolledFetch<ScorecardRow[]>(
+    client,
+    "/deepagents/learning/tool-scorecard?days=14&limit=100",
+    30000
+  );
   const [exported, setExported] = useState<unknown>(null);
   const [decidingProposalId, setDecidingProposalId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [consolidating, setConsolidating] = useState(false);
   const [extractingRecipes, setExtractingRecipes] = useState(false);
+  const [scanningFailures, setScanningFailures] = useState(false);
+  const [aggregatingScorecard, setAggregatingScorecard] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
@@ -79,6 +101,10 @@ export function MemoryView({ client }: { client: ApiClient }) {
   const pendingRecipes = useMemo<DeepAgentMemoryProposal[]>(
     () => (recipes.data ?? []).filter((p) => p.status === "pending"),
     [recipes.data]
+  );
+  const pendingWarnings = useMemo<DeepAgentMemoryProposal[]>(
+    () => (warnings.data ?? []).filter((p) => p.status === "pending"),
+    [warnings.data]
   );
 
   async function approve(id: string) {
@@ -152,6 +178,32 @@ export function MemoryView({ client }: { client: ApiClient }) {
       toast.push(errorMessage(caught), "error");
     } finally {
       setExtractingRecipes(false);
+    }
+  }
+
+  async function scanFailuresNow() {
+    if (scanningFailures) return;
+    setScanningFailures(true);
+    try {
+      await client.post("/deepagents/memory/warnings/scan-now", {});
+      toast.push("Scanner de fallos encolado.", "success");
+    } catch (caught) {
+      toast.push(errorMessage(caught), "error");
+    } finally {
+      setScanningFailures(false);
+    }
+  }
+
+  async function aggregateScorecardNow() {
+    if (aggregatingScorecard) return;
+    setAggregatingScorecard(true);
+    try {
+      await client.post("/deepagents/learning/tool-scorecard/aggregate-now", {});
+      toast.push("Scorecard agregación encolada.", "success");
+    } catch (caught) {
+      toast.push(errorMessage(caught), "error");
+    } finally {
+      setAggregatingScorecard(false);
     }
   }
 
@@ -351,6 +403,151 @@ export function MemoryView({ client }: { client: ApiClient }) {
             );
           })}
         </div>
+      </section>
+
+      {/* Fase 79.3 — Warnings (failure-recovery patterns). */}
+      <section className="section" data-testid="warning-proposals-section">
+        <div className="section-head">
+          <h2>Warnings detectadas ({pendingWarnings.length})</h2>
+          <div className="row">
+            <button
+              className="primary"
+              disabled={scanningFailures}
+              onClick={scanFailuresNow}
+              type="button"
+            >
+              {scanningFailures ? "Encolando…" : "Escanear ahora"}
+            </button>
+            <button
+              className="ghost"
+              onClick={() => {
+                void warnings.refetch();
+              }}
+              type="button"
+            >
+              Refrescar
+            </button>
+          </div>
+        </div>
+        <p className="muted small">
+          Patrones <code>tool_failed → tool_succeeded</code> detectados en jobs recientes.
+          El scanner auto-promueve después de 3 observaciones sin rechazos.
+        </p>
+        {warnings.data === undefined && <p className="muted">Cargando…</p>}
+        {pendingWarnings.length === 0 && warnings.data !== undefined && (
+          <p className="muted small">Sin warnings pendientes.</p>
+        )}
+        <div className="stack">
+          {pendingWarnings.map((proposal) => (
+            <article key={proposal.proposal_id} className="card">
+              <header className="row" style={{ justifyContent: "space-between" }}>
+                <div>
+                  <strong>{proposal.proposed_by_agent}</strong>
+                  <span className="muted small" style={{ marginLeft: 8 }}>
+                    confianza {proposal.confidence?.toFixed(2) ?? "?"}
+                  </span>
+                </div>
+                <span className={statusClass(proposal.status)}>{proposal.status}</span>
+              </header>
+              <p className="small" style={{ marginTop: 8 }}>{proposal.proposed_content}</p>
+              <div className="row" style={{ marginTop: 8 }}>
+                <button
+                  className="primary"
+                  disabled={proposal.status !== "pending" || decidingProposalId !== null}
+                  onClick={() => approve(proposal.proposal_id)}
+                  type="button"
+                >
+                  Aprobar
+                </button>
+                <button
+                  className="danger"
+                  disabled={proposal.status !== "pending" || decidingProposalId !== null}
+                  onClick={() => reject(proposal.proposal_id)}
+                  type="button"
+                >
+                  Rechazar
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {/* Fase 79.4 — Tool effectiveness scorecard. */}
+      <section className="section" data-testid="scorecard-section">
+        <div className="section-head">
+          <h2>Scorecard de tools ({scorecard.data?.length ?? 0})</h2>
+          <div className="row">
+            <button
+              className="primary"
+              disabled={aggregatingScorecard}
+              onClick={aggregateScorecardNow}
+              type="button"
+            >
+              {aggregatingScorecard ? "Encolando…" : "Agregar ahora"}
+            </button>
+            <button
+              className="ghost"
+              onClick={() => {
+                void scorecard.refetch();
+              }}
+              type="button"
+            >
+              Refrescar
+            </button>
+          </div>
+        </div>
+        <p className="muted small">
+          Confiabilidad por (agente, tool) — últimos 14 días.
+          <code> reliability = 0.5·success + 0.3·downstream + 0.2·approval</code>
+        </p>
+        {scorecard.data === undefined && <p className="muted">Cargando…</p>}
+        {scorecard.data && scorecard.data.length === 0 && (
+          <p className="muted small">Sin datos aún. El aggregator corre diario a las 04:15 UTC.</p>
+        )}
+        {scorecard.data && scorecard.data.length > 0 && (
+          <div className="table-wrap">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Agente</th>
+                  <th>Tool</th>
+                  <th style={{ textAlign: "right" }}>Score</th>
+                  <th style={{ textAlign: "right" }}>OK/Fail</th>
+                  <th>Periodo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {scorecard.data.map((row) => {
+                  const score = row.reliability_score;
+                  const badge =
+                    score === null || score === undefined
+                      ? "—"
+                      : score >= 0.85
+                        ? `✅ ${score.toFixed(2)}`
+                        : score <= 0.5
+                          ? `⚠️ ${score.toFixed(2)}`
+                          : score.toFixed(2);
+                  return (
+                    <tr key={row.id}>
+                      <td>{row.agent_role}</td>
+                      <td>
+                        <code>{row.tool_name}</code>
+                      </td>
+                      <td style={{ textAlign: "right" }}>{badge}</td>
+                      <td style={{ textAlign: "right" }}>
+                        {row.success_count}/{row.failure_count}
+                      </td>
+                      <td className="muted small">
+                        {row.period_start.slice(0, 10)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       {exported !== null && (

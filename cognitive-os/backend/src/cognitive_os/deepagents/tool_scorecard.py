@@ -332,6 +332,80 @@ async def list_recent_scorecard(*, days: int = 7, limit: int = 200) -> list[dict
         return [_serialize(row) for row in result.scalars().all()]
 
 
+async def render_scorecard_for_prompt(
+    *,
+    agent_role: str,
+    days: int = 14,
+    high_conf_threshold: float = 0.85,
+    low_conf_threshold: float = 0.50,
+    min_invocations: int = 5,
+) -> str:
+    """Render a compact "Confiabilidad de tools" section for the agent prompt.
+
+    Returns an empty string when the rollup has no data for ``agent_role`` —
+    callers should treat that as "no signal yet" and not inject anything.
+
+    Two buckets:
+    * ``high_conf`` (✅) — reliability ≥ ``high_conf_threshold``.
+    * ``low_conf`` (⚠️) — reliability ≤ ``low_conf_threshold`` AND
+      ``invoke_count >= min_invocations`` (filter out noise).
+
+    The text is intentionally short (< 1 KB) so it fits comfortably inside
+    the system prompt budget. (Fase 79.4 — Fase C.)
+    """
+    cutoff = datetime.now(UTC) - timedelta(days=max(1, days))
+    async with session_scope() as session:
+        result = await session.execute(
+            select(ToolInvocationMetric)
+            .where(
+                and_(
+                    ToolInvocationMetric.agent_role == agent_role,
+                    ToolInvocationMetric.period_start >= cutoff,
+                    ToolInvocationMetric.reliability_score.isnot(None),
+                )
+            )
+            .order_by(ToolInvocationMetric.reliability_score.desc().nulls_last())
+        )
+        rows = list(result.scalars().all())
+    if not rows:
+        return ""
+    # Aggregate across periods so the operator sees one entry per tool.
+    by_tool: dict[str, ToolInvocationMetric] = {}
+    for row in rows:
+        if row.tool_name not in by_tool:
+            by_tool[row.tool_name] = row
+    high_conf = [
+        r
+        for r in by_tool.values()
+        if r.reliability_score is not None and r.reliability_score >= high_conf_threshold
+    ]
+    low_conf = [
+        r
+        for r in by_tool.values()
+        if r.reliability_score is not None
+        and r.reliability_score <= low_conf_threshold
+        and r.invoke_count >= min_invocations
+    ]
+    if not high_conf and not low_conf:
+        return ""
+    lines = ["## Confiabilidad de tools (últimos 14 días)"]
+    if high_conf:
+        lines.append("Tools confiables (úsalos primero):")
+        for row in high_conf[:8]:
+            lines.append(
+                f"- ✅ {row.tool_name} — éxito {row.success_count}/{row.invoke_count} "
+                f"(score {row.reliability_score:.2f})"
+            )
+    if low_conf:
+        lines.append("Tools con baja confiabilidad reciente (úsalos con cuidado):")
+        for row in low_conf[:8]:
+            lines.append(
+                f"- ⚠️ {row.tool_name} — éxito {row.success_count}/{row.invoke_count} "
+                f"(score {row.reliability_score:.2f})"
+            )
+    return "\n".join(lines)
+
+
 def _serialize(row: ToolInvocationMetric) -> dict[str, Any]:
     return {
         "id": str(row.id),
