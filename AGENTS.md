@@ -238,3 +238,35 @@ Stack ejecutables de escritorio (control diario sin tocar terminal):
 Si un comando no existe, no lo inventes. Detecta scripts reales en
 `pyproject.toml`, `package.json`, `Makefile`, `docs/RUNBOOK.md` o CI antes de
 ejecutar.
+
+<!-- CODEX_CLAUDE_SUPERVISION_START -->
+
+## Codex role in this repository
+
+Codex is the auditor, repair architect, and supervisor.
+
+When the user requests a complete audit or repair-supervision workflow, use:
+
+.codex/skills/comprehensive-project-audit/SKILL.md
+
+Codex should:
+- audit the repository
+- produce evidence-based findings
+- generate a remediation prompt addressed directly to Claude Code
+- not perform the main implementation unless explicitly asked
+- review Claude Code's changes after implementation
+- approve or reject based on diff, tests, and evidence
+
+## Claude Code handoff rule
+
+When generating instructions for Claude Code:
+- speak directly to Claude Code
+- include exact constraints
+- include ordered implementation phases
+- include files likely involved
+- include tests and commands
+- include acceptance criteria
+- include stop conditions
+- forbid unrelated changes
+
+<!-- CODEX_CLAUDE_SUPERVISION_END -->

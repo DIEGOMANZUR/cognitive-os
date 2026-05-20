@@ -251,6 +251,21 @@ export type KnowledgeStats = {
   approvals_pending: number;
 };
 
+export type MCPServerStatus = {
+  name: string;
+  transport: string;
+  target: string;
+  connected: boolean;
+  tools_count: number;
+  error?: string | null;
+};
+
+export type MCPInventory = {
+  enabled: boolean;
+  declared_count: number;
+  servers: MCPServerStatus[];
+};
+
 export type ReadinessGap = {
   env_var: string;
   current_value: string;

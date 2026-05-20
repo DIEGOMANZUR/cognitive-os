@@ -145,6 +145,17 @@ def compute_readiness(app_settings: Settings | None = None) -> ReadinessReport:
                     "MAIL_REQUIRE_APPROVAL_FOR_SEND=true por irreversibilidad)."
                 ),
             ),
+            _gap_if(
+                not s.enable_mcp_client,
+                env_var="ENABLE_MCP_CLIENT",
+                current="false",
+                suggested="true",
+                capability=(
+                    "Cliente MCP: el DeepAgent carga tools dinámicas desde "
+                    "servidores MCP declarados en MCP_SERVERS (Supermemory, "
+                    "GitHub, filesystem propio, etc.)."
+                ),
+            ),
         ]
     else:
         # strict: las gaps son a la inversa — alertamos si algo se aflojó.

@@ -817,6 +817,63 @@ async def system_readiness(
     return compute_readiness()
 
 
+class MCPServerStatusResponse(BaseModel):
+    name: str
+    transport: str
+    target: str
+    connected: bool
+    tools_count: int
+    error: str | None = None
+
+
+class MCPInventoryResponse(BaseModel):
+    enabled: bool
+    declared_count: int
+    servers: list[MCPServerStatusResponse]
+
+
+@app.get("/system/mcp", response_model=MCPInventoryResponse)
+async def system_mcp_inventory(
+    user: AuthenticatedUser = _auth_dependency,
+) -> MCPInventoryResponse:
+    """List configured MCP servers, their connection status and tool count.
+
+    Calls each server's `tools/list` RPC so the report reflects real
+    connectivity, not just the parsed `.env`. Servers that fail report
+    `connected=false` + a short error string — no exception escapes the
+    handler. (Fase 73 D.)
+    """
+    del user
+    from cognitive_os.integrations.mcp_client import (  # noqa: PLC0415
+        load_mcp_tools_async,
+        parse_mcp_servers,
+    )
+
+    declared = parse_mcp_servers(settings.mcp_servers)
+    if not settings.enable_mcp_client or not declared:
+        return MCPInventoryResponse(
+            enabled=settings.enable_mcp_client,
+            declared_count=len(declared),
+            servers=[],
+        )
+    _tools, statuses = await load_mcp_tools_async(settings)
+    return MCPInventoryResponse(
+        enabled=True,
+        declared_count=len(declared),
+        servers=[
+            MCPServerStatusResponse(
+                name=s.name,
+                transport=s.transport,
+                target=s.target,
+                connected=s.connected,
+                tools_count=s.tools_count,
+                error=s.error,
+            )
+            for s in statuses
+        ],
+    )
+
+
 @app.get(
     "/system/credentials-status",
     response_model=CredentialsInventoryResponse,

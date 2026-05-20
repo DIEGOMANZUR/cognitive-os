@@ -219,6 +219,7 @@ def build_deepagent_tools(
     note_index: NoteIndexService | None = None,
     webbridge_service: KimiWebBridgeService | None = None,
     captcha_service: CaptchaSolverService | None = None,
+    mcp_tools: Sequence[Any] | None = None,
 ) -> list[StructuredTool]:
     """Build the controlled DeepAgent tool list.
 
@@ -512,6 +513,12 @@ def build_deepagent_tools(
             ),
         ),
     ]
+    # Fase 73 C: append MCP tools (already StructuredTool-compatible from
+    # langchain_mcp_adapters). Names are prefixed `<server>_<tool>` upstream
+    # so they never collide with our 21 built-ins. Empty / None when the
+    # operator hasn't enabled the MCP client.
+    if mcp_tools:
+        tools.extend(mcp_tools)
     return tools
 
 

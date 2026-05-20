@@ -91,6 +91,7 @@
 | `enable_google_drive_write` | `ENABLE_GOOGLE_DRIVE_WRITE` | bool |
 | `enable_kimi_webbridge` | `ENABLE_KIMI_WEBBRIDGE` | bool |
 | `enable_maps_routing` | `ENABLE_MAPS_ROUTING` | bool |
+| `enable_mcp_client` | `ENABLE_MCP_CLIENT` | bool |
 | `enable_openharness_research` | `ENABLE_OPENHARNESS_RESEARCH` | bool |
 | `enable_openshell_sandbox` | `ENABLE_OPENSHELL_SANDBOX` | bool |
 | `enable_personal_assistant_api` | `ENABLE_PERSONAL_ASSISTANT_API` | bool |
@@ -161,6 +162,10 @@
 | `mail_smtp_timeout_seconds` | `MAIL_SMTP_TIMEOUT_SECONDS` | int |
 | `maps_default_travel_mode` | `MAPS_DEFAULT_TRAVEL_MODE` | Literal[driving, walking, bicycling, transit] |
 | `maton_api_key` | `MATON_API_KEY` | SecretStr |
+| `mcp_allowed_for_document_analysis` | `MCP_ALLOWED_FOR_DOCUMENT_ANALYSIS` | list[str] |
+| `mcp_allowed_for_research` | `MCP_ALLOWED_FOR_RESEARCH` | list[str] |
+| `mcp_call_timeout_seconds` | `MCP_CALL_TIMEOUT_SECONDS` | int |
+| `mcp_servers` | `MCP_SERVERS` | list[str] |
 | `microsoft_client_id` | `MICROSOFT_CLIENT_ID` | str |
 | `microsoft_client_secret` | `MICROSOFT_CLIENT_SECRET` | SecretStr |
 | `microsoft_mail_enabled` | `MICROSOFT_MAIL_ENABLED` | bool |

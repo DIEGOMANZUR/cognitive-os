@@ -17,6 +17,7 @@ from cognitive_os.deepagents.schemas import (
     DeepAgentWorkspace,
 )
 from cognitive_os.deepagents.skills_registry import DeepAgentSkillsRegistry
+from cognitive_os.integrations.mcp_client import load_mcp_tools_for_role_sync as _load_mcp_tools_for
 from cognitive_os.tools.policy import ToolAuditRecord, ToolRiskLevel, record_audit_event
 
 SYSTEM_PROMPT_RESEARCH = """
@@ -80,6 +81,7 @@ def run_research_deepagent(task: DeepAgentTask) -> DeepAgentResult:
     workspace = create_workspace(task)
     policy = research_policy(task)
     skills_paths, startup_memory = _skills_and_memory(task, "research")
+    mcp_tools = _load_mcp_tools_for("research")
     agent = create_controlled_deep_agent(
         task,
         policy,
@@ -87,6 +89,7 @@ def run_research_deepagent(task: DeepAgentTask) -> DeepAgentResult:
         system_prompt=SYSTEM_PROMPT_RESEARCH,
         skills_paths=skills_paths,
         startup_memory=startup_memory,
+        mcp_tools=mcp_tools,
     )
     raw_output = agent.invoke(
         {

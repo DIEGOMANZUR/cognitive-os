@@ -2627,3 +2627,73 @@ operativa esconde fricción + métricas falsas + componentes que mienten.
   comando concreto por cada flag bloqueado en .env. Verificado: el
   operador puede leer en tiempo real qué capacidad está bloqueada y
   cómo desbloquearla, sin abrir docs.
+
+## 2026-05-19 — Fase 73 — Cliente MCP nativo (DeepAgent carga tools dinámicas)
+
+Pedido del operador: cablear cliente MCP para que el DeepAgent consuma
+servidores MCP externos (Supermemory, GitHub, filesystem propio) como
+tools adicionales sin tocar código. Implementado en 4 pasos + cierre:
+
+- **F73-A dep + settings:** agregado `langchain-mcp-adapters>=0.1.0` (resuelve
+  a 0.2.2) que ya trae `mcp 1.27.1` como dep transitiva. Settings nuevos:
+  `ENABLE_MCP_CLIENT` (default false), `MCP_SERVERS` (CSV con sintaxis
+  `name:transport:target[::extra=v,...]`), `MCP_CALL_TIMEOUT_SECONDS=30`,
+  `MCP_ALLOWED_FOR_RESEARCH` / `MCP_ALLOWED_FOR_DOCUMENT_ANALYSIS`
+  (allowlists por subgraph). Readiness diagnostic agrega `ENABLE_MCP_CLIENT`
+  como gap nuevo (subió de 8 a 9 capacidades en el reporte).
+
+- **F73-B `integrations/mcp_client.py`:** parser de la string DSL +
+  loader async `load_mcp_tools_async(settings)` que usa
+  `MultiServerMCPClient` con `tool_name_prefix=True` (tools quedan como
+  `<server>_<toolname>`, sin colisiones). Soporta `sse`, `streamable_http`,
+  `websocket` (URL) y `stdio` (cmd + extras `cwd=`, `env_FOO=`). Fail-open
+  por server: un server caído logea warning y se skipea, los demás siguen.
+  Wrapper sync `load_mcp_tools_for_role_sync(role)` que ejecuta el async
+  en su propio loop o thread (Celery/Telegram pueden llamarlo). Solo carga
+  bajo `OPERATOR_PROFILE=dedicated_local` para no exponer credenciales
+  del operador en deployments multi-tenant.
+
+- **F73-C inyección al DeepAgent:** `build_deepagent_tools` y
+  `create_controlled_deep_agent` aceptan `mcp_tools: Sequence[Any] | None`.
+  `research_deepagent` y `document_deepagent` llaman al sync wrapper y
+  passan las tools al factory. Si MCP está off o falla, el DeepAgent
+  arranca con las 21 built-ins solamente — nunca rompe.
+
+- **F73-D endpoint + UI tile + tests:** `GET /system/mcp` retorna por
+  server `{name, transport, target, connected, tools_count, error}`.
+  Tile en `SettingsView` lista los servers conectados con badge ok/warn.
+  Tests nuevos (8) en `tests/test_mcp_client.py`: parser SSE, parser stdio
+  con extras, parser drops invalid decls, allowlist empty/match, async
+  disabled returns empty, async per-server failure isolation, sync wrapper
+  short-circuit en strict profile.
+
+**Cambio colateral pre-existente:** `test_openharness_empty_query_skipped`
+ya estaba roto en main (commit `8e46c4c`) — el test asumía que el reason
+sería `empty_query` pero el código corto-circuita antes en
+`openharness_not_installed` cuando el paquete `openharness-ai` no está
+presente (extra opcional, no instalado por default). Lo arreglo aceptando
+ambos reasons como válidos.
+
+**Verificación final post-Fase 73:**
+
+- `uv run pytest -q` → **711 passed, 1 skipped, 20 deselected, 3 warnings**
+  (+8 vs Fase 72: 7 tests MCP nuevos + el fix del test pre-existente).
+- `ruff check + format`, `mypy src` → todo verde (232 files, 128 modules).
+- `npm run lint + npm run build` (frontend) → verde.
+- Stack reiniciado: docker 4/4 + api + worker + beat + frontend(:3001)
+  + telegram + kimi. `/health/dashboard` → **overall=ok, 16 componentes ✅**.
+- `GET /system/mcp` → `enabled=false, declared_count=0` (correcto: el
+  operador todavía no declaró servers). Listo para producción cuando
+  Diego ponga `ENABLE_MCP_CLIENT=true` y `MCP_SERVERS=...` en .env.
+
+**Cómo lo usa el operador (paso a paso):**
+
+1. En `.env` poné `ENABLE_MCP_CLIENT=true` y declará servers:
+   ```
+   MCP_SERVERS=mem:sse:https://api.supermemory.ai/mcp::header_Authorization=Bearer\ <token>,fs:stdio:/usr/bin/mcp-fs --root /home/jgonz/Escritorio
+   ```
+2. (Opcional) Restringí por subgraph: `MCP_ALLOWED_FOR_RESEARCH=mem` /
+   `MCP_ALLOWED_FOR_DOCUMENT_ANALYSIS=fs,mem`. Vacío = expone todas.
+3. Reiniciá el stack. El DeepAgent ahora ve las tools MCP además de las
+   21 built-ins. En el panel: `Settings` → tile "MCP servers" muestra
+   cuáles están conectados y cuántas tools expone cada uno.

@@ -7,6 +7,9 @@ from cognitive_os.deepagents.research_deepagent import (
     create_workspace,
 )
 from cognitive_os.deepagents.schemas import DeepAgentResult, DeepAgentTask, DeepAgentToolPolicy
+from cognitive_os.integrations.mcp_client import (
+    load_mcp_tools_for_role_sync as _load_mcp_tools_for,
+)
 
 SYSTEM_PROMPT_DOCUMENT = """
 Eres un subagente de analisis documental largo dentro de Cognitive OS.
@@ -51,6 +54,7 @@ def run_document_analysis_deepagent(task: DeepAgentTask) -> DeepAgentResult:
         allow_kimi_webbridge=allow_bridge,
     )
     skills_paths, startup_memory = _skills_and_memory(task, "document_analysis")
+    mcp_tools = _load_mcp_tools_for("document_analysis")
     agent = create_controlled_deep_agent(
         task,
         policy,
@@ -58,6 +62,7 @@ def run_document_analysis_deepagent(task: DeepAgentTask) -> DeepAgentResult:
         system_prompt=SYSTEM_PROMPT_DOCUMENT,
         skills_paths=skills_paths,
         startup_memory=startup_memory,
+        mcp_tools=mcp_tools,
     )
     raw_output = agent.invoke(
         {

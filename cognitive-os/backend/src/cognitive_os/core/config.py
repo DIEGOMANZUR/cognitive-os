@@ -857,6 +857,34 @@ class Settings(BaseSettings):
     # to terminal) without forever-skewing /knowledge/stats. (Fase 72 C.)
     stale_job_max_hours: int = Field(default=24, ge=1, le=168, alias="STALE_JOB_MAX_HOURS")
 
+    # MCP client (Fase 73). When enabled, the DeepAgent dynamically loads
+    # tools from operator-declared MCP servers (Supermemory, GitHub, etc.)
+    # in addition to the 21 built-in tools.
+    #
+    # `MCP_SERVERS` syntax (CSV of declarations):
+    #
+    #   <name>:<transport>:<target>[:<extra>=<value>,...]
+    #
+    # Transports:
+    #   - `sse`        → target is a URL  (e.g. `mem:sse:http://localhost:9001/sse`)
+    #   - `streamable_http` → target is a URL of an HTTP streaming MCP server
+    #   - `stdio`      → target is the command to run (shell-style;
+    #                     extras `cwd=`, `env_KEY=VAL`)
+    #
+    # The MCP allow-list per agent role lets the operator decide which
+    # servers reach which subgraph. Empty list = ALL configured servers.
+    enable_mcp_client: bool = Field(default=False, alias="ENABLE_MCP_CLIENT")
+    mcp_servers: StringList = Field(default_factory=list, alias="MCP_SERVERS")
+    mcp_call_timeout_seconds: int = Field(
+        default=30, ge=1, le=600, alias="MCP_CALL_TIMEOUT_SECONDS"
+    )
+    mcp_allowed_for_research: StringList = Field(
+        default_factory=list, alias="MCP_ALLOWED_FOR_RESEARCH"
+    )
+    mcp_allowed_for_document_analysis: StringList = Field(
+        default_factory=list, alias="MCP_ALLOWED_FOR_DOCUMENT_ANALYSIS"
+    )
+
     code_director_package_max_files: int = Field(
         default=10_000, ge=1, alias="CODE_DIRECTOR_PACKAGE_MAX_FILES"
     )

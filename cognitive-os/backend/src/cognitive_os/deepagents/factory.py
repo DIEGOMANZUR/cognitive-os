@@ -38,6 +38,7 @@ def create_controlled_deep_agent(
     startup_memory: str | None = None,
     memory_paths: list[str] | None = None,
     tools: list[Any] | None = None,
+    mcp_tools: list[Any] | None = None,
     response_format: Any | None = None,
 ) -> Any:
     workspace.root_dir.mkdir(parents=True, exist_ok=True)
@@ -46,6 +47,7 @@ def create_controlled_deep_agent(
         workspace=workspace,
         allowed_doc_ids=task.allowed_doc_ids,
         user_id=task.user_id,
+        mcp_tools=mcp_tools,
     )
     backend = FilesystemBackend(
         root_dir=workspace.root_dir,

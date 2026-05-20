@@ -21,6 +21,7 @@ dependencies = [
     "pillow>=12.2.0",
     "pytesseract>=0.3.13",
     "langchain-text-splitters>=1.1.2",
+    "langchain-mcp-adapters>=0.1.0",
     "reportlab>=4.5.0",
     "celery[redis]>=5.4",
     "langgraph>=1.1.10",

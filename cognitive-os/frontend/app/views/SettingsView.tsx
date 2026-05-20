@@ -9,6 +9,7 @@ import { useToast } from "../lib/toasts";
 import type {
   ActionCapabilityStatus,
   ActionRequestView,
+  MCPInventory,
   PublicConfig,
   ReadinessReport,
   Theme
@@ -37,6 +38,7 @@ export function SettingsView({
     "/system/readiness",
     60000
   );
+  const mcpInventory = usePolledFetch<MCPInventory>(client, "/system/mcp", 60000);
   const capabilities = usePolledFetch<ActionCapabilityStatus[]>(
     client,
     "/actions/capabilities",
@@ -112,6 +114,42 @@ export function SettingsView({
           </button>
         </div>
       </section>
+
+      {mcpInventory.data && mcpInventory.data.enabled && (
+        <section className="section stack">
+          <div className="section-head">
+            <h2>MCP servers</h2>
+            <span className="muted small">
+              {mcpInventory.data.servers.filter((s) => s.connected).length}/
+              {mcpInventory.data.declared_count} conectados
+            </span>
+          </div>
+          {mcpInventory.data.servers.length === 0 ? (
+            <p className="muted small">
+              <code>ENABLE_MCP_CLIENT=true</code> pero no hay servers declarados en{" "}
+              <code>MCP_SERVERS</code>.
+            </p>
+          ) : (
+            <ul className="small" style={{ paddingLeft: "1.2rem", margin: 0 }}>
+              {mcpInventory.data.servers.map((server) => (
+                <li key={server.name} style={{ marginBottom: "0.4rem" }}>
+                  <span className={server.connected ? "badge ok" : "badge warn"}>
+                    {server.connected ? "OK" : "fallo"}
+                  </span>{" "}
+                  <code>{server.name}</code> ({server.transport}) ·{" "}
+                  <span className="muted">{server.target}</span>
+                  <br />
+                  <span className="muted">
+                    {server.connected
+                      ? `${server.tools_count} tool(s) expuestas al DeepAgent`
+                      : (server.error ?? "sin detalle")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       {readiness.data && readiness.data.gaps.length > 0 && (
         <section className="section stack">
