@@ -178,9 +178,11 @@ def test_computer_organize_plan_is_preview_only(tmp_path: Path) -> None:
     (root / "unknown.bin").write_text("bin", encoding="utf-8")
     service = ComputerActionService(
         Settings(
+            _env_file=None,
             enable_computer_actions=True,
             computer_allowed_roots=[str(tmp_path)],
             computer_max_files_per_plan=10,
+            computer_organize_dry_run_only=True,
         )
     )
 

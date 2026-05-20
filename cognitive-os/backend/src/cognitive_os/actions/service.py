@@ -61,12 +61,19 @@ _ACTIVE_STATUSES: tuple[str, ...] = (
 
 # Action types that the dedicated_local profile is allowed to auto-approve.
 # Reversible and scoped to the agent's own workspace — no external comms, no
-# write over existing third-party data. Drive organize/upload-to-foreign-folder,
+# write over existing third-party data. Drive organize over foreign data,
 # mail send, browser, openshell and code_build stay manual on purpose.
+#
+# `computer_organize`: Fase 73 amplía la whitelist al filesystem local del
+# operador. En dedicated_local el PC pertenece al agente y mover/renombrar
+# archivos NO es irreversible — siguen en el disco, sólo cambian de path —
+# así que pedirlo cada vez era pura fricción. El plan completo (`preview`)
+# queda persistido en el `ActionRequest` para auditar después.
 _AUTO_APPROVABLE_REVERSIBLE_ACTIONS: frozenset[str] = frozenset(
     {
         "drive_ensure_folder",
         "drive_upload",
+        "computer_organize",
     }
 )
 
