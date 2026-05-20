@@ -1199,6 +1199,23 @@ class Settings(BaseSettings):
         ),
     )
 
+    # ------------------------------------------------------------------
+    # Fase 79.4 — Tool effectiveness scorecard (Fase C of the learning plan).
+    #
+    # Daily Celery aggregator that rolls up tool_invoked/succeeded/failed
+    # events into per-(agent_role, tool_name, day) counters with a derived
+    # reliability score. Powers the future "Reliability of tools" section
+    # of the system prompt and the new "Aprendizaje" UI tab.
+    # ------------------------------------------------------------------
+    tool_scorecard_enabled: bool = Field(
+        default=True,
+        alias="TOOL_SCORECARD_ENABLED",
+    )
+    tool_scorecard_cron: str = Field(
+        default="15 4 * * *",  # daily, 04:15 UTC (after failure-postmortem)
+        alias="TOOL_SCORECARD_CRON",
+    )
+
     recipe_extractor_eligible_job_types: StringList = Field(
         default=[
             "deepagent_research",

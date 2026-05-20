@@ -33,6 +33,9 @@ from cognitive_os.deepagents.recipe_extractor import extract_pending_recipes
 from cognitive_os.deepagents.research_deepagent import create_workspace
 from cognitive_os.deepagents.schemas import DeepAgentTask
 from cognitive_os.deepagents.service import run_deepagent_task
+from cognitive_os.deepagents.tool_scorecard import (
+    aggregate_previous_day as aggregate_tool_scorecard,
+)
 from cognitive_os.ingestion.pipeline import DocumentIngestionPipeline
 from cognitive_os.integrations.telegram_notify import send_telegram_markdown
 from cognitive_os.mail.service import PersonalMailService
@@ -893,6 +896,19 @@ def reap_stale_running_jobs_task() -> dict[str, int]:
 @celery_app.task(name="cognitive_os.deliver_personal_reminders")
 def deliver_personal_reminders_task() -> dict[str, Any]:
     return _run(deliver_personal_task_reminders(settings))
+
+
+@celery_app.task(name="cognitive_os.aggregate_tool_scorecard")
+def aggregate_tool_scorecard_task() -> dict[str, Any]:
+    """Beat target for Fase 79.4: roll up yesterday's tool events into the
+    `tool_invocation_metrics` rollup table.
+
+    Idempotent: UPSERT per (agent_role, tool_name, period_start). Safe to
+    backfill by re-running on overlapping windows.
+    """
+    if not settings.tool_scorecard_enabled:
+        return {"skipped": True, "reason": "TOOL_SCORECARD_ENABLED=false"}
+    return _run(aggregate_tool_scorecard())
 
 
 @celery_app.task(name="cognitive_os.scan_failure_postmortems")

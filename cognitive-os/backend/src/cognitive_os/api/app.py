@@ -200,6 +200,7 @@ from cognitive_os.memory.retrieval import RetrievedContext, retrieve_context
 from cognitive_os.voice.schemas import SpeakRequest, TranscriptionResult, VoiceStatus
 from cognitive_os.voice.service import VoiceError, VoiceService
 from cognitive_os.workers.tasks import (
+    aggregate_tool_scorecard_task,
     consolidate_all_deepagent_memory_task,
     extract_pending_recipes_task,
     ingest_pdf_task,
@@ -3192,6 +3193,39 @@ async def trigger_failure_postmortem_scan(
     """
     del user
     async_result = scan_failure_postmortems_task.apply_async(queue="maintenance")
+    return {"task_id": str(async_result.id), "status": "dispatched"}
+
+
+@app.get("/deepagents/learning/tool-scorecard", response_model=list[dict[str, Any]])
+async def list_tool_scorecard(
+    user: AuthenticatedUser = _auth_dependency,
+    days: int = Query(7, ge=1, le=90),
+    limit: int = Query(200, ge=1, le=1000),
+) -> list[dict[str, Any]]:
+    """Fase 79.4: read-side endpoint for the tool effectiveness scorecard.
+
+    Returns recent rollup rows sorted by (period_start DESC, reliability
+    DESC). The UI tab uses this to surface high-confidence + low-confidence
+    tools per agent role. No PII — just counters and the derived score.
+    """
+    del user
+    from cognitive_os.deepagents.tool_scorecard import (  # noqa: PLC0415
+        list_recent_scorecard,
+    )
+
+    return await list_recent_scorecard(days=days, limit=limit)
+
+
+@app.post("/deepagents/learning/tool-scorecard/aggregate-now", response_model=dict[str, Any])
+async def trigger_tool_scorecard_aggregation(
+    user: AuthenticatedUser = _admin_auth_dependency,
+) -> dict[str, Any]:
+    """Admin-gated: aggregate the previous day's tool events into the rollup
+    table immediately (Fase 79.4). Useful for the operator after a busy day
+    to see the scorecard without waiting for the 04:15 UTC beat tick.
+    """
+    del user
+    async_result = aggregate_tool_scorecard_task.apply_async(queue="maintenance")
     return {"task_id": str(async_result.id), "status": "dispatched"}
 
 

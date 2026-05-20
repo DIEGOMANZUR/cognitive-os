@@ -256,6 +256,8 @@
 | `telegram_gmail_digest_hour_utc` | `TELEGRAM_GMAIL_DIGEST_HOUR_UTC` | int |
 | `telegram_gmail_digest_lookback_hours` | `TELEGRAM_GMAIL_DIGEST_LOOKBACK_HOURS` | int |
 | `telegram_reminder_chat_map` | `TELEGRAM_REMINDER_CHAT_MAP` | list[str] |
+| `tool_scorecard_cron` | `TOOL_SCORECARD_CRON` | str |
+| `tool_scorecard_enabled` | `TOOL_SCORECARD_ENABLED` | bool |
 | `tools_readonly_mode` | `TOOLS_READONLY_MODE` | bool |
 | `trace_full_payloads` | `TRACE_FULL_PAYLOADS` | bool |
 | `trace_redact_pii` | `TRACE_REDACT_PII` | bool |

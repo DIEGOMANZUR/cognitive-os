@@ -592,6 +592,59 @@ class PersonalTask(UUIDPrimaryKeyMixin, TimestampMixin, MetadataMixin, Base):
     )
 
 
+class ToolInvocationMetric(UUIDPrimaryKeyMixin, TimestampMixin, MetadataMixin, Base):
+    """Daily rollup of (agent_role, tool_name) effectiveness.
+
+    Fase 79.4 (Fase C of the agent learning plan). The aggregator
+    (`deepagents/tool_scorecard.py`) UPSERTs one row per
+    (agent_role, tool_name, period_start) using the unique constraint
+    below. The reliability_score is derived (0.5*success_rate +
+    0.3*downstream_use_rate + 0.2*approve_rate) but persisted so the UI
+    can sort by it without recomputing.
+    """
+
+    __tablename__ = "tool_invocation_metrics"
+    __table_args__ = (
+        UniqueConstraint(
+            "agent_role",
+            "tool_name",
+            "period_start",
+            name="uq_tool_invocation_metrics_role_tool_period",
+        ),
+        CheckConstraint(
+            "invoke_count >= 0 AND success_count >= 0 AND failure_count >= 0 "
+            "AND downstream_use_count >= 0 AND user_approve_count >= 0 "
+            "AND user_reject_count >= 0",
+            name="ck_tool_invocation_metrics_counts_non_negative",
+        ),
+        Index(
+            "ix_tool_invocation_metrics_period_role",
+            "period_start",
+            "agent_role",
+        ),
+        # Matches the migration's `DESC NULLS LAST` index. We declare it
+        # with sql_text so SQLAlchemy autogenerate doesn't keep proposing
+        # to drop it on every `alembic check`.
+        Index(
+            "ix_tool_invocation_metrics_reliability",
+            sql_text("reliability_score DESC NULLS LAST"),
+        ),
+    )
+
+    agent_role: Mapped[str] = mapped_column(String(64), nullable=False)
+    tool_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    invoke_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    success_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    failure_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    downstream_use_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    user_approve_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    user_reject_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    avg_latency_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    reliability_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
 class PersonalNote(UUIDPrimaryKeyMixin, TimestampMixin, MetadataMixin, Base):
     __tablename__ = "personal_notes"
     __table_args__ = (Index("ix_personal_notes_user_updated", "user_id", "updated_at"),)

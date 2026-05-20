@@ -94,6 +94,12 @@ celery_app.conf.update(
             "queue": "maintenance",
             "routing_key": "maintenance",
         },
+        # Fase 79.4 — tool scorecard aggregator. Runs daily, UPSERTs the
+        # rollup table; pure read of job_events + action_requests.
+        "cognitive_os.aggregate_tool_scorecard": {
+            "queue": "maintenance",
+            "routing_key": "maintenance",
+        },
     },
     timezone="UTC",
     enable_utc=True,
@@ -175,6 +181,19 @@ if settings.failure_postmortem_enabled:
             day_of_month=fp_dom,
             month_of_year=fp_moy,
             day_of_week=fp_dow,
+        ),
+    }
+# Fase 79.4 — tool effectiveness scorecard. Gated by TOOL_SCORECARD_ENABLED.
+if settings.tool_scorecard_enabled:
+    ts_minute, ts_hour, ts_dom, ts_moy, ts_dow = settings.tool_scorecard_cron.split()
+    beat_schedule["tool-scorecard-aggregator"] = {
+        "task": "cognitive_os.aggregate_tool_scorecard",
+        "schedule": crontab(
+            minute=ts_minute,
+            hour=ts_hour,
+            day_of_month=ts_dom,
+            month_of_year=ts_moy,
+            day_of_week=ts_dow,
         ),
     }
 if beat_schedule:
