@@ -115,6 +115,17 @@ funcionando. Si ya lo conocés, andá directo al capítulo que necesites.
 9. [Matriz de acciones (qué pide aprobación, cómo aflojarla)](#9-matriz-de-acciones-qué-pide-aprobación-cómo-aflojarla)
 10. [Seguridad operativa en una página](#10-seguridad-operativa-en-una-página)
 11. [Troubleshooting express](#11-troubleshooting-express)
+12. [Glosario operativo (los conceptos que tenés que entender)](#12-glosario-operativo)
+13. [Recetario: un ejemplo de uso para cada capacidad](#13-recetario-un-ejemplo-de-uso-para-cada-capacidad)
+14. [Cómo NO usar Cognitive OS (anti-ejemplos)](#14-cómo-no-usar-cognitive-os-anti-ejemplos)
+
+> **¿Por dónde empiezo a leer?**
+> - **Nunca lo viste:** §0 (arranque) → §1 (qué es) → §12 (glosario) → §13
+>   (recetario con ejemplos). Con eso ya operás.
+> - **Ya lo conocés y querés hacer algo puntual:** andá directo a §13
+>   (recetario por capacidad) o a §3 (referencia de cada vista).
+> - **Querés evitar errores:** §14 (cómo NO usarlo) y §9 (qué pide
+>   aprobación).
 
 ---
 
@@ -395,6 +406,11 @@ sale); **no** levanta la API.
 exactamente**, **qué cambia al hacer click**, **dónde queda registro**.
 Hotkeys 1-9 saltan a las vistas más usadas; Ctrl-K abre la paleta de
 comandos (buscás cualquier vista o acción por nombre).
+
+> **Esta sección es la referencia** ("qué es cada botón"). Si lo que
+> querés es un **ejemplo concreto paso a paso** de cómo usar cada
+> capacidad, andá al **§13 Recetario** — ahí cada vista tiene una receta
+> "querés X → hacés Y → pasa Z".
 
 ### Overview
 
@@ -845,6 +861,51 @@ para revisar qué tocó el sistema. Todo deja el mismo audit que el panel.
 3. Aprobás → el worker mueve archivos a la carpeta destino. **No borra
    ni cambia permisos.**
 
+### 6.7 "Que el agente aprenda de lo que hace y me lo muestre"
+
+El plan de aprendizaje (Fases A-E) trabaja **solo, de fondo**, y te deja
+todo para revisar en la vista **Memoria**. Un día de uso típico:
+
+1. Durante el día usás el agente normal (research, document analysis,
+   code director…). Cada job exitoso queda en `jobs` con su trayectoria.
+2. **Esa noche / madrugada** corren los beats: el *recipe extractor*
+   distila los jobs largos en **recetas** (`kind=procedure`); el *failure
+   post-mortem* busca patrones fallo→recuperación y propone **warnings**;
+   el *tool scorecard* calcula la confiabilidad de cada tool; la
+   *reflexión nocturna* relee tus conversaciones y propone
+   **preferences/lessons** citando tus frases textuales.
+3. **A la mañana** abrís **Memoria**. Ves 5 secciones: *Recetas
+   propuestas*, *Warnings detectadas*, *Scorecard de tools*,
+   *Promociones a skill*, *Reflexiones nocturnas*. Cada propuesta tiene
+   **Aprobar / Rechazar**.
+4. Aprobás una receta → queda como memoria `procedure` y el agente la
+   usará de guía en tareas parecidas. Aprobás una promoción a skill → se
+   materializa un `SKILL.md` invocable. Rechazás lo que no te sirve.
+5. Nada se activa sin tu OK. El agente **nunca** modifica su "alma"
+   (`AGENT_SELF.md`) ni despliega comportamiento solo.
+
+> No tenés que esperar a la noche: cada sección tiene un botón
+> ("Extraer ahora", "Scan ahora", "Agregar ahora", "Evaluar ahora",
+> "Reflexionar ahora") que dispara el beat al instante.
+
+### 6.8 "Ordená mi bandeja: leé, clasificá y prepará respuestas"
+
+1. **Mail** → el inbox unificado (GoDaddy IMAP + Gmail label `TODOS`) ya
+   está sincronizado por el beat `personal-mail-sync`. Cada correo trae
+   su clasificación (`important` / `normal` / `spam` / `promo`).
+2. Para los importantes, el agente propone un **borrador de respuesta**
+   con su rationale ("por qué respondo esto así").
+3. Revisás el borrador. Click **Enviar** → **NO sale** todavía: crea un
+   `HumanApproval`. El envío de mail es **irreversible**, así que el
+   gate no se afloja ni en `dedicated_local`.
+4. Vas a **Aprobaciones** (o `/approve <id>` por Telegram) → recién ahí
+   el worker `mail` hace el SMTP/Gmail send real y deja `AuditEvent` +
+   fila en `mail_send_logs`.
+
+> Si una cuenta falla (IMAP caído, token vencido) el sync reporta
+> *partial failure* con el detalle por cuenta — no se cae el inbox
+> entero.
+
 ---
 
 ## 7. Qué hace el agente y qué NO hace
@@ -1099,6 +1160,498 @@ verde. Si no, es una regresión real, no una rareza ambiental.
 
 ---
 
+## 12. Glosario operativo
+
+Estos son los conceptos que aparecen una y otra vez en la guía y en el
+panel. Si entendés estos 24 términos, entendés el sistema. Cada uno trae
+un mini-ejemplo para que lo veas en acción.
+
+### 12.1 Las piezas del sistema
+
+- **Operador.** Vos. Cognitive OS es **mono-usuario**: una sola persona,
+  un solo PC, sin multi-tenant. Todo corre con *tus* credenciales.
+  *Ejemplo:* el JWT que generás dice `user_id='operator'`.
+- **Orquestador.** El grafo LangGraph que recibe tu mensaje, decide qué
+  ruta tomar y coordina a los subagentes. Es el "cerebro" que ves cuando
+  usás **Chat**. *Ejemplo:* le escribís "investigá X" y el orquestador
+  enruta a `research`.
+- **Router.** El primer nodo del orquestador: mira tu mensaje y elige la
+  ruta (`research`, `comm`, `social`, `legal`, `chat`). Si el LLM falla,
+  cae a un router determinista por palabras clave. *Ejemplo:* "redactá un
+  mail" → el router ve el verbo de acción "redactá" → ruta `comm`.
+- **DeepAgent.** El subagente productivo (DeepAgents 0.6.x) que ejecuta
+  las rutas `research` y `document_analysis` con sus 21 tools tipadas.
+  *Ejemplo:* en una research, el DeepAgent llama `search_local_docs` y
+  `search_web` y arma el informe.
+- **Tool.** Una capacidad concreta que un agente puede invocar
+  (`search_drive_files`, `plan_route`, `solve_token_captcha`…). Las 21
+  built-in tienen esquema Pydantic tipado; bajo `ENABLE_MCP_CLIENT=true`
+  se suman tools dinámicas de servidores MCP. *Ejemplo:* `/maps casa |
+  oficina` por dentro invoca la tool `plan_route`.
+- **Tool policy.** El conjunto de reglas que dice qué tools puede usar un
+  agente y bajo qué condiciones (allow-lists, aprobación requerida). Un
+  comando por Telegram hereda la *misma* policy que el panel. *Ejemplo:*
+  la ruta `research` no tiene permitido `send_email`.
+- **Skill.** Un procedimiento acotado escrito como carpeta `SKILL.md`
+  (frontmatter YAML + instrucciones). Hay 13 *core* + las *user* + las
+  *auto-promovidas* (Fase B). *Ejemplo:* la skill `citation-discipline`
+  obliga a citar `doc_id`/`chunk_id` en cada afirmación factual.
+- **Action Plane.** La capa que convierte *intención* en *acción externa
+  con rastro*: mail, Calendar, Drive, DNS, browser, computer. Todo lo
+  que toca el mundo fuera de tu DB pasa por acá. *Ejemplo:* "creá el
+  evento" no toca Google directo — crea un `ActionRequest`.
+
+### 12.2 Las unidades de trabajo y de control
+
+- **Job.** Toda tarea asíncrona (ingesta de PDF, research, code build,
+  mail send, análisis…). Tiene estado (`queued`/`running`/`completed`/
+  `failed`/`cancelled`) y progreso. *Ejemplo:* ingestás un PDF → se crea
+  un Job en la cola `ingestion`, lo seguís en la vista **Jobs**.
+- **JobEvent.** Cada paso de un Job, en orden cronológico. Es lo que ves
+  en el timeline SSE en vivo. *Ejemplo:* un code build emite
+  `tool_invoked`, `tool_succeeded`, `agent_finished`.
+- **ActionRequest.** El registro persistente de una acción externa
+  pendiente: trae un **preview** de lo que va a pasar y un payload
+  cifrado. *Ejemplo:* `drive_organize_files` te muestra exactamente qué
+  archivos se moverían antes de aprobar.
+- **HumanApproval.** La compuerta. Un cambio sensible se detiene acá y
+  espera tu **Aprobar** o **Rechazar**. *Ejemplo:* el envío de un mail
+  crea un `HumanApproval`; hasta que no lo aprobás, el correo no sale.
+- **AuditEvent.** El rastro inmutable: quién hizo qué, cuándo. Se escribe
+  igual venga del panel o de Telegram. *Ejemplo:* aprobás por el bot →
+  `AuditEvent` con `actor="telegram:<chat_id>"`.
+- **Thread.** Una conversación con el orquestador, persistida en Postgres
+  vía el checkpointer de LangGraph. Mantiene el contexto entre turnos.
+  *Ejemplo:* en Telegram, cada chat tiene su thread; `/reset` abre uno
+  nuevo.
+- **Interrupt.** Cuando el grafo necesita tu aprobación a mitad de
+  camino, se *detiene* en un `interrupt(...)`. Resolvés en **Aprobaciones**
+  y el thread se reanuda. *Ejemplo:* le pedís que mande 3 mails → el
+  grafo se interrumpe 3 veces, una por borrador.
+- **Reaper.** Una tarea de mantenimiento que limpia lo que quedó colgado
+  (aprobaciones viejas, jobs zombi). *Ejemplo:* una aprobación que nadie
+  decidió en `APPROVAL_PENDING_MAX_HOURS` la cierra el reaper.
+- **Pipeline.** Una secuencia fija de pasos para un tipo de trabajo. Hay
+  3 grandes: Action Plane, Research, Code Director (ver §4). *Ejemplo:*
+  todo lo que toca el mundo externo recorre el pipeline del Action Plane.
+
+### 12.3 Memoria y aprendizaje
+
+- **Memory record.** Un dato que el agente "sabe": una preferencia, una
+  lección, una receta, un warning. Vive en `deepagent_memory_records`,
+  *activo* sólo después de tu aprobación. *Ejemplo:* "el operador
+  prefiere respuestas breves" es un `kind=preference`.
+- **Memory proposal.** Una memoria *candidata*, todavía sin aprobar.
+  Todo aprendizaje nace como proposal. *Ejemplo:* el recipe extractor
+  emite un `proposal(kind=procedure)`; vos lo aprobás o lo rechazás.
+- **Scope.** El alcance de una memoria: `global` / `user` / `case` /
+  `thread` / `agent`. Define cuándo se recuerda. *Ejemplo:* una receta
+  con `scope=agent, agent_name=research` sólo aparece en el prompt del
+  agente de research.
+- **Procedure / Receta.** Una memoria `kind=procedure`: los pasos
+  reutilizables destilados de un job exitoso (Fase A). *Ejemplo:*
+  "organizar Drive por trimestre" como secuencia de 5 pasos.
+- **Warning.** Una memoria `kind=warning`: un patrón fallo→recuperación
+  que el agente debería evitar repetir (Fase D). *Ejemplo:* "`maps`
+  falló 422 sin `language`; reintentá con `language=es`".
+- **Scorecard.** El rollup diario de confiabilidad por (agente, tool):
+  `reliability = 0.5·éxito + 0.3·uso-posterior + 0.2·aprobación` (Fase
+  C). Se inyecta al system prompt. *Ejemplo:* si `search_web` tiene
+  score 0.92, el agente la prefiere; si 0.40, la usa con cuidado.
+- **Skill promotion.** Cuando una receta se usó ≥3 veces con <30% de
+  fallos, el sistema propone convertirla en un `SKILL.md` invocable
+  (Fase B). *Ejemplo:* aprobás la promoción → aparece
+  `skills/user/_auto/<slug>/SKILL.md`.
+- **Reflexión nocturna.** El pase diario (03:00 UTC) en que el LLM relee
+  los threads del día y propone preferences/lessons, **siempre** citando
+  tu frase textual como evidencia (Fase E). *Ejemplo:* dijiste "no me
+  gusta que uses viñetas" → propone `preference` con esa quote.
+
+### 12.4 Perfiles y modos
+
+- **`OPERATOR_PROFILE`.** `strict` (default, máquinas compartidas) o
+  `dedicated_local` (PC dedicado, sin fricción para lo reversible). Ver
+  §8. *Ejemplo:* en `dedicated_local`, crear una carpeta de Drive no
+  pide aprobación; mandar un mail sí.
+- **Degradación elegante.** Si falta una credencial o un servicio se
+  cae, la capacidad queda `disabled`/`blocked` con el motivo — **nunca**
+  rompe el arranque. *Ejemplo:* sin `GOOGLE_MAPS_API_KEY`, la vista
+  Google Ops muestra Maps `disabled`, el resto sigue andando.
+
+---
+
+## 13. Recetario: un ejemplo de uso para cada capacidad
+
+Una receta por capacidad, con el formato **Querés → Hacés → Pasa →
+Queda registro**. Cada receta sirve igual desde el panel; donde hay
+equivalente en Telegram, se indica.
+
+### 13.1 Hablar con el agente (Chat)
+
+- **Querés:** preguntar algo, pedir una acción, mantener una
+  conversación con contexto.
+- **Hacés:** vista **Chat** → escribís y **Enviar**. Por Telegram:
+  `/chat <mensaje>` o, en `dedicated_local`, cualquier mensaje sin `/`.
+- **Pasa:** el router elige la ruta; si pide aprobación, el thread se
+  interrumpe y vas a *Aprobaciones*.
+- **Ejemplo:** "Resumime en 5 puntos qué es el patrón saga" → ruta
+  `research`, respuesta directa. Después: "y ¿cuándo NO conviene?" — el
+  thread recuerda el contexto y sigue.
+- **Queda registro:** thread en Postgres, trazable en **LangSmith**.
+
+### 13.2 Investigación profunda con citas (Research)
+
+- **Querés:** un informe citado y verificable sobre un tema.
+- **Hacés:** vista **Research** → query → **Iniciar**. Telegram:
+  `/research` lista las corridas recientes.
+- **Pasa:** Planner abre subpreguntas → N Researchers en paralelo →
+  Synthesizer dedup de citas → Scorer puntúa contra rúbrica. Con
+  `ENABLE_OPENHARNESS_RESEARCH=true` se antepone el preludio OpenHarness.
+- **Ejemplo:** "Estado del arte en cuantización de LLMs 2024-2025, con
+  fuentes" → plan animado en vivo, ~3-5 min, cada cita clickable al
+  fragmento exacto.
+- **Queda registro:** `research_runs` + Job + artefactos descargables.
+- **❌ No esperes** una respuesta en 2 segundos: research profundo tarda
+  minutos. Para algo rápido usá Chat normal.
+
+### 13.3 Meter documentos al RAG (Documentos)
+
+- **Querés:** que el agente pueda responder citando *tus* PDFs.
+- **Hacés:** vista **Documentos** → **Ingestar** (o `/ingest /ruta/abs.pdf`
+  por Telegram, ruta **absoluta**).
+- **Pasa:** Job en cola `ingestion`; el PDF se parte en chunks
+  (`pending_index` → `indexed` cuando Weaviate confirma); las entidades
+  van a Neo4j. Dedup por `sha256`: subir el mismo PDF dos veces no
+  duplica.
+- **Ejemplo:** ingestás `contrato-acme.pdf` → después en Chat preguntás
+  "¿qué dice la cláusula de rescisión del contrato ACME?" y responde con
+  cita a la página.
+- **Queda registro:** `documents` / `document_chunks`, visible en
+  **Documentos** y `/documents`.
+
+### 13.4 Análisis legal estructurado (Document Analysis)
+
+- **Querés:** una matriz de evidencia, una cronología o un set de
+  contradicciones sobre varios documentos.
+- **Hacés:** vista **Document Analysis** → elegís docs + modo
+  (`evidence_matrix`, `timeline`, `contradictions`, `full_report`,
+  `legal_draft_support`, `case_summary`) → **Ejecutar**.
+- **Pasa:** Job en `agent_longrun`; produce artefactos (JSON/MD/CSV/DOCX)
+  con citas verificadas. Si el quality score < 85 o hay borradores, se
+  crea un `HumanApproval` automático.
+- **Ejemplo:** 6 PDFs de una demanda + modo `contradictions` → DOCX con
+  cada contradicción referenciada a `documento/página`.
+- **Queda registro:** Job + artefactos en **Jobs**.
+
+### 13.5 Mail: leer, clasificar, responder (Mail)
+
+- **Querés:** ordenar la bandeja y responder sin redactar de cero.
+- **Hacés:** vista **Mail** → revisás clasificación y borradores
+  propuestos → **Enviar**. Telegram: `/mail [max]`.
+- **Pasa:** el envío crea un `HumanApproval` — **el mail no sale hasta
+  que lo aprobás** (gate irreversible, no se afloja nunca). Al aprobar,
+  el worker `mail` hace el SMTP/Gmail send.
+- **Ejemplo:** ver §6.8 (receta completa de triage).
+- **Queda registro:** `mail_send_logs` + `AuditEvent`.
+
+### 13.6 Calendar: agenda y eventos (Google Ops)
+
+- **Querés:** ver tu agenda o crear un evento.
+- **Hacés:** vista **Google Ops** → "Listar eventos" / "Free-busy" (read,
+  instantáneo) o "Crear solicitud aprobable" (evento). Telegram:
+  `/calendar [max]`, `/freebusy [días]`.
+- **Pasa:** leer es directo; **crear** un evento crea un `ActionRequest`
+  `calendar_create_event` — toca el calendario real recién al aprobar
+  (doble compuerta: `ENABLE_GOOGLE_CALENDAR_WRITE` + aprobación).
+- **Ejemplo:** `/freebusy 3` → "jueves 15-18 h libre" → pedís el evento →
+  aprobás → queda en tu Google Calendar.
+- **Queda registro:** `ActionRequest` + `AuditEvent`.
+
+### 13.7 Drive: buscar, carpetas, subir, organizar (Google Ops)
+
+- **Querés:** encontrar un archivo, armar la carpeta de entregables o
+  reordenar Drive.
+- **Hacés:** vista **Google Ops** → "Buscar" (read), "Crear solicitud de
+  carpeta" (`drive_ensure_folder`), "Solicitar upload", "Preview/Solicitar
+  organización" (`drive_organize_files`). Telegram: `/drive <query>`.
+- **Pasa:** buscar es directo; crear carpeta y subir a carpeta propia se
+  auto-aprueban en `dedicated_local` (reversibles); **organizar** (mover/
+  renombrar archivos existentes) pide aprobación **siempre**. No borra
+  archivos ni cambia permisos.
+- **Ejemplo:** "Preview organización" te muestra los `file_id` exactos
+  que se moverían; aprobás y se ejecuta **ese** set congelado, ni uno más.
+- **Queda registro:** `ActionRequest` + `AuditEvent`.
+
+### 13.8 Maps: rutas con tráfico (Google Ops)
+
+- **Querés:** una ruta con ETA real.
+- **Hacés:** vista **Google Ops** → "Calcular ruta", o Telegram
+  `/maps <origen> | <destino>`.
+- **Pasa:** read-only, instantáneo. Devuelve distancia, ETA con tráfico,
+  severidad, consejo de ruta, alternativas y link a Google Maps.
+- **Ejemplo:** `/maps Plaza Italia | Aeropuerto SCL` → "42 min, tráfico
+  moderado, salí antes de las 17:30".
+- **Queda registro:** sólo lectura, no crea ActionRequest.
+
+### 13.9 Navegador real (Browser / Kimi WebBridge)
+
+- **Querés:** que el agente lea o interactúe con una web logueada con tu
+  sesión real.
+- **Hacés:** se invoca como tool dentro de una tarea del agente
+  (`browser_preview` para screenshot/lectura, `browser_interactive` para
+  click/fill con Playwright; Kimi WebBridge usa tu Edge real).
+- **Pasa:** cada dominio debe estar en la allow-list
+  (`BROWSER_ALLOWED_DOMAINS` / `KIMI_WEBBRIDGE_ALLOWED_DOMAINS`); las
+  *lecturas* pueden ser directas, las *mutaciones* piden aprobación.
+- **Ejemplo:** "sacá un screenshot del panel de GoDaddy" → `browser_preview`
+  → imagen + lectura multimodal con `glm-4.6v`.
+- **❌ No pongas** `*` en la allow-list en un PC compartido (ver §14).
+
+### 13.10 Computador local (Computer)
+
+- **Querés:** que el agente ordene archivos de tu disco o te diga qué hay.
+- **Hacés:** se invoca como tool: `computer_inventory` (read) o
+  `computer_organize` (mover/renombrar).
+- **Pasa:** requiere `ENABLE_COMPUTER_ACTIONS=true` + `COMPUTER_ALLOWED_ROOTS`.
+  El inventario es directo; **mover** archivos pide aprobación con preview.
+- **Ejemplo:** "ordená mi carpeta Descargas por tipo de archivo" → te
+  muestra el plan de movimientos → aprobás → los ejecuta.
+- **❌ No esperes** que borre archivos: `computer_organize` mueve y
+  renombra, **no borra** (ver §14).
+
+### 13.11 Delegar código (Code Director)
+
+- **Querés:** que un coding agent externo construya algo sin que vos
+  escribas prompts.
+- **Hacés:** vista **Code Director** → objetivo de alto nivel + adapter
+  (`claude_code` / `codex` / `kimi` / `deepagent`) + budget caps →
+  **Planificar**. Telegram: `/codebuild` lista builds.
+- **Pasa:** el `LLMPlanner` descompone el objetivo en subtareas con
+  dependencias (si falla, cae al `HeuristicPlanner` — **cero tokens
+  gastados todavía**). Aprobás el plan → corre en `agent_longrun`. Cada
+  subtarea recibe un prompt acotado con el estado vivo del workspace.
+- **Ejemplo:** ver §6.1 (app con 2 RAGs).
+- **Queda registro:** Job `code_build` + `tar.gz` descargable con manifest.
+- **❌ No apruebes** un plan sin leerlo (ver §14).
+
+### 13.12 Ejecutar código aislado (Sandbox / OpenShell)
+
+- **Querés:** correr un snippet sin riesgo para el host.
+- **Hacés:** vista **Sandbox** → propósito + comando → **Run**. Requiere
+  `ENABLE_OPENSHELL_SANDBOX=true` (off por default).
+- **Pasa:** cápsula efímera sin red, runtime ≤900 s; en producción exige
+  aprobación. Captura stdout/stderr/exit.
+- **Ejemplo:** "corré este script de pandas y dame la salida" → resultado
+  sin tocar tu entorno.
+
+### 13.13 Resolver captchas (CapSolver)
+
+- **Querés:** pasar un captcha durante una automatización web.
+- **Hacés:** el agente invoca `solve_image_captcha(image_base64)` o
+  `solve_token_captcha(kind, website_url, website_key, page_action?)`.
+  Requiere `ENABLE_CAPTCHA_SOLVING=true` + `CAPSOLVER_API_KEY`.
+- **Pasa:** CapSolver resuelve y devuelve el texto/token para inyectar.
+- **Ejemplo:** un reCAPTCHA v2 bloquea un form → `solve_token_captcha` →
+  el token vuelve y la automatización continúa.
+
+### 13.14 Tareas y notas personales (Asistente)
+
+- **Querés:** un to-do o una nota rápida con recordatorio.
+- **Hacés:** vista **Asistente** → "+ Tarea" / "+ Nota". Telegram:
+  `/task Comprar café | detalle`, `/note Título | cuerpo`, `/tasks`,
+  `/done <id>`, `/notes`.
+- **Pasa:** la tarea acepta due-date y recordatorio (lo entrega el beat
+  `personal-assistant-reminders`); las notas se indexan en Weaviate y son
+  buscables.
+- **Ejemplo:** `/task Llamar al contador | antes del viernes` → te llega
+  el recordatorio por Telegram cerca de la fecha.
+
+### 13.15 Skills (Skills view)
+
+- **Querés:** activar un procedimiento acotado para el agente.
+- **Hacés:** vista **Skills** → ves las 13 core + user + auto-promovidas
+  → **Proponer** activar una.
+- **Pasa:** crea una propuesta + `HumanApproval`. Sin aprobar, la skill
+  **no se ejecuta**.
+- **Ejemplo:** activás `evidence-matrix` → el agente la usa cuando le
+  pedís una matriz claim/evidencia.
+
+### 13.16 Memoria — aprobar lo que el agente propone (Memoria)
+
+- **Querés:** revisar y aceptar/rechazar lo que el agente quiere recordar.
+- **Hacés:** vista **Memoria** → cada propuesta tiene **Aprobar/Rechazar**.
+  Telegram: `/memory`, `/consolidate`.
+- **Pasa:** aprobar promueve la propuesta a `deepagent_memory_record`
+  activo (se inyecta al prompt según su scope); rechazar la descarta.
+- **Ejemplo:** el agente propone recordar "el operador trabaja en
+  horario de Chile" → aprobás → futuras respuestas lo tienen en cuenta.
+
+### 13.17-13.21 El plan de aprendizaje, fase por fase (Memoria)
+
+Las 5 fases del plan corren solas de fondo; vos sólo revisás. Todas
+viven en la vista **Memoria** y exponen endpoints `/deepagents/learning/*`.
+
+- **13.17 Recetas (Fase A).** *Querés:* que el agente reutilice lo que ya
+  resolvió. *Pasa:* tras un job exitoso con ≥5 tool calls, el extractor
+  propone una receta. *Ejemplo:* aprobás "flujo de research legal" → en
+  la próxima tarea parecida el agente la sigue como guía. Botón "Extraer
+  ahora".
+- **13.18 Warnings (Fase D).** *Querés:* que no repita un error conocido.
+  *Pasa:* el scanner detecta `fallo→recuperación`; tras 3 repeticiones
+  sin rechazo se auto-promueve. *Ejemplo:* "tool X falla sin el param Y"
+  → el agente lo evita. Botón "Scan ahora".
+- **13.19 Scorecard (Fase C).** *Querés:* que prefiera las tools
+  confiables. *Pasa:* el aggregator diario calcula el `reliability_score`
+  por tool y lo inyecta al prompt. *Ejemplo:* una tool con 40% de éxito
+  aparece marcada ⚠️ y el agente la usa con cuidado. Botón "Agregar ahora".
+- **13.20 Promoción a skill (Fase B).** *Querés:* convertir una receta
+  probada en un skill de primera clase. *Pasa:* una receta usada ≥3
+  veces con <30% fallos genera una propuesta de promoción; al **aprobarla**
+  se materializa `skills/user/_auto/<slug>/SKILL.md`. Rollback automático
+  si falla >50% en 30 días. *Ejemplo:* aprobás la promoción de "organizar
+  Drive trimestral" → queda como skill invocable. Botón "Evaluar ahora".
+- **13.21 Reflexión nocturna (Fase E).** *Querés:* que aprenda tus
+  preferencias de cómo le hablás. *Pasa:* cada noche el LLM relee los
+  threads y propone `preference`/`lesson`, **siempre con tu frase textual
+  como evidencia** (si la quote no aparece literal, se descarta).
+  *Ejemplo:* le dijiste "prefiero respuestas sin emojis" → propone esa
+  preference citándote. Botón "Reflexionar ahora".
+
+> Las 5 fases **nunca** auto-despliegan comportamiento: todo es una
+> *propuesta* que vos aprobás o rechazás. La única excepción acotada son
+> los warnings de Fase D, que se auto-promueven recién tras 3 evidencias
+> coincidentes sin que vos hayas rechazado ninguna.
+
+### 13.22 Herramientas externas vía MCP
+
+- **Querés:** que el agente use tools de servidores MCP externos
+  (Supermemory, GitHub, filesystem, Claude Code, Gemini CLI).
+- **Hacés:** declarás los servidores en `MCP_SERVERS` y ponés
+  `ENABLE_MCP_CLIENT=true`. Estado en vivo en `/system/mcp`.
+- **Pasa:** al construir el DeepAgent se cargan las tools dinámicas
+  (cacheadas por rol, TTL 5 min) y quedan disponibles como cualquier
+  tool nativa.
+- **Ejemplo:** con el server `gh` conectado, el agente puede buscar
+  código en GitHub dentro de una research.
+
+### 13.23 Generar documentos Office
+
+- **Querés:** un DOCX/XLSX/PPTX como salida de una tarea.
+- **Hacés:** lo pedís dentro de un flujo (p. ej. Document Analysis modo
+  `evidence_matrix` produce un XLSX).
+- **Pasa:** el documento se escribe bajo `DOCUMENT_OUTPUT_ROOT`, con
+  límite `DOCUMENT_MAX_SIZE_BYTES`, fórmulas XLSX seguras y sanitización
+  anti-inyección.
+- **Ejemplo:** una matriz de evidencia sale como `.xlsx` descargable
+  desde **Jobs**.
+
+### 13.24 Operar todo desde Telegram
+
+- **Querés:** usar el sistema con el laptop apagado.
+- **Hacés:** los 37 comandos de §5, o mensajes conversacionales sin `/`
+  en `dedicated_local`.
+- **Pasa:** mismo servicio que el REST → misma policy, mismos approvals,
+  mismo audit (`actor="telegram:<chat_id>"`).
+- **Ejemplo:** ver §6.5 ("operador con manos atadas").
+
+---
+
+## 14. Cómo NO usar Cognitive OS (anti-ejemplos)
+
+Esta sección es tan importante como las anteriores. Cada anti-ejemplo
+muestra **qué no esperar / qué no hacer** y **qué hacer en su lugar**.
+
+### 14.1 No le pidas cosas que el sistema deliberadamente no hace
+
+- ❌ **"Transferí $500 a esta cuenta" / "pagá esta factura".**
+  Cognitive OS **no tiene integración financiera** y no la va a
+  improvisar. ✅ *En su lugar:* pedile que **redacte** el mail/instrucción
+  de pago y vos lo ejecutás en tu banco.
+- ❌ **"Publicá esto en mi Instagram."** El único canal humano externo es
+  Telegram; el subgrafo `social` *clasifica y propone*, no publica. ✅ *En
+  su lugar:* dejá que prepare el texto y publicalo vos.
+- ❌ **"Borrá todos los archivos viejos de Descargas."** `computer_organize`
+  **mueve y renombra, no borra**; `drive_organize_files` tampoco borra ni
+  cambia permisos. ✅ *En su lugar:* pedile que los **mueva** a una carpeta
+  `_para_borrar/` y borrás vos tras revisar.
+- ❌ **"Mandá este mail ya, sin que yo lo apruebe."** El envío de mail es
+  irreversible: `MAIL_REQUIRE_APPROVAL_FOR_SEND=true` es un contrato que
+  **no se afloja ni en `dedicated_local`**. ✅ *En su lugar:* aprobás en 1
+  click desde *Aprobaciones* o `/approve <id>`.
+
+### 14.2 No saltees la aprobación ni apruebes a ciegas
+
+- ❌ **Aprobar un plan de Code Director sin leerlo.** El plan define qué
+  se va a construir y cuántos tokens va a gastar. ✅ *En su lugar:* leé las
+  subtareas y el budget en *Aprobaciones* antes de aprobar.
+- ❌ **Aprobar todas las reflexiones nocturnas de un saque.** El validador
+  ya garantiza que la evidencia es literal, pero *vos* decidís si esa
+  preferencia te representa. ✅ *En su lugar:* leé la quote citada de cada
+  una; rechazá las que no.
+- ❌ **Subir el `tar.gz` del Code Director a producción sin revisarlo.**
+  Es código generado por un agente. ✅ *En su lugar:* abrilo, leé el diff,
+  corré sus tests.
+
+### 14.3 No rompas el modelo de seguridad
+
+- ❌ **Exponer el puerto 8000 a internet.** El backend está atado a
+  `127.0.0.1` a propósito; no hay multi-tenant. ✅ *En su lugar:* acceso
+  remoto por Tailscale / WireGuard / túnel SSH.
+- ❌ **Commitear `.env`, `token.json`, `client_secret.json` o `storage/`.**
+  Contienen secretos. ✅ *En su lugar:* ya están en `.gitignore`; el
+  pre-commit (`gitleaks` + `detect-secrets`) te frena si lo intentás.
+- ❌ **Poner `KIMI_WEBBRIDGE_ALLOWED_DOMAINS=*` en un PC compartido.** Eso
+  le da al agente tu navegador real, con tus sesiones. ✅ *En su lugar:* el
+  wildcard sólo tiene sentido en un PC dedicado (`dedicated_local`); en
+  uno compartido, lista explícita de dominios.
+- ❌ **Usar `dedicated_local` con `ENVIRONMENT=production`.** El perfil
+  sin fricción es para desarrollo personal local. ✅ *En su lugar:*
+  producción va con `strict`; los validators de `config.py` rechazan el
+  arranque si mezclás cosas inseguras.
+
+### 14.4 No peles contra el diseño del stack
+
+- ❌ **Configurar un modelo *reasoner* (p. ej. `deepseek-v4-pro`) en el
+  carril de agente.** No soporta `tool_choice` forzado y rompe el
+  DeepAgent **en silencio** (cae a RAG sin avisar). ✅ *En su lugar:*
+  dejá `gpt-5.5` en el carril agente (verificado).
+- ❌ **Correr dos backends contra la misma base Postgres.** Pisan
+  migraciones y estado. ✅ *En su lugar:* un solo backend por base; para
+  experimentar, otra base.
+- ❌ **Editar `SETTINGS_REGISTRY_TABLE.md` a mano.** Es autogenerada y un
+  test la valida; tu edición se pierde y rompe el QA. ✅ *En su lugar:*
+  `uv run python scripts/dump_settings_registry.py --out
+  ../docs/SETTINGS_REGISTRY_TABLE.md`.
+- ❌ **Apuntar `npm run dev` sin `PORT`.** Usa `:3000` y choca con
+  OpenChamber. ✅ *En su lugar:* `PORT=3001 npm run dev` (los launchers ya
+  lo hacen).
+- ❌ **Correr `pytest` esperando que use la base de producción.** No lo
+  hace: la suite corre contra `cognitive_os_test`, aislada. ✅ *En su
+  lugar:* nada — es el comportamiento correcto; producción nunca se toca.
+
+### 14.5 No malentiendas qué es la memoria del agente
+
+- ❌ **Tratar una memoria del agente como evidencia legal o fuente de
+  verdad.** La memoria es *conocimiento operativo revisado*, no prueba.
+  ✅ *En su lugar:* para afirmaciones factuales, exigí citas a documentos
+  (la skill `citation-discipline` lo fuerza).
+- ❌ **Esperar que el agente "recuerde" algo que nunca aprobaste.** Una
+  proposal sin aprobar **no** está activa. ✅ *En su lugar:* revisá la
+  vista **Memoria** y aprobá lo que quieras que recuerde.
+
+### 14.6 No confundas los tiempos
+
+- ❌ **Esperar un research profundo en segundos.** Planner + N
+  Researchers + Synthesizer + Scorer toman minutos. ✅ *En su lugar:* para
+  preguntas rápidas usá Chat normal; para informes citados, Research y
+  esperá.
+- ❌ **Reintentar un dispatch en loop porque "no pasó nada".** Si Redis/
+  Celery está caído, el `ActionRequest` queda `dispatched=false` a
+  propósito. ✅ *En su lugar:* levantá el stack y reintentá el dispatch una
+  vez.
+
+---
+
 **Documentos relacionados:**
 
 - `RUNBOOK.md` — operación: arrancar, detener, respaldar, restaurar
@@ -1108,6 +1661,7 @@ verde. Si no, es una regresión real, no una rareza ambiental.
 - `OPENHARNESS_FUSION.md` — fusión OpenHarness/LangGraph/DeepAgents
 - `DOCUMENT_ANALYSIS_AGENT.md` — los 6 modos legales
 - `DEEPAGENTS_SKILLS_MEMORY.md` — skills y memoria
+- `AGENT_LEARNING_PLAN.md` — plan de aprendizaje autónomo del agente (Fases A-E)
 - `COGNITIVE_OS_GUIDE.md` — guía maestra técnica desde cero
 - `PROJECT_GUIDE.md` — explicación simple y técnica del producto
 - `guia_credenciales.md` — **paso a paso para obtener cada credencial** (a qué web, qué botón, dónde, color)
