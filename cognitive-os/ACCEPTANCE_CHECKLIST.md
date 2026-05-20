@@ -1,6 +1,6 @@
 # ACCEPTANCE CHECKLIST
 
-> **Estado actual (2026-05-19, Fase 68 — GoDaddy DNS prod operativo, doble revisión profunda, suite hermética 712 passed; Telegram requiere token nuevo):** matriz
+> **Estado actual (2026-05-20, Fase 74 — auditoría completa + cliente MCP; suite hermética 712 passed):** matriz
 > de aceptación vigente. Fase 66 levantó el stack real con credenciales del
 > operador y auditó cada parte; 4 bugs críticos enmascarados por la
 > resiliencia fueron corregidos y verificados en vivo (DeepAgent/tool_choice,
@@ -63,7 +63,7 @@ infraestructura local real, credenciales o aprobacion manual.
 - [x] **Bug crítico Postgres-only corregido:** `ck_ar_action_type` no incluía `drive_ensure_folder`/`drive_organize_files`; los endpoints `/actions/drive/folders/ensure/request` y `/actions/drive/organize/request` daban `CheckViolation` en Postgres real (enmascarado porque los tests mocan `session_scope`). Migración `alembic/versions/202605170001_action_requests_drive_folder_organize.py` + ORM `__table_args__` sincronizado.
 - [x] `uv run pytest tests/test_action_request_check_constraint.py -q` → **2 passed** (regresión que mantiene ORM/migración/`WORKFLOW_EXPORTABLE_TYPES` en sync).
 - [x] Telegram: **+11 slash commands** (`/maps`, `/calendar`, `/freebusy`, `/drive`, `/documents`, `/audit`, `/mail`, `/research`, `/codebuild`, `/sandbox`, `/capabilities`) con gating de capacidades; `uv run pytest tests/test_telegram_bot.py -q` → **14 passed**.
-- [x] Mapeo FE↔BE: 44 rutas REST del frontend ↔ 131 endpoints backend, 0 huérfanos.
+- [x] Mapeo FE↔BE: 44 rutas REST del frontend ↔ 130 endpoints backend, 0 huérfanos.
 - [x] `uv run pytest -q` → **712 passed, 1 skipped, 20 deselected**.
 - [x] `bash scripts/full-qa.sh` → verde (pytest + ruff + ruff format + mypy + Alembic check + npm ci + frontend lint/build + `git diff --check`).
 - [x] `bash scripts/stress-qa.sh` → 3 corridas (baseline 674 pre-fix; suite estable).

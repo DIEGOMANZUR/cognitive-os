@@ -1,213 +1,312 @@
-# Cognitive OS — Architecture
+# Cognitive OS — Arquitectura (referencia técnica completa)
 
-> **Status (2026-05-19, Phase 68 — GoDaddy DNS production live, double deep review, hermetic test suite 712 passed; LLM primary/agent gpt-5.5, fallbacks gemini-3.1-pro-low, vision glm-4.6v; Telegram needs a fresh valid token):** stack
-> operational at commercial grade. Verified counts (no inflation): **131
-> REST endpoints** (104 Cognitive-OS-owned + 27 orchestration), **16 Celery
-> tasks** across **5 queues** (`default`, `ingestion`, `agent_longrun`,
-> `maintenance`, `mail`), **17 Alembic migrations** (head
-> `202605170001`), **20 Next.js views** under `frontend/app/views/*.tsx`
-> (including `AssistView`, `GoogleOpsView` and `ResearchView` — animated
-> plan over SSE), **21 MCP servers** wired via the OpenCode cockpit,
-> **15 skills**, 7 subagents, 7 slash commands. Local runtime:
-> **primary+agent `gpt-5.5`** (operator gateway), **secondary/fallback
-> `gemini-3.1-pro-low`**, **vision `glm-4.6v`** (verified Fase 67/68). Kimi
-> K2.6 only via the Code Director CLI adapter (its HTTP endpoint 403s).
->
-> Phase 39 closed every technical residual risk: pluggable rate limiter
-> (memory/Redis), `/system/credentials-status` admin endpoint with the
-> live 21-credential inventory (never returns values), `workflow.v1`
-> ActionRequest export/import, self-healing Google OAuth
-> (`auth_google.py` skips the browser when an existing token can
-> refresh), `init_credentials.sh` operator wizard, request-scoped
-> `X-Request-ID` propagation, approval reaper
-> (`APPROVAL_PENDING_MAX_HOURS=48`), four-eyes approvals
-> (`APPROVAL_REQUIRE_FOUR_EYES=true`) and AuditEvent symmetry between the
-> REST and Telegram approval paths. Phases 44-49 consolidated Google Ops
-> (Maps advice/ETA, Calendar free/busy, Drive search/upload/folder/organize
-> through ActionRequest). Phases 50-58 closed the human operations path:
-> Telegram approvals resolve full UUIDs or unique prefixes, sign as
-> `telegram:<chat_id>`, dispatch approved `ActionRequest` jobs, and desktop
-> launchers have a reproducible read-only smoke test. Phases 59-63 made
-> dispatch observable and durable: REST/Telegram record submitted/failed
-> JobEvents, broker failures return controlled retry reasons, and duplicate
-> worker deliveries short-circuit when the job is already `running`. Phase 64
-> added an atomic `dispatch_state=submitting|submitted|failed` reservation
-> before `apply_async`, preventing duplicate Celery submits. Phase 65 closed
-> Telegram↔UI parity (36 slash commands including `/maps`, `/calendar`,
-> `/freebusy`, `/drive`, `/documents`, `/audit`, `/mail`, `/research`,
-> `/codebuild`, `/sandbox`, `/capabilities`) and fixed a Postgres-only bug:
-> the `ck_ar_action_type` CHECK constraint omitted `drive_ensure_folder`
-> and `drive_organize_files`, so `/actions/drive/folders/ensure/request`
-> and `/actions/drive/organize/request` raised `CheckViolation` on real
-> Postgres (masked by tests that monkeypatch the session). Migration
-> `202605170001` widens the constraint; a regression test keeps the ORM,
-> the latest migration and the service's persisted set in sync.
->
-> QA snapshot: **712 pytest passed, 1 skipped, 20 deselected**;
-> ruff/format/mypy, frontend lint/build, Alembic head with no drift and
-> `git diff --check` all green.
+> **Estado (2026-05-20, Fase 74 — auditoría completa + cliente MCP nativo + Telegram conversacional):**
+> stack operativo en grado comercial, verificado funcionando con
+> credenciales reales. Conteos verificados contra el código (sin inflar):
+> **130 endpoints REST**, **17 tareas Celery** en **5 colas** (`default`,
+> `ingestion`, `agent_longrun`, `maintenance`, `mail`), **17 migraciones
+> Alembic** (head `202605170001`), **20 vistas Next.js** bajo
+> `frontend/app/views/*.tsx`, **17 componentes** en `/health/dashboard`,
+> **37 slash commands** de Telegram, **21 tools built-in del DeepAgent**
+> más las **tools dinámicas MCP** (cuando `ENABLE_MCP_CLIENT=true`).
+> Cadena LLM: **primary+agent `gpt-5.5`** (gateway openai-compatible del
+> operador), **secondary/fallback `gemini-3.1-pro-low`**, **visión
+> `glm-4.6v`** (z.ai). Kimi-k2.6 sólo vía el adapter CLI del Code Director
+> (su endpoint HTTP devuelve 403). Suite QA: **712 pytest passed, 1
+> skipped, 20 deselected**; ruff/format/mypy, frontend lint/build, Alembic
+> sin drift, `git diff --check` — todo verde.
 
-Cognitive OS is a local-first cognitive operating system. LangGraph orchestrates
-flows, DeepAgents do the deep work, **OpenHarness optionally augments the `research`
-path** (upstream `QueryEngine`), and PostgreSQL/Weaviate/Neo4j/Redis provide
-the persistence and retrieval substrate. The whole stack is designed to be
-auditable, with human-in-the-loop gates around any sensitive action.
+---
 
-## High-level wiring
+## 0. Qué es Cognitive OS (en una frase y en un párrafo)
+
+**En una frase:** Cognitive OS es un *sistema operativo cognitivo
+local-first* — un agente de IA que vive en la PC del operador, con sus
+credenciales reales, y que puede investigar, redactar, analizar
+documentos, operar Google (Maps/Calendar/Drive), gestionar correo,
+controlar el navegador real, organizar el filesystem y delegar tareas de
+programación a CLIs de coding agents, todo bajo un plano de control
+auditable con compuertas humanas alrededor de cualquier acción sensible.
+
+**En un párrafo:** El sistema combina cuatro piezas. (1) **LangGraph**
+orquesta el flujo: un grafo de estados con un router que clasifica cada
+pedido y lo enruta a un subgrafo especializado. (2) **DeepAgents** hace el
+trabajo profundo: subagentes controlados con un set de herramientas
+tipadas, políticas por rol y memoria persistente. (3) **El Action Plane**
+ejecuta acciones sobre el mundo real (Google, mail, browser, DNS,
+filesystem, code builds) siempre a través de `ActionRequest` persistentes
+con preview-first y aprobación humana donde corresponde. (4) **La capa de
+persistencia y retrieval** — PostgreSQL+pgvector (fuente de verdad
+operacional), Weaviate (búsqueda híbrida BM25+vector sobre los chunks de
+documentos), Neo4j (grafo de entidades, read-only) y Redis (broker de
+Celery + backend del rate limiter). Todo expuesto vía una API FastAPI,
+una consola Next.js y un bot de Telegram que comparten exactamente el
+mismo servicio de negocio — y por lo tanto la misma `tool policy`, los
+mismos `HumanApproval` y el mismo `AuditEvent`.
+
+---
+
+## 1. Cableado de alto nivel
 
 ```
-┌──────────────┐   ┌────────────────────────────────────────────────────┐
-│   Next.js    │   │                    FastAPI app                      │
-│  (frontend)  │──▶│  /chat /threads /documents /document-analysis      │
-└──────────────┘   │  /jobs /approvals /health/dashboard /deepagents/*  │
-                   │  /actions/* /mail/* /research/* /langsmith/*       │
-                   └────────────────────────┬───────────────────────────┘
-                                            │
-                          ┌─────────────────┼─────────────────┐
-                          ▼                 ▼                 ▼
-                  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-                  │  LangGraph   │  │ Celery tasks │  │  AsyncSQL    │
-                  │ orchestrator │  │ + Redis cola │  │ (Postgres)   │
-                  └──────┬───────┘  └──────┬───────┘  └──────────────┘
-                         │                 │
-        ┌────────────────┼─────────────────┼──────────────────────┐
-        ▼                ▼                 ▼                      ▼
- ┌────────────┐  ┌──────────────┐  ┌────────────────┐   ┌───────────────────┐
- │  retrieve  │  │  DeepAgents  │  │ Document       │   │ OpenShell sandbox │
- │  (Weaviate │  │  (research,  │  │ Analysis       │   │ (vendor opcional) │
- │  + RAG +   │  │  document_   │  │ DeepAgent +    │   │                   │
- │  reranker) │  │  analysis)   │  │ Evidence       │   │                   │
- │            │  │              │  │ Ledger +       │   │                   │
- │            │  │              │  │ evaluators     │   │                   │
- └─────┬──────┘  └──────┬───────┘  └────────┬───────┘   └─────────┬─────────┘
-       │                │                   │                     │
-       ▼                ▼                   ▼                     ▼
-┌────────────┐   ┌───────────────┐   ┌────────────────┐   ┌──────────────┐
-│ Weaviate   │   │ DeepAgent     │   │ workspaces/    │   │ docker (host)│
-│ (chunks    │   │ skills/memory │   │   analysis/    │   │ vendor of    │
-│ + embed.)  │   │ + workspace   │   │   *.csv,       │   │ openshell    │
-│            │   │ filesystem    │   │   *.md,        │   │ deepagent    │
-│            │   │               │   │   *.docx       │   │              │
-└────────────┘   └───────────────┘   └────────────────┘   └──────────────┘
+┌──────────────┐   ┌──────────────┐   ┌────────────────────────────────────┐
+│   Next.js    │   │   Telegram   │   │              FastAPI app           │
+│  (panel web  │──▶│   bot (long  │──▶│  /chat /threads /documents          │
+│   :3001)     │   │   poll)      │   │  /document-analysis /jobs           │
+└──────────────┘   └──────────────┘   │  /approvals /actions/* /mail/*      │
+                                      │  /research/* /code-director/*       │
+                                      │  /system/* /health/* /deepagents/*  │
+                                      └────────────────┬───────────────────┘
+                                                       │
+                          ┌────────────────────────────┼────────────────────┐
+                          ▼                            ▼                    ▼
+                  ┌──────────────┐            ┌──────────────┐      ┌──────────────┐
+                  │  LangGraph   │            │ Celery tasks │      │  AsyncSQL    │
+                  │ orquestador  │            │ + Redis cola │      │ (Postgres)   │
+                  │ (checkpointer│            │ (5 colas)    │      │ +pgvector    │
+                  │  Postgres)   │            └──────┬───────┘      └──────────────┘
+                  └──────┬───────┘                   │
+        ┌────────────────┼───────────┬───────────────┼──────────────────┐
+        ▼                ▼           ▼               ▼                  ▼
+ ┌────────────┐  ┌──────────────┐ ┌──────────┐ ┌────────────────┐ ┌──────────────┐
+ │  retrieve  │  │  DeepAgents  │ │  Action  │ │ Document       │ │ OpenShell    │
+ │ (Weaviate  │  │ (research +  │ │  Plane   │ │ Analysis       │ │ sandbox      │
+ │  hybrid +  │  │  document_   │ │ (Google, │ │ (Evidence      │ │ (vendor,     │
+ │  reranker) │  │  analysis) + │ │  mail,   │ │  Ledger +      │ │  opcional)   │
+ │            │  │  MCP tools   │ │  browser,│ │  evaluators)   │ │              │
+ │            │  │  dinámicas   │ │  DNS, fs)│ │                │ │              │
+ └─────┬──────┘  └──────┬───────┘ └────┬─────┘ └────────┬───────┘ └──────┬───────┘
+       ▼                ▼              ▼                ▼                ▼
+ ┌────────────┐  ┌──────────────┐ ┌──────────┐ ┌────────────────┐ ┌──────────────┐
+ │ Weaviate   │  │ skills +     │ │ Postgres │ │ workspaces/    │ │ docker host  │
+ │ (chunks +  │  │ memoria +    │ │ Action   │ │   analysis/    │ │ contenedor   │
+ │ embeddings)│  │ workspace fs │ │ Requests │ │   *.csv *.docx │ │ aislado      │
+ └────────────┘  └──────────────┘ └──────────┘ └────────────────┘ └──────────────┘
 ```
 
-OpenHarness (optional `openharness-ai` extra): on the `research` route, LangGraph may run the upstream **QueryEngine** loop before DeepAgents share the same task workspace (`deepagent_mirror` mode by default). Modes **`prelude_merge`** vs **`short_circuit`** and tool presets are documented in `docs/OPENHARNESS_FUSION.md`.
+**Servidores MCP externos** (Fase 73, cuando `ENABLE_MCP_CLIENT=true`):
+el DeepAgent carga tools dinámicas de servidores MCP declarados en
+`MCP_SERVERS` — Supermemory, GitHub, filesystem, o cualquier servidor que
+hable Model Context Protocol. Ver §8.
 
-## Operational state
+---
 
-PostgreSQL is the operational source of truth: users, threads, documents,
-pages, chunks, jobs, job events, human approvals, audit events, DeepAgent
-memory and proposals, DeepAgent skill usage records, document analysis results,
-mail accounts, mail messages and mail send logs all live here. Schema lives
-under `backend/alembic/versions/`.
+## 2. Estado operacional (PostgreSQL como fuente de verdad)
 
-## LangGraph thread state
+PostgreSQL es la **única** fuente de verdad operacional. Todo lo
+siguiente vive ahí, con el esquema versionado en
+`backend/alembic/versions/`:
 
-The compiled graph uses a checkpointer:
+| Tabla | Qué guarda |
+|---|---|
+| `users` | identidad local (no hay multi-tenant real; es single-operator) |
+| `threads` / `thread_messages` | conversaciones del orquestador |
+| `documents` / `document_pages` / `document_chunks` | pipeline de ingesta de PDFs |
+| `jobs` / `job_events` | toda tarea async (ingesta, deepagent, code build, mail sync, reapers) + su timeline |
+| `human_approvals` | compuertas HITL (four-eyes opcional, cascada a Job/ActionRequest) |
+| `audit_events` | trail de auditoría de toda acción importante |
+| `action_requests` | el corazón del Action Plane: preview + payload cifrado + estado de dispatch |
+| `deepagent_memory` / `deepagent_memory_proposals` | memoria del agente (proposal → approval → active) |
+| `deepagent_memory_episodic` | memoria episódica |
+| `deepagent_skill_usage` | registro de uso de skills |
+| `document_analysis_results` | resultados del pipeline legal |
+| `mail_accounts` / `mail_messages` / `mail_send_logs` | correo multicuenta |
+| `personal_tasks` / `personal_notes` | asistente personal |
+| `research_run_records` | runs de investigación persistentes |
 
-* **Production / `uvicorn`**: the FastAPI lifespan opens a `PostgresSaver`
-  via `cognitive_os.agents.graph.postgres_checkpointer()`. Threads survive
-  process restarts, and `/threads/{id}/resume` keeps working.
-* **Tests / fallback**: if Postgres is unreachable when the app starts,
-  the lifespan logs a warning and falls back to `MemorySaver`. The
-  graph stays usable; threads simply do not persist across restarts.
+Las 17 migraciones forman una **cadena lineal sin ramas** (head
+`202605170001`). `scripts/full-qa.sh` corre `alembic check` para detectar
+drift.
 
-The active backend is reported in `GET /health/dashboard` as the
-`checkpointer` component (`status=ok` for postgres, `configured` for memory).
+---
 
-## Core nodes
+## 3. Estado del thread de LangGraph (checkpointer)
 
-* `router_node` — picks `research` / `legal` / `comm` / `social`. Forces
-  `legal` whenever the request carries explicit `doc_ids` so the document
-  analysis path runs without keyword matching.
-* `retrieve_context_node` — Weaviate hybrid search + lazy reranker. Errors
-  are downgraded to "no context" rather than killing the request.
-* `research_node` — optional **OpenHarness** `QueryEngine` prelude (when
-  `ENABLE_OPENHARNESS_RESEARCH` and the package are present), then the DeepAgent
-  research subagent with `openharness_prelude` merged into the user message when
-  `OPENHARNESS_RESEARCH_PIPELINE=prelude_merge` (default). `short_circuit` returns
-  OpenHarness output without calling DeepAgents. Deterministic citation-aware RAG
-  fallback if DeepAgents does not yield substantive content (`docs/OPENHARNESS_FUSION.md`).
-* `legal_node` — when document analysis is requested, builds a
-  `DocumentAnalysisTask` (carrying `doc_ids`, `case_id`, modes) and delegates
-  to `DocumentAnalysisService`. Drafts always trigger a `HumanReviewItem`.
-* `human_review_node` — interrupts the graph and awaits approve/edit/reject.
-* `error_node` / `final_response_node` — recovery and serialization.
+El grafo compilado usa un *checkpointer* que persiste el estado de cada
+conversación:
 
-## Connections at runtime
+* **Producción / `uvicorn`:** el lifespan de FastAPI abre un
+  `PostgresSaver` vía `cognitive_os.agents.graph.postgres_checkpointer()`.
+  Los threads sobreviven reinicios de proceso; `/threads/{id}/resume`
+  sigue funcionando. **Esto es lo que hace que el bot de Telegram
+  recuerde la conversación** (Fase 70): cada chat tiene un `thread_id`
+  determinista y su estado vive en Postgres.
+* **Tests / fallback:** si Postgres no está disponible al arrancar, el
+  lifespan loguea un warning y cae a `MemorySaver`. El grafo sigue usable;
+  los threads simplemente no persisten entre reinicios.
 
-* **Frontend → FastAPI**: JWT bearer; CORS allows `localhost:3001` (frontend) and `localhost:3000` (legacy); set via CORS_ALLOW_ORIGINS.
-* **FastAPI → LangGraph**: `_api_graph` is a module-level compiled graph;
-  the lifespan rebinds it to a Postgres-backed graph at startup.
-* **FastAPI → OpenHarness bridge**: llamada síncrona `run_openharness_research_sync`
-  desde `cognitive_os.integrations.openharness_research`, solo en `research_node`
-  cuando el extra está instalado y `ENABLE_OPENHARNESS_RESEARCH` (`docs/OPENHARNESS_FUSION.md`).
-* **FastAPI → Celery**: long jobs (`ingest_pdf`, `run_deepagent_task`,
-  `run_openshell_task`, `run_document_analysis`, `sync_personal_mail`) go
-  through Redis queues with separate routing keys (`ingestion`, `agent_longrun`,
-  `maintenance`, `mail`, `default`).
-* **Celery → DeepAgents**: tasks build a `DeepAgentTask` and call
+El backend activo se reporta en `GET /health/dashboard` como el
+componente `checkpointer` (`status=ok` para postgres, `configured` para
+memory).
+
+---
+
+## 4. Nodos del orquestador (`agents/graph.py`)
+
+* **`router_node`** — clasifica el pedido en `research` / `legal` /
+  `comm` / `social`. Si el request trae `doc_ids` explícitos, fuerza
+  `legal` sin pasar por el router LLM (señal inequívoca de análisis
+  documental). El router LLM degrada con red:
+  `agent → secondary → primary → deterministic_route`.
+* **`deterministic_route`** — fallback por keywords cuando ningún LLM
+  responde. **Fase 74:** `comm`/`social` ahora exigen un *verbo de
+  acción* explícito (enviá, redactá, publicá...). Un mensaje
+  informacional que sólo menciona un canal ("qué mensajes tengo") cae en
+  `research` y responde directo, sin disparar un interrupt de
+  human-review.
+* **`retrieve_context_node`** — búsqueda híbrida en Weaviate + reranker
+  lazy. Los errores se degradan a "sin contexto" en vez de matar el
+  request.
+* **`research_node`** — prelude opcional de **OpenHarness** `QueryEngine`
+  (si `ENABLE_OPENHARNESS_RESEARCH` y el paquete están presentes), luego
+  el subagente DeepAgent de research. Fallback determinístico citado si
+  el DeepAgent no produce contenido sustantivo.
+* **`legal_node`** — cuando se pide análisis documental, arma un
+  `DocumentAnalysisTask` (con `doc_ids`, `case_id`, modos) y delega a
+  `DocumentAnalysisService`. Los borradores siempre disparan un
+  `HumanReviewItem`.
+* **`comm_node`** / **`social_node`** — proponen comunicaciones; el envío
+  real pasa por `HumanApproval`.
+* **`human_review_node`** — interrumpe el grafo y espera
+  approve/edit/reject.
+* **`error_node`** / **`final_response_node`** — recuperación y
+  serialización.
+
+El **SystemMessage de identidad** (Fase 70): `initial_state()` prepende
+el contenido de `docs/AGENT_SELF.md` como `SystemMessage` con id estable,
+de modo que el agente siempre sabe quién es y qué puede hacer.
+
+---
+
+## 5. Conexiones en runtime
+
+* **Frontend → FastAPI:** JWT bearer; CORS permite `localhost:3001` y
+  `127.0.0.1:3001` (frontend real) más `:3000` (legacy/compat); el
+  default cubre los 4, override vía `CORS_ALLOW_ORIGINS`.
+* **Telegram → FastAPI:** el bot llama al **mismo servicio de negocio**
+  que el REST. Mensaje con `/` → slash command; mensaje sin `/` en
+  `dedicated_local` → carril `/chat` conversacional con thread
+  persistente.
+* **FastAPI → LangGraph:** `_api_graph` es un grafo compilado a nivel de
+  módulo; el lifespan lo re-vincula a un grafo con checkpointer Postgres
+  al arrancar.
+* **FastAPI → Celery:** los jobs largos (`ingest_pdf`,
+  `run_deepagent_task`, `run_openshell_task`, `run_code_build`,
+  `run_action_request`, `sync_personal_mail`) van por colas Redis con
+  routing keys separadas.
+* **Celery → DeepAgents:** las tasks arman un `DeepAgentTask` y llaman a
   `run_deepagent_task` / `DocumentAnalysisService.run_analysis_as_job`.
-  Each tool call passes through the policy layer (`tools/policy.py`) and
-  gets audited.
-* **DeepAgents → RAG**: `search_within_allowed_docs` filters Weaviate hits
-  to the agent's `allowed_doc_ids` and to `allowed_page_ranges`.
-* **Document Analysis → exporters**: emits `result.json`, `report.md`,
-  `evidence_matrix.csv`, `timeline.csv`, `contradictions.csv`, optional
-  `report.docx`. CSVs are downloadable via
-  `GET /document-analysis/{task_id}/download/csv/{kind}`.
-* **OpenShell sandbox**: disabled by default. When enabled, runs vendor
-  CLI inside Docker, requires explicit human approval for risky inputs,
-  records every run in `audit_events`.
-* **Action plane**: `backend/src/cognitive_os/actions/` exposes preview-first
-  browser, computer, Gmail, GoDaddy and Office-document capability checks plus
-  persistent `ActionRequest` records. `backend/src/cognitive_os/mail/` provides
-  the newer personal mail lane: GoDaddy IMAP/SMTP, Gmail label reader, Postgres
-  persistence, written proposals and approval-only send. `computer_organize`,
-  document generation, browser preview/interactive, DNS and mail send execute
-  only through guarded services.
-* **Memory consolidation**: Celery beat fires `consolidate_all_deepagent_memory`
-  daily, which dispatches per-agent consolidation jobs (`research`,
-  `document-analysis`). Resulting memory is stored as proposals; only an
-  approved proposal becomes active memory.
+  Cada tool call pasa por la capa de políticas (`tools/policy.py`) y se
+  audita.
+* **DeepAgents → MCP:** cuando `ENABLE_MCP_CLIENT=true`,
+  `build_deepagent_tools` suma las tools de los servidores MCP a las 21
+  built-in (ver §8).
+* **DeepAgents → RAG:** `search_within_allowed_docs` filtra los hits de
+  Weaviate al `allowed_doc_ids` del agente y a `allowed_page_ranges`.
+* **Action Plane:** `backend/src/cognitive_os/actions/` expone los
+  servicios preview-first (browser, computer, Gmail, GoDaddy, Maps,
+  Calendar, Drive, captcha, Kimi WebBridge) más los `ActionRequest`
+  persistentes.
+* **Consolidación de memoria:** Celery beat dispara
+  `consolidate_all_deepagent_memory` a diario.
 
-## Failure modes & graceful degradation
+---
 
-| Component down              | Effect                                                  |
-| --------------------------- | ------------------------------------------------------- |
-| Postgres                    | Lifespan falls back to `MemorySaver`; jobs/auth fail.   |
-| Redis                       | API still responds; Celery jobs cannot be enqueued.     |
-| Weaviate / embeddings       | `_safe_retriever` returns `[]`; chat replies "sin evidencia". |
-| Reranker model not present  | Lexical fallback ranker; spec compliant.                |
-| Neo4j                       | Ingestion warns and continues; chat path unaffected.    |
-| LLM provider                | Router falls back to deterministic keyword routing.     |
-| OpenHarness extra missing / disabled | Research path skips QueryEngine; DeepAgents + fallback unchanged. |
-| Mail IMAP/SMTP              | `/mail/status` reports degraded/errors; no auto-send.   |
+## 6. Reapers y robustez del dispatch
 
-## Security controls
+El Action Plane tiene **4 reapers** en el beat schedule de Celery, cada
+uno cubriendo una clase de falla:
 
-* Every mutating endpoint requires a JWT. The "admin" claim is enforced
-  whenever `ADMIN_USER_IDS` is non-empty.
-* Tool risk levels: `READ_ONLY`, `REVERSIBLE_WRITE`, `EXTERNAL_ACTION`,
-  `DANGEROUS`, `SANDBOX_EXECUTE`. External actions and dangerous tools
-  always pass through `human_approvals`.
-* PII redaction is the default in `LANGSMITH_TRACING` and audit metadata.
-* OpenShell never touches `~`, `.env`, or the repo root.
-* Action plane defaults to disabled and dry-run. Browser domains, filesystem
-  roots, Gmail scopes, personal mail send and GoDaddy writes are explicit
-  policy surfaces.
+| Reaper | Cron | Qué rescata |
+|---|---|---|
+| `reap_stale_approvals` | `:15` cada hora | `HumanApproval` colgados > `APPROVAL_PENDING_MAX_HOURS` |
+| `reap_stuck_action_requests` | `*/10` min | `ActionRequest` en `running` huérfanos + `dispatch_state` colgado |
+| `reap_stale_running_jobs` | `03:30` diario | Jobs zombie en `queued`/`running` > `STALE_JOB_MAX_HOURS` (Fase 72) |
+| `consolidate_all_deepagent_memory` | diario | consolidación de memoria por agente |
 
-## Where to look next
+El **dispatch durable** (Fase 59-64): REST y Telegram registran
+`JobEvent` submitted/failed; un fallo del broker devuelve una razón de
+retry controlada; reserva atómica `dispatch_state=submitting|submitted|
+failed` antes de `apply_async` impide submits duplicados; reentrada de
+worker corta circuito si el job ya está `running`.
 
-* `backend/src/cognitive_os/api/app.py` — wiring, lifespan, endpoints.
-* `backend/src/cognitive_os/agents/graph.py` — orchestrator nodes & routing.
-* `backend/src/cognitive_os/deepagents/` — controlled DeepAgents factory,
-  research and document analysis subagents.
-* `backend/src/cognitive_os/ingestion/pipeline.py` — PDF → pages → chunks →
-  Weaviate + Neo4j flow.
-* `backend/src/cognitive_os/workers/tasks.py` — Celery task definitions.
-* `backend/src/cognitive_os/mail/` — personal mail IMAP/SMTP/Gmail-label lane.
-* `docs/OPENHARNESS_FUSION.md` — OpenHarness + LangGraph + DeepAgents on `research`.
-* `docs/ACTION_PLANE.md` — browser/computer/Gmail/GoDaddy action model.
-* `docs/SECURITY.md`, `docs/DEEPAGENTS_INTEGRATION.md`,
-  `docs/DOCUMENT_ANALYSIS_AGENT.md`, `docs/OPENSHELL_SANDBOX.md` — deep dives.
+---
+
+## 7. Modos de falla y degradación elegante
+
+| Componente caído | Efecto |
+|---|---|
+| Postgres | El lifespan cae a `MemorySaver`; jobs/auth fallan |
+| Redis | La API responde igual; los jobs Celery no se encolan |
+| Weaviate / embeddings | `_safe_retriever` retorna `[]`; el chat responde "sin evidencia" |
+| Reranker ausente | Ranker léxico de fallback; cumple spec |
+| Neo4j | La ingesta avisa y continúa; el chat no se afecta |
+| Proveedor LLM | El router cae a ruteo determinístico por keywords |
+| OpenHarness ausente/off | El research path saltea el QueryEngine; DeepAgents + fallback sin cambios |
+| Mail IMAP/SMTP | `/mail/status` reporta degraded; nada de auto-send |
+| Servidor MCP caído | Ese server se skipea con warning; los otros cargan igual; `/system/mcp` lo muestra |
+
+---
+
+## 8. Cliente MCP (Model Context Protocol) — Fase 73
+
+Bajo `ENABLE_MCP_CLIENT=true`, el DeepAgent carga **tools dinámicas** de
+servidores MCP externos, además de sus 21 tools built-in.
+
+* **Declaración:** `MCP_SERVERS` en `.env`, CSV con sintaxis
+  `name:transport:target[::extra=v,...]`. Transportes soportados: `sse`,
+  `streamable_http`, `websocket` (target = URL), `stdio` (target =
+  comando; extras `cwd=`, `env_KEY=`).
+* **Módulo:** `integrations/mcp_client.py` — parser + loader async sobre
+  `langchain_mcp_adapters.MultiServerMCPClient`. Las tools llegan
+  prefijadas `<server>_<tool>` (sin colisiones con las built-in).
+* **Fail-open por server:** si un server cae, se loguea warning y se
+  skipea; los demás cargan igual.
+* **Allow-list por subgrafo:** `MCP_ALLOWED_FOR_RESEARCH` /
+  `MCP_ALLOWED_FOR_DOCUMENT_ANALYSIS` restringen qué servers ve qué
+  carril. Vacío = todos.
+* **Sólo `dedicated_local`:** las tools MCP son credenciales personales
+  del operador; el wrapper sync corta circuito fuera de ese perfil.
+* **Observabilidad:** `GET /system/mcp` dialoga con cada server y reporta
+  `connected` + `tools_count`; `health/dashboard` tiene el componente
+  `mcp_client` (config sin live RPC).
+
+Detalle completo: `docs/COGNITIVE_OS_GUIDE.md` §MCP.
+
+---
+
+## 9. Controles de seguridad
+
+* Todo endpoint mutador requiere un JWT. El claim "admin" se exige cuando
+  `ADMIN_USER_IDS` no está vacío o el rol está en `AUTH_ADMIN_ROLES`.
+* Niveles de riesgo de tools: `READ_ONLY`, `REVERSIBLE_WRITE`,
+  `EXTERNAL_ACTION`, `DANGEROUS`, `SANDBOX_EXECUTE`. Las acciones
+  externas y las dangerous siempre pasan por `human_approvals` — salvo el
+  whitelist de auto-approve reversible bajo `dedicated_local`
+  (`drive_ensure_folder`, `drive_upload`, `computer_organize`).
+* Redacción de PII por default en trazas LangSmith y metadata de
+  auditoría. `payload_executable` de los `ActionRequest` se cifra
+  (configurable, obligatorio en producción).
+* OpenShell nunca toca `~`, `.env` ni la raíz del repo; corre en Docker
+  aislado con approval explícito.
+* El Action Plane arranca disabled + dry-run. Dominios de browser, roots
+  de filesystem, scopes de Gmail, send de mail y writes de GoDaddy son
+  superficies de política explícitas.
+
+---
+
+## 10. Dónde mirar después
+
+* `backend/src/cognitive_os/api/app.py` — wiring, lifespan, 130 endpoints.
+* `backend/src/cognitive_os/agents/graph.py` — nodos del orquestador y routing.
+* `backend/src/cognitive_os/deepagents/` — factory de DeepAgents controlados, subagentes de research y document analysis.
+* `backend/src/cognitive_os/integrations/mcp_client.py` — cliente MCP.
+* `backend/src/cognitive_os/integrations/telegram_bot.py` — bot Telegram (37 commands + conversacional).
+* `backend/src/cognitive_os/ingestion/pipeline.py` — PDF → pages → chunks → Weaviate + Neo4j.
+* `backend/src/cognitive_os/workers/tasks.py` — definiciones de tasks Celery + reapers.
+* `backend/src/cognitive_os/actions/` — Action Plane.
+* `backend/src/cognitive_os/mail/` — correo personal IMAP/SMTP/Gmail.
+* `backend/src/cognitive_os/core/health.py` — los 17 checks de `/health/dashboard`.
+* `docs/AGENT_SELF.md` — identidad del agente (lo carga como contexto).
+* `docs/USER_GUIDE.md` — guía operativa de punta a punta.
+* `docs/ACTION_PLANE.md`, `docs/SECURITY.md`, `docs/DEEPAGENTS_INTEGRATION.md`, `docs/DOCUMENT_ANALYSIS_AGENT.md`, `docs/OPENSHELL_SANDBOX.md`, `docs/OPENHARNESS_FUSION.md` — deep dives por dominio.

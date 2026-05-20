@@ -1,7 +1,7 @@
 # Scripts
 
-> **Estado actual (2026-05-17, Fase 41 Code Director F9 cerrada):**
-> scripts shell verificados. `dev_worker.sh` escucha **5 queues**:
+> **Estado actual (2026-05-20, Fase 74):** scripts shell verificados.
+> `dev_worker.sh` escucha **5 queues**:
 > `default,ingestion,agent_longrun,maintenance,mail`. `full-qa.sh` y
 > `stress-qa.sh` instalan el extra OpenHarness; `full-qa.sh` además
 > ejecuta `alembic check` (tolerante a Postgres apagado) y
@@ -9,10 +9,13 @@
 > endurecidos (`Levantar/Reiniciar/Detener/Estado Cognitive OS.{sh,desktop}`)
 > envuelven `cognitive-os.sh` con lock `flock`, preflight de
 > dependencias, anti PID-recycle, kill graceful, rotación de logs y
-> modo `doctor`. Telegram queda omitido si `TELEGRAM_ENABLED=false`.
-> Nuevo wizard `init_credentials.sh [--ci]`: checklist REQ/OPT/OK de
-> credenciales operador con instrucción inline y exit-1 en CI si faltan
-> REQ.
+> modo `doctor`; el frontend corre en `:3001` (`:3000` lo ocupa
+> OpenChamber) con chequeo de liveness por puerto. Telegram arranca si
+> `TELEGRAM_ENABLED=true`. `verify_desktop_launchers.sh` es el smoke-test
+> read-only de los 4 launchers. Wizard `init_credentials.sh [--ci]`:
+> checklist REQ/OPT/OK de credenciales. **Fase 73:** `auth_google.py` +
+> `auth_gmail.py` son los flows OAuth one-time (detectan scope drift y
+> piden re-consent automáticamente).
 
 ## Bootstrap y operación
 

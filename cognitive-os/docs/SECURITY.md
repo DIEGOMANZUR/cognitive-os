@@ -1,27 +1,32 @@
-# Seguridad
+# Seguridad (referencia técnica)
 
-> **Estado actual (2026-05-19, Fase 68 — GoDaddy DNS prod con doble compuerta, doble revisión profunda):** GoDaddy
-> habilitado pero `GODADDY_DNS_DRY_RUN_ONLY=true` + `GODADDY_ALLOW_PRODUCTION_WRITES=false`
-> (cero escrituras DNS reales sin opt-in explícito + aprobación humana). `.env`
-> sigue gitignoreado/no-trackeado; credenciales también respaldadas en
-> Supermemory (memoria personal del operador, fuera del repo). Suite de tests
-> hermética por construcción (no hace llamadas LLM reales). Telegram queda
-> deshabilitado hasta token válido (el del `.env` da 401). Reglas previas
-> (Fase 65, revisión integral pre-entrega) siguen vigentes:
-> reglas siguen vigentes y fueron auditadas de punta a punta. Google
-> Calendar/Drive writes reales sólo pueden pasar por `ActionRequest` + aprobación
-> humana; los endpoints directos rechazan `dry_run=false`. Postgres, Redis,
-> Weaviate y Neo4j publican sólo en `127.0.0.1` por defecto. OAuth/Drive/health
-> redactan rutas locales y tokens en errores. El frontend PWA evita cachear rutas
-> API-like y añade headers de seguridad. La Fase 33 elimina admin implícito,
-> añade roles en JWT local, cifra `payload_executable` cuando hay clave y exige
-> `ACTION_PAYLOAD_ENCRYPTION_REQUIRED=true` + `RESEARCH_PERSISTENCE_BACKEND=postgres`
-> en producción. **Auditoría Fase 65:** `pre-commit` (gitleaks +
-> detect-secrets, baseline limpio, 0 findings tras anotar el falso
-> positivo de `telegram_bot.py`), 132 usos de dependencia de auth sobre
-> 131 endpoints, validators de producción que rechazan `CHANGEME` y
-> capacidades externas sin aprobación, dispatch idempotente y CHECK
-> `ck_ar_action_type` corregido (migración `202605170001`).
+> **Estado (2026-05-20, Fase 74 — auditoría completa, cliente MCP, perfil dedicated_local):**
+> GoDaddy habilitado pero `GODADDY_DNS_DRY_RUN_ONLY=true` +
+> `GODADDY_ALLOW_PRODUCTION_WRITES=false` (cero escrituras DNS reales sin
+> opt-in explícito + aprobación humana). `.env` gitignoreado/no-trackeado;
+> credenciales también respaldadas en Supermemory (fuera del repo). Suite
+> hermética por construcción (no hace llamadas LLM reales). **Telegram
+> operativo** con bot autorizado. Reglas auditadas de punta a punta:
+> Google Calendar/Drive writes reales sólo vía `ActionRequest` +
+> aprobación humana. Postgres, Redis, Weaviate y Neo4j publican sólo en
+> `127.0.0.1`. OAuth/Drive/health redactan rutas locales y tokens en
+> errores. El frontend PWA evita cachear rutas API-like y añade headers de
+> seguridad. RBAC local explícito, `payload_executable` cifrado cuando hay
+> clave, `ACTION_PAYLOAD_ENCRYPTION_REQUIRED=true` +
+> `RESEARCH_PERSISTENCE_BACKEND=postgres` obligatorios en producción.
+> `pre-commit` (gitleaks + detect-secrets, baseline limpio, 0 findings).
+> Auth dependency sobre los **130 endpoints** (sólo `/health` público).
+>
+> **Modelo de seguridad por perfil (`OPERATOR_PROFILE`):** el sistema
+> tiene dos posturas. `strict` (default de install) — todas las compuertas
+> activas, four-eyes, allow-lists angostas: para máquinas compartidas /
+> multi-cliente. `dedicated_local` — el PC pertenece al agente; se afloja
+> la fricción donde NO causa daño irreversible (auto-approve de acciones
+> reversibles, four-eyes off, acceso al `/home`). Lo irreversible —mail
+> send, browser mutations, openshell, code_build, drive_organize de datos
+> de terceros, GoDaddy DNS write— sigue requiriendo aprobación en AMBOS
+> perfiles. El install nunca arranca en `dedicated_local`: es una decisión
+> consciente del operador.
 
 ## Reglas obligatorias
 
@@ -144,6 +149,27 @@ Hechos relevantes para seguridad (verificados contra
 Trátalo como capacidad de **operador consciente**: actívalo solo donde
 entiendas preset, modo de workspace y límites de red.
 Detalle completo: **`docs/OPENHARNESS_FUSION.md`**.
+
+## Cliente MCP (Fase 73)
+
+El DeepAgent puede cargar tools de servidores MCP externos
+(`ENABLE_MCP_CLIENT=true` + `MCP_SERVERS`). Reglas de seguridad:
+
+- El cliente MCP es **opt-in** y sólo se activa bajo
+  `OPERATOR_PROFILE=dedicated_local` — las tools MCP usan credenciales
+  personales del operador (tokens en los headers de `MCP_SERVERS`), que no
+  deben filtrarse a deployments multi-tenant.
+- Cada servidor MCP se conecta **aislado**: un server caído o malicioso se
+  skipea con warning, no compromete a los demás.
+- Las tools MCP de **write** tienen efectos reales (p.ej. crear un issue
+  en GitHub, escribir un archivo). El operador es responsable de qué
+  servidores declara — el sistema no puede auditar qué hace una tool
+  remota arbitraria. Declarar sólo servidores de confianza.
+- Los headers de auth (`header_Authorization=Bearer ...`) viven en `.env`
+  gitignoreado. Nunca documentar valores reales.
+- `MCP_ALLOWED_FOR_RESEARCH` / `MCP_ALLOWED_FOR_DOCUMENT_ANALYSIS`
+  permiten restringir qué servers ve qué subgrafo — usar para mantener
+  servidores sensibles fuera de la ruta legal.
 
 ## Mail personal GoDaddy/Gmail-label
 

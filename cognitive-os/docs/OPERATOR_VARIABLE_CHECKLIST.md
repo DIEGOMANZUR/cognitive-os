@@ -1,20 +1,30 @@
 # Checklist operador: variables de entorno ↔ `Settings`
 
-> **Estado actual (2026-05-17, Fase 39):** vigente. La tabla canónica
+> **Estado actual (2026-05-20, Fase 74):** vigente. La tabla canónica
 > `SETTINGS_REGISTRY_TABLE.md` (autogenerada por
-> `scripts/dump_settings_registry.py`, **no editar a mano**) incluye
-> OpenHarness (`ENABLE_OPENHARNESS_RESEARCH`, `OPENHARNESS_*`), mail
-> personal (`MAIL_IMAP_*`, `MAIL_SMTP_*`, `MAIL_REQUIRE_APPROVAL_FOR_SEND`,
-> `MAIL_DEFAULT_SENDER`, `MAIL_POLL_INTERVAL_SECONDS`,
-> `MAIL_IMAP_TIMEOUT_SECONDS`, `MAIL_SMTP_TIMEOUT_SECONDS`) y voz
-> ElevenLabs/Maps Google/Calendar/Drive/Telegram/LangSmith, RBAC local
-> (`AUTH_*`), cifrado de payload ejecutable (`ACTION_PAYLOAD_*`) y research
-> durable (`RESEARCH_PERSISTENCE_BACKEND`).
-> `core/config.py` define **100+ variables** activas. Para fusión consultar
-> `OPENHARNESS_FUSION.md`; para mail consultar `ACTION_PLANE.md` y
-> `COGNITIVE_OS_GUIDE.md`. Tras Fase 33 queda pendiente completar variables
-> `.env.local` faltantes (requiere input del usuario para
-> `MAIL_IMAP_PASSWORD` y similares).
+> `scripts/dump_settings_registry.py`, **no editar a mano**) es la fuente
+> de verdad de TODAS las variables. Cubre: OpenHarness
+> (`ENABLE_OPENHARNESS_RESEARCH`, `OPENHARNESS_*`), mail personal
+> (`MAIL_*`), voz ElevenLabs, Google Maps/Calendar/Drive, Gmail, Telegram,
+> LangSmith, RBAC local (`AUTH_*`), cifrado de payload (`ACTION_PAYLOAD_*`)
+> y research durable (`RESEARCH_PERSISTENCE_BACKEND`).
+>
+> **Variables agregadas en Fase 68b-74:**
+> - `OPERATOR_PROFILE` (`strict`|`dedicated_local`) — postura de
+>   fricción/seguridad.
+> - `AUTO_APPROVE_REVERSIBLE_ACTIONS` — auto-approve de acciones
+>   reversibles bajo `dedicated_local`.
+> - `CODE_DIRECTOR_BUDGET_MODE` (`soft`|`hard`),
+>   `CODE_DIRECTOR_PACKAGE_MAX_FILES`, `CODE_DIRECTOR_PACKAGE_MAX_BYTES`.
+> - `STALE_JOB_MAX_HOURS` — umbral del reaper de jobs zombie.
+> - `ENABLE_MCP_CLIENT`, `MCP_SERVERS`, `MCP_CALL_TIMEOUT_SECONDS`,
+>   `MCP_ALLOWED_FOR_RESEARCH`, `MCP_ALLOWED_FOR_DOCUMENT_ANALYSIS` —
+>   cliente MCP (Fase 73).
+> - `AGENT_LLM_*` — carril de modelo tool-capable del agente.
+>
+> `core/config.py` define **100+ variables** activas. Para fusión:
+> `OPENHARNESS_FUSION.md`; para mail: `ACTION_PLANE.md` y
+> `COGNITIVE_OS_GUIDE.md`; para MCP: `ARCHITECTURE.md` §8.
 
 ## Visión del producto (no negociable al revisar `.env`)
 

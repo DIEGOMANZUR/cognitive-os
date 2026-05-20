@@ -1,6 +1,6 @@
-# DeepAgents Skills and Memory
+# DeepAgents Skills y Memory (referencia técnica)
 
-> **Estado actual (2026-05-17, Fase 42):** skills core en
+> **Estado (2026-05-20, Fase 74):** skills core en
 > `backend/src/cognitive_os/deepagents/skills/core/` (**13 SKILL.md**: 8
 > originales + **legal pack de 5** —`legal-hold`, `privilege-log-review`,
 > `oss-license-review`, `worker-classification`, `matter-intake`—
@@ -15,9 +15,21 @@
 > `202604300004_deepagents_skills_memory` y soporta `kind: episodic` desde
 > `202605120005_deepagent_memory_episodic`. La consolidación corre como
 > tareas Celery `cognitive_os.consolidate_deepagent_memory` (individual) y
-> `cognitive_os.consolidate_all_deepagent_memory` (global). El mail
-> personal no se convierte en memoria activa ni tool de envío para
-> DeepAgents — el carril `/mail/*` opera fuera del runtime DeepAgent.
+> `cognitive_os.consolidate_all_deepagent_memory` (global).
+>
+> **Fase 71-72:** las propuestas de memoria propagan
+> `user_id`/`case_id`/`thread_id` desde el workspace de la tarea, y
+> `get_relevant_memory` los usa para filtrar el recall por scope — sin
+> esto la memoria de distintos contextos se mezclaba. El mail personal no
+> se convierte en memoria activa ni en tool de envío para DeepAgents — el
+> carril `/mail/*` opera fuera del runtime DeepAgent.
+>
+> **Las 13 skills core:** `citation-discipline`, `rag-research`,
+> `report-writer`, `evidence-matrix`, `contradiction-detector`,
+> `timeline-builder`, `legal-draft-careful`, `sandbox-code-analysis`
+> (las 8 originales) + el legal pack de 5 (`legal-hold`,
+> `privilege-log-review`, `oss-license-review`, `worker-classification`,
+> `matter-intake`).
 
 ## Skills vs Memory
 

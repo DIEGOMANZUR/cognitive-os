@@ -1,15 +1,16 @@
 # Roadmap: Cognitive OS como asistente personal
 
-> **Estado actual (2026-05-15, Fase 33 RBAC + cifrado + research durable):** roadmap vivo. El primer
-> corte de correo multicuenta sigue implementado y verificado contra
-> GoDaddy IMAP real: 25 mensajes importados, 4 importantes con propuesta
-> escrita. La vista frontend `AssistView` cubre tareas/notas
-> personales (`PersonalTask`/`PersonalNote`) con CRUD completo; `GoogleOpsView`
-> opera Maps/Calendar/Drive. La queue
-> Celery `mail` ya queda integrada en `scripts/dev_worker.sh` y los
-> ejecutables de escritorio. Calendar/Drive writes reales quedan bajo
-> `ActionRequest` + aprobación. QA actual: **497 passed, 1 skipped, 20
-> deselected**; ruff/ruff format/mypy/frontend lint/build verdes. La ruta
+> **Estado actual (2026-05-20, Fase 74):** roadmap vivo, mayormente
+> ejecutado. El correo multicuenta está implementado y verificado contra
+> GoDaddy IMAP/SMTP real + Gmail label `TODOS`. La vista frontend
+> `AssistView` cubre tareas/notas personales (`PersonalTask`/
+> `PersonalNote`) con CRUD; `GoogleOpsView` opera Maps/Calendar/Drive.
+> Telegram operativo (slash + conversacional). El asistente tiene acceso
+> total al `/home` del operador (Fase 73b) + cliente MCP (Fase 73). La
+> queue Celery `mail` está integrada en los launchers de escritorio.
+> Calendar/Drive writes reales bajo `ActionRequest` + aprobación (o
+> auto-approve reversible en `dedicated_local`). QA: **712 passed, 1
+> skipped, 20 deselected**; ruff/format/mypy/frontend verdes. La ruta
 > `research` sigue fusionada con OpenHarness opcional y puede persistir runs
 > en Postgres. Pendiente para
 > "asistente personal absoluto": OAuth real Gmail/Calendar/Drive operados

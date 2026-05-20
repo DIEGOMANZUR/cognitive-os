@@ -1,6 +1,6 @@
 # Fusión OpenHarness ↔ Cognitive OS (LangGraph + DeepAgents)
 
-> **Estado actual (2026-05-19, Fase 69):** integración estable, **opcional**,
+> **Estado actual (2026-05-20, Fase 74):** integración estable, **opcional**,
 > gobernada por `ENABLE_OPENHARNESS_RESEARCH`. Pipeline por defecto
 > **`prelude_merge`**, workspace por defecto **`deepagent_mirror`**, preset
 > por defecto **`research`**. Cadena LLM verificada (gateway openai-compatible

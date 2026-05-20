@@ -1,13 +1,20 @@
-# OpenShell Sandbox
+# OpenShell Sandbox (referencia técnica)
 
-> **Estado actual (2026-05-15, 04:47 hora Chile):** integración separada e
-> independiente de OpenHarness y del carril mail. OpenShell se ejecuta vía
-> un *vendor* externo dentro de Docker; OpenHarness corre en proceso del
-> backend cuando se activa el extra. Worker dedicado:
+> **Estado (2026-05-20, Fase 74):** integración separada e independiente
+> de OpenHarness y del carril mail. OpenShell se ejecuta vía un *vendor*
+> externo dentro de Docker; OpenHarness corre en proceso del backend
+> cuando se activa el extra. Worker dedicado:
 > `cognitive_os.run_openshell_task` (queue `agent_longrun`). El frontend
 > `SandboxView` envía el campo `purpose` requerido por el endpoint y
 > consume estados reales (`pending`, `running`, `completed`, `failed`).
-> Si te confunden los nombres, lee primero la sección "Que no es" y
+> Off por default (`ENABLE_OPENSHELL_SANDBOX=false`).
+>
+> **Fase 71-D:** el dispatch de OpenShell desde la decisión de approval
+> (`_decide_approval` en REST y Telegram) pasa ahora por el helper
+> compartido `dispatch_celery_with_audit` — emite un `JobEvent`
+> `openshell_dispatch_submitted` o `_dispatch_failed`, de modo que un
+> broker caído nunca deja la aprobación decidida y el job en silencio.
+> Si te confunden los nombres, leé primero "Qué no es" y
 > `docs/OPENHARNESS_FUSION.md`.
 
 OpenShell DeepAgent es un sandbox opcional para ejecutar codigo o comandos controlados desde

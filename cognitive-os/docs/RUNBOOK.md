@@ -1,6 +1,6 @@
 # RUNBOOK Cognitive OS
 
-> **Estado actual (2026-05-19, Fase 68 — GoDaddy DNS prod operativo, doble revisión profunda, suite hermética 712 passed; Telegram requiere token válido nuevo):**
+> **Estado actual (2026-05-20, Fase 74 — auditoría completa + cliente MCP + Telegram conversacional operativo):**
 > la ruta `research` está fusionada con OpenHarness opcional; el runtime
 > local usa **DeepSeek V4 Pro** (`deepseek-v4-pro`); el stack incluye mail
 > personal GoDaddy/Gmail-label con queue Celery `mail` integrada en

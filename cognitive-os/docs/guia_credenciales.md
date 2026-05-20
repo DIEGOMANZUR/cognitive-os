@@ -21,7 +21,7 @@
   línea exacta de `.env` (archivo `cognitive-os/.env`). Nunca subas ese
   archivo a git.
 
-## Estado actual en esta máquina (2026-05-17)
+## Estado actual en esta máquina (2026-05-20, Fase 74)
 
 Verificá en cualquier momento con:
 
@@ -30,18 +30,26 @@ cd cognitive-os
 bash scripts/init_credentials.sh
 ```
 
-Hoy: **0 requeridas faltantes**, 15/21 configuradas. Quedan **6
-opcionales** pendientes (las trato primero, en orden de prioridad):
+**Todo lo crítico está configurado y verificado en vivo:**
 
-1. `ACTION_PAYLOAD_ENCRYPTION_KEY` — sin web, se genera local (1 comando).
-2. `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` — Google Cloud Console.
-3. `GODADDY_API_KEY` / `GODADDY_API_SECRET` — developer.godaddy.com.
-4. `HF_TOKEN` — Hugging Face.
-5. `SUPERMEMORY_API_KEY` — Supermemory.
-6. `GITHUB_PERSONAL_ACCESS_TOKEN` — GitHub.
+- ✅ Telegram — bot `@Socio_dimn_bot`, `TELEGRAM_ENABLED=true`, user
+  autorizado. Acepta slash commands + mensajes conversacionales.
+- ✅ Google Calendar/Drive — OAuth corrido (`scripts/auth_google.py`),
+  componentes `ready`.
+- ✅ Gmail — OAuth corrido (`scripts/auth_gmail.py`), read-only label
+  `TODOS`.
+- ✅ GoDaddy DNS producción — auth HTTP 200, modo seguro dry-run.
+- ✅ MCP — 3 servidores conectados (Supermemory, GitHub, filesystem).
+  Verificable en `/system/mcp`.
+- ✅ LLM gateway (gpt-5.5 / gemini-3.1-pro-low / glm-4.6v), embeddings,
+  ElevenLabs, CapSolver, LangSmith.
 
-Después documento **todas las demás** (ya configuradas en este host) por
-si necesitás rotarlas o rehacerlas.
+La PARTE A de abajo describe cómo obtener cada credencial **por si
+necesitás rotarla o rehacerla**. La PARTE B documenta las demás. Para el
+cliente MCP, las credenciales (token de Supermemory, PAT de GitHub) van
+en la línea `MCP_SERVERS` de `.env` como headers
+`header_Authorization=Bearer <token>` — ver `docs/COGNITIVE_OS_GUIDE.md`
+sección MCP.
 
 ---
 

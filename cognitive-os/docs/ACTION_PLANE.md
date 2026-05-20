@@ -1,6 +1,6 @@
 # Action Plane
 
-> **Estado actual (2026-05-19, Fase 68 — GoDaddy DNS producción operativo):** capa **preview-first con
+> **Estado actual (2026-05-20, Fase 74 — auditoría completa + computer_organize auto-approve):** capa **preview-first con
 > `ActionRequest` persistente** y carril activo de **mail personal aprobado**.
 > GoDaddy DNS verificado en vivo (auth producción HTTP 200) y habilitado en
 > postura segura: `GODADDY_DNS_DRY_RUN_ONLY=true` +
@@ -296,7 +296,18 @@ Diseno:
 - No toca archivos ocultos salvo `include_hidden=true`.
 - La ejecucion real existe solo para `computer_organize` y requiere:
   `ENABLE_COMPUTER_ACTIONS=true`, raiz permitida, `COMPUTER_ORGANIZE_DRY_RUN_ONLY=false`,
-  `HumanApproval` aprobada y despacho por `/actions/requests/{id}/dispatch`.
+  aprobación y despacho por `/actions/requests/{id}/dispatch`.
+- **Fase 73b — auto-approve bajo `dedicated_local`:** `computer_organize`
+  está en el whitelist `AUTO_APPROVE_REVERSIBLE_ACTIONS`. Cuando
+  `OPERATOR_PROFILE=dedicated_local` (y el flag no fue puesto en `false`
+  manualmente), el plan de organización se auto-aprueba y se despacha sin
+  pedir click — mover/renombrar un archivo no es irreversible (sigue en
+  el disco). El preview completo igual queda persistido en el
+  `ActionRequest` para auditar después. En `strict` sigue pidiendo
+  aprobación humana.
+- En la PC dedicada del operador, `COMPUTER_ALLOWED_ROOTS` cubre todo
+  `/home/jgonz` (más `/tmp`, `/mnt`); el agente puede ordenar el
+  filesystem completo del usuario, no sólo una carpeta.
 - La ejecucion vuelve a validar el plan antes de mover archivos; no confia en
   previews viejos.
 - `computer_inventory` crea un mapa read-only de metadata dentro de

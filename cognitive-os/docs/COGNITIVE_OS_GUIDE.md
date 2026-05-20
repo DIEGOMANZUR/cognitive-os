@@ -1,6 +1,6 @@
 # Cognitive OS — Guía Maestra
 
-> **Última actualización:** 2026-05-19, Fase 68 — GoDaddy DNS de producción operativo y verificado en vivo (auth HTTP 200, seguro: dry-run + aprobación + sin prod-writes; bug de alias `ENABLE_GODADDY`→`GODADDY_ENABLED` corregido). Cadena LLM del operador verificada: primary+agent **gpt-5.5** (gateway), secondary/fallback **gemini-3.1-pro-low**, visión **glm-4.6v**; las 21 tools del DeepAgent con `args_schema` Pydantic tipado (válido en gateways estrictos); suite hermética por construcción (conftest guard) **712 passed**. Telegram pendiente: token del `.env` da 401 (revocado), falta el user_id autorizado — requiere token nuevo del operador. Fases previas (66/67): carril de agente y router con modelo tool-capable, LangSmith personal access token, Maps `departureTime` futuro.
+> **Última actualización:** 2026-05-20, Fase 74 — auditoría completa de 10 dominios + cliente MCP nativo + Telegram conversacional + acceso total al PC. Cadena LLM del operador: primary+agent **gpt-5.5** (gateway), secondary/fallback **gemini-3.1-pro-low**, visión **glm-4.6v**; las 21 tools built-in del DeepAgent con `args_schema` Pydantic tipado + tools dinámicas MCP cuando `ENABLE_MCP_CLIENT=true`; suite hermética por construcción (conftest guard) **712 passed**. Telegram operativo (bot autorizado, slash commands + conversacional sin slash). Novedades Fase 70-74: identidad del agente (`AGENT_SELF.md` cargado como contexto), memoria de conversación persistente por chat, cliente MCP, diagnóstico `/system/readiness`, inventario `/system/mcp`, 17 componentes en `/health/dashboard`.
 > **Estado del producto:** monorepo en grado comercial operativo (backend FastAPI 0.115+ con **130 endpoints REST**, **17 tareas Celery** distribuidas en **5 colas** `default`/`ingestion`/`agent_longrun`/`maintenance`/`mail`, **17 migraciones Alembic**, LangGraph 1.1.10 + DeepAgents 0.6.x + Postgres 16+pgvector + Redis 7 + Weaviate 1.29.0 + Neo4j 5 ligados a `127.0.0.1` por defecto; consola Next.js 16.2.6 con **20 vistas** en `app/views/*.tsx` incluidas `AssistView`, `GoogleOpsView`, `ResearchView` y `CodeDirectorView`; bot Telegram opcional con **37 slash commands** en paridad con el panel; Kimi WebBridge; fusión opcional con OpenHarness en la ruta `research`; **Code Director** (delegación a Claude Code/Codex/Kimi/DeepAgents con planner LLM-driven y prompts con contexto vivo, F9)). Runtime local (cadena verificada Fase 67/68): primary+agent **gpt-5.5** (gateway openai-compatible del operador), secondary/fallback **gemini-3.1-pro-low**, visión **glm-4.6v** (z.ai); Kimi-k2.6 solo vía el adapter CLI del Code Director (su endpoint HTTP da 403). Mail personal GoDaddy IMAP/SMTP + Gmail label `TODOS` soportado + propuestas escritas; Google Maps/Calendar/Drive operables; Telegram approvals con dispatch de `ActionRequest`; dispatch durable con broker failure controlado, JobEvents submit/fail y reserva atómica anti-submit duplicado; envío y writes externos solo aprobados (`MAIL_REQUIRE_APPROVAL_FOR_SEND=true`). Asistente personal con `PersonalTask`/`PersonalNote` CRUD y reminders. Fase 65 corrigió un bug crítico Postgres-only: el CHECK `ck_ar_action_type` no incluía `drive_ensure_folder`/`drive_organize_files` (migración `202605170001` + test de regresión).
 > **QA snapshot persistente (Fase 65):** **712 pytest passed, 1 skipped, 20 deselected**; ruff + ruff format + mypy (125 source files) + frontend lint + frontend build + Alembic head `202605170001` + `git diff --check` → todo verde.
 > **Para qué es este documento:** la **guía maestra técnica** "desde cero". Complementa la `USER_GUIDE.md` (orientada a operación cotidiana) con arquitectura detallada, mail multicuenta, escritorio, credenciales y troubleshooting profundo. Cada afirmación tiene su archivo o variable de respaldo en el repo.
@@ -855,10 +855,63 @@ variables. Luego corres el quickstart oficial para generar
 | `OPENSHELL_GATEWAY_URL` | URL local del gateway si arrancas el vendor. |
 | `NVIDIA_API_KEY` | Solo si el vendor lo necesita; queda placeholder por defecto. |
 
+### Cliente MCP (Model Context Protocol) — Fase 73
+
+El DeepAgent puede cargar **tools dinámicas** de servidores MCP externos,
+sin tocar código. Esto extiende sus 21 tools built-in con todo lo que
+expongan los servidores que el operador declare.
+
+**Activación:**
+| Variable | Valor / formato |
+| --- | --- |
+| `ENABLE_MCP_CLIENT` | `true` para encender el cliente |
+| `MCP_SERVERS` | CSV de declaraciones (ver sintaxis abajo) |
+| `MCP_CALL_TIMEOUT_SECONDS` | timeout por llamada (default 30) |
+| `MCP_ALLOWED_FOR_RESEARCH` | allow-list de servers para el subgrafo research (vacío = todos) |
+| `MCP_ALLOWED_FOR_DOCUMENT_ANALYSIS` | allow-list para el subgrafo legal |
+
+**Sintaxis de cada declaración en `MCP_SERVERS`:**
+
+```
+nombre:transporte:destino[::extra=valor,extra=valor,...]
+```
+
+- **Transportes:** `sse`, `streamable_http`, `websocket` (destino = URL) o
+  `stdio` (destino = comando shell).
+- **Extras URL:** `header_Authorization=Bearer <token>` para auth.
+- **Extras stdio:** `cwd=/ruta`, `env_CLAVE=valor`.
+
+**Ejemplos reales:**
+
+```bash
+# Supermemory (HTTP streaming, con token en el header):
+MCP_SERVERS=mem:streamable_http:https://api.supermemory.ai/mcp::header_Authorization=Bearer sm_xxxxx
+
+# Varios servers a la vez, separados por coma:
+MCP_SERVERS=mem:streamable_http:https://api.supermemory.ai/mcp::header_Authorization=Bearer sm_xxx,gh:streamable_http:https://api.githubcopilot.com/mcp::header_Authorization=Bearer ghp_xxx,fs:stdio:npx -y @modelcontextprotocol/server-filesystem /home/jgonz
+```
+
+**Cómo se ven las tools:** prefijadas `<server>_<toolname>` (p.ej.
+`mem_search_memories`, `gh_list_issues`, `fs_read_file`) para no
+colisionar con las 21 built-in.
+
+**Observabilidad:** `GET /system/mcp` dialoga con cada server y reporta
+`{connected, tools_count, error}`. El panel `Settings` tiene el tile
+"MCP servers". El `/health/dashboard` incluye el componente `mcp_client`.
+
+**Seguridad:** sólo se activa bajo `OPERATOR_PROFILE=dedicated_local`
+(las tools MCP usan credenciales personales del operador); cada server se
+conecta aislado (uno caído no rompe a los otros); declarar sólo
+servidores de confianza — el sistema no puede auditar qué hace una tool
+remota arbitraria.
+
 ### Capacidades pendientes (variables reservadas, integración no implementada)
 - **YouTube**: `YOUTUBE_API_KEY` → no hay extractor implementado.
 - **Microsoft Mail**: `MICROSOFT_MAIL_ENABLED` (flag) → sin executor real.
 - **Notion / cuentas externas**: variables presentes pero sin pipeline en backend.
+- **Servidor MCP** (Cognitive OS *exponiendo* sus tools por MCP a clientes
+  externos): hoy es sólo *cliente* MCP. Ser servidor MCP queda como
+  capacidad futura.
 
 ---
 

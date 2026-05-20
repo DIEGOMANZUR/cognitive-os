@@ -1,16 +1,22 @@
-# Document Analysis Agent
+# Document Analysis Agent (referencia técnica)
 
-> **Estado actual (2026-05-15, 04:47 hora Chile):** subagente legal estable,
-> ruta `legal` del grafo. Modos verificados en
+> **Estado (2026-05-20, Fase 74):** subagente legal estable, ruta `legal`
+> del grafo. Modos verificados en
 > `backend/src/cognitive_os/deepagents/document_analysis/schemas.py::DocumentAnalysisMode`
 > (`evidence_matrix`, `timeline`, `contradictions`, `full_report`,
-> `legal_draft_support`, `case_summary`). Endpoints expuestos: 7 rutas
-> bajo `/document-analysis/{task_id}/*` (incluyendo `download`, `report`).
-> Worker Celery: `cognitive_os.run_document_analysis` en queue `agent_longrun`.
-> Stack documental soportado vía PyPDF 6.10.2, PyMuPDF 1.27.2.3, ReportLab
-> 4.5.0, python-docx 1.2.0, openpyxl 3.1.5, python-pptx 1.0.2.
-> **No** participa en la fusión OpenHarness ni en el carril de mail
-> personal; esas capacidades viven fuera de la ruta legal.
+> `legal_draft_support`, `case_summary`). Endpoints: 7 rutas bajo
+> `/document-analysis/{task_id}/*`. Worker Celery:
+> `cognitive_os.run_document_analysis` en queue `agent_longrun`. Stack
+> documental: PyPDF 6.10.2, PyMuPDF 1.27.2.3, ReportLab 4.5.0,
+> python-docx 1.2.0, openpyxl 3.1.5, python-pptx 1.0.2.
+>
+> **Fase 72:** el subagente puede pedir Kimi WebBridge ad-hoc para
+> validación cruzada de un dato del documento — campo
+> `request_kimi_webbridge` en el `DocumentAnalysisTask`. Off por default
+> (mantiene `allow_browser=False` para mitigar prompt-injection desde
+> documentos hostiles); sólo se enciende cuando
+> `dedicated_local + enable_kimi_webbridge + request_kimi_webbridge=true`.
+> No participa en la fusión OpenHarness ni en el carril de mail personal.
 
 El Document Analysis Agent es un subagente legal de Cognitive OS para analizar documentos ya
 ingestados con trazabilidad probatoria. Produce matriz hecho/evidencia/cita, timeline,

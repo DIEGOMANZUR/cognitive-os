@@ -1,139 +1,210 @@
-# DeepAgents Integration
+# Integración de DeepAgents (referencia técnica)
 
-> **Estado actual (2026-05-15, 04:47 hora Chile):** DeepAgents
-> (`deepagents>=0.6.1,<0.7.0`) sigue siendo el subagente productivo de las
-> rutas `research` y `document_analysis`. En `research` puede recibir un
-> **preludio OpenHarness** vía `task.metadata["openharness_prelude"]` (ver
-> `docs/OPENHARNESS_FUSION.md`). El carril `/mail/*` (GoDaddy IMAP/SMTP +
-> Gmail label `TODOS`) no habilita `send_email` dentro del DeepAgent: las
-> políticas locales (`DeepAgentToolPolicy`) no se relajan por la fusión ni
-> por mail personal. Tools efectivamente expuestas por
-> `build_deepagent_tools` (verificable en
-> `backend/src/cognitive_os/deepagents/tools.py`): operaciones de
-> archivo/URL (`read_file`, `write_file`, `list_files`, `glob_files`,
-> `delete_file`, `read_url`), búsqueda web (`search_web`), visión
-> (`analyze_image`), skills/memoria (`list_available_skills`, `read_skill`,
-> `get_relevant_memory`, `propose_memory_update`) y herramientas
-> personales aisladas por `user_id` (`plan_route`, `geocode_address`,
-> `list_calendar_events`, `check_calendar_freebusy`, `search_drive_files`,
-> `preview_drive_organization`, `search_notes`).
+> **Estado (2026-05-20, Fase 74):** DeepAgents (`deepagents>=0.6.1,<0.7.0`)
+> es el subagente productivo de las rutas `research` y `document_analysis`
+> del orquestador LangGraph. Expone **21 tools built-in** con `args_schema`
+> Pydantic tipado (Fase 67 — antes los `lambda` sin tipos producían
+> esquemas `{}` vacíos que los gateways estrictos rechazaban con `400
+> Invalid schema`). Bajo `ENABLE_MCP_CLIENT=true` (Fase 73) se suman
+> **tools dinámicas** de servidores MCP externos. El modelo del carril de
+> agente es `gpt-5.5` vía `create_agent_chat_model()` — un modelo
+> *tool-capable* (soporta `tool_choice` forzado para structured output);
+> los modelos *reasoner* rompen este carril en silencio.
 
-## Rol En Cognitive OS
+---
 
-DeepAgents Python se integra como worker cognitivo/subgrafo especializado. No reemplaza al
-orquestador LangGraph principal: Cognitive OS sigue siendo la torre de control que enruta,
-aplica política, decide interrupciones humanas, persiste jobs y hace fallback.
+## 1. Rol dentro de Cognitive OS
 
-En la ruta **`research`**, LangGraph puede ejecutar antes (opcional) **OpenHarness**
-(`QueryEngine`) y fusionar el resultado con DeepAgents mediante
-`openharness_prelude` cuando `OPENHARNESS_RESEARCH_PIPELINE=prelude_merge` (por defecto).
-Orden técnico, presets y workspaces: **`docs/OPENHARNESS_FUSION.md`**.
+DeepAgents NO reemplaza al orquestador LangGraph. LangGraph es la torre de
+control: enruta, aplica políticas, decide interrupciones humanas, persiste
+jobs y hace fallback. DeepAgents es el **worker cognitivo** que hace el
+trabajo profundo dentro de un subgrafo especializado.
 
-Version actual integrada: `deepagents>=0.6.1,<0.7.0`. Cognitive OS usa las
-capacidades nativas de DeepAgents 0.6.x (`write_todos`, filesystem, `task`,
-subagents y memory) sin entregar permisos peligrosos por defecto.
+- En **`research`**: LangGraph puede ejecutar antes (opcional) un prelude
+  de **OpenHarness** (`QueryEngine`) y fusionarlo vía
+  `task.metadata["openharness_prelude"]` cuando
+  `OPENHARNESS_RESEARCH_PIPELINE=prelude_merge` (default). Ver
+  `docs/OPENHARNESS_FUSION.md`.
+- En **`document_analysis`**: el subagente arma matrices hecho/evidencia/
+  cita, detecta contradicciones, construye líneas de tiempo y propone
+  borradores legales con citas. Ver `docs/DOCUMENT_ANALYSIS_AGENT.md`.
 
-## Tools Permitidas
+Cognitive OS usa las capacidades nativas de DeepAgents 0.6.x (`write_todos`,
+filesystem virtual, `task`, subagents y memory) **sin entregar permisos
+peligrosos por defecto**.
 
-Definidas en `backend/src/cognitive_os/deepagents/tools.py` y compuestas por `build_deepagent_tools` según la `DeepAgentToolPolicy`:
+---
 
-- `search_local_docs`: consulta RAG local con citas (filtra por `allowed_doc_ids`).
-- `read_document_pages`: lee páginas ingeridas desde Postgres, máximo 20 por llamada.
-- `graph_query_readonly`: consultas de grafo predefinidas; no acepta Cypher libre.
-- `search_web`: solo si `WEB_SEARCH_ENABLED=true` y la tarea permite web.
-- `write_workspace_file`: escribe solo dentro de `storage/workspaces/{thread_id}/{task_id}/`.
-- `list_available_skills` / `read_skill`: introspección de skills habilitadas (core + user) para que el subagente decida qué procedimiento aplicar.
-- `get_relevant_memory`: trae memoria revisada de `deepagent_memory_records` filtrada por scope.
-- `propose_memory_update`: propone (no aprueba) nuevas entradas en `deepagent_memory_proposals`. La promoción a memoria activa requiere aprobación humana vía API.
+## 2. Las 21 tools built-in
 
-## Tools Prohibidas
+Definidas en `backend/src/cognitive_os/deepagents/tools.py`, compuestas por
+`build_deepagent_tools()` según la `DeepAgentToolPolicy` de la tarea. Cada
+una tiene una clase `args_schema` Pydantic tipada y descrita.
 
-- `execute`, `shell`, `bash`, `python_exec`.
-- `browser_action`.
-- `send_email`.
-- `publish_social_post`.
-- `delete_file`.
-- `edit_project_file`.
+**Conocimiento / RAG:**
+- `search_local_docs` — RAG local con citas, filtra por `allowed_doc_ids`.
+- `read_document_pages` — lee páginas ingestadas desde Postgres, máx. 20
+  por llamada, respeta `allowed_page_ranges`.
+- `graph_query_readonly` — consultas de grafo Neo4j predefinidas; NO
+  acepta Cypher libre.
+- `search_web` — sólo si `WEB_SEARCH_ENABLED=true` y la tarea permite web.
+
+**Skills y memoria:**
+- `list_available_skills` — introspección de skills habilitadas (core +
+  user).
+- `read_skill` — lee una skill por nombre, sin aceptar rutas arbitrarias.
+- `get_relevant_memory` — trae memoria revisada, filtrada por scope
+  (Fase 71-72: propaga `user_id`/`thread_id`).
+- `propose_memory_update` — propone (no aplica) memoria nueva; la
+  promoción a memoria activa requiere aprobación humana.
+
+**Workspace:**
+- `write_workspace_file` — escribe sólo dentro de
+  `storage/workspaces/{thread_id}/{task_id}/`.
+
+**Asistente personal (read-only, aislado por `user_id`):**
+- `plan_route` / `geocode_address` — Google Maps.
+- `list_calendar_events` / `check_calendar_freebusy` — Google Calendar.
+- `search_drive_files` / `preview_drive_organization` — Google Drive.
+- `search_notes` — notas personales indexadas en Weaviate.
+
+**Navegador real (Kimi WebBridge, sólo si la policy lo habilita):**
+- `browse_real_navigate` / `browse_real_snapshot` /
+  `browse_real_screenshot` — controlan el Edge real del operador.
+
+**Captcha (CapSolver):**
+- `solve_image_captcha` / `solve_token_captcha` — resuelven captchas;
+  gastan créditos CapSolver.
+
+---
+
+## 3. Tools MCP dinámicas (Fase 73)
+
+Cuando `ENABLE_MCP_CLIENT=true`, `build_deepagent_tools()` recibe un
+parámetro `mcp_tools` con las herramientas de los servidores MCP externos
+declarados en `MCP_SERVERS`. Llegan prefijadas `<server>_<toolname>`
+(p.ej. `mem_search_memories`, `gh_list_issues`, `fs_read_file`) para no
+colisionar con las 21 built-in. La carga es:
+
+- `research_deepagent.py` y `document_deepagent.py` llaman
+  `load_mcp_tools_for_role_sync(role)` antes de crear el agente.
+- La allow-list `MCP_ALLOWED_FOR_RESEARCH` /
+  `MCP_ALLOWED_FOR_DOCUMENT_ANALYSIS` restringe qué servers ve qué carril.
+- Sólo se activa bajo `OPERATOR_PROFILE=dedicated_local`.
+
+Detalle: `docs/ARCHITECTURE.md` §8 + `docs/COGNITIVE_OS_GUIDE.md`.
+
+---
+
+## 4. Tools prohibidas dentro del DeepAgent
+
+El DeepAgent NUNCA recibe directamente:
+
+- `execute`, `shell`, `bash`, `python_exec` — la ejecución de código va
+  por OpenShell (sandbox separado, off por default, con approval).
+- `send_email` — el envío de mail pasa por `HumanApproval`, fuera del
+  DeepAgent.
+- `publish_social_post` — idem.
+- `delete_file` / `edit_project_file` — el filesystem del DeepAgent es un
+  workspace temporal en `virtual_mode=True`.
 - Acceso al filesystem del proyecto.
 
-DeepAgents usa un workspace temporal controlado y backend filesystem en `virtual_mode=True`.
-No se habilita ejecución de shell dentro de DeepAgents. La ejecución de codigo
-se canaliza por OpenShell, que es un sandbox separado, deshabilitado por defecto
-y sujeto a aprobacion humana.
+El acceso amplio al filesystem del operador (Fase 73b: todo `/home/jgonz`)
+NO es vía el DeepAgent crudo — es vía el servidor MCP `fs` (gobernado por
+su propia policy) o vía `computer_organize` del Action Plane (con
+preview + auto-approve reversible).
 
-## Subagents
+---
 
-`DEEPAGENTS_ENABLE_SUBAGENTS=true` habilita subagents sincronicos locales dentro
-del mismo harness DeepAgents. No son procesos separados ni reciben mas permisos:
-usan las mismas tools policy-bound, el mismo backend virtual y el mismo
-`interrupt_on` para herramientas sensibles.
+## 5. Subagents
 
-Subagents actuales:
+`DEEPAGENTS_ENABLE_SUBAGENTS=true` habilita subagents síncronos locales
+dentro del mismo harness. NO son procesos separados ni reciben más
+permisos: usan las mismas tools policy-bound, el mismo backend virtual y
+el mismo `interrupt_on` para herramientas sensibles.
 
-- Research: `local-rag-researcher`, `citation-auditor`, `web-researcher` solo
-  si web esta permitido por tarea y policy.
-- Document analysis: `evidence-matrix-specialist`, `timeline-specialist`,
-  `contradiction-reviewer`.
+- **Research:** `local-rag-researcher`, `citation-auditor`,
+  `web-researcher` (sólo si web está permitido).
+- **Document analysis:** `evidence-matrix-specialist`,
+  `timeline-specialist`, `contradiction-reviewer`.
 
-Async subagents oficiales requieren Agent Protocol server / LangSmith Deployment
-o una implementacion compatible. No se activan automaticamente en local.
+Los async subagents oficiales requieren Agent Protocol server / LangSmith
+Deployment; no se activan automáticamente en local.
 
-## Memory Nativa
+---
+
+## 6. Memoria nativa
 
 La memoria aprobada se inyecta de dos formas:
 
 - Resumen de compatibilidad dentro del system prompt.
-- Archivo `./.cognitive_os/AGENTS.md` creado dentro del workspace de la tarea,
-  para que `MemoryMiddleware` de DeepAgents 0.6.x pueda leerlo como memory path.
+- Archivo `./.cognitive_os/AGENTS.md` dentro del workspace de la tarea,
+  para que el `MemoryMiddleware` de DeepAgents 0.6.x lo lea como memory
+  path.
 
-La consolidacion evita duplicar propuestas por contenido normalizado.
+El ciclo de memoria: `propose_memory_update` crea una propuesta →
+`approve_memory_proposal` (API/operador) la promueve a memoria activa. La
+consolidación (Celery beat diario) evita duplicar propuestas por contenido
+normalizado. Fase 71-72: las propuestas propagan
+`user_id`/`case_id`/`thread_id` para recall correcto por scope.
 
-## Test Manual
+---
+
+## 7. Test manual
 
 ```bash
 cd backend
-uv run python ../scripts/test_deepagent_research.py "investiga la diferencia entre LangGraph y DeepAgents usando mis documentos locales"
+uv run python ../scripts/test_deepagent_research.py \
+  "investiga la diferencia entre LangGraph y DeepAgents usando mis documentos locales"
 ```
 
-El resultado se guarda en `storage/workspaces/manual-test/{task_id}/result.json`.
+El resultado se guarda en
+`storage/workspaces/manual-test/{task_id}/result.json`.
 
-## Activar Web Search
+---
 
-1. Configura `WEB_SEARCH_ENABLED=true`.
-2. Define al menos una clave (`TAVILY_API_KEY`, `BRAVE_API_KEY`, `PERPLEXITY_API_KEY`
-   u `EXA_API_KEY`). Los proveedores disponibles se combinan automáticamente.
-3. Lanza la tarea con `web_allowed=true`.
+## 8. Activar web search
+
+1. `WEB_SEARCH_ENABLED=true`.
+2. Al menos una clave: `TAVILY_API_KEY`, `BRAVE_API_KEY`,
+   `PERPLEXITY_API_KEY` o `EXA_API_KEY`. Los proveedores se combinan
+   automáticamente.
+3. Lanzar la tarea con `web_allowed=true`.
 
 Si web no está habilitada, `search_web` devuelve `web_search_disabled`.
 
-## Revisar Workspace
+---
 
-Cada tarea crea:
+## 9. Workspace y depuración
 
-```text
-storage/workspaces/{thread_id}/{task_id}/
-  report.md
-  result.json
-```
+Cada tarea crea `storage/workspaces/{thread_id}/{task_id}/` con
+`report.md` + `result.json`. Los endpoints y jobs nunca exponen rutas
+absolutas.
 
-Los endpoints y jobs nunca exponen rutas absolutas del workspace.
+Para depurar:
+- `JobEvent`: `started`, `workspace_created`, `agent_started`,
+  `agent_finished`, `failed`.
+- `result.json`: salida estructurada del agente.
+- `AuditEvent`: cada tool call del DeepAgent.
+- Si DeepAgents falla, `research_node` usa fallback RAG directo citado.
+- Con OpenHarness en `short_circuit`, una respuesta válida de OH evita el
+  DeepAgent; en `prelude_merge` el fallo de OH sólo implica continuar sin
+  preludio.
 
-## Depuración
+---
 
-- Revisa `JobEvent` para `started`, `workspace_created`, `agent_started`, `agent_finished` o `failed`.
-- Revisa `result.json`.
-- Revisa `AuditEvent` para herramientas DeepAgents.
-- Si DeepAgents falla, `research_node` usa fallback RAG directo.
-- Si usas OpenHarness en `short_circuit`, una respuesta válida de OH evita DeepAgent;
-  en `prelude_merge` (por defecto), el preludio llega en metadata y el fallo de OH
-  sólo implica continuar sin preludio (`docs/OPENHARNESS_FUSION.md`).
+## 10. Riesgos conocidos
 
-## Riesgos Conocidos
-
-- DeepAgents sigue un modelo "trust the LLM"; Cognitive OS impone allowlists, permisos y wrappers.
-- El filesystem de DeepAgents se limita al workspace temporal, pero no sustituye aislamiento de proceso.
-- Las herramientas web reales se mantienen deshabilitadas salvo configuración explícita.
-- OpenShell es el camino separado para ejecucion de codigo. DeepAgents no recibe
-  shell directo.
-- OpenHarness (opcional) sí puede ejecutar bash y otras herramientas dentro del
-  cwd del harness según preset; ver `OPENHARNESS_FUSION.md`.
+- DeepAgents sigue un modelo "trust the LLM"; Cognitive OS impone
+  allowlists, permisos y wrappers en cada borde.
+- El filesystem del DeepAgent se limita al workspace temporal — no
+  sustituye aislamiento de proceso.
+- Las tools web reales quedan deshabilitadas salvo configuración
+  explícita.
+- OpenShell es el único camino para ejecución de código; el DeepAgent no
+  recibe shell directo.
+- OpenHarness (opcional) sí puede ejecutar bash dentro de su cwd según
+  preset; ver `OPENHARNESS_FUSION.md`.
+- Las tools MCP corren contra servidores externos: una tool MCP de write
+  puede tener efectos reales — por eso el cliente MCP es opt-in y sólo
+  bajo `dedicated_local`.

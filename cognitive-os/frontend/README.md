@@ -1,33 +1,38 @@
 # Cognitive OS Frontend
 
-> **Estado actual (2026-05-17, Fase 41 Code Director F9 cerrada):**
-> Next.js 16.2.6 (Turbopack), React 19, ESLint 9.39.4, TypeScript 5.8.
-> **20 vistas** confirmadas en `app/views/*.tsx`: `ChatView`,
-> `DashboardView`, `SettingsView`, `ApprovalsView` (con import/export
-> `workflow.v1`), `MemoryView`, `JobsView`, `SandboxView`,
+> **Estado actual (2026-05-20, Fase 74):** Next.js 16.2.6, React 19,
+> ESLint 9.39.4, TypeScript 5.8. **20 vistas** en `app/views/*.tsx`:
+> `ChatView`, `DashboardView`, `SettingsView`, `ApprovalsView` (con
+> import/export `workflow.v1`), `MemoryView`, `JobsView`, `SandboxView`,
 > `DocumentsView`, `DocumentAnalysisView`, `ConfigurationView`,
 > `MailInboxView`, `LangSmithView`, `AgentsView`, `SkillsView`,
-> `HealthView`, `AuditView`, `AssistView` (tareas/notas personales),
-> `GoogleOpsView` (Maps/Calendar/Drive), **`ResearchView`** (plan animado
-> sobre SSE de `/research/runs/{id}/events`) y **`CodeDirectorView`**
-> (delegación de builds a coding agents externos con plan LLM-driven,
-> aprobación humana y descarga `tar.gz`). Componentes principales:
-> `Sidebar.tsx`, `TopBar.tsx`, `CommandPalette.tsx`, `PWA.tsx`,
-> `ErrorBoundary.tsx` (recovery global). Las respuestas **research**
-> pueden combinar en backend OpenHarness + DeepAgents sin cambiar la UI (ver
-> `docs/OPENHARNESS_FUSION.md`). La vista `Mail` consume `/mail/*` para
-> sync GoDaddy/Gmail-label, propuestas editables y envío aprobado por SMTP
-> GoDaddy con estado `pending_send` y `MailSendResult`. La vista `Assist`
-> consume `/assist/tasks` y `/assist/notes` para gestionar tareas
-> personales, recordatorios y notas multi-tag (incluye búsqueda vectorial
-> vía `/assist/notes/search`). La vista `Google Ops` consume Maps Routes,
-> Calendar y Drive con ActionRequests aprobables para writes. Next.js añade
-> headers de seguridad, el service worker mantiene APIs network-only y `PWA.tsx`
-> cubre install/offline/update. El `ApiClient` normaliza tokens pegados con
-> prefijo `Bearer`, no envía `Content-Type: application/json` en requests
-> sin body, y soporta `AbortSignal` para cancelar polls obsoletos. JWT en
-> memoria de sesión React (no `localStorage`). QA: `npm run lint` 0
-> warnings, `npm run build` (Next.js 16.2.6 Turbopack) verde.
+> `HealthView`, `AuditView`, `AssistView`, `GoogleOpsView`,
+> `ResearchView` (plan animado sobre SSE) y `CodeDirectorView`
+> (delegación de builds con aprobación humana + descarga `tar.gz`).
+> Componentes: `Sidebar.tsx`, `TopBar.tsx`, `CommandPalette.tsx`,
+> `PWA.tsx`, `ErrorBoundary.tsx`.
+>
+> **Novedades Fase 71-74 en el frontend:**
+> - **JWT persistente** en `localStorage` (`useLocalState`, Fase 71-H) —
+>   ya no hay que re-pegarlo al recargar.
+> - **`SettingsView`** muestra el tile **"Capacidades bloqueadas"**
+>   (`/system/readiness`) y el tile **"MCP servers"** (`/system/mcp`).
+> - **`ConfigurationView`** invierte la semántica de "danger" según el
+>   `operator_profile` (en `dedicated_local`, no tener una capacidad write
+>   no es alarma — es capacidad faltante).
+> - **`GoogleOpsView`** deshabilita los botones de write cuando
+>   `write_enabled=false` y muestra `missing_scopes` con el comando de
+>   re-autorización.
+> - **`HealthView`** lista metadata como key=value (no JSON crudo); 17
+>   componentes incluido `mcp_client`.
+> - **`ChatView`** muestra `tg…<sufijo>` para threads de Telegram.
+>
+> El `ApiClient` normaliza tokens con prefijo `Bearer`, omite
+> `Content-Type` en requests sin body y soporta `AbortSignal`. Next.js
+> añade headers de seguridad; el service worker mantiene las APIs
+> network-only; `PWA.tsx` cubre install/offline/update. Corre en `:3001`
+> (`:3000` lo ocupa OpenChamber). QA: `npm run lint` 0 warnings,
+> `npm run build` verde.
 
 Consola operativa en Next.js para usar Cognitive OS: chat, documentos, jobs,
 aprobaciones, salud, memoria, skills, sandbox, mail personal, Google Ops y estado

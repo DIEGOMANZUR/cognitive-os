@@ -1,14 +1,15 @@
 # Plan de perfeccionamiento (configuración, docs, seguridad operativa)
 
-> **Estado actual (2026-05-15, Fase 33):** Fase A/B completas, mail personal
-> operativo e infra de datos local-only por defecto. Fase C/D siguen como mejora opcional sin afectar QA.
-> La revisión integral (Fase 28 de `task_plan.md`) cerró P0/P1 (secret
-> hygiene, mail timeouts/redacción, `/config/public` ampliado, contratos
-> frontend, AssistView, tests `/mail/*` y `/config/public`). Lo pendiente
-> P2 ya cerró su núcleo comercial en Fase 33: auth/RBAC local explícito,
-> cifrado at-rest de `payload_executable` y persistencia durable configurable
-> del orquestador de research. Siguen como mejora incremental los controles
-> visuales adicionales de variables, salud, colas y riesgos.
+> **Estado actual (2026-05-20, Fase 74):** Fases A/B completas; **Fase E
+> sustancialmente ejecutada** — la "sala de máquinas" existe: `/system/
+> readiness` (diagnóstico de fricción, Fase 72), `/system/mcp` (inventario
+> MCP, Fase 73), `/health/dashboard` con 17 componentes, las vistas
+> `Configuration`/`Health`/`Settings` con tiles de estado y la matriz de
+> capacidades. Fases C/D (mapa `variable → función` automatizado, comando
+> `config doctor` standalone) siguen como mejora opcional sin afectar QA.
+> El núcleo comercial está cerrado: auth/RBAC local explícito, cifrado
+> at-rest de `payload_executable`, persistencia durable del research,
+> perfil `dedicated_local`, cliente MCP, Telegram conversacional.
 
 Alineado a la visión en `ARCHITECTURE.md` y `PROJECT_GUIDE.md`: **local-first,
 auditable, human-in-the-loop** sobre acciones sensibles. Modelo de fusión
@@ -20,9 +21,9 @@ OpenHarness + LangGraph + DeepAgents: `OPENHARNESS_FUSION.md`.
 |------|----------|--------|
 | A | Registro mecánico ENV ↔ `Settings`, checklist de operador, tabla versionada, pruebas de humo del script | **Hecho** |
 | B | Comprobar en `pytest` que `SETTINGS_REGISTRY_TABLE.md` coincide con el script (sin deriva) | **Hecho** vía `backend/tests/test_dump_settings_registry.py::test_settings_registry_table_markdown_matches_generated_body`. Si introduces una variable nueva en `Settings` y olvidas regenerar la tabla, el test falla. |
-| C | Ampliar mapa «variable → función» con generación parcial (p. ej. `rg` por atributo en pipeline de release) | Pendiente |
-| D | Comando único `config doctor` que valide prod vs reglas (CORS, aprobaciones, OpenShell, OpenHarness) sin levantar uvicorn | Pendiente |
-| E | Sala de máquinas comercial: exponer configuración no sensible, estado de colas, mail, riesgos y toggles operativos seguros en frontend/backend | Pendiente |
+| C | Ampliar mapa «variable → función» con generación parcial (p. ej. `rg` por atributo en pipeline de release) | Pendiente (opcional) |
+| D | Comando único `config doctor` que valide prod vs reglas (CORS, aprobaciones, OpenShell, OpenHarness) sin levantar uvicorn | Pendiente (opcional) — parcialmente cubierto por `/system/readiness` |
+| E | Sala de máquinas comercial: exponer configuración no sensible, estado de colas, mail, riesgos y toggles operativos seguros en frontend/backend | **Hecho** (Fase 72-74): `/system/readiness`, `/system/mcp`, `/health/dashboard` (17 componentes), vistas Configuration/Health/Settings con tiles |
 
 ## Fase A (ejecutada)
 
