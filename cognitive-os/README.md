@@ -1,6 +1,7 @@
 # Cognitive OS
 
-> **Estado actual (2026-05-20, Fases 78-81 — plan de aprendizaje completo):**
+> **Estado actual (2026-05-20, Fases 78-81 — plan de aprendizaje completo +
+> aislamiento de DB de test):**
 > Las **5 fases** del plan de aprendizaje autónomo
 > (`docs/AGENT_LEARNING_PLAN.md`) están cerradas en producción:
 > **A** recipe extractor (jobs exitosos → recetas `kind=procedure`),
@@ -12,11 +13,18 @@
 > propone preferences/lessons con evidencia literal obligatoria).
 > Todo el aprendizaje pasa por el **approval gate del operador** —
 > cero auto-deploy de comportamiento, cero modificación de
-> `AGENT_SELF.md`. 7 tareas Celery beat detrás de feature flags.
-> Migración Alembic head: `202605200003`. Suite hermética
-> **797 passed** (+62 vs Fase 76). Panel completo en
-> `MemoryView` (Recetas, Warnings, Scorecard, Promociones a skill,
-> Reflexiones nocturnas) + endpoints `/deepagents/learning/*`.
+> `AGENT_SELF.md`. **7 tareas Celery beat** detrás de feature flags.
+> 2 tablas nuevas (`procedure_invocation_log`, `tool_invocation_metrics`);
+> migración Alembic head `202605200003` (**20 migraciones**). **143
+> endpoints REST**, **22 tareas Celery**. Suite hermética **800 passed**
+> (+88 vs Fase 74). Panel completo en `MemoryView` (Recetas, Warnings,
+> Scorecard, Promociones a skill, Reflexiones nocturnas) + endpoints
+> `/deepagents/learning/*`.
+> **Aislamiento de DB de test:** `pytest` nunca toca la base de
+> producción — `tests/conftest.py` redirige `DATABASE_URL` a una base
+> `cognitive_os_test` dedicada que se dropea + recrea + migra a head en
+> cada corrida (con red de seguridad que se niega a correr si la URL
+> apunta a producción).
 >
 > **Estado anterior (Fase 74 — auditoría completa + cliente MCP + Telegram conversacional + acceso total al PC):** monorepo en grado
 > comercial operativo y **verificado funcionando con el stack real

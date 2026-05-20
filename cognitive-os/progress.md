@@ -2,6 +2,111 @@
 
 > Bitácora viva. La documentación estable de producto vive en `docs/`.
 
+## 2026-05-20 — Fases 79-81: plan de aprendizaje autónomo completo + aislamiento de DB de test
+
+Cierre de las 5 fases del `docs/AGENT_LEARNING_PLAN.md` y endurecimiento
+de grado comercial. El agente ahora acumula capacidad útil con cada
+interacción sin tocar su "alma" (`AGENT_SELF.md`) y sin desplegar nada
+no aprobado — todo pasa por **proposals → approval → records activos**.
+
+### Fase 79 — Responses API + Fases C y D del plan
+
+- **F79.0** — 3 fixes P1 en el recipe extractor: row-lock
+  `SELECT ... FOR UPDATE SKIP LOCKED` (no más proposals duplicadas con
+  beats concurrentes), persistencia atómica del proposal + marcador
+  `extracted_recipe_at` en una transacción (elimina el split-brain), y
+  `SECRET_PATTERNS` acotado a prefijos de proveedor (la regex catch-all
+  anterior rechazaba contenido legítimo y loopeaba).
+- **F79.1** — Responses API (`use_responses_api=True`,
+  `output_version="responses/v1"`) + prompt caching de 24h vía
+  `prompt_cache_key` por rol en los 6 carriles LLM. El gateway gpt-5.5
+  del operador retiene el prompt cacheado 24h → ahorro sustancial en el
+  recipe extractor y el router.
+- **F79.2** — cache process-local de tools MCP por rol (TTL 5 min);
+  `invalidate_mcp_tool_cache()` expuesto y llamado desde `/system/mcp`.
+  Ahorra ~750 ms por build del DeepAgent.
+- **F79.3 — Fase D (failure post-mortem):** `deepagents/failure_postmortem.py`
+  escanea jobs recientes buscando pares `tool_failed → tool_succeeded`
+  con args similares (Jaccard, sin embeddings). Emite warning proposals;
+  auto-promueve tras 3 ocurrencias del mismo patrón sin rechazo.
+- **F79.4 — Fase C (tool scorecard):** tabla `tool_invocation_metrics`
+  (migración `202605200002`) + `deepagents/tool_scorecard.py`. Aggregator
+  diario que UPSERTea `reliability_score = 0.5·success + 0.3·downstream
+  + 0.2·approve` por (agente, tool). `render_scorecard_for_prompt` inyecta
+  la sección de confiabilidad al system prompt del agente.
+
+### Fase 80 — Fase B: skill promotion
+
+- Tabla nueva `procedure_invocation_log` (migración `202605200003`) +
+  ORM `ProcedureInvocationLog`.
+- `deepagents/skill_promoter.py`: el worker DeepAgent loguea, al arrancar,
+  qué procedures (`kind=procedure` activos, filtrados por agente) pudieron
+  inyectarse en el prompt, y marca el outcome (success/failure) al
+  terminar — sin bloquear al agente si la auditoría falla.
+- Cuando un procedure acumula ≥3 éxitos con `failure_rate < 30%`, el
+  promoter emite una proposal de promoción. Al aprobarla, se materializa
+  un skill YAML en `storage/deepagents/skills/user/_auto/<slug>/SKILL.md`,
+  descubierto por `DeepAgentSkillsRegistry`. Rollback automático si el
+  `failure_rate` post-promoción supera 50% en 30 días (archiva el record
+  y renombra el `SKILL.md` a `.md.disabled`). **Sin auto-promoción** —
+  toda promoción de comportamiento ejecutable requiere approval explícito
+  del operador (§7 del plan).
+- Beat `cognitive_os.evaluate_skill_promotions` (04:45 UTC) + endpoints
+  `GET/POST /deepagents/learning/skill-promotions[/evaluate-now]` y
+  `POST .../{id}/approve`. Sección "Promociones a skill" en `MemoryView`.
+
+### Fase 81 — Fase E: nightly reflection
+
+- `deepagents/nightly_reflection.py`: cada noche (03:00 UTC) arma un
+  transcript auditado desde Jobs/JobEvents/HumanApprovals (no toca las
+  tablas internas de LangGraph) y le pide al LLM primario (gpt-5.5)
+  preferences/lessons implícitas.
+- Validador estricto: descarta cualquier proposal cuyas `evidence_quotes`
+  no aparezcan **literalmente** en el transcript, cuyas quotes midan
+  < 12 caracteres, o cuyos `evidence_message_ids` no existan. Circuit
+  breaker de auto-disable si el operador rechaza > 50% de las proposals
+  en 30 días.
+- Beat `cognitive_os.nightly_reflection` (03:00 UTC) + endpoints
+  `GET/POST /deepagents/learning/reflection[/run-now]`. Sección
+  "Reflexiones nocturnas" en `MemoryView` (muestra las quotes literales
+  como evidencia).
+
+### Audit comercial — endurecimiento de edge cases
+
+Revisión final de grado comercial sobre F80/F81; 6 hallazgos corregidos:
+`IndexError` al promover un procedure con `content_redacted` vacío;
+`summary` de receta con `---` rompía el frontmatter YAML del skill (ahora
+sanitizado); `log_procedure_usage_for_job` sobre-contaba procedures de
+otros agentes (filtro por agente que replica `get_startup_memory`); el
+validador de reflexión aceptaba quotes triviales (longitud mínima = 12);
+`approve` de un proposal inexistente devolvía 500 (ahora 404 limpio);
+cruft de re-export limpiado.
+
+### Aislamiento de DB de test (grado comercial)
+
+La suite corría contra la misma Postgres que producción (`cognitive_os`),
+dejando filas de prueba en la UI de Memoria del operador. `tests/conftest.py`
+ahora, al importarse (antes de cualquier import de `cognitive_os`),
+redirige `DATABASE_URL` a `cognitive_os_test` — base dedicada que se
+**dropea (WITH FORCE) + recrea + migra a head** una vez por corrida.
+Red de seguridad dura: se niega a correr si el nombre de la base no
+contiene `test` o si coincide con la URL de producción. Hook
+`pytest_report_header` muestra la base activa. Se limpió en una sola
+transacción el debris (946 filas) que los runs pre-aislamiento dejaron
+en producción.
+
+### Verificación
+
+- Suite hermética **800 passed**, 1 skipped, 20 deselected (corriendo
+  contra `cognitive_os_test`; producción no recibió ninguna fila).
+- ruff check + format (135 source files), mypy, `alembic check` sin drift
+  (head `202605200003`, 20 migraciones), frontend lint + build — verdes.
+- Stack reiniciado y verificado en vivo: `/health/dashboard` 17/17 OK,
+  los 7 endpoints `/deepagents/learning/*` responden, 10 jobs beat
+  agendados. **143 endpoints REST**, **22 tareas Celery**.
+- Commits: F79 (6), F80+F81 (`91b2219`), audit (`6769823`), test DB
+  isolation (`5532d6c`).
+
 ## 2026-05-20 — Auditoría operativa Codex/MCP + readiness oficial
 
 - **Codex skills personales reparadas**: 30 `SKILL.md` en `~/.agents/skills`

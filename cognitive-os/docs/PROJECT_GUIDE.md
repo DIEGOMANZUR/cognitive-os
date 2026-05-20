@@ -1,15 +1,25 @@
 # Cognitive OS - Guia Simple Y Tecnica
 
-> **Estado actual (2026-05-20, Fase 74 — auditoría completa + cliente MCP; LLM primary/agent gpt-5.5, fallbacks gemini-3.1-pro-low, visión glm-4.6v; suite hermética 712 passed):**
-> producto en grado comercial operativo. Backend FastAPI 0.115+ con **130
-> endpoints REST**, **17 tareas Celery** distribuidas en **5 queues**
-> (`default`, `ingestion`, `agent_longrun`, `maintenance`, `mail`), **17
-> migraciones Alembic** (head `202605170001`). Frontend Next.js 16.2.6
-> con **20 vistas** (incluidas `AssistView`, `GoogleOpsView`,
-> `ResearchView` con plan animado sobre SSE, y `CodeDirectorView`). La
-> ruta `research` está fusionada con **OpenHarness** opcional (extra
-> `openharness-ai>=0.1.9,<0.2`, `prelude_merge` por defecto). Runtime
-> local (cadena verificada Fase 67/68): primary+agent **gpt-5.5**, secondary/fallback **gemini-3.1-pro-low**, visión **glm-4.6v**; Kimi solo Code Director CLI.
+> **Estado actual (2026-05-20, Fases 78-81 — plan de aprendizaje autónomo
+> completo; LLM primary/agent gpt-5.5 con Responses API, fallbacks
+> gemini-3.1-pro-low, visión glm-4.6v; suite hermética 800 passed con DB
+> de test aislada):**
+> producto en grado comercial operativo. Backend FastAPI 0.115+ con **143
+> endpoints REST**, **22 tareas Celery** distribuidas en **5 queues**
+> (`default`, `ingestion`, `agent_longrun`, `maintenance`, `mail`) con
+> **10 jobs beat**, **20 migraciones Alembic** (head `202605200003`).
+> Frontend Next.js 16.2.6 con **20 vistas** (incluidas `AssistView`,
+> `GoogleOpsView`, `ResearchView` con plan animado sobre SSE, y
+> `CodeDirectorView`). La ruta `research` está fusionada con
+> **OpenHarness** opcional (extra `openharness-ai>=0.1.9,<0.2`,
+> `prelude_merge` por defecto). Runtime local (cadena verificada Fase
+> 67/68): primary+agent **gpt-5.5**, secondary/fallback
+> **gemini-3.1-pro-low**, visión **glm-4.6v**; Kimi solo Code Director CLI.
+> El **plan de aprendizaje autónomo** (Fases A-E, `AGENT_LEARNING_PLAN.md`)
+> está cerrado: el agente extrae recetas, detecta patrones de falla,
+> puntúa tools, promueve procedures a skills y reflexiona de noche — todo
+> bajo el approval gate del operador. `pytest` corre contra una DB de
+> test aislada (`cognitive_os_test`); producción nunca se toca.
 >
 > Fase 41 (F9) llevó al **Code Director** a "máximo nivel": planner
 > LLM-driven que descompone objetivos en subtareas reales con fallback
@@ -27,8 +37,8 @@
 > submit/fail. Fase 64 añadió reserva atómica anti-submit duplicado.
 > Fase 65 cerró paridad Telegram↔UI (36 slash commands) y corrigió el
 > CHECK `ck_ar_action_type` que rompía Drive folder/organize en Postgres.
-> QA snapshot: **712 pytest passed, 1 skipped, 20 deselected**; ruff/format/mypy,
-> frontend lint/build, Alembic head `202605170001` y `git diff --check` verdes.
+> QA snapshot: **800 pytest passed, 1 skipped, 20 deselected**; ruff/format/mypy,
+> frontend lint/build, Alembic head `202605200003` y `git diff --check` verdes.
 >
 > **Guía de usuario completa:** `docs/USER_GUIDE.md`.
 

@@ -177,7 +177,7 @@ Tres canales:
   `Jobs`, `Settings`, `Configuration`, `Health`.
 - JWT en `localStorage` (decisión consciente para `dedicated_local`).
 
-### 3.3 API REST (130 endpoints)
+### 3.3 API REST (143 endpoints)
 
 - `POST /chat` para integraciones; `GET /health/dashboard` para healthchecks;
   `/approvals/{id}/approve` para decidir; etc.

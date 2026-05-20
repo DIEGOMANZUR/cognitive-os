@@ -10,7 +10,7 @@ Playwright. Datos extraídos del código real, no del README.
   son **20 tabs** intercambiables sin cambio de URL, controladas por el
   state local `tab: Tab` con persistencia en `localStorage`
   (`cogos.tab`).
-- **Backend:** FastAPI 0.115+ en `http://127.0.0.1:8000` — 130 endpoints
+- **Backend:** FastAPI 0.115+ en `http://127.0.0.1:8000` — 143 endpoints
   REST con JWT bearer. CORS abierto a `:3000` y `:3001`.
 - **Datos:** Postgres 16+pgvector + Redis 7 + Weaviate 1.29 + Neo4j 5.
   Los 4 ligados a `127.0.0.1`.
@@ -82,7 +82,12 @@ sidebar abre/cierra con un `aria-label="Abrir menú"`/"Cerrar".
 | `GET /mail/messages`, `POST /mail/messages/{id}/approve-send` | MailInboxView |
 | `GET /assist/tasks`, `/assist/notes` | AssistView |
 | `GET /sandbox/openshell/status`, `POST /sandbox/openshell/run` | SandboxView |
-| `GET /deepagents/memory/proposals` | MemoryView |
+| `GET /deepagents/memory/proposals` | MemoryView · propuestas |
+| `GET /deepagents/memory/recipes` | MemoryView · Recetas (Fase A) |
+| `GET /deepagents/memory/warnings` | MemoryView · Warnings (Fase D) |
+| `GET /deepagents/learning/tool-scorecard` | MemoryView · Scorecard (Fase C) |
+| `GET /deepagents/learning/skill-promotions` | MemoryView · Promociones a skill (Fase B) |
+| `GET /deepagents/learning/reflection` | MemoryView · Reflexiones nocturnas (Fase E) |
 | `GET /skills` | SkillsView |
 | `GET /audit/events` | AuditView |
 | `GET /langsmith/runs` (admin) | LangSmithView |

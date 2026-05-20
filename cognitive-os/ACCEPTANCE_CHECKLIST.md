@@ -1,15 +1,21 @@
 # ACCEPTANCE CHECKLIST
 
-> **Estado actual (2026-05-20, Fase 78 — recipe extractor; suite hermética 735 passed):**
-> Fase 78 abrió la **Fase A** del plan de aprendizaje
-> (`docs/AGENT_LEARNING_PLAN.md`). El agente extrae procedimientos
-> reutilizables de jobs exitosos como
-> `DeepAgentMemoryProposal(kind="procedure")` y los expone bajo
-> approval del operador en `MemoryView → Recetas propuestas`.
-> Migración Alembic head ahora **`202605200001`**. 23 tests nuevos
-> verdes (cobertura de happy path, idempotencia, LLM-failure, skip
-> signal, batch sweep, round-trip a `kind=procedure`). Endpoint live
-> verificado.
+> **Estado actual (2026-05-20, Fases 78-81 — plan de aprendizaje autónomo
+> completo; suite hermética 800 passed con DB de test aislada):**
+> Las **5 fases** del plan (`docs/AGENT_LEARNING_PLAN.md`) están cerradas
+> en producción: **A** recipe extractor, **D** failure post-mortem, **C**
+> tool scorecard, **B** skill promotion, **E** nightly reflection. Todo
+> el aprendizaje pasa por `DeepAgentMemoryProposal → approval del
+> operador → DeepAgentMemoryRecord`. 2 tablas nuevas
+> (`tool_invocation_metrics`, `procedure_invocation_log`); migración
+> Alembic head **`202605200003`** (20 migraciones). Panel completo en
+> `MemoryView` (Recetas, Warnings, Scorecard, Promociones a skill,
+> Reflexiones nocturnas) + endpoints `/deepagents/learning/*`.
+> **Aislamiento de DB de test:** `pytest` corre contra `cognitive_os_test`
+> (recreada + migrada por corrida); producción nunca se toca. Snapshot:
+> **800 passed**, 1 skipped, 20 deselected; ruff/format/mypy (135 files),
+> frontend lint/build, alembic check sin drift — todo verde.
+> Criterios de aceptación de cada fase en §"Plan de aprendizaje (F78-81)".
 >
 > **Estado anterior (Fase 74 — auditoría completa + cliente MCP; suite hermética 712 passed):** matriz
 > de aceptación vigente. Fase 66 levantó el stack real con credenciales del
@@ -43,6 +49,51 @@
 
 Este checklist separa lo verificado por pruebas automaticas de lo que requiere
 infraestructura local real, credenciales o aprobacion manual.
+
+## Plan de aprendizaje (F78-81) — criterios de aceptación
+
+Plan canónico: `docs/AGENT_LEARNING_PLAN.md`. Las 5 fases cerradas.
+
+**Fase A — Recipe extractor (F78):**
+- [x] Job exitoso con ≥5 tool calls → 1 proposal `kind=procedure` en ≤30 min.
+- [x] Approve → `DeepAgentMemoryRecord(kind=procedure, source=consolidated)`.
+- [x] LLM failure no marca el job como procesado (reintenta el próximo beat).
+- [x] Señal `skip` del LLM marca procesado pero no crea proposal.
+- [x] Beat `cognitive_os.extract_pending_recipes` en `/system/celery`.
+
+**Fase D — Failure post-mortem (F79.3):**
+- [x] Patrón `tool_failed → tool_succeeded` detectado → warning proposal.
+- [x] 3 detecciones del mismo patrón sin rechazo → auto-promoción a activo.
+- [x] Idempotencia por par `(failed_event_id, succeeded_event_id)`.
+- [x] Warning activo cortocircuita nuevas proposals del mismo patrón.
+
+**Fase C — Tool scorecard (F79.4):**
+- [x] Tabla `tool_invocation_metrics` poblada por aggregator diario.
+- [x] `reliability_score = 0.5·success + 0.3·downstream + 0.2·approve`.
+- [x] UPSERT idempotente por `(agent_role, tool_name, period_start)`.
+- [x] Sección "Confiabilidad de tools" inyectada al system prompt.
+- [x] Endpoint `GET /deepagents/learning/tool-scorecard`.
+
+**Fase B — Skill promotion (F80):**
+- [x] Procedure con ≥3 éxitos y `failure_rate < 30%` → promotion proposal.
+- [x] Approve → skill YAML en `storage/deepagents/skills/user/_auto/<slug>/`.
+- [x] Skill materializado descubierto por `DeepAgentSkillsRegistry`.
+- [x] Rollback automático si `failure_rate` post-promoción > 50% en 30 días.
+- [x] **Sin auto-promoción** — toda promoción requiere approval explícito.
+- [x] Endpoints `GET/POST /deepagents/learning/skill-promotions[/…]`.
+
+**Fase E — Nightly reflection (F81):**
+- [x] Cron diario (03:00 UTC) revisa los threads del último día.
+- [x] Cada proposal cita `evidence_message_ids` reales del transcript.
+- [x] Validador descarta proposals cuyas `evidence_quotes` no aparecen
+      literalmente, o miden < 12 caracteres.
+- [x] Auto-disable si el operador rechaza > 50% de las proposals en 30 días.
+- [x] Endpoints `GET/POST /deepagents/learning/reflection[/run-now]`.
+
+**Aislamiento de DB de test:**
+- [x] `pytest` corre contra `cognitive_os_test`, nunca producción.
+- [x] La base de test se dropea + recrea + migra a head cada corrida.
+- [x] `conftest.py` se niega a correr si la URL apunta a producción.
 
 ## Verificado en vivo - 2026-05-18 (Fase 66, stack real + credenciales reales)
 

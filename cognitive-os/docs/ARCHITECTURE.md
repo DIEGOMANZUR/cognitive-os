@@ -1,20 +1,26 @@
 # Cognitive OS — Arquitectura (referencia técnica completa)
 
-> **Estado (2026-05-20, Fase 74 — auditoría completa + cliente MCP nativo + Telegram conversacional):**
+> **Estado (2026-05-20, Fases 78-81 — plan de aprendizaje autónomo completo):**
 > stack operativo en grado comercial, verificado funcionando con
 > credenciales reales. Conteos verificados contra el código (sin inflar):
-> **130 endpoints REST**, **17 tareas Celery** en **5 colas** (`default`,
-> `ingestion`, `agent_longrun`, `maintenance`, `mail`), **17 migraciones
-> Alembic** (head `202605170001`), **20 vistas Next.js** bajo
-> `frontend/app/views/*.tsx`, **17 componentes** en `/health/dashboard`,
-> **37 slash commands** de Telegram, **21 tools built-in del DeepAgent**
-> más las **tools dinámicas MCP** (cuando `ENABLE_MCP_CLIENT=true`).
-> Cadena LLM: **primary+agent `gpt-5.5`** (gateway openai-compatible del
-> operador), **secondary/fallback `gemini-3.1-pro-low`**, **visión
+> **143 endpoints REST**, **22 tareas Celery** en **5 colas** (`default`,
+> `ingestion`, `agent_longrun`, `maintenance`, `mail`) con **10 jobs
+> beat**, **20 migraciones Alembic** (head `202605200003`), **20 vistas
+> Next.js** bajo `frontend/app/views/*.tsx`, **17 componentes** en
+> `/health/dashboard`, **37 slash commands** de Telegram, **21 tools
+> built-in del DeepAgent** más las **tools dinámicas MCP** (cuando
+> `ENABLE_MCP_CLIENT=true`). Cadena LLM: **primary+agent `gpt-5.5`**
+> (gateway openai-compatible del operador, **Responses API + prompt
+> caching 24h**), **secondary/fallback `gemini-3.1-pro-low`**, **visión
 > `glm-4.6v`** (z.ai). Kimi-k2.6 sólo vía el adapter CLI del Code Director
-> (su endpoint HTTP devuelve 403). Suite QA: **712 pytest passed, 1
-> skipped, 20 deselected**; ruff/format/mypy, frontend lint/build, Alembic
-> sin drift, `git diff --check` — todo verde.
+> (su endpoint HTTP devuelve 403). El **plan de aprendizaje autónomo**
+> (Fases A-E, `AGENT_LEARNING_PLAN.md`) está cerrado: el agente extrae
+> recetas, detecta patrones de falla, puntúa tools, promueve procedures
+> a skills y reflexiona de noche — todo bajo el approval gate del
+> operador. Suite QA: **800 pytest passed, 1 skipped, 20 deselected**
+> contra una **DB de test aislada** (`cognitive_os_test`); ruff/format/
+> mypy, frontend lint/build, Alembic sin drift, `git diff --check` —
+> todo verde.
 
 ---
 
@@ -109,13 +115,21 @@ siguiente vive ahí, con el esquema versionado en
 | `deepagent_memory` / `deepagent_memory_proposals` | memoria del agente (proposal → approval → active) |
 | `deepagent_memory_episodic` | memoria episódica |
 | `deepagent_skill_usage` | registro de uso de skills |
+| `tool_invocation_metrics` | rollup diario de confiabilidad por (agente, tool) — Fase C del plan de aprendizaje |
+| `procedure_invocation_log` | uso de procedures (`kind=procedure`) por job + outcome — Fase B (skill promotion) |
 | `document_analysis_results` | resultados del pipeline legal |
 | `mail_accounts` / `mail_messages` / `mail_send_logs` | correo multicuenta |
 | `personal_tasks` / `personal_notes` | asistente personal |
 | `research_run_records` | runs de investigación persistentes |
 
-Las 17 migraciones forman una **cadena lineal sin ramas** (head
-`202605170001`). `scripts/full-qa.sh` corre `alembic check` para detectar
+> **Aislamiento de DB de test:** la suite `pytest` **nunca** escribe en
+> esta base. `tests/conftest.py` redirige `DATABASE_URL` a una base
+> `cognitive_os_test` dedicada que se dropea + recrea + migra a head en
+> cada corrida (red de seguridad: se niega a correr si la URL apunta a
+> producción). Ver `docs/qa/RUNBOOK.md §7`.
+
+Las 20 migraciones forman una **cadena lineal sin ramas** (head
+`202605200003`). `scripts/full-qa.sh` corre `alembic check` para detectar
 drift.
 
 ---
@@ -212,17 +226,24 @@ de modo que el agente siempre sabe quién es y qué puede hacer.
 
 ---
 
-## 6. Reapers y robustez del dispatch
+## 6. Beat schedule — reapers, consolidación y aprendizaje
 
-El Action Plane tiene **4 reapers** en el beat schedule de Celery, cada
-uno cubriendo una clase de falla:
+El beat de Celery agenda **10 jobs** (todos detrás de feature flags). Los
+4 reapers cubren clases de falla del Action Plane; las 5 tareas de
+aprendizaje implementan las Fases A-E del `AGENT_LEARNING_PLAN.md`:
 
-| Reaper | Cron | Qué rescata |
+| Job beat | Cron | Qué hace |
 |---|---|---|
-| `reap_stale_approvals` | `:15` cada hora | `HumanApproval` colgados > `APPROVAL_PENDING_MAX_HOURS` |
+| `reap_stale_approvals` | `:15` cada hora | rescata `HumanApproval` colgados > `APPROVAL_PENDING_MAX_HOURS` |
 | `reap_stuck_action_requests` | `*/10` min | `ActionRequest` en `running` huérfanos + `dispatch_state` colgado |
-| `reap_stale_running_jobs` | `03:30` diario | Jobs zombie en `queued`/`running` > `STALE_JOB_MAX_HOURS` (Fase 72) |
-| `consolidate_all_deepagent_memory` | diario | consolidación de memoria por agente |
+| `reap_stale_running_jobs` | `03:30` diario | jobs zombie en `queued`/`running` > `STALE_JOB_MAX_HOURS` |
+| `consolidate_all_deepagent_memory` | `03:00` diario | consolidación de memoria por agente |
+| `extract_pending_recipes` | `*/30` min | **Fase A** — distila jobs exitosos en recetas `kind=procedure` |
+| `nightly_reflection` | `03:00` diario | **Fase E** — el LLM propone preferences/lessons con evidencia literal |
+| `scan_failure_postmortems` | `03:35` diario | **Fase D** — warnings desde patrones fallo→recuperación |
+| `aggregate_tool_scorecard` | `04:15` diario | **Fase C** — rollup de confiabilidad por (agente, tool) |
+| `evaluate_skill_promotions` | `04:45` diario | **Fase B** — promociones procedure→skill + rollback de skills flojos |
+| `personal-mail-sync` / `telegram-gmail-digest` / `personal-assistant-reminders` | varios | correo, digest y recordatorios (gated por `MAIL_ENABLED` / `TELEGRAM_*`) |
 
 El **dispatch durable** (Fase 59-64): REST y Telegram registran
 `JobEvent` submitted/failed; un fallo del broker devuelve una razón de
@@ -297,7 +318,7 @@ Detalle completo: `docs/COGNITIVE_OS_GUIDE.md` §MCP.
 
 ## 10. Dónde mirar después
 
-* `backend/src/cognitive_os/api/app.py` — wiring, lifespan, 130 endpoints.
+* `backend/src/cognitive_os/api/app.py` — wiring, lifespan, 143 endpoints.
 * `backend/src/cognitive_os/agents/graph.py` — nodos del orquestador y routing.
 * `backend/src/cognitive_os/deepagents/` — factory de DeepAgents controlados, subagentes de research y document analysis.
 * `backend/src/cognitive_os/integrations/mcp_client.py` — cliente MCP.

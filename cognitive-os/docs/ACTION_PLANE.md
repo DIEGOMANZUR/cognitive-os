@@ -1,6 +1,6 @@
 # Action Plane
 
-> **Estado actual (2026-05-20, Fase 74 — auditoría completa + computer_organize auto-approve):** capa **preview-first con
+> **Estado actual (2026-05-20, Fases 78-81 — plan de aprendizaje autónomo completo):** capa **preview-first con
 > `ActionRequest` persistente** y carril activo de **mail personal aprobado**.
 > GoDaddy DNS verificado en vivo (auth producción HTTP 200) y habilitado en
 > postura segura: `GODADDY_DNS_DRY_RUN_ONLY=true` +

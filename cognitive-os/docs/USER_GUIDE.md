@@ -1,36 +1,55 @@
 # Cognitive OS — Guía de Usuario (comercial)
 
-> Estado: **Fase 74 cerrada (2026-05-20)** — auditoría completa de 10
-> dominios + cliente MCP nativo + Telegram conversacional + acceso total
-> al PC. Cadena LLM del operador verificada en vivo:
-> **primary + agent = `gpt-5.5`** (gateway OpenAI-compatible),
-> **secondary + fallback = `gemini-3.1-pro-low`** (mismo gateway),
-> **visión = `glm-4.6v`** (z.ai). `kimi-k2.6` vía HTTP da 403 (solo el
-> adapter CLI del Code Director). Las 21 tools built-in del DeepAgent usan
-> `args_schema` Pydantic tipado; bajo `ENABLE_MCP_CLIENT=true` se suman
-> tools dinámicas de servidores MCP externos (Supermemory, GitHub,
-> filesystem). Snapshot QA: **712 pytest passed, 1 skipped, 20
-> deselected** · ruff/format/mypy (128 source files) · frontend
-> lint/build · Alembic head `202605170001` · pre-commit · detect-secrets
-> (0 findings) — **todo verde** y **suite hermética por construcción**.
-> **130 endpoints REST**, **17 tareas Celery** en 5 colas, **17
-> migraciones Alembic**, **20 vistas frontend**, **37 slash commands de
-> Telegram**, **17 componentes en `/health/dashboard`**.
+> Estado: **Fases 78-81 cerradas (2026-05-20)** — plan de aprendizaje
+> autónomo completo (Fases A-E) + aislamiento de DB de test. Cadena LLM
+> del operador verificada en vivo:
+> **primary + agent = `gpt-5.5`** (gateway OpenAI-compatible, **Responses
+> API + prompt caching 24h**), **secondary + fallback =
+> `gemini-3.1-pro-low`** (mismo gateway), **visión = `glm-4.6v`** (z.ai).
+> `kimi-k2.6` vía HTTP da 403 (solo el adapter CLI del Code Director).
+> Las 21 tools built-in del DeepAgent usan `args_schema` Pydantic tipado;
+> bajo `ENABLE_MCP_CLIENT=true` se suman tools dinámicas de servidores MCP
+> externos (Supermemory, GitHub, filesystem, Claude Code, Gemini CLI).
+> Snapshot QA: **800 pytest passed, 1 skipped, 20 deselected** ·
+> ruff/format/mypy (135 source files) · frontend lint/build · Alembic
+> head `202605200003` · pre-commit · detect-secrets (0 findings) —
+> **todo verde**, **suite hermética** y **corriendo contra una DB de test
+> aislada** (`cognitive_os_test`, recreada por corrida; producción nunca
+> se toca). **143 endpoints REST**, **22 tareas Celery** en 5 colas (10
+> jobs beat), **20 migraciones Alembic**, **20 vistas frontend**, **37
+> slash commands de Telegram**, **17 componentes en `/health/dashboard`**.
 >
-> **Novedades Fase 70-74 (lo más reciente):**
-> - **Telegram conversacional:** ya no necesitás slash para todo. En
->   `dedicated_local`, cualquier mensaje sin `/` entra al orquestador
->   como chat. El bot **recuerda la conversación** (thread persistente
->   por chat); `/reset` la reinicia.
+> **Novedades Fases 78-81 — plan de aprendizaje autónomo (lo más reciente):**
+> El agente acumula capacidad útil con cada interacción **sin** modificar
+> su "alma" (`AGENT_SELF.md`) y **sin** desplegar cambios no aprobados.
+> Todo pasa por **proposals → approval del operador → records activos**.
+> Las 5 fases (detalle en `AGENT_LEARNING_PLAN.md`):
+> - **Fase A — Recetas:** jobs exitosos con ≥5 tool calls se distilan en
+>   recetas reutilizables `kind=procedure`.
+> - **Fase D — Warnings:** patrones fallo→recuperación detectados en el
+>   histórico; se auto-promueven tras 3 repeticiones sin rechazo.
+> - **Fase C — Scorecard de tools:** confiabilidad por (agente, tool),
+>   inyectada al system prompt para sesgar decisiones futuras.
+> - **Fase B — Promoción a skill:** un procedure usado con ≥3 éxitos y
+>   <30% de fallos se propone como skill YAML; al aprobarlo se materializa
+>   y queda invocable, con rollback automático si falla >50% en 30 días.
+> - **Fase E — Reflexión nocturna:** cada noche el LLM revisa los threads
+>   del día y propone preferences/lessons, siempre con la quote literal
+>   del usuario como evidencia (validador estricto).
+> Todo el panel vive en la vista **Memoria** del frontend.
+>
+> **Novedades Fase 70-74 (contexto previo):**
+> - **Telegram conversacional:** en `dedicated_local`, cualquier mensaje
+>   sin `/` entra al orquestador como chat con thread persistente por
+>   chat; `/reset` lo reinicia.
 > - **Identidad del agente:** `docs/AGENT_SELF.md` es el doc-canon que el
->   agente carga como contexto — sabe quién es, qué puede hacer y cómo le
->   hablás.
-> - **Cliente MCP:** el agente puede usar herramientas de servidores MCP
->   externos sin tocar código (los declarás en `.env`).
+>   agente carga como contexto.
+> - **Cliente MCP:** herramientas de servidores MCP externos sin tocar
+>   código (declarados en `.env`).
 > - **Acceso total al PC:** en `dedicated_local` el agente lee/escribe en
->   todo `/home/jgonz` y mueve archivos sin pedir aprobación cada vez.
-> - **Diagnóstico de fricción:** `/system/readiness` te dice qué flags
->   de `.env` están bloqueando capacidades y cómo desbloquearlas.
+>   todo `/home/jgonz` sin aprobación por archivo.
+> - **Diagnóstico de fricción:** `/system/readiness` lista qué flags de
+>   `.env` bloquean capacidades y cómo desbloquearlas.
 >
 > **Realidad del stack LLM (importante — entendé cómo reacciona el
 > sistema):** todo está cableado en `.env`, no tenés que tocar nada; esto
@@ -266,7 +285,8 @@ la allow-list, te responde con los 37 comandos.
 ```bash
 cd cognitive-os
 bash scripts/full-qa.sh                  # pytest + ruff + mypy + frontend build
-# Esperado: 712 passed, 1 skipped, 20 deselected; todo verde
+# Esperado: 800 passed, 1 skipped, 20 deselected; todo verde
+# (corre contra cognitive_os_test — la DB de producción nunca se toca)
 ```
 
 En el panel, andá a **Health**: cada componente (db, redis, weaviate,
@@ -290,7 +310,7 @@ budget caps, ejecutándose en `127.0.0.1`.
 
 **De qué se compone, de arriba abajo:**
 
-- **Backend FastAPI 0.115+** (Python 3.12, `uv`): **130 endpoints REST**
+- **Backend FastAPI 0.115+** (Python 3.12, `uv`): **143 endpoints REST**
   bajo JWT, rate-limited en los endpoints calientes. Es el cerebro y la
   sala de máquinas.
 - **Orquestación LangGraph 1.1.10** con grafo principal
@@ -1029,8 +1049,9 @@ romper el PC del operador o filtrar credenciales):
 muchos de estos son configurables; la matriz de §9 lo dice por capacidad.)
 
 - **Auth:** todo endpoint sensible exige JWT HS256 firmado con
-  `JWT_SECRET`. Endpoints admin (credentials-status, LangSmith opcional)
-  exigen rol admin. 132 usos de dependencia de auth sobre 130 endpoints.
+  `JWT_SECRET`. Endpoints admin (credentials-status, LangSmith opcional,
+  los disparadores `/deepagents/learning/*/…-now`) exigen rol admin.
+  Dependencia de auth sobre los 143 endpoints (sólo `/health` es público).
 - **Secretos:** nunca versionados. `pre-commit` corre `gitleaks` +
   `detect-secrets` (baseline `.secrets.baseline`, 0 findings). Los
   `SecretStr` nunca salen en respuestas. `payload_executable` se cifra

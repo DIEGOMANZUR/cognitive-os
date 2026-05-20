@@ -1,6 +1,6 @@
 # Roadmap: Cognitive OS como asistente personal
 
-> **Estado actual (2026-05-20, Fase 74):** roadmap vivo, mayormente
+> **Estado actual (2026-05-20, Fases 78-81 — plan de aprendizaje autónomo completo):** roadmap vivo, mayormente
 > ejecutado. El correo multicuenta está implementado y verificado contra
 > GoDaddy IMAP/SMTP real + Gmail label `TODOS`. La vista frontend
 > `AssistView` cubre tareas/notas personales (`PersonalTask`/
@@ -9,8 +9,11 @@
 > total al `/home` del operador (Fase 73b) + cliente MCP (Fase 73). La
 > queue Celery `mail` está integrada en los launchers de escritorio.
 > Calendar/Drive writes reales bajo `ActionRequest` + aprobación (o
-> auto-approve reversible en `dedicated_local`). QA: **712 passed, 1
-> skipped, 20 deselected**; ruff/format/mypy/frontend verdes. La ruta
+> auto-approve reversible en `dedicated_local`). El **plan de aprendizaje
+> autónomo** (Fases A-E) está cerrado: el agente aprende de cada
+> interacción bajo el approval gate del operador. QA: **800 passed, 1
+> skipped, 20 deselected** contra DB de test aislada;
+> ruff/format/mypy/frontend verdes. La ruta
 > `research` sigue fusionada con OpenHarness opcional y puede persistir runs
 > en Postgres. Pendiente para
 > "asistente personal absoluto": OAuth real Gmail/Calendar/Drive operados

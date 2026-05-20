@@ -1,13 +1,14 @@
 # DeepAgents Skills y Memory (referencia técnica)
 
-> **Estado (2026-05-20, Fase 74):** skills core en
-> `backend/src/cognitive_os/deepagents/skills/core/` (**13 SKILL.md**: 8
-> originales + **legal pack de 5** —`legal-hold`, `privilege-log-review`,
-> `oss-license-review`, `worker-classification`, `matter-intake`—
-> adaptadas del repo Apache 2.0
+> **Estado (2026-05-20, Fases 78-81 — plan de aprendizaje autónomo completo):**
+> skills core en `backend/src/cognitive_os/deepagents/skills/core/`
+> (**13 SKILL.md**: 8 originales + **legal pack de 5** —`legal-hold`,
+> `privilege-log-review`, `oss-license-review`, `worker-classification`,
+> `matter-intake`— adaptadas del repo Apache 2.0
 > [claude-for-legal](https://github.com/anthropics/claude-for-legal),
 > con atribución en `skills/core/NOTICE.md`). User skills en
-> `storage/deepagents/skills/user/`; memoria gobernada por
+> `storage/deepagents/skills/user/`; **skills auto-promovidos** (Fase B)
+> en `storage/deepagents/skills/user/_auto/`. Memoria gobernada por
 > `DeepAgentMemoryService` con propuestas → aprobación humana → activa.
 > Tools de skills/memoria expuestas a DeepAgents:
 > `list_available_skills`, `read_skill`, `get_relevant_memory`,
@@ -31,6 +32,57 @@
 > `privilege-log-review`, `oss-license-review`, `worker-classification`,
 > `matter-intake`).
 
+## Plan de aprendizaje autónomo (Fases A-E)
+
+El agente acumula capacidad útil con cada interacción **sin** modificar
+su "alma" (`AGENT_SELF.md`) y **sin** desplegar cambios no aprobados.
+**Principio rector:** todo aprendizaje pasa por *proposals* →
+*aprobación del operador* → *records activos*. Plan canónico completo:
+[`AGENT_LEARNING_PLAN.md`](./AGENT_LEARNING_PLAN.md).
+
+| Fase | Módulo | Qué produce | Disparo |
+|---|---|---|---|
+| **A** Recetas | `deepagents/recipe_extractor.py` | `DeepAgentMemoryProposal(kind=procedure)` desde jobs exitosos con ≥5 tool calls | beat `*/30 * * * *` |
+| **D** Warnings | `deepagents/failure_postmortem.py` | `kind=warning` desde patrones `tool_failed → tool_succeeded`; auto-promueve tras 3 repeticiones | beat 03:35 UTC |
+| **C** Scorecard | `deepagents/tool_scorecard.py` | `tool_invocation_metrics` (rollup diario) + sección de confiabilidad en el system prompt | beat 04:15 UTC |
+| **B** Skill promotion | `deepagents/skill_promoter.py` | skill YAML en `skills/user/_auto/` desde un procedure usado ≥3× con <30% fallos | beat 04:45 UTC |
+| **E** Reflexión nocturna | `deepagents/nightly_reflection.py` | `kind=preference\|lesson` con evidencia literal del transcript | beat 03:00 UTC |
+
+**Tablas de soporte:**
+- `tool_invocation_metrics` (migración `202605200002`) — rollup por
+  `(agent_role, tool_name, period_start)` con `reliability_score`
+  derivado `= 0.5·success_rate + 0.3·downstream_use_rate + 0.2·approve_rate`.
+- `procedure_invocation_log` (migración `202605200003`) — una fila
+  `pending` por cada procedure que pudo inyectarse en el prompt de un
+  job; el worker la cierra con `success`/`failure` al terminar. El
+  skill promoter la agrega para decidir cuándo proponer una promoción.
+
+**Fase B — ciclo de vida de un skill auto-promovido:**
+1. El worker DeepAgent llama `log_procedure_usage_for_job` al arrancar
+   (registra los procedures activos relevantes a ese agente) y
+   `mark_outcome_for_job` al terminar.
+2. `evaluate_pending_promotions` (beat) emite una proposal cuando un
+   procedure cruza ≥3 éxitos con `failure_rate < 30%`.
+3. Al aprobar (`POST /deepagents/learning/skill-promotions/{id}/approve`,
+   admin), `materialise_yaml_skill` escribe
+   `skills/user/_auto/<slug>/SKILL.md` (`risk_level: approval_required`)
+   y emite un `DeepAgentMemoryRecord` derivado para descubrimiento.
+4. `disable_underperforming_auto_skills` (beat) archiva el skill y
+   renombra su `SKILL.md` a `.md.disabled` si el `failure_rate`
+   post-promoción supera 50% en la ventana de 30 días.
+- **Nunca hay auto-promoción**: la promoción de comportamiento ejecutable
+  siempre requiere approval explícito del operador (§7 del plan).
+
+**Fase E — validación de evidencia:** cada proposal de reflexión debe
+citar `evidence_message_ids` que existan en el transcript y
+`evidence_quotes` que aparezcan **literalmente** en él (mínimo 12
+caracteres por quote). El scanner se auto-desactiva si el operador
+rechaza más del 50% de sus proposals en 30 días.
+
+Panel del operador: vista **Memoria** del frontend (secciones Recetas,
+Warnings, Scorecard, Promociones a skill, Reflexiones nocturnas).
+Endpoints REST bajo `/deepagents/learning/*` y `/deepagents/memory/*`.
+
 ## Skills vs Memory
 
 Skills are read-only procedures stored as `SKILL.md` folders. They tell a DeepAgent how to perform
@@ -52,9 +104,12 @@ esta guía: la memoria sigue sin ser evidencia. Ver [`OPENHARNESS_FUSION.md`](./
 
 - Core skills: `backend/src/cognitive_os/deepagents/skills/core`
 - User skills: `storage/deepagents/skills/user`
+- Auto-promoted skills (Fase B): `storage/deepagents/skills/user/_auto`
+  (un `rm -rf` de esa carpeta revierte todas las promociones)
 - Memory exports: `storage/deepagents/memory`
 - Persistent records: Postgres tables `deepagent_memory_records`,
-  `deepagent_memory_proposals`, and `deepagent_skill_usage`
+  `deepagent_memory_proposals`, `deepagent_skill_usage`,
+  `tool_invocation_metrics` (Fase C) y `procedure_invocation_log` (Fase B)
 
 ## Add A Core Skill
 

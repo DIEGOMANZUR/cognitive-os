@@ -1,6 +1,6 @@
 # Seguridad (referencia técnica)
 
-> **Estado (2026-05-20, Fase 74 — auditoría completa, cliente MCP, perfil dedicated_local):**
+> **Estado (2026-05-20, Fases 78-81 — plan de aprendizaje completo, cliente MCP, perfil dedicated_local):**
 > GoDaddy habilitado pero `GODADDY_DNS_DRY_RUN_ONLY=true` +
 > `GODADDY_ALLOW_PRODUCTION_WRITES=false` (cero escrituras DNS reales sin
 > opt-in explícito + aprobación humana). `.env` gitignoreado/no-trackeado;
@@ -15,7 +15,9 @@
 > clave, `ACTION_PAYLOAD_ENCRYPTION_REQUIRED=true` +
 > `RESEARCH_PERSISTENCE_BACKEND=postgres` obligatorios en producción.
 > `pre-commit` (gitleaks + detect-secrets, baseline limpio, 0 findings).
-> Auth dependency sobre los **130 endpoints** (sólo `/health` público).
+> Auth dependency sobre los **143 endpoints** (sólo `/health` público).
+> La suite `pytest` corre contra una DB de test aislada
+> (`cognitive_os_test`); nunca lee ni escribe la base de producción.
 >
 > **Modelo de seguridad por perfil (`OPERATOR_PROFILE`):** el sistema
 > tiene dos posturas. `strict` (default de install) — todas las compuertas

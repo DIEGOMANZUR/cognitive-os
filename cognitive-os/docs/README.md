@@ -1,20 +1,35 @@
 # Documentacion De Cognitive OS
 
-> **Estado actual (2026-05-20, Fase 74 — auditoría completa + cliente MCP + Telegram conversacional; LLM gpt-5.5/gemini/glm; suite hermética 712 passed):**
+> **Estado actual (2026-05-20, Fases 78-81 — plan de aprendizaje autónomo
+> completo; suite hermética 800 passed con DB de test aislada):**
 > producto en grado comercial operativo con backend FastAPI 0.115+
-> (**130 endpoints REST**, **17 tareas Celery** en **5 queues**,
-> **17 migraciones Alembic** head `202605170001`, **37 slash commands
-> Telegram**, **17 componentes `/health`**) + LangGraph 1.1.10 +
-> DeepAgents 0.6.x + cliente MCP + Action Plane, correo personal multicuenta
-> GoDaddy/Gmail con aprobación humana
+> (**143 endpoints REST**, **22 tareas Celery** en **5 queues** con
+> **10 jobs beat**, **20 migraciones Alembic** head `202605200003`,
+> **37 slash commands Telegram**, **17 componentes `/health`**) +
+> LangGraph 1.1.10 + DeepAgents 0.6.x + cliente MCP + Action Plane,
+> correo personal multicuenta GoDaddy/Gmail con aprobación humana
 > (`MAIL_REQUIRE_APPROVAL_FOR_SEND=true`), Google Maps/Calendar/Drive
 > operables sin writes directos, infra de datos ligada a `127.0.0.1`, y
 > consola Next.js 16.2.6 (**20 vistas**). La ruta `research` está
 > fusionada con **OpenHarness** opcional (extra
 > `openharness-ai>=0.1.9,<0.2`), pipeline por defecto `prelude_merge`,
 > workspace `deepagent_mirror`. Documento canónico de la fusión:
-> `OPENHARNESS_FUSION.md`. Runtime local: **DeepSeek V4 Pro**
-> (`deepseek-v4-pro`).
+> `OPENHARNESS_FUSION.md`. LLM: **primary+agent `gpt-5.5`** (Responses
+> API + prompt caching 24h), **secondary/fallback `gemini-3.1-pro-low`**,
+> **visión `glm-4.6v`**.
+>
+> **Plan de aprendizaje autónomo (Fases A-E, `AGENT_LEARNING_PLAN.md`):**
+> cerrado en producción. F78 Fase A (recipe extractor), F79.3 Fase D
+> (failure post-mortem), F79.4 Fase C (tool scorecard), F80 Fase B
+> (skill promotion: procedure → skill YAML con rollback automático), F81
+> Fase E (nightly reflection con evidencia literal obligatoria). 2 tablas
+> nuevas (`procedure_invocation_log`, `tool_invocation_metrics`),
+> endpoints `/deepagents/learning/*`, panel completo en `MemoryView`.
+> Todo pasa por el approval gate del operador.
+>
+> **Aislamiento de DB de test:** `pytest` nunca toca producción —
+> `tests/conftest.py` redirige a `cognitive_os_test`, recreada + migrada
+> a head por corrida, con red de seguridad anti-producción.
 >
 > Fase 40 (2026-05-17) añadió el **Code Director**: meta-agente que
 > delega builds a coding agents externos (Claude Code / Codex / Kimi CLI

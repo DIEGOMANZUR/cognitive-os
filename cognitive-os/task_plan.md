@@ -1,21 +1,30 @@
 # Cognitive OS Hardening And Action Plane Plan
 
-> **Estado actual (2026-05-20, Fase 78 cerrada — recipe extractor en producción):**
-> Fase 78 implementó la **Fase A** del `docs/AGENT_LEARNING_PLAN.md`: el
-> agente distila trayectorias de jobs exitosos en propuestas
-> `kind=procedure` que pasan por el approval gate del operador. Cero
-> auto-deploy. Cero mutación de `AGENT_SELF.md`. Migración Alembic
-> `202605200001` (`jobs.extracted_recipe_at`), módulos
-> `deepagents/recipe_extractor.py` + `recipe_prompts.py`, Celery beat
-> cada 30 min, endpoints `/deepagents/memory/recipes` (list) +
-> `/deepagents/memory/recipes/extract-now` (admin), sección "Recetas
-> propuestas" en `MemoryView`. 23 tests nuevos verdes (12 extractor + 9
-> prompts + 2 memory_service round-trip), suite total **735 passed**.
-> Live evidence: endpoint live retorna proposal real con payload
-> estructurado (title + steps + tool_call_count + duration);
-> `/health/dashboard` mantiene 17 componentes; ruff/mypy/build/lint 0
-> issues. Siguiente paso del plan: Fase 79 (failure post-mortem →
-> warnings proactivos).
+> **Estado actual (2026-05-20, Fases 78-81 cerradas — plan de aprendizaje
+> autónomo completo + aislamiento de DB de test):**
+> Las **5 fases** del plan (`docs/AGENT_LEARNING_PLAN.md`) están en
+> producción. Todo el aprendizaje pasa por **proposals → approval del
+> operador → records activos**; cero auto-deploy, cero mutación de
+> `AGENT_SELF.md`.
+> - **F78 Fase A** — recipe extractor: jobs exitosos → recetas
+>   `kind=procedure`. Migración `202605200001`.
+> - **F79.1** — Responses API + prompt caching 24h en 6 carriles LLM.
+>   **F79.2** — cache de tools MCP por rol. **F79.3 Fase D** — failure
+>   post-mortem (warnings proactivos). **F79.4 Fase C** — tool scorecard.
+>   Migración `202605200002` (`tool_invocation_metrics`).
+> - **F80 Fase B** — skill promotion: procedure usado ≥3× con <30% de
+>   fallos → skill YAML materializado con rollback automático. Migración
+>   `202605200003` (`procedure_invocation_log`).
+> - **F81 Fase E** — nightly reflection: el LLM revisa los threads del
+>   día y propone preferences/lessons con evidencia literal obligatoria.
+> - **Audit comercial + aislamiento de DB de test:** 6 edge cases
+>   endurecidos; `tests/conftest.py` redirige `DATABASE_URL` a
+>   `cognitive_os_test` (recreada + migrada por corrida) — `pytest`
+>   nunca toca producción.
+> Snapshot: **800 passed**, 1 skipped, 20 deselected · ruff/format/mypy
+> (135 files) · frontend lint/build · Alembic head `202605200003` (20
+> migraciones) · **143 endpoints REST**, **22 Celery tasks** (10 beat).
+> El plan de aprendizaje queda **completo**; no hay fase siguiente.
 >
 > **Estado anterior (Fase 74 — auditoría completa + cliente MCP):**
 > Fase 73 cableó el cliente MCP nativo (DeepAgent carga tools de

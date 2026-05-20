@@ -2,6 +2,57 @@
 
 > Bitácora viva. Para producto: ver `docs/`.
 
+## 2026-05-20 — Fases 79-81 + audit comercial: hallazgos cerrados
+
+**Plan de aprendizaje (F79.3/F79.4/F80/F81) — todo verde, sin P0/P1
+pendientes.** Detalle de implementación en `progress.md`.
+
+**Hallazgos del audit comercial sobre F80/F81 (6, cerrados):**
+
+- **P1 — `IndexError` en `skill_promoter`**: `propose_skill_promotion`
+  hacía `content_redacted.splitlines()[0]` sin guard; un procedure con
+  `content_redacted` vacío (string `""`) reventaba el promoter. Fix:
+  guard explícito sobre la lista de líneas. Test de regresión
+  `test_evaluate_handles_procedure_with_empty_content`.
+- **P1 — frontmatter YAML roto por `---`**: si la `summary` de una receta
+  contenía `---`, el `SKILL.md` generado tenía 3 delimitadores y el
+  parser `_parse_frontmatter` cortaba mal. Fix: `render_yaml_skill_text`
+  colapsa runs de guiones a em-dash. Test
+  `test_render_yaml_skill_text_sanitises_dashes_in_description`.
+- **P2 — sobre-conteo en `log_procedure_usage_for_job`**: acreditaba
+  procedures de otros agentes a cada job. Fix: filtro por agente que
+  replica el scoping de `DeepAgentMemoryService.get_startup_memory`
+  (un procedure `scope=agent` sólo cuenta para su propio agente).
+- **P2 — evidencia trivial en `nightly_reflection`**: el validador
+  aceptaba quotes de 2-3 caracteres ("el") como evidencia. Fix: longitud
+  mínima de quote = 12 caracteres. Test `test_validate_rejects_too_short_quote`.
+- **P2 — 500 en endpoint de approve**: `POST .../skill-promotions/{id}/approve`
+  con un `proposal_id` inexistente devolvía 500. Fix: `ValueError` →
+  `HTTPException 404`. Verificado en vivo.
+- **P3 — cruft**: re-export innecesario de `UUID` en `__all__` de
+  `nightly_reflection.py`, eliminado.
+
+**Hallazgo de proceso — pytest contaminaba producción (cerrado):**
+
+- La suite corría contra la Postgres de producción (`cognitive_os`) y
+  cada `uv run pytest` dejaba filas de prueba visibles en la UI de
+  Memoria del operador (arquitectura pre-existente del `conftest`, que
+  compartía DB). **Fix:** `tests/conftest.py` redirige `DATABASE_URL` a
+  `cognitive_os_test` antes de cualquier import de `cognitive_os`; la
+  base se recrea + migra a head por corrida; red de seguridad dura que
+  se niega a correr si la URL apunta a producción. Se limpió el debris
+  acumulado (946 filas) de producción en una transacción.
+
+**Riesgos residuales declarados (sin cierre técnico en este alcance):**
+
+- La ruta B.2 del plan (skill code-based vía Code Director) queda como
+  follow-up; la proposal de promoción ya registra `route="yaml"` y deja
+  el hook para una futura compilación de código. No es un bug — es
+  alcance deliberadamente diferido (§5.2 del plan).
+- El debris de prueba pre-F80 de fases anteriores (F78 recetas, F79.3
+  warnings) no se barrió: predata esta sesión y se mezcla con datos
+  potencialmente reales. El aislamiento evita que vuelva a crecer.
+
 ## 2026-05-20 — Readiness audit Codex/MCP + stack live
 
 **Hallazgos cerrados:**

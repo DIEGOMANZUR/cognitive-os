@@ -1,8 +1,9 @@
 # RUNBOOK Cognitive OS
 
-> **Estado actual (2026-05-20, Fase 74 — auditoría completa + cliente MCP + Telegram conversacional operativo):**
+> **Estado actual (2026-05-20, Fases 78-81 — plan de aprendizaje autónomo completo + aislamiento de DB de test):**
 > la ruta `research` está fusionada con OpenHarness opcional; el runtime
-> local usa **DeepSeek V4 Pro** (`deepseek-v4-pro`); el stack incluye mail
+> local usa **gpt-5.5** (gateway openai-compatible, Responses API);
+> el stack incluye mail
 > personal GoDaddy/Gmail-label con queue Celery `mail` integrada en
 > `scripts/dev_worker.sh`. Para uso diario existen ejecutables en
 > `/home/jgonz/Escritorio` (versión endurecida) que
@@ -25,8 +26,13 @@
 > `/research`, `/codebuild`, `/sandbox`, `/capabilities`) y corrigió el
 > CHECK `ck_ar_action_type` que rompía Drive folder/organize en Postgres
 > (migración `202605170001`).
-> QA actual: **712 passed, 1 skipped, 20 deselected**, head Alembic
-> `202605170001`.
+> QA actual: **800 passed, 1 skipped, 20 deselected**, head Alembic
+> `202605200003`. La suite corre contra una **DB de test aislada**
+> (`cognitive_os_test`, recreada por corrida) — `pytest` nunca toca la
+> base de producción. **Plan de aprendizaje autónomo F78-81** cerrado
+> (Fases A-E del `AGENT_LEARNING_PLAN.md`): recipe extractor, failure
+> post-mortem, tool scorecard, skill promotion y nightly reflection,
+> con 10 jobs Celery beat y endpoints `/deepagents/learning/*`.
 
 ## Ejecutables de escritorio
 
