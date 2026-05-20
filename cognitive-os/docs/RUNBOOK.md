@@ -1,6 +1,6 @@
 # RUNBOOK Cognitive OS
 
-> **Estado actual (2026-05-19, Fase 68 — GoDaddy DNS prod operativo, doble revisión profunda, suite hermética 685 passed; Telegram requiere token válido nuevo):**
+> **Estado actual (2026-05-19, Fase 68 — GoDaddy DNS prod operativo, doble revisión profunda, suite hermética 712 passed; Telegram requiere token válido nuevo):**
 > la ruta `research` está fusionada con OpenHarness opcional; el runtime
 > local usa **DeepSeek V4 Pro** (`deepseek-v4-pro`); el stack incluye mail
 > personal GoDaddy/Gmail-label con queue Celery `mail` integrada en
@@ -25,7 +25,7 @@
 > `/research`, `/codebuild`, `/sandbox`, `/capabilities`) y corrigió el
 > CHECK `ck_ar_action_type` que rompía Drive folder/organize en Postgres
 > (migración `202605170001`).
-> QA actual: **685 passed, 1 skipped, 20 deselected**, head Alembic
+> QA actual: **712 passed, 1 skipped, 20 deselected**, head Alembic
 > `202605170001`.
 
 ## Ejecutables de escritorio

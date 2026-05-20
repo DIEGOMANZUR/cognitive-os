@@ -1,6 +1,6 @@
 # Cognitive OS — Architecture
 
-> **Status (2026-05-19, Phase 68 — GoDaddy DNS production live, double deep review, hermetic test suite 685 passed; LLM primary/agent gpt-5.5, fallbacks gemini-3.1-pro-low, vision glm-4.6v; Telegram needs a fresh valid token):** stack
+> **Status (2026-05-19, Phase 68 — GoDaddy DNS production live, double deep review, hermetic test suite 712 passed; LLM primary/agent gpt-5.5, fallbacks gemini-3.1-pro-low, vision glm-4.6v; Telegram needs a fresh valid token):** stack
 > operational at commercial grade. Verified counts (no inflation): **131
 > REST endpoints** (104 Cognitive-OS-owned + 27 orchestration), **16 Celery
 > tasks** across **5 queues** (`default`, `ingestion`, `agent_longrun`,
@@ -43,7 +43,7 @@
 > `202605170001` widens the constraint; a regression test keeps the ORM,
 > the latest migration and the service's persisted set in sync.
 >
-> QA snapshot: **685 pytest passed, 1 skipped, 20 deselected**;
+> QA snapshot: **712 pytest passed, 1 skipped, 20 deselected**;
 > ruff/format/mypy, frontend lint/build, Alembic head with no drift and
 > `git diff --check` all green.
 

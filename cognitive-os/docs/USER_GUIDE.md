@@ -1,24 +1,36 @@
 # Cognitive OS — Guía de Usuario (comercial)
 
-> Estado: **Fase 68 cerrada (2026-05-19)** — GoDaddy DNS de producción
-> operativo y verificado en vivo (auth HTTP 200), doble revisión profunda,
-> `.env.example` actualizado. Cadena LLM del operador verificada en vivo:
+> Estado: **Fase 74 cerrada (2026-05-20)** — auditoría completa de 10
+> dominios + cliente MCP nativo + Telegram conversacional + acceso total
+> al PC. Cadena LLM del operador verificada en vivo:
 > **primary + agent = `gpt-5.5`** (gateway OpenAI-compatible),
 > **secondary + fallback = `gemini-3.1-pro-low`** (mismo gateway),
 > **visión = `glm-4.6v`** (z.ai). `kimi-k2.6` vía HTTP da 403 (solo el
-> adapter CLI del Code Director). Las 21 tools del DeepAgent usan
-> `args_schema` Pydantic tipado (válidas en gateways estrictos).
-> Verificado en vivo: `/chat` → DeepAgent real sin fallback, router LLM
-> decidiendo, 0 errores de tool_choice/schema; ruta Maps real con tráfico.
-> Pila operativa grado comercial, verificada funcionando (no solo en
-> tests). Snapshot QA: **685 pytest passed, 1 skipped, 20 deselected** ·
-> ruff/format/mypy (125 source files) · frontend lint/build (20 vistas) ·
-> Alembic head `202605170001` (aplicada en Postgres real) · `git diff
-> --check` · pre-commit · detect-secrets (0 findings) — **todo verde** y
-> **suite hermética por construcción** (ningún test hace llamadas LLM
-> reales; guard autouse en `tests/conftest.py`). **131 endpoints REST**,
-> **16 tareas Celery** en 5 colas, **17 migraciones Alembic**, **20
-> vistas frontend**, **37 slash commands de Telegram** con paridad real.
+> adapter CLI del Code Director). Las 21 tools built-in del DeepAgent usan
+> `args_schema` Pydantic tipado; bajo `ENABLE_MCP_CLIENT=true` se suman
+> tools dinámicas de servidores MCP externos (Supermemory, GitHub,
+> filesystem). Snapshot QA: **712 pytest passed, 1 skipped, 20
+> deselected** · ruff/format/mypy (128 source files) · frontend
+> lint/build · Alembic head `202605170001` · pre-commit · detect-secrets
+> (0 findings) — **todo verde** y **suite hermética por construcción**.
+> **130 endpoints REST**, **17 tareas Celery** en 5 colas, **17
+> migraciones Alembic**, **20 vistas frontend**, **37 slash commands de
+> Telegram**, **17 componentes en `/health/dashboard`**.
+>
+> **Novedades Fase 70-74 (lo más reciente):**
+> - **Telegram conversacional:** ya no necesitás slash para todo. En
+>   `dedicated_local`, cualquier mensaje sin `/` entra al orquestador
+>   como chat. El bot **recuerda la conversación** (thread persistente
+>   por chat); `/reset` la reinicia.
+> - **Identidad del agente:** `docs/AGENT_SELF.md` es el doc-canon que el
+>   agente carga como contexto — sabe quién es, qué puede hacer y cómo le
+>   hablás.
+> - **Cliente MCP:** el agente puede usar herramientas de servidores MCP
+>   externos sin tocar código (los declarás en `.env`).
+> - **Acceso total al PC:** en `dedicated_local` el agente lee/escribe en
+>   todo `/home/jgonz` y mueve archivos sin pedir aprobación cada vez.
+> - **Diagnóstico de fricción:** `/system/readiness` te dice qué flags
+>   de `.env` están bloqueando capacidades y cómo desbloquearlas.
 >
 > **Realidad del stack LLM (importante — entendé cómo reacciona el
 > sistema):** todo está cableado en `.env`, no tenés que tocar nada; esto
@@ -43,20 +55,19 @@
 > (sin crash) y el DeepAgent cae a RAG. Trazas LangSmith usan el *personal
 > access token* (la API key scoped no puede ingestar).
 >
-> **Pendientes del operador (NO bloquean el resto del sistema):**
-> 1. **Telegram:** el `TELEGRAM_BOT_TOKEN` del `.env` da **HTTP 401**
->    (revocado/erróneo) y `TELEGRAM_AUTHORIZED_USER_IDS` está vacío. Para
->    usar el bot: pedí un token nuevo a **@BotFather**, conseguí tu
->    user_id con **@userinfobot**, y poné en `.env`
->    `TELEGRAM_BOT_TOKEN=<nuevo>`, `TELEGRAM_AUTHORIZED_USER_IDS=<tu id>`,
->    `TELEGRAM_ENABLED=true`.
-> 2. **Google Calendar/Drive/Gmail:** correr una vez
->    `uv run python scripts/auth_google.py` (OAuth interactivo: login +
->    consentimiento en el navegador) para pasarlos de `blocked` a `ready`.
-> 3. **GoDaddy DNS:** ya operativo en modo seguro (dry-run + aprobación).
->    Para escrituras DNS reales: poné `GODADDY_DNS_DRY_RUN_ONLY=false` +
->    `GODADDY_ALLOW_PRODUCTION_WRITES=true` y ajustá
->    `GODADDY_ALLOWED_DOMAINS` a los dominios reales de tu cuenta.
+> **Estado de integraciones (operador de este host, Fase 74):**
+> 1. **Telegram:** ✅ operativo — bot `@Socio_dimn_bot`,
+>    `TELEGRAM_ENABLED=true`, user autorizado configurado. Acepta slash
+>    commands + mensajes conversacionales sin slash.
+> 2. **Google Calendar/Drive/Gmail:** ✅ autorizados — el OAuth
+>    interactivo (`scripts/auth_google.py` + `scripts/auth_gmail.py`) ya
+>    se corrió; los componentes están `ready`. Si cambiás
+>    `GOOGLE_*_SCOPES` el script detecta el drift y pide re-consent.
+> 3. **GoDaddy DNS:** operativo en modo seguro (dry-run + aprobación).
+>    Para escrituras DNS reales: `GODADDY_DNS_DRY_RUN_ONLY=false` +
+>    `GODADDY_ALLOW_PRODUCTION_WRITES=true` + `GODADDY_ALLOWED_DOMAINS`.
+> 4. **MCP:** ✅ 3 servidores conectados (Supermemory, GitHub,
+>    filesystem). Estado en vivo en `/system/mcp`.
 >
 > **Verificado en vivo** (con el stack levantado y credenciales reales):
 > LLMs (chat real `gpt-5.5` + tool_choice forzado), DeepAgent real sin
@@ -255,7 +266,7 @@ la allow-list, te responde con los 37 comandos.
 ```bash
 cd cognitive-os
 bash scripts/full-qa.sh                  # pytest + ruff + mypy + frontend build
-# Esperado: 685 passed, 1 skipped, 20 deselected; todo verde
+# Esperado: 712 passed, 1 skipped, 20 deselected; todo verde
 ```
 
 En el panel, andá a **Health**: cada componente (db, redis, weaviate,
@@ -279,7 +290,7 @@ budget caps, ejecutándose en `127.0.0.1`.
 
 **De qué se compone, de arriba abajo:**
 
-- **Backend FastAPI 0.115+** (Python 3.12, `uv`): **131 endpoints REST**
+- **Backend FastAPI 0.115+** (Python 3.12, `uv`): **130 endpoints REST**
   bajo JWT, rate-limited en los endpoints calientes. Es el cerebro y la
   sala de máquinas.
 - **Orquestación LangGraph 1.1.10** con grafo principal
@@ -625,6 +636,48 @@ deja claro por qué. Todo comando entra por el **mismo servicio que el
 REST**, así que hereda la misma `tool policy`, los mismos
 `HumanApproval` y el mismo `AuditEvent`.
 
+### 5.0 Telegram conversacional (sin slash) — Fase 70-74
+
+Desde Fase 70, en `OPERATOR_PROFILE=dedicated_local` **no necesitás un
+slash command para hablar con el agente**. Cualquier mensaje que NO
+empiece con `/` se enruta al orquestador como si fuera `/chat`:
+
+```
+vos → hola, ¿qué reuniones tengo mañana?
+bot → ruta: comm · thread: …a3f2b1c4
+      [respuesta del agente]
+```
+
+**Memoria de conversación:** el bot mantiene **un thread persistente por
+chat** (guardado en Postgres vía el checkpointer de LangGraph). El turno
+siguiente ve el contexto previo:
+
+```
+vos → me llamo Diego, soy el operador
+bot → [confirma]
+vos → ¿cómo me llamo?
+bot → Diego — me lo dijiste recién.
+```
+
+- `/reset` — empieza un thread nuevo (los turnos viejos quedan en la DB
+  pero no se vuelven a leer).
+- En `OPERATOR_PROFILE=strict` el mensaje sin slash sigue pidiendo un
+  comando explícito (no se abre un carril LLM por accidente).
+
+**Qué carril toma tu mensaje** (lo decide el router del orquestador):
+
+| Tu mensaje | Ruta | Qué pasa |
+|---|---|---|
+| "¿qué es el teorema CAP?" | `research` | responde directo, con RAG si hay docs |
+| "buscá en mi Drive el contrato ACME" | `research` | usa la tool `search_drive_files` |
+| "redactá un mail a juan@x.com" | `comm` | propone borrador, **pide tu OK** para enviar |
+| "publicá esto en mis redes" | `social` | propone, pide aprobación |
+| "analizá estos 3 PDFs de demanda" | `legal` | pipeline document-analysis |
+
+Las preguntas puramente informativas (Fase 74: el router exige un verbo
+de acción para `comm`/`social`) caen en `research` y responden sin
+interrupción.
+
 ### 5.1 Tabla completa de comandos (paridad con el panel)
 
 | Comando | Hace | Vista equivalente |
@@ -962,7 +1015,7 @@ muchos de estos son configurables; la matriz de §9 lo dice por capacidad.)
 
 - **Auth:** todo endpoint sensible exige JWT HS256 firmado con
   `JWT_SECRET`. Endpoints admin (credentials-status, LangSmith opcional)
-  exigen rol admin. 132 usos de dependencia de auth sobre 131 endpoints.
+  exigen rol admin. 132 usos de dependencia de auth sobre 130 endpoints.
 - **Secretos:** nunca versionados. `pre-commit` corre `gitleaks` +
   `detect-secrets` (baseline `.secrets.baseline`, 0 findings). Los
   `SecretStr` nunca salen en respuestas. `payload_executable` se cifra

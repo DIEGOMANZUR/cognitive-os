@@ -2,6 +2,29 @@
 
 > Bitácora viva. La documentación estable de producto vive en `docs/`.
 
+## 2026-05-20 — Fase 69-74: hardening cruzado + capacidades nuevas
+
+- **Fase 69** (GPT-5.5 review #2): auto-approve reversibles, Code Director
+  race atómica, budget hard timeout, CORS :3001, perfil en UI, scope
+  retrieval, Kimi default, packaging caps.
+- **Fase 70**: `docs/AGENT_SELF.md` (identidad del agente) + Telegram
+  conversacional (mensajes sin slash) + thread persistente por chat.
+- **Fase 71** (GPT-5.5 review #3): auto-approve no-op corregido (faltaba
+  `queue_approved_action_request`), mail send idempotente, dispatch
+  auditado compartido, packaging preserva history, `/reset` salt en Redis,
+  JWT en localStorage, build_partial.
+- **Fase 72** (GPT-5.5 review #4): `/system/readiness` (diagnóstico de
+  fricción), UI semantics por perfil, stale jobs reaper, mail partial
+  failure visible, Kimi smoke real, dispatch Telegram unificado.
+- **Fase 73**: cliente MCP nativo — el DeepAgent carga tools de
+  servidores MCP externos (Supermemory + GitHub + filesystem). 3 servers
+  conectados en vivo (60 tools dinámicas). `/system/mcp` + tile UI.
+- **Fase 73b**: `computer_organize` en whitelist auto-approve; acceso del
+  agente a todo `/home/jgonz`.
+- **Fase 74**: auditoría completa de 10 dominios + `mcp_client` en
+  `/health/dashboard` (17 componentes) + `deterministic_route` endurecido
+  (queries informacionales no disparan interrupt). Suite **712 passed**.
+
 ## 2026-05-18 — Fase 67: esquemas de tools tipados + cadena LLM operador
 
 - **21 tools del DeepAgent** reescritas con `args_schema` Pydantic

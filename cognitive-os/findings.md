@@ -2697,3 +2697,58 @@ ambos reasons como válidos.
 3. Reiniciá el stack. El DeepAgent ahora ve las tools MCP además de las
    21 built-ins. En el panel: `Settings` → tile "MCP servers" muestra
    cuáles están conectados y cuántas tools expone cada uno.
+
+## 2026-05-20 — Fase 74 — Auditoría completa de 10 dominios + mejoras
+
+Pedido del operador: revisar el proyecto entero desde las bases, buscar
+defectos/zonas débiles, mejorar e implementar capacidades. Ejecutado en
+4 fases (planificación → implementación → re-revisión → docs).
+
+**Fase 1 — Auditoría (10 dominios):**
+
+- D1 Infra: 17 migraciones lineales sin drift; docker binds `127.0.0.1`
+  en los 4 servicios + healthchecks; launchers con syntax OK. Limpio.
+- D2 LLM/DeepAgent: cadena router agent→secondary→primary→deterministic
+  con degradación cubierta. `deterministic_route` con keywords comm/social
+  demasiado amplias (sustantivos sueltos) → **hallazgo, corregido en F2**.
+- D3 Action Plane: idempotency keys + dispatch_state + 4 reapers
+  (approvals, action-requests, dispatch reservations, stale jobs).
+  computer_organize ya en whitelist (Fase 73b). Limpio.
+- D4 API/auth: 132 endpoints, todos con `_auth_dependency` salvo
+  `/health` (público a propósito); rate-limit en los 3 mutadores
+  críticos. Limpio.
+- D5 Frontend: `useLocalState` SSR-safe; polling intervals razonables;
+  0 `console.error` en vistas. Limpio.
+- D6 Telegram: 37 commands, conversacional sin slash, thread persistente.
+  Limpio.
+- D7 RAG: ingestion con SHA256 dedup; Weaviate store con BM25 fallback.
+  Limpio.
+- D8 Observabilidad: 22 AuditEvent sites; LangSmith con personal token.
+  **Hallazgo: el cliente MCP (Fase 73) no tenía componente en
+  `/health/dashboard`** → corregido en F2.
+- D9 Docs: contadores stale (Fase 68/685 passed) → corregido en F4.
+- D10 Capacidades nuevas: catálogo priorizado (chat_plain, MCP server,
+  screen OCR, etc.).
+
+**Fase 2 — Implementación (3 mejoras P0/P1):**
+
+1. **`mcp_client` en `/health/dashboard`:** nuevo `_check_mcp()` —
+   componente 17. Reporta `disabled`/`degraded`/`configured` + nombres
+   de servers declarados, sin live RPC (eso queda en `/system/mcp`).
+2. **`deterministic_route` endurecido:** comm/social ahora exigen un
+   verbo de acción explícito (enviá, redactá, publicá...). Un mensaje
+   informacional que sólo menciona un canal ("qué mensajes tengo") cae
+   en `research` y responde directo, sin disparar interrupt de
+   human-review. Test nuevo: `test_deterministic_routing_informational_not_comm`.
+3. **AGENT_SELF.md actualizado:** sección 2.7 (acceso total al PC),
+   sección 2.8 nueva (cliente MCP).
+
+**Fase 3 — Re-revisión:** suite `712 passed, 1 skipped, 20 deselected`;
+ruff + format + mypy verde (128 modules); stack reiniciado →
+`/health/dashboard` overall=ok, 17 componentes ✅.
+
+**Fase 4 — Docs:** headers de estado actualizados a Fase 74 en README,
+docs/README, USER_GUIDE, COGNITIVE_OS_GUIDE y resto de guías; contadores
+sincronizados (130 endpoints, 17 tareas Celery, 17 health components, 712
+passed); USER_GUIDE sección 5.0 nueva (Telegram conversacional);
+findings/progress/task_plan al día.

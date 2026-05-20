@@ -1,6 +1,6 @@
 # ACCEPTANCE CHECKLIST
 
-> **Estado actual (2026-05-19, Fase 68 — GoDaddy DNS prod operativo, doble revisión profunda, suite hermética 685 passed; Telegram requiere token nuevo):** matriz
+> **Estado actual (2026-05-19, Fase 68 — GoDaddy DNS prod operativo, doble revisión profunda, suite hermética 712 passed; Telegram requiere token nuevo):** matriz
 > de aceptación vigente. Fase 66 levantó el stack real con credenciales del
 > operador y auditó cada parte; 4 bugs críticos enmascarados por la
 > resiliencia fueron corregidos y verificados en vivo (DeepAgent/tool_choice,
@@ -24,7 +24,7 @@
 > folder/organize en Postgres real (migración `202605170001` + test de
 > regresión que mantiene ORM/migración/servicio en sync).
 > Snapshot QA persistente (Fase 65):
-> **685 pytest passed, 1 skipped, 20 deselected**; ruff/ruff format/mypy
+> **712 pytest passed, 1 skipped, 20 deselected**; ruff/ruff format/mypy
 > (125 source files), frontend lint/build (20 vistas), Alembic head
 > `202605170001` sin drift y `git diff --check` verdes.
 > Los snapshots con fecha por-fase más abajo son **históricos**: para
@@ -51,7 +51,7 @@ infraestructura local real, credenciales o aprobacion manual.
   tráfico leve · 12 pasos · google_maps_url` tras el fix `departureTime`.
 - [x] LangSmith `/sessions` con el personal access token → 200 (trazas
   ingestables) tras el fix de precedencia de credencial.
-- [x] `bash scripts/full-qa.sh` → **685 passed, 1 skipped, 20 deselected**;
+- [x] `bash scripts/full-qa.sh` → **712 passed, 1 skipped, 20 deselected**;
   ruff/format/mypy (125 files)/eslint verdes tras los 4 fixes + 7 tests
   endurecidos a herméticos.
 - [ ] OAuth Google (`scripts/auth_google.py`) — **pendiente operador**
@@ -64,7 +64,7 @@ infraestructura local real, credenciales o aprobacion manual.
 - [x] `uv run pytest tests/test_action_request_check_constraint.py -q` → **2 passed** (regresión que mantiene ORM/migración/`WORKFLOW_EXPORTABLE_TYPES` en sync).
 - [x] Telegram: **+11 slash commands** (`/maps`, `/calendar`, `/freebusy`, `/drive`, `/documents`, `/audit`, `/mail`, `/research`, `/codebuild`, `/sandbox`, `/capabilities`) con gating de capacidades; `uv run pytest tests/test_telegram_bot.py -q` → **14 passed**.
 - [x] Mapeo FE↔BE: 44 rutas REST del frontend ↔ 131 endpoints backend, 0 huérfanos.
-- [x] `uv run pytest -q` → **685 passed, 1 skipped, 20 deselected**.
+- [x] `uv run pytest -q` → **712 passed, 1 skipped, 20 deselected**.
 - [x] `bash scripts/full-qa.sh` → verde (pytest + ruff + ruff format + mypy + Alembic check + npm ci + frontend lint/build + `git diff --check`).
 - [x] `bash scripts/stress-qa.sh` → 3 corridas (baseline 674 pre-fix; suite estable).
 - [x] `uvx pre-commit run --all-files` → 6 hooks Passed (large-files, merge-conflict, EOF, trailing-whitespace, gitleaks, detect-secrets).

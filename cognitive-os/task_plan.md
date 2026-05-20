@@ -1,6 +1,12 @@
 # Cognitive OS Hardening And Action Plane Plan
 
-> **Estado actual (2026-05-19, Fase 72 cerrada — GPT-5.5 review #4):**
+> **Estado actual (2026-05-20, Fase 74 cerrada — auditoría completa + cliente MCP):**
+> Fase 73 cableó el cliente MCP nativo (DeepAgent carga tools de
+> servidores externos: Supermemory, GitHub, filesystem). Fase 74 hizo una
+> auditoría de 10 dominios + sumó `mcp_client` a `/health/dashboard` (17
+> componentes) y endureció `deterministic_route` (queries informacionales
+> ya no disparan interrupt). Suite **712 passed**.
+>
 > Fases 1–64 base + dispatch idempotente. **Fase 65** paridad Telegram↔UI
 > (37 slash commands tras Fase 70 con `/reset`) + CHECK `ck_ar_action_type`
 > migración `202605170001`. **Fase 66** auditoría en vivo. **Fase 67**

@@ -1,35 +1,32 @@
 # Cognitive OS
 
-> **Estado actual (2026-05-19, Fase 68 — GoDaddy DNS prod operativo + doble revisión + .env.example actualizado):** monorepo en grado comercial
-> operativo y **verificado funcionando con el stack real levantado** (Docker
-> infra + API + worker + credenciales del operador). Backend FastAPI 0.115+
-> (131 endpoints REST verificados,
-> 16 tareas Celery distribuidas en 5 colas, 17 migraciones Alembic
-> aplicadas en Postgres real) +
-> LangGraph 1.1.10 + DeepAgents 0.6.x + Celery 5.4 + Postgres 16+pgvector +
-> Redis 7 + Weaviate 1.29.0 + Neo4j 5 (servicios de datos ligados a
-> `127.0.0.1`) y consola Next.js 16.2.6 con **20 vistas** en `app/views/*.tsx` (incluidas
-> `AssistView` y `GoogleOpsView`). La ruta **`research`** sigue fusionada con
+> **Estado actual (2026-05-20, Fase 74 — auditoría completa + cliente MCP + Telegram conversacional + acceso total al PC):** monorepo en grado
+> comercial operativo y **verificado funcionando con el stack real
+> levantado** (Docker infra + API + worker + credenciales del operador).
+> Backend FastAPI 0.115+ (**130 endpoints REST**, **17 tareas Celery**
+> distribuidas en 5 colas, **17 migraciones Alembic** aplicadas en Postgres
+> real) + LangGraph 1.1.10 + DeepAgents 0.6.x + Celery 5.4 +
+> Postgres 16+pgvector + Redis 7 + Weaviate 1.29.0 + Neo4j 5 (servicios de
+> datos ligados a `127.0.0.1`) y consola Next.js 16.2.6 con **20 vistas**
+> en `app/views/*.tsx`. La ruta **`research`** sigue fusionada con
 > [OpenHarness](https://github.com/HKUDS/OpenHarness) opcional (`extra`
-> `openharness`). LLM (cadena verificada Fase 67/68): **primary+agent `gpt-5.5`**
-> (gateway openai-compatible), **secondary/fallback `gemini-3.1-pro-low`**,
+> `openharness`). LLM: **primary+agent `gpt-5.5`** (gateway
+> openai-compatible), **secondary/fallback `gemini-3.1-pro-low`**,
 > **visión `glm-4.6v`** (z.ai). Kimi K2.6 solo vía el adapter CLI del Code
-> Director (su endpoint HTTP da 403). El asistente personal opera **correo multicuenta** GoDaddy
-> IMAP/SMTP + Gmail label `TODOS` con propuestas de respuesta por escrito,
-> Google Maps read-only, Calendar free/busy + writes aprobados, Drive
-> search/upload/folder/organize bajo `ActionRequest`, y envío solo tras
-> aprobación humana (`MAIL_REQUIRE_APPROVAL_FOR_SEND=true`). La Fase 33 añade
-> RBAC local explícito, cifrado configurable/obligatorio en producción para
-> `payload_executable` y persistencia Postgres opcional para runs de research.
-> Ejecutables de escritorio (`Levantar/Reiniciar/Detener/Estado Cognitive OS`)
-> levantan/reinician/detienen el stack completo —incluido el worker Celery
-> de la queue `mail` y Kimi WebBridge— y se verifican con
-> `bash scripts/verify_desktop_launchers.sh`. Telegram bot expone **37 slash
-> commands** con paridad real frente a la consola: además de approvals,
-> jobs y memoria suma `/maps`, `/calendar`, `/freebusy`, `/drive`,
-> `/documents`, `/audit`, `/mail`, `/research`, `/codebuild`, `/sandbox` y
-> `/capabilities` — todos respetan capacidades habilitadas. Estado reproducible vía
-> `bash scripts/full-qa.sh`: **685 passed, 1 skipped,
+> Director (su endpoint HTTP da 403). **Cliente MCP nativo** (Fase 73): el
+> DeepAgent carga tools dinámicas de servidores MCP externos (Supermemory,
+> GitHub, filesystem) declarados en `.env`. El asistente personal opera
+> **correo multicuenta** GoDaddy IMAP/SMTP + Gmail label `TODOS`, Google
+> Maps, Calendar, Drive bajo `ActionRequest`, y envío solo tras aprobación
+> humana. **Telegram conversacional** (Fase 70): mensajes sin slash entran
+> al orquestador con memoria de conversación persistente. **Perfil
+> `dedicated_local`**: acceso total al `/home` del operador, auto-aprueba
+> acciones reversibles. Ejecutables de escritorio
+> (`Levantar/Reiniciar/Detener/Estado Cognitive OS`) gestionan el stack
+> completo y se verifican con `bash scripts/verify_desktop_launchers.sh`.
+> Telegram bot expone **37 slash commands** con paridad real frente a la
+> consola. `/health/dashboard` reporta **17 componentes**. Estado
+> reproducible vía `bash scripts/full-qa.sh`: **712 passed, 1 skipped,
 > 20 deselected**.
 
 ### Novedades Fase 68 (2026-05-19) — GoDaddy DNS prod + doble revisión profunda

@@ -1,8 +1,8 @@
 # Cognitive OS - Guia Simple Y Tecnica
 
-> **Estado actual (2026-05-19, Fase 68 — GoDaddy DNS prod operativo + doble revisión; LLM primary/agent gpt-5.5, fallbacks gemini-3.1-pro-low, visión glm-4.6v; suite hermética 685 passed):**
+> **Estado actual (2026-05-19, Fase 68 — GoDaddy DNS prod operativo + doble revisión; LLM primary/agent gpt-5.5, fallbacks gemini-3.1-pro-low, visión glm-4.6v; suite hermética 712 passed):**
 > producto en grado comercial operativo. Backend FastAPI 0.115+ con **131
-> endpoints REST**, **16 tareas Celery** distribuidas en **5 queues**
+> endpoints REST**, **17 tareas Celery** distribuidas en **5 queues**
 > (`default`, `ingestion`, `agent_longrun`, `maintenance`, `mail`), **17
 > migraciones Alembic** (head `202605170001`). Frontend Next.js 16.2.6
 > con **20 vistas** (incluidas `AssistView`, `GoogleOpsView`,
@@ -27,7 +27,7 @@
 > submit/fail. Fase 64 añadió reserva atómica anti-submit duplicado.
 > Fase 65 cerró paridad Telegram↔UI (36 slash commands) y corrigió el
 > CHECK `ck_ar_action_type` que rompía Drive folder/organize en Postgres.
-> QA snapshot: **685 pytest passed, 1 skipped, 20 deselected**; ruff/format/mypy,
+> QA snapshot: **712 pytest passed, 1 skipped, 20 deselected**; ruff/format/mypy,
 > frontend lint/build, Alembic head `202605170001` y `git diff --check` verdes.
 >
 > **Guía de usuario completa:** `docs/USER_GUIDE.md`.
