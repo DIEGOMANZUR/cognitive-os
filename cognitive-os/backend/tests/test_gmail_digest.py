@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import pytest
 
 import cognitive_os.api.app as api_app
+import cognitive_os.mail.gmail_label_reader as gmail_label_reader_module
 from cognitive_os.actions.gmail_digest import (
     FakeGmailReader,
     GmailDigestService,
@@ -339,6 +341,32 @@ class _FakeGmailClient:
         )
 
 
+class _FakeGmailLabelClient:
+    def __init__(self, labels: list[dict[str, str]]) -> None:
+        self._labels = labels
+        self.calls: list[dict[str, object]] = []
+
+    def __enter__(self) -> _FakeGmailLabelClient:
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    def get(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str],
+        params: list[tuple[str, str]],
+    ) -> _FakeResponse:
+        self.calls.append({"url": url, "headers": headers, "params": params})
+        if url.endswith("/labels"):
+            return _FakeResponse({"labels": self._labels})
+        if url.endswith("/messages"):
+            return _FakeResponse({"messages": []})
+        return _FakeResponse({})
+
+
 def test_gmail_rest_reader_fetches_recent_messages(tmp_path: Path) -> None:
     token_path = tmp_path / "token.json"
     token_path.write_text("{}", encoding="utf-8")
@@ -406,6 +434,40 @@ def test_gmail_label_reader_missing_token_does_not_expose_path(tmp_path: Path) -
     message = str(exc_info.value)
     assert str(tmp_path) not in message
     assert str(token_path) not in message
+
+
+def test_gmail_label_reader_resolves_custom_label_name_to_id(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    token_path = tmp_path / "token.json"
+    token_path.write_text("{}", encoding="utf-8")
+    client = _FakeGmailLabelClient(labels=[{"id": "Label_123", "name": "TODOS"}])
+    reader = GmailLabelReader(token_path=token_path, label_name="TODOS")
+    monkeypatch.setattr(reader, "_load_credentials", lambda: SimpleNamespace(token="token-live"))
+    monkeypatch.setattr(gmail_label_reader_module.httpx, "Client", lambda **_: client)
+
+    assert reader.fetch_recent(max_messages=1) == []
+
+    assert ("labelIds", "Label_123") in client.calls[1]["params"]
+    assert not any(key == "q" for key, _value in client.calls[1]["params"])
+
+
+def test_gmail_label_reader_falls_back_to_label_query_when_label_name_is_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    token_path = tmp_path / "token.json"
+    token_path.write_text("{}", encoding="utf-8")
+    client = _FakeGmailLabelClient(labels=[{"id": "INBOX", "name": "INBOX"}])
+    reader = GmailLabelReader(token_path=token_path, label_name="TODOS")
+    monkeypatch.setattr(reader, "_load_credentials", lambda: SimpleNamespace(token="token-live"))
+    monkeypatch.setattr(gmail_label_reader_module.httpx, "Client", lambda **_: client)
+
+    assert reader.fetch_recent(max_messages=1) == []
+
+    assert ("q", "label:TODOS") in client.calls[1]["params"]
+    assert not any(key == "labelIds" for key, _value in client.calls[1]["params"])
 
 
 def test_digest_reader_errors_are_blocked_and_redacted() -> None:

@@ -247,11 +247,11 @@ def record_human_approval_request(
     *,
     requested_by: str | None = None,
 ) -> None:
-    _run_async(_insert_human_approval_request(request, requested_by=requested_by))
+    _run_async(lambda: _insert_human_approval_request(request, requested_by=requested_by))
 
 
 def record_audit_event(record: ToolAuditRecord) -> None:
-    _run_async(_insert_audit_event(record))
+    _run_async(lambda: _insert_audit_event(record))
 
 
 async def _insert_human_approval_request(
@@ -290,11 +290,11 @@ async def _insert_audit_event(record: ToolAuditRecord) -> None:
         )
 
 
-def _run_async[T](awaitable: Coroutine[Any, Any, T]) -> T:
+def _run_async[T](awaitable_factory: Callable[[], Coroutine[Any, Any, T]]) -> T:
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        return asyncio.run(awaitable)
+        return asyncio.run(awaitable_factory())
     msg = "Synchronous tool policy persistence cannot run inside an active event loop."
     raise RuntimeError(msg)
 

@@ -113,17 +113,43 @@ async def extract_recipe_for_job(
 ) -> RecipeExtractionResult:
     """Extract a recipe from a single job. Returns the outcome with details.
 
-    The extractor never raises on policy mismatches; it returns an
-    `ineligible` result so the caller (beat sweep / REST endpoint) can
-    log a one-liner without try/except spaghetti.
+    Fase 79 P1-A/P1-B: the entire extraction (validation → LLM call →
+    proposal persistence → marker bump) runs under a single transaction
+    holding a row-level lock on the ``Job`` row via
+    ``SELECT ... FOR UPDATE SKIP LOCKED``. This guarantees:
+
+    * Two beat workers running in parallel can never produce duplicate
+      proposals for the same job (the second worker hits the lock and
+      sees ``locked_by_other_worker``).
+    * The proposal row and the ``Job.extracted_recipe_at`` timestamp
+      commit atomically. If either fails, the whole transaction rolls
+      back, so we never leave a proposal stranded without a marker (the
+      old split-brain that caused duplicates on the next beat).
+
+    Failure semantics (preserved from Fase 78):
+    * Transient LLM error → marker stays NULL → retried next beat.
+    * LLM ``skip`` signal → marker set, no proposal (do not re-ask).
+    * Policy violation in the proposal (e.g. secret leak) → rolls back,
+      marker stays NULL. Acceptable: we'd rather retry than silently
+      lose a job, and the tightened SECRET_PATTERNS regex (Fase 79
+      P1-C) makes false positives unlikely.
     """
     cfg = app_settings or settings
     service = memory_service or DeepAgentMemoryService()
 
     async with session_scope() as session:
-        job = await session.get(Job, job_id)
-        if job is None:
-            return RecipeExtractionResult(job_id, "ineligible", reason="job_not_found")
+        # Row-level lock: another extractor running at the same instant
+        # (e.g. operator hits /extract-now while beat is mid-cycle) will
+        # SKIP this row instead of blocking, so the second worker simply
+        # returns `ineligible` and tries the next job. (Fase 79 P1-A.)
+        locked = (
+            await session.execute(
+                select(Job).where(Job.id == job_id).with_for_update(skip_locked=True)
+            )
+        ).scalar_one_or_none()
+        if locked is None:
+            return RecipeExtractionResult(job_id, "ineligible", reason="locked_by_other_worker")
+        job = locked
         if job.extracted_recipe_at is not None:
             return RecipeExtractionResult(job_id, "ineligible", reason="already_processed")
         if job.status not in _SUCCESS_STATUSES:
@@ -169,12 +195,14 @@ async def extract_recipe_for_job(
             raw = await asyncio.to_thread(invoker, messages)
         except Exception as exc:  # noqa: BLE001
             # Transient LLM failures must NOT mark the job processed; we
-            # want the next beat cycle to retry. Log + bail.
+            # want the next beat cycle to retry. The outer transaction
+            # rolls back below (no marker, no proposal).
             logger.warning(
                 "recipe_extract_llm_failed job_id=%s error=%s",
                 job_id,
                 type(exc).__name__,
             )
+            await session.rollback()
             return RecipeExtractionResult(
                 job_id, "llm_error", reason=f"{type(exc).__name__}: {exc}"
             )
@@ -183,6 +211,7 @@ async def extract_recipe_for_job(
             parsed = parse_recipe_response(raw)
         except RecipeParseError as exc:
             logger.warning("recipe_extract_parse_failed job_id=%s error=%s", job_id, exc)
+            await session.rollback()
             return RecipeExtractionResult(job_id, "llm_error", reason=str(exc))
 
         if parsed.get("skip"):
@@ -200,7 +229,11 @@ async def extract_recipe_for_job(
             duration_seconds=duration,
             tool_call_count=len(tool_events),
         )
-        await service.propose_memory_update(proposal)
+        # Same-session persistence (Fase 79 P1-B): the proposal row and
+        # the marker bump commit atomically. If the secret-validation
+        # regex rejects the recipe, the whole transaction rolls back and
+        # the next beat will retry — operator can investigate via logs.
+        await service.propose_memory_update(proposal, session=session)
         job.extracted_recipe_at = datetime.now(UTC)
         return RecipeExtractionResult(job_id, "proposal", proposal_id=proposal.proposal_id)
 

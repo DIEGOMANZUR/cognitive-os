@@ -2,6 +2,48 @@
 
 > Bitácora viva. Para producto: ver `docs/`.
 
+## 2026-05-20 — Readiness audit Codex/MCP + stack live
+
+**Hallazgos cerrados:**
+
+- **P1 Codex skills no cargaban**: 30 skills personales quedaban saltadas por
+  YAML inválido (`Keywords:` dentro de `description` sin comillas). Causa raíz
+  confirmada por parser YAML y por warning de arranque. Reparado en
+  `~/.agents/skills/*/SKILL.md`; validación final `OK 58 SKILL.md
+  frontmatters valid` y verificador personal PASS sin warnings.
+- **P1 Alembic drift real**: `alembic check` en Postgres vivo detectaba
+  `modify_comment` sobre `jobs.extracted_recipe_at`. Causa: migración con
+  comment, modelo sin comment. Reparado en `db/models.py`; `uv run alembic
+  check` ahora dice `No new upgrade operations detected`.
+- **P2 warning runtime real**: tests Drive exponían `RuntimeWarning: coroutine
+  '_insert_audit_event' was never awaited`. Causa: el helper síncrono creaba la
+  corrutina antes de rechazar ejecución dentro de un event loop activo.
+  Reparado con factory lazy + regresión.
+- **P2 frontend stale build**: después de build, el `next start` anterior podía
+  servir chunks obsoletos hasta reiniciar frontend. En esta auditoría quedó
+  resuelto operativamente con restart completo; no se detectó cambio de código
+  necesario porque el launcher oficial ya reinicia correctamente.
+- **P2 Gmail sync con warnings**: `personal_mail_sync` repetía
+  `GmailReaderError` porque `MAIL_GMAIL_LABEL=TODOS` no existe en la lista de
+  labels del buzón y el lector caía a `labelIds=TODOS`, que Gmail rechaza con
+  HTTP 400. Reparado: si no hay ID real, usa `q=label:TODOS`; sync live
+  posterior: `errors=[]`.
+
+**Evidencia viva final:**
+
+- `codex doctor`: 13 ok, 0 warn, 0 fail.
+- MCP Codex: 18 stdio + 2 HTTP responden `tools/list`.
+- `bash scripts/full-qa.sh`: PASS, 738 tests.
+- `uv run pre-commit run --all-files`: PASS.
+- `~/Escritorio/cognitive-os.sh status`: Docker/API/worker/beat/frontend/
+  Telegram/Kimi running.
+- Browser autenticado en `http://127.0.0.1:3001`: dashboard sin error boundary,
+  `ESTADO GLOBAL ok`, `17/17 componentes ok`.
+- Prueba API/persistencia: tarea temporal creada, leída, marcada `done`,
+  borrada y verificada 404 post-delete.
+- Prueba worker: task `cognitive_os.health_check` ejecutada por Celery y job
+  persistido como `completed` con evento `health_check_completed`.
+
 ## 2026-05-19 05:45 — Supervisión horaria #2 + bug frontend (Turbopack HMR) cerrado
 
 Stack: 688 pytest passed; api/worker/beat/frontend(:3001)/kimi running;

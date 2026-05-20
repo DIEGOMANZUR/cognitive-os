@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import gc
+import warnings
+
 import pytest
 
 from cognitive_os.tools.policy import (
@@ -10,6 +13,7 @@ from cognitive_os.tools.policy import (
     ToolExecutionRejectedError,
     ToolRiskLevel,
     guarded_tool,
+    record_audit_event,
     redact_tool_args,
     requires_approval,
     tool_request_key,
@@ -118,3 +122,23 @@ def test_dangerous_tool_is_blocked_by_default() -> None:
 
     with pytest.raises(ToolExecutionBlockedError):
         tool.invoke({}, {})
+
+
+@pytest.mark.asyncio
+async def test_record_audit_event_inside_running_loop_does_not_leak_coroutine() -> None:
+    record = ToolAuditRecord(
+        tool_name="drive.ensure_folder",
+        risk_level=ToolRiskLevel.EXTERNAL_ACTION,
+        args_redacted={"folder_name": "Deliverables"},
+        result_summary="preview_created",
+        actor_id="operator",
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", RuntimeWarning)
+        with pytest.raises(RuntimeError, match="active event loop"):
+            record_audit_event(record)
+        gc.collect()
+
+    leaked = [warning for warning in caught if "was never awaited" in str(warning.message)]
+    assert leaked == []

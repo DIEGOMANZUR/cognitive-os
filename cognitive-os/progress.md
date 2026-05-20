@@ -2,6 +2,39 @@
 
 > Bitácora viva. La documentación estable de producto vive en `docs/`.
 
+## 2026-05-20 — Auditoría operativa Codex/MCP + readiness oficial
+
+- **Codex skills personales reparadas**: 30 `SKILL.md` en `~/.agents/skills`
+  tenían frontmatter YAML inválido por `description: ... Keywords:` sin
+  comillas. Se envolvieron las descripciones en strings YAML válidos y el
+  verificador personal queda `31 skills checked`, `0 errors`, `0 warnings`.
+- **MCP Codex verificado**: `codex doctor` limpio; 18 servidores stdio responden
+  `tools/list`; `deepwiki` y `supermemory` HTTP también responden. El arranque
+  TUI ya no emite `Skipped loading ... invalid YAML`.
+- **Bug runtime corregido**: `record_audit_event()` y
+  `record_human_approval_request()` creaban la corrutina antes de detectar un
+  event loop activo. En paths async esto dejaba `RuntimeWarning: coroutine was
+  never awaited`. Ahora `_run_async()` recibe un factory y solo crea la corrutina
+  cuando puede ejecutarla. Regresión agregada en `test_tools_policy.py`.
+- **Alembic drift cerrado**: el head `202605200001` estaba aplicado, pero
+  `alembic check` detectaba diferencia de comentario en
+  `jobs.extracted_recipe_at`. El modelo SQLAlchemy ahora declara el mismo
+  comentario que la migración.
+- **Frontend live corregido por operación**: tras `npm run build`, el proceso
+  `next start` anterior servía chunks viejos y el browser mostraba error de
+  carga de chunk. Se reinició el stack con `~/Escritorio/cognitive-os.sh restart`;
+  dashboard autenticado carga `17/17 componentes ok`.
+- **Gmail label sync robusto**: el lector OAuth ya no manda
+  `labelIds=<nombre>` cuando Gmail no expone ese label como ID. Resuelve
+  nombre/ID desde `/labels` y, si no existe (caso actual `TODOS`), usa
+  `q=label:TODOS`; el sync live queda `errors=[]`.
+- **Verificación final**: `bash scripts/full-qa.sh` verde (**736 passed, 1
+  skipped, 20 deselected**, luego **738 passed** tras Gmail fix; ruff, format,
+  mypy, Alembic sin drift, npm audit 0,
+  frontend lint/build, `git diff --check`). `uv run pre-commit run --all-files`
+  verde. Stack vivo: Docker 4/4 healthy, API, worker, beat, frontend, Telegram
+  y Kimi corriendo.
+
 ## 2026-05-20 — Fase 78: Recipe extractor (Fase A del plan de aprendizaje)
 
 Primera fase del plan documentado en `docs/AGENT_LEARNING_PLAN.md`.

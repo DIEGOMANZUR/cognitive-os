@@ -6,6 +6,7 @@ from typing import Any, cast
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from cognitive_os.core.config import Settings, settings
 from cognitive_os.core.db import session_scope
@@ -26,9 +27,22 @@ from cognitive_os.deepagents.memory_schemas import (
 )
 
 SECRET_PATTERNS = (
-    re.compile(r"sk-[A-Za-z0-9_-]{8,}"),
-    re.compile(r"(?i)(api[_-]?key|token|password|secret)\s*[=:]\s*\S+"),
-    re.compile(r"\b[A-Za-z0-9]{33,}\b"),
+    # OpenAI-style + common provider-prefixed credentials
+    re.compile(r"\bsk-[A-Za-z0-9_-]{16,}\b"),
+    # Contextual `api_key=...` / `token: ...` / `password = ...`
+    re.compile(r"(?i)(api[_-]?key|access[_-]?token|password|secret)\s*[=:]\s*\S+"),
+    # Specific provider prefixes. The previous catch-all
+    # `\b[A-Za-z0-9]{33,}\b` rejected legitimate content (UUIDs concatenated,
+    # SHA-256 hashes, Drive IDs, Supermemory chunk IDs) and caused the recipe
+    # extractor to loop forever on perfectly safe proposals (Fase 79 P1-C).
+    # Tighten to provider prefixes that genuinely indicate a leaked secret.
+    re.compile(r"\bghp_[A-Za-z0-9]{30,}\b"),  # GitHub personal access token
+    re.compile(r"\bghs_[A-Za-z0-9]{30,}\b"),  # GitHub server-to-server
+    re.compile(r"\bgho_[A-Za-z0-9]{30,}\b"),  # GitHub OAuth
+    re.compile(r"\bsm_[A-Za-z0-9_-]{20,}\b"),  # Supermemory
+    re.compile(r"\bxoxb-[0-9]+-[0-9]+-[A-Za-z0-9]+\b"),  # Slack bot token
+    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),  # AWS access key ID
+    re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\b"),  # JWT
 )
 PII_PATTERNS = (
     re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+"),
@@ -114,7 +128,20 @@ class DeepAgentMemoryService:
     async def propose_memory_update(
         self,
         proposal: DeepAgentMemoryProposal,
+        *,
+        session: AsyncSession | None = None,
     ) -> DeepAgentMemoryProposal:
+        """Persist a memory proposal.
+
+        ``session`` (Fase 79 P1-B) — when provided, all DB writes (approval,
+        proposal record, audit event) go through the caller's transaction.
+        The recipe extractor uses this to mark the job row and create the
+        proposal atomically; if either step fails, both roll back together,
+        eliminating the split-brain where the proposal was committed but
+        ``Job.extracted_recipe_at`` stayed NULL (and the next beat created
+        a duplicate). Default (``None``) opens its own session, preserving
+        the old behaviour for non-batch callers.
+        """
         self._validate_content(proposal.proposed_content, proposal.sensitivity)
         requires_approval = (
             proposal.requires_approval
@@ -126,62 +153,78 @@ class DeepAgentMemoryService:
         if not self._use_database:
             self._proposals[normalized.proposal_id] = normalized
             return normalized
-        async with session_scope() as session:
-            approval_id: UUID | None = None
-            if requires_approval:
-                approval = HumanApproval(
-                    action="deepagents_memory_update",
-                    requested_action="deepagents_memory_update",
-                    args_redacted={
-                        "proposal_id": normalized.proposal_id,
-                        "scope": normalized.scope,
-                        "reason": normalized.reason,
-                        "content": redacted,
-                    },
-                    requested_by=normalized.proposed_by_agent,
-                )
-                session.add(approval)
-                await session.flush()
-                approval_id = approval.id
-            record = DeepAgentMemoryProposalRecord(
-                id=UUID(normalized.proposal_id),
-                proposed_by_agent=normalized.proposed_by_agent,
-                scope=normalized.scope,
-                reason=normalized.reason,
-                proposed_content_redacted=redacted,
-                sensitivity=normalized.sensitivity,
-                source_task_id=normalized.source_task_id,
-                status="pending",
-                approval_id=approval_id,
-                # Persist scope context (user_id/case_id/thread_id) inside
-                # metadata_json — `approve_memory_proposal` reads from here to
-                # populate the materialised memory row's scoping columns. No
-                # new table columns: keeps Alembic clean. (Fase 71 P2.J.)
-                # Fase 78 (Fase A): also persist `kind`, `confidence` and an
-                # arbitrary payload (e.g. the recipe JSON). The proposals
-                # table still lacks a `kind` column; storing it here lets us
-                # filter via metadata_json->>'kind' and materialise the
-                # right row on approve without an extra migration.
-                metadata_json={
-                    "requires_approval": requires_approval,
-                    "user_id": normalized.user_id,
-                    "case_id": normalized.case_id,
-                    "thread_id": normalized.thread_id,
-                    "kind": normalized.kind,
-                    "confidence": normalized.confidence,
-                    "payload": normalized.metadata,
-                },
+        if session is not None:
+            await self._persist_proposal_in_session(
+                session, normalized, redacted, requires_approval
             )
-            session.add(record)
-            session.add(
-                _audit_event(
-                    "deepagents.memory.propose",
-                    normalized.proposed_by_agent,
-                    normalized.proposal_id,
-                    {"scope": normalized.scope, "sensitivity": normalized.sensitivity},
-                )
+            return normalized
+        async with session_scope() as new_session:
+            await self._persist_proposal_in_session(
+                new_session, normalized, redacted, requires_approval
             )
         return normalized
+
+    async def _persist_proposal_in_session(
+        self,
+        session: AsyncSession,
+        normalized: DeepAgentMemoryProposal,
+        redacted: str,
+        requires_approval: bool,
+    ) -> None:
+        approval_id: UUID | None = None
+        if requires_approval:
+            approval = HumanApproval(
+                action="deepagents_memory_update",
+                requested_action="deepagents_memory_update",
+                args_redacted={
+                    "proposal_id": normalized.proposal_id,
+                    "scope": normalized.scope,
+                    "reason": normalized.reason,
+                    "content": redacted,
+                },
+                requested_by=normalized.proposed_by_agent,
+            )
+            session.add(approval)
+            await session.flush()
+            approval_id = approval.id
+        record = DeepAgentMemoryProposalRecord(
+            id=UUID(normalized.proposal_id),
+            proposed_by_agent=normalized.proposed_by_agent,
+            scope=normalized.scope,
+            reason=normalized.reason,
+            proposed_content_redacted=redacted,
+            sensitivity=normalized.sensitivity,
+            source_task_id=normalized.source_task_id,
+            status="pending",
+            approval_id=approval_id,
+            # Persist scope context (user_id/case_id/thread_id) inside
+            # metadata_json — `approve_memory_proposal` reads from here to
+            # populate the materialised memory row's scoping columns. No
+            # new table columns: keeps Alembic clean. (Fase 71 P2.J.)
+            # Fase 78 (Fase A): also persist `kind`, `confidence` and an
+            # arbitrary payload (e.g. the recipe JSON). The proposals
+            # table still lacks a `kind` column; storing it here lets us
+            # filter via metadata_json->>'kind' and materialise the
+            # right row on approve without an extra migration.
+            metadata_json={
+                "requires_approval": requires_approval,
+                "user_id": normalized.user_id,
+                "case_id": normalized.case_id,
+                "thread_id": normalized.thread_id,
+                "kind": normalized.kind,
+                "confidence": normalized.confidence,
+                "payload": normalized.metadata,
+            },
+        )
+        session.add(record)
+        session.add(
+            _audit_event(
+                "deepagents.memory.propose",
+                normalized.proposed_by_agent,
+                normalized.proposal_id,
+                {"scope": normalized.scope, "sensitivity": normalized.sensitivity},
+            )
+        )
 
     async def approve_memory_proposal(
         self,

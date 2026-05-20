@@ -175,6 +175,11 @@ class Job(UUIDPrimaryKeyMixin, TimestampMixin, StatusMixin, MetadataMixin, Base)
         DateTime(timezone=True),
         nullable=True,
         index=True,
+        comment=(
+            "Fase 78: timestamp at which the recipe extractor processed this "
+            "job. NULL = pending. Set to NOW() even when the LLM emitted a "
+            "skip signal (no proposal) so the beat does not loop forever."
+        ),
     )
 
     thread: Mapped[ConversationThread | None] = relationship(back_populates="jobs")

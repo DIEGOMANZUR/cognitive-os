@@ -24,11 +24,16 @@ class GmailLabelReader:
         headers = {"Authorization": f"Bearer {credentials.token}"}
         with httpx.Client(timeout=self._timeout_seconds) as client:
             label_id = self._resolve_label_id(client, headers=headers)
+            params = [("maxResults", str(max_messages))]
+            if label_id:
+                params.append(("labelIds", label_id))
+            else:
+                params.append(("q", _label_search_query(self._label_name)))
             listed = self._gmail_get(
                 client,
                 f"{GMAIL_API_BASE_URL}/messages",
                 headers=headers,
-                params=[("maxResults", str(max_messages)), ("labelIds", label_id)],
+                params=params,
             )
             raw_items = listed.get("messages") or []
             if not isinstance(raw_items, list):
@@ -84,7 +89,7 @@ class GmailLabelReader:
             raise GmailReaderError("Gmail token is invalid or missing an access token.")
         return credentials
 
-    def _resolve_label_id(self, client: httpx.Client, *, headers: dict[str, str]) -> str:
+    def _resolve_label_id(self, client: httpx.Client, *, headers: dict[str, str]) -> str | None:
         data = self._gmail_get(client, f"{GMAIL_API_BASE_URL}/labels", headers=headers, params=[])
         labels = data.get("labels") or []
         if not isinstance(labels, list):
@@ -93,9 +98,11 @@ class GmailLabelReader:
         for label in labels:
             if not isinstance(label, dict):
                 continue
-            if str(label.get("name") or "").casefold() == wanted:
-                return str(label.get("id") or "")
-        return self._label_name
+            label_id = str(label.get("id") or "")
+            label_name = str(label.get("name") or "")
+            if label_id.casefold() == wanted or label_name.casefold() == wanted:
+                return label_id or None
+        return None
 
     @staticmethod
     def _gmail_get(
@@ -164,3 +171,10 @@ def _parse_date(value: str | None) -> datetime | None:
     except (TypeError, ValueError, IndexError, OverflowError):
         return None
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def _label_search_query(label_name: str) -> str:
+    escaped = label_name.replace("\\", "\\\\").replace('"', '\\"')
+    if any(ch.isspace() for ch in escaped):
+        return f'label:"{escaped}"'
+    return f"label:{escaped}"

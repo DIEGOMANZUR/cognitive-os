@@ -102,9 +102,7 @@ def main() -> int:
     with contextlib.suppress(OSError):
         token_path.chmod(0o600)
     print(f"\nAuthorized. Token written to {token_path}")
-    print(
-        "Gmail is now usable once GMAIL_READ_ENABLED=true (digest / label TODOS)."
-    )
+    print("Gmail is now usable once GMAIL_READ_ENABLED=true (digest / label TODOS).")
     print(
         "Reminder: access tokens are short-lived but the refresh_token saved in "
         "this file lets the backend refresh them transparently."

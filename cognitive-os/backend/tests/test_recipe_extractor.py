@@ -8,6 +8,7 @@ talks to the network in tests.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -29,7 +30,6 @@ from cognitive_os.deepagents.recipe_extractor import (
     extract_pending_recipes,
     extract_recipe_for_job,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -287,6 +287,84 @@ async def test_concurrent_extractor_idempotency() -> None:
             .all()
         )
         assert len(proposals) == 1
+
+
+@pytest.mark.asyncio
+async def test_truly_concurrent_extractions_produce_one_proposal() -> None:
+    """Fase 79 P1-A regression: two extractors racing on the same job must
+    not both emit proposals. The ``with_for_update(skip_locked=True)`` lock
+    inside the extractor means whichever transaction grabs the row first
+    wins; the other sees ``locked_by_other_worker`` and bails.
+    """
+    job_id = await _make_job()
+
+    results = await asyncio.gather(
+        extract_recipe_for_job(job_id, llm_invoker=_recipe_invoker()),
+        extract_recipe_for_job(job_id, llm_invoker=_recipe_invoker()),
+    )
+
+    statuses = sorted(r.status for r in results)
+    # Exactly one wins; the other returns ineligible (locked or already
+    # processed depending on micro-timing).
+    assert statuses == ["ineligible", "proposal"]
+    losing = next(r for r in results if r.status == "ineligible")
+    assert losing.reason in {"locked_by_other_worker", "already_processed"}
+
+    async with session_scope() as session:
+        proposals = (
+            (
+                await session.execute(
+                    select(DeepAgentMemoryProposalRecord).where(
+                        DeepAgentMemoryProposalRecord.source_task_id == str(job_id)
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(proposals) == 1
+
+
+@pytest.mark.asyncio
+async def test_proposal_persistence_failure_does_not_mark_processed() -> None:
+    """Fase 79 P1-B regression: if `propose_memory_update` raises (e.g. the
+    secret-validation regex rejects the recipe), the outer transaction must
+    roll back so `extracted_recipe_at` stays NULL. Otherwise a partial
+    failure would silently swallow the job.
+    """
+
+    class _RejectingService(DeepAgentMemoryService):
+        async def propose_memory_update(  # type: ignore[override]
+            self, proposal, *, session=None
+        ):
+            raise RuntimeError("simulated post-LLM persistence failure")
+
+    job_id = await _make_job()
+
+    # The extractor wraps the call in the transaction, so a raise propagates.
+    with pytest.raises(RuntimeError, match="simulated"):
+        await extract_recipe_for_job(
+            job_id,
+            llm_invoker=_recipe_invoker(),
+            memory_service=_RejectingService(),
+        )
+
+    async with session_scope() as session:
+        job = await session.get(Job, job_id)
+        assert job is not None
+        assert job.extracted_recipe_at is None
+        proposals = (
+            (
+                await session.execute(
+                    select(DeepAgentMemoryProposalRecord).where(
+                        DeepAgentMemoryProposalRecord.source_task_id == str(job_id)
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert proposals == []
 
 
 @pytest.mark.asyncio
