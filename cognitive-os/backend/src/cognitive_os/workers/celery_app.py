@@ -88,6 +88,12 @@ celery_app.conf.update(
             "queue": "maintenance",
             "routing_key": "maintenance",
         },
+        # Fase 79.3 — failure post-mortem scanner. Runs daily, reads-only
+        # past job events, may emit warning proposals or auto-promote.
+        "cognitive_os.scan_failure_postmortems": {
+            "queue": "maintenance",
+            "routing_key": "maintenance",
+        },
     },
     timezone="UTC",
     enable_utc=True,
@@ -156,6 +162,19 @@ if settings.recipe_extractor_enabled:
             day_of_month=re_dom,
             month_of_year=re_moy,
             day_of_week=re_dow,
+        ),
+    }
+# Fase 79.3 — failure post-mortem scanner. Gated by FAILURE_POSTMORTEM_ENABLED.
+if settings.failure_postmortem_enabled:
+    fp_minute, fp_hour, fp_dom, fp_moy, fp_dow = settings.failure_postmortem_cron.split()
+    beat_schedule["failure-postmortem-scanner"] = {
+        "task": "cognitive_os.scan_failure_postmortems",
+        "schedule": crontab(
+            minute=fp_minute,
+            hour=fp_hour,
+            day_of_month=fp_dom,
+            month_of_year=fp_moy,
+            day_of_week=fp_dow,
         ),
     }
 if beat_schedule:

@@ -100,6 +100,11 @@
 | `enable_social_posting` | `ENABLE_SOCIAL_POSTING` | bool |
 | `environment` | `ENVIRONMENT` | Literal[development, test, production] |
 | `exa_api_key` | `EXA_API_KEY` | SecretStr |
+| `failure_postmortem_autopromote_threshold` | `FAILURE_POSTMORTEM_AUTOPROMOTE_THRESHOLD` | int |
+| `failure_postmortem_cron` | `FAILURE_POSTMORTEM_CRON` | str |
+| `failure_postmortem_enabled` | `FAILURE_POSTMORTEM_ENABLED` | bool |
+| `failure_postmortem_max_per_cycle` | `FAILURE_POSTMORTEM_MAX_PER_CYCLE` | int |
+| `failure_postmortem_max_rejections` | `FAILURE_POSTMORTEM_MAX_REJECTIONS` | int |
 | `fallback_llm_api_key` | `FALLBACK_LLM_API_KEY` | SecretStr |
 | `fallback_llm_base_url` | `FALLBACK_LLM_BASE_URL` | str |
 | `fallback_llm_model` | `FALLBACK_LLM_MODEL` | str |

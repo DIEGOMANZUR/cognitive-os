@@ -207,6 +207,7 @@ from cognitive_os.workers.tasks import (
     run_deepagent_task_async,
     run_document_analysis_task_async,
     run_openshell_task_async,
+    scan_failure_postmortems_task,
     sync_personal_mail_task,
 )
 
@@ -3161,6 +3162,36 @@ async def trigger_recipe_extraction(
     """
     del user
     async_result = extract_pending_recipes_task.apply_async(queue="maintenance")
+    return {"task_id": str(async_result.id), "status": "dispatched"}
+
+
+@app.get("/deepagents/memory/warnings", response_model=list[dict[str, Any]])
+async def list_warning_proposals(
+    user: AuthenticatedUser = _auth_dependency,
+) -> list[dict[str, Any]]:
+    """Fase 79.3 (Fase D): proposals with ``kind == "warning"`` only.
+
+    The Memory UI uses this to surface failure-recovery patterns the
+    scanner found in past jobs. Auto-promoted warnings show up here as
+    ``status="applied"`` so the operator can still review and archive
+    them if they turn out to be noise.
+    """
+    del user
+    return await DeepAgentMemoryService().list_memory_proposals(kind="warning")
+
+
+@app.post("/deepagents/memory/warnings/scan-now", response_model=dict[str, Any])
+async def trigger_failure_postmortem_scan(
+    user: AuthenticatedUser = _admin_auth_dependency,
+) -> dict[str, Any]:
+    """Admin-gated: run the failure-postmortem scanner immediately (Fase 79.3).
+
+    The scanner walks recently completed jobs for tool_failed → tool_succeeded
+    recovery pairs and emits ``warning`` proposals. Same approval gate as
+    the recipe extractor.
+    """
+    del user
+    async_result = scan_failure_postmortems_task.apply_async(queue="maintenance")
     return {"task_id": str(async_result.id), "status": "dispatched"}
 
 

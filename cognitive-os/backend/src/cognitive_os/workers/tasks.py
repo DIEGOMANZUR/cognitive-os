@@ -24,6 +24,7 @@ from cognitive_os.core.db import session_scope
 from cognitive_os.db.models import Job, JobEvent
 from cognitive_os.deepagents.document_analysis.schemas import DocumentAnalysisTask
 from cognitive_os.deepagents.document_analysis.service import DocumentAnalysisService
+from cognitive_os.deepagents.failure_postmortem import scan_recent_jobs as scan_failure_patterns
 from cognitive_os.deepagents.memory_consolidation import DeepAgentMemoryConsolidator
 from cognitive_os.deepagents.openshell_adapter import OpenShellAdapter
 from cognitive_os.deepagents.openshell_policy import OpenShellPolicyViolation
@@ -892,6 +893,19 @@ def reap_stale_running_jobs_task() -> dict[str, int]:
 @celery_app.task(name="cognitive_os.deliver_personal_reminders")
 def deliver_personal_reminders_task() -> dict[str, Any]:
     return _run(deliver_personal_task_reminders(settings))
+
+
+@celery_app.task(name="cognitive_os.scan_failure_postmortems")
+def scan_failure_postmortems_task() -> dict[str, Any]:
+    """Beat target for Fase 79.3: scan recent jobs for failure-recovery
+    patterns and emit warning proposals (auto-promoted after N repeats).
+
+    Idempotent: each (failed_event_id, succeeded_event_id) pair is checked
+    against existing proposals before creating a new one.
+    """
+    if not settings.failure_postmortem_enabled:
+        return {"skipped": True, "reason": "FAILURE_POSTMORTEM_ENABLED=false"}
+    return _run(scan_failure_patterns())
 
 
 @celery_app.task(name="cognitive_os.extract_pending_recipes")

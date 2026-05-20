@@ -1159,6 +1159,46 @@ class Settings(BaseSettings):
     # jobs (health_check, cleanup_old_jobs, reap_*, mail_sync) because
     # they don't represent reusable agent procedures. Comma-separated
     # in env (parsed by `StringList`) — matches the existing convention.
+    # ------------------------------------------------------------------
+    # Fase 79.3 — Failure post-mortems (Fase D of the agent learning plan).
+    #
+    # Daily Celery sweep that scans recently completed jobs for
+    # tool_failed → tool_succeeded patterns and proposes warning memories
+    # so future runs skip the broken first attempt. Auto-promotes when the
+    # same (agent_role, tool_name) pattern fires `AUTOPROMOTE_THRESHOLD`
+    # times without operator rejection.
+    # ------------------------------------------------------------------
+    failure_postmortem_enabled: bool = Field(
+        default=True,
+        alias="FAILURE_POSTMORTEM_ENABLED",
+    )
+    failure_postmortem_cron: str = Field(
+        default="35 3 * * *",  # daily, 03:35 UTC (after stale-jobs-reaper)
+        alias="FAILURE_POSTMORTEM_CRON",
+    )
+    failure_postmortem_max_per_cycle: int = Field(
+        default=200,
+        alias="FAILURE_POSTMORTEM_MAX_PER_CYCLE",
+    )
+    failure_postmortem_autopromote_threshold: int = Field(
+        default=3,
+        alias="FAILURE_POSTMORTEM_AUTOPROMOTE_THRESHOLD",
+        description=(
+            "Number of times the same (agent_role, tool_name) failure-recovery "
+            "pattern must be observed before the scanner auto-promotes the "
+            "warning without operator approval."
+        ),
+    )
+    failure_postmortem_max_rejections: int = Field(
+        default=2,
+        alias="FAILURE_POSTMORTEM_MAX_REJECTIONS",
+        description=(
+            "If the operator has rejected this many prior proposals for the "
+            "same pattern, the scanner stops creating new ones — silent "
+            "deference to the operator's judgement."
+        ),
+    )
+
     recipe_extractor_eligible_job_types: StringList = Field(
         default=[
             "deepagent_research",
