@@ -27,12 +27,34 @@ from __future__ import annotations
 
 import logging
 import shlex
+import threading
+import time
 from dataclasses import dataclass
 from typing import Any, cast
 
 from cognitive_os.core.config import Settings, settings
 
 logger = logging.getLogger(__name__)
+
+# Fase 79.2 — Process-local cache for MCP tool lists.
+#
+# Each DeepAgent construction (research or document_analysis) currently
+# pays the full 5-server MCP handshake (~750 ms) every time. The server
+# list rarely changes during the lifetime of a worker process, so cache
+# the loaded tools per role with a short TTL. Invalidated on /system/mcp
+# refresh and on explicit `invalidate_mcp_tool_cache()` calls.
+_TOOL_CACHE_TTL_SECONDS = 300.0  # 5 minutes — enough to spare the handshake
+_tool_cache_lock = threading.Lock()
+_tool_cache: dict[str, tuple[float, list[Any]]] = {}
+
+
+def invalidate_mcp_tool_cache() -> None:
+    """Clear the per-role MCP tool cache. Called by /system/mcp endpoints
+    after the operator adds/removes a server declaration.
+    """
+    with _tool_cache_lock:
+        _tool_cache.clear()
+
 
 _TRANSPORTS_URL: frozenset[str] = frozenset({"sse", "streamable_http", "websocket"})
 _TRANSPORTS_STDIO: frozenset[str] = frozenset({"stdio"})
@@ -251,6 +273,11 @@ def load_mcp_tools_for_role_sync(role: str) -> list[Any]:
     client is disabled, no servers are declared, no event loop is available,
     or the loader times out. The DeepAgent simply runs without MCP tools in
     any failure mode — never blocks the task.
+
+    Fase 79.2: results are cached per-role for ``_TOOL_CACHE_TTL_SECONDS``
+    seconds. Each DeepAgent construction would otherwise pay the full 5
+    server MCP handshake every request (~750 ms). The cache is invalidated
+    on /system/mcp refreshes via :func:`invalidate_mcp_tool_cache`.
     """
     s = settings
     if not s.enable_mcp_client or not s.mcp_servers:
@@ -259,6 +286,14 @@ def load_mcp_tools_for_role_sync(role: str) -> list[Any]:
         # External MCP tools are operator-personal (their credentials).
         # Only the dedicated_local profile expects to consume them.
         return []
+
+    now = time.monotonic()
+    with _tool_cache_lock:
+        entry = _tool_cache.get(role)
+        if entry is not None:
+            expires_at, cached_tools = entry
+            if now < expires_at:
+                return list(cached_tools)
 
     import asyncio  # noqa: PLC0415
 
@@ -273,7 +308,7 @@ def load_mcp_tools_for_role_sync(role: str) -> list[Any]:
         return filter_tools_for_allowlist(tools, allowlist)
 
     try:
-        return asyncio.run(asyncio.wait_for(_runner(), timeout=s.mcp_call_timeout_seconds))
+        result = asyncio.run(asyncio.wait_for(_runner(), timeout=s.mcp_call_timeout_seconds))
     except RuntimeError:
         # asyncio.run inside an already-running loop is invalid. Fall back to
         # an isolated loop on a worker thread.
@@ -284,13 +319,20 @@ def load_mcp_tools_for_role_sync(role: str) -> list[Any]:
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
             try:
-                return pool.submit(_spawn).result(timeout=s.mcp_call_timeout_seconds + 5)
+                result = pool.submit(_spawn).result(timeout=s.mcp_call_timeout_seconds + 5)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("mcp_sync_wrapper_failed error=%s", type(exc).__name__)
                 return []
     except Exception as exc:  # noqa: BLE001 - never break the agent
         logger.warning("mcp_sync_wrapper_failed error=%s", type(exc).__name__)
         return []
+
+    # Cache successful loads. We intentionally do NOT cache empty results
+    # — a transient error returning [] should not stick for 5 minutes.
+    if result:
+        with _tool_cache_lock:
+            _tool_cache[role] = (now + _TOOL_CACHE_TTL_SECONDS, list(result))
+    return result
 
 
 def filter_tools_for_allowlist(tools: list[Any], allowlist: list[str]) -> list[Any]:

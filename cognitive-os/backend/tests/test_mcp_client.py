@@ -135,3 +135,82 @@ def test_sync_wrapper_short_circuits_off_dedicated_local(
     )
     monkeypatch.setattr(mcp_client, "settings", s)
     assert mcp_client.load_mcp_tools_for_role_sync("research") == []
+
+
+class _NamedTool:
+    """Minimal tool stub used by the cache tests."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+
+def test_sync_wrapper_caches_per_role(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fase 79.2: the per-role MCP tool list is cached for ~5 minutes so the
+    DeepAgent factory doesn't pay the 5-server handshake on every request.
+    The cache is invalidated by ``invalidate_mcp_tool_cache()`` (wired into
+    /system/mcp), and an empty result is never cached so a transient outage
+    cannot stick for the full TTL.
+    """
+    s = Settings(
+        _env_file=None,
+        operator_profile="dedicated_local",
+        enable_mcp_client=True,
+        mcp_servers="mem:sse:http://localhost/sse",
+    )
+    monkeypatch.setattr(mcp_client, "settings", s)
+    mcp_client.invalidate_mcp_tool_cache()
+
+    call_count = {"n": 0}
+
+    async def _fake_load_async(_):  # type: ignore[no-untyped-def]
+        call_count["n"] += 1
+        return [_NamedTool("mem_recall"), _NamedTool("mem_search")], []
+
+    monkeypatch.setattr(mcp_client, "load_mcp_tools_async", _fake_load_async)
+
+    first = mcp_client.load_mcp_tools_for_role_sync("research")
+    second = mcp_client.load_mcp_tools_for_role_sync("research")
+    assert len(first) == 2
+    assert len(second) == 2
+    assert call_count["n"] == 1, "second call must hit the cache"
+
+    # Invalidate and confirm the next call re-loads.
+    mcp_client.invalidate_mcp_tool_cache()
+    third = mcp_client.load_mcp_tools_for_role_sync("research")
+    assert len(third) == 2
+    assert call_count["n"] == 2
+
+    # Different roles are cached separately.
+    other = mcp_client.load_mcp_tools_for_role_sync("document_analysis")
+    assert len(other) == 2
+    assert call_count["n"] == 3
+
+
+def test_sync_wrapper_does_not_cache_empty_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If the loader returns no tools (transient error), the cache stays
+    empty so the next call retries instead of returning [] for 5 minutes.
+    """
+    s = Settings(
+        _env_file=None,
+        operator_profile="dedicated_local",
+        enable_mcp_client=True,
+        mcp_servers="mem:sse:http://localhost/sse",
+    )
+    monkeypatch.setattr(mcp_client, "settings", s)
+    mcp_client.invalidate_mcp_tool_cache()
+
+    call_count = {"n": 0}
+
+    async def _fake_load_empty(_):  # type: ignore[no-untyped-def]
+        call_count["n"] += 1
+        return [], []
+
+    monkeypatch.setattr(mcp_client, "load_mcp_tools_async", _fake_load_empty)
+
+    first = mcp_client.load_mcp_tools_for_role_sync("research")
+    second = mcp_client.load_mcp_tools_for_role_sync("research")
+    assert first == []
+    assert second == []
+    assert call_count["n"] == 2, "empty results must not be cached"

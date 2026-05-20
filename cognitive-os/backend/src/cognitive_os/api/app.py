@@ -846,6 +846,7 @@ async def system_mcp_inventory(
     """
     del user
     from cognitive_os.integrations.mcp_client import (  # noqa: PLC0415
+        invalidate_mcp_tool_cache,
         load_mcp_tools_async,
         parse_mcp_servers,
     )
@@ -857,6 +858,10 @@ async def system_mcp_inventory(
             declared_count=len(declared),
             servers=[],
         )
+    # Fase 79.2: hitting /system/mcp implies the operator wants fresh data
+    # (e.g. just edited MCP_SERVERS). Drop the per-role tool cache so the
+    # next DeepAgent build re-handshakes instead of serving 5-min-stale data.
+    invalidate_mcp_tool_cache()
     _tools, statuses = await load_mcp_tools_async(settings)
     return MCPInventoryResponse(
         enabled=True,
