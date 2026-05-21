@@ -1,6 +1,29 @@
 # ACCEPTANCE CHECKLIST
 
-> **Estado actual (2026-05-20, Fases 78-81 — plan de aprendizaje autónomo
+> **Estado actual (2026-05-20, Fase 82 — Glass Cockpit cerrada):**
+> Frontend en grado comercial: glassmorphism dark-only de alto
+> contraste, instalable como PWA. Sistema de diseño nuevo, tipografía
+> self-hosted, set SVG de íconos, charts SVG nativos, centro de
+> notificaciones, command palette mejorada, manifest con 4 shortcuts,
+> service worker `cogos-v2026-05-20-glass-2`, página offline branded,
+> defensive array guards (`asArray<T>`) en 13 vistas. QA:
+>
+> - `npm run lint` → 0 warnings.
+> - `npm run build` → Next 16.2.6 + Turbopack, 4 páginas estáticas OK.
+> - `npx tsc --noEmit` → 0 errores.
+> - Playwright headless full-walk (desktop 1440×900 + mobile 393×851)
+>   sobre las 20 tabs + palette + notification center: **0 errores
+>   5xx, 0 page errors, 0 console errors, 26 screenshots capturados**.
+> - Anclajes E2E intactos: `aria-label="JWT local"`, `URL base de la
+>   API`, `Abrir menú`, `Cerrar`, literal `Estado global`,
+>   `componentes ok`, los 20 `TAB_LABELS`, labels `Guardar` / `API
+>   base` / `JWT sin prefijo Bearer` en `SettingsView`.
+> - `playwright.config.ts` ahora bloquea SW + cache HTTP, blindando
+>   la suite oficial contra contaminación entre builds.
+>
+> Detalle en `progress.md` §Fase 82 y `findings.md` §Fase 82.
+>
+> **Estado anterior (2026-05-20, Fases 78-81 — plan de aprendizaje autónomo
 > completo; suite hermética 800 passed con DB de test aislada):**
 > Las **5 fases** del plan (`docs/AGENT_LEARNING_PLAN.md`) están cerradas
 > en producción: **A** recipe extractor, **D** failure post-mortem, **C**
@@ -24,7 +47,7 @@
 > LLM secondary/fallback 403, LangSmith trazas 403, Maps traffic 400). Ver
 > §"Verificado en vivo - Fase 66" abajo.
 > matriz de aceptación vigente. Incluye OpenHarness opcional en *Chat /
-> orquestación*, mail personal GoDaddy/Gmail-label con envío aprobado,
+> orquestación*, mail personal GoDaddy/Gmail read-only con digest y propuestas,
 > integraciones Google (Maps con tráfico/link, Calendar/Drive read +
 > writes solo por `ActionRequest`), voz ElevenLabs (STT/TTS), vista
 > `AssistView` para tareas/notas personales, `GoogleOpsView` para operar
@@ -237,9 +260,9 @@ DeepAgents tools personales, SecretStore y endurecimiento de capacidades.
 - [x] `SETTINGS_REGISTRY_TABLE.md` 1:1 con `Settings` (test
   `test_settings_registry_table_markdown_matches_generated_body`).
 - [x] Mail personal: migración `mail_*`, endpoints `/mail/*`, worker
-  `cognitive_os.sync_personal_mail` en queue `mail`, vista `Mail`, sync real
-  GoDaddy IMAP probado con 25 mensajes insertados y envío limitado a aprobación
-  explícita por SMTP GoDaddy.
+  `cognitive_os.sync_personal_mail` y digest `cognitive_os.build_personal_mail_digest`
+  en queue `mail`, vista `Mail`, sync read-only y digest de últimos 50 con
+  propuestas separadas; SMTP queda bloqueado salvo escape hatch explícito.
 - [x] Ejecutables de escritorio: `/home/jgonz/Escritorio/cognitive-os.sh` y
   wrappers start/restart/stop/status operan Docker, API, worker, beat, frontend
   y Kimi WebBridge.
@@ -268,7 +291,7 @@ DeepAgents tools personales, SecretStore y endurecimiento de capacidades.
 
 - [ ] `POST /chat` con `doc_ids` adjuntos fuerza la ruta legal y dispara
   document analysis.
-- [ ] Una acción sensible (enviar mail, publicar) interrumpe el grafo y crea
+- [ ] Una acción sensible (publicar, DNS real, envío explícito de mail) interrumpe el grafo y crea
   un `HumanApproval`.
 - [ ] `POST /threads/{id}/resume` con `approve | edit | reject` retoma el flujo.
 - [ ] (Opcional OpenHarness) Con `ENABLE_OPENHARNESS_RESEARCH=true` y extra
@@ -380,20 +403,21 @@ DeepAgents tools personales, SecretStore y endurecimiento de capacidades.
   Requiere JWT, 404 si la run no existe.
 - [x] Gmail Daily Digest read-only (Fase 13): `POST /actions/gmail/digest/preview`
   bajo JWT entrega resumen redactado con direcciones (`l***l@dominio`),
-  agrupado por remitente, ordenado por fecha. Propone borradores con
-  `requires_approval=True` pero **nunca crea drafts en Gmail**.
+  agrupado por remitente, ordenado por fecha. Propone respuestas como texto,
+  pero **nunca crea drafts en Gmail**.
   `GmailReader` Protocol inyectable para tests y providers reales.
 - [x] Gmail real read-only (Fase 21): runtime usa `GmailRestReader` cuando
   `GMAIL_READ_ENABLED=true` y existe `GMAIL_TOKEN_DIR/token.json`; llama Gmail
   REST con `gmail.readonly`, refresca token si puede, normaliza metadata/snippet
-  y convierte fallos en `blocked` con secretos redactados. Envio y drafts reales
+  y convierte fallos en `blocked` con secretos redactados. Envío y drafts reales
   siguen deshabilitados en esta fase.
-- [x] Mail personal GoDaddy/Gmail-label (Fase 26): `/mail/status`, `/mail/sync`,
-  `/mail/sync/dispatch`, `/mail/messages`, `/mail/messages/{id}`,
-  `/mail/messages/{id}/reply`, `/mail/messages/{id}/ignore` y
-  `/mail/messages/{id}/approve-send` persisten mensajes/propuestas en Postgres;
-  Gmail label `TODOS` se lee si OAuth está activo; SMTP GoDaddy solo envía tras
-  aprobación explícita y registra `mail_send_logs`.
+- [x] Mail personal GoDaddy/Gmail digest: `/mail/status`, `/mail/sync`,
+  `/mail/sync/dispatch`, `/mail/digest/preview`, `/mail/messages`,
+  `/mail/messages/{id}`, `/mail/messages/{id}/reply` y
+  `/mail/messages/{id}/ignore` persisten mensajes/propuestas en Postgres;
+  Gmail `TODOS`/`SPAM` se lee si OAuth está activo; GoDaddy revisa `Spam`;
+  `/mail/messages/{id}/approve-send` existe solo como escape hatch con flags y
+  confirmación explícita.
 - [x] GoDaddy DNS executor seguro (Fase 22): DNS writes reales quedan dry-run
   por defecto; para ejecutar se exige `GODADDY_DNS_DRY_RUN_ONLY=false`,
   `GODADDY_ALLOWED_DOMAINS`, aprobacion humana y

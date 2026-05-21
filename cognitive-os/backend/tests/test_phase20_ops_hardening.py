@@ -112,6 +112,14 @@ def test_validate_allowed_browser_domain_accepts_when_ip_is_public() -> None:
     assert origin == "https://example.com"
 
 
+def test_validate_allowed_browser_domain_accepts_explicit_wildcard() -> None:
+    settings = Settings(_env_file=None, browser_allowed_domains="*")
+    url, origin = validate_allowed_browser_domain("https://anything.example.test/path", settings)
+
+    assert url == "https://anything.example.test/path"
+    assert origin == "https://anything.example.test"
+
+
 # ---------------------------------------------------------------------------
 # Lexical reranker tokenizer (Spanish-aware)
 # ---------------------------------------------------------------------------

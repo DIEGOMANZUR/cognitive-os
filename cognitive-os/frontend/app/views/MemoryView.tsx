@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { ApiClient } from "../lib/api";
-import { errorMessage, statusClass } from "../lib/api";
+import { asArray, errorMessage, statusClass } from "../lib/api";
 import { usePolledFetch } from "../lib/hooks";
 import { useToast } from "../lib/toasts";
 import type { DeepAgentMemoryProposal } from "../lib/types";
@@ -144,11 +144,11 @@ export function MemoryView({ client }: { client: ApiClient }) {
   }, [scope]);
 
   const pendingRecipes = useMemo<DeepAgentMemoryProposal[]>(
-    () => (recipes.data ?? []).filter((p) => p.status === "pending"),
+    () => asArray(recipes.data).filter((p) => p.status === "pending"),
     [recipes.data]
   );
   const pendingWarnings = useMemo<DeepAgentMemoryProposal[]>(
-    () => (warnings.data ?? []).filter((p) => p.status === "pending"),
+    () => asArray(warnings.data).filter((p) => p.status === "pending"),
     [warnings.data]
   );
 
@@ -335,14 +335,14 @@ export function MemoryView({ client }: { client: ApiClient }) {
         <div className="grid-2">
           <div className="stack">
             <h3>
-              Memoria activa · {scope} ({(memory.data ?? []).length})
+              Memoria activa · {scope} ({asArray(memory.data).length})
             </h3>
             <pre style={{ maxHeight: 320 }}>
               {memory.data ? JSON.stringify(memory.data, null, 2) : "Cargando…"}
             </pre>
           </div>
           <div className="stack">
-            <h3>Propuestas pendientes ({(proposals.data ?? []).length})</h3>
+            <h3>Propuestas pendientes ({asArray(proposals.data).length})</h3>
             <div className="table-wrap">
               <table className="table">
                 <thead>
@@ -355,14 +355,14 @@ export function MemoryView({ client }: { client: ApiClient }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {(proposals.data ?? []).length === 0 && (
+                  {asArray(proposals.data).length === 0 && (
                     <tr>
                       <td colSpan={5} className="muted">
                         Sin propuestas pendientes.
                       </td>
                     </tr>
                   )}
-                  {(proposals.data ?? []).map((proposal) => (
+                  {asArray(proposals.data).map((proposal) => (
                     <tr key={proposal.proposal_id}>
                       <td>{proposal.proposed_by_agent}</td>
                       <td>{proposal.scope}</td>

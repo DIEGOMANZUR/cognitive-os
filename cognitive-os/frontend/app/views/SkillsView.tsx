@@ -3,7 +3,8 @@
 import { useState } from "react";
 
 import type { ApiClient } from "../lib/api";
-import { errorMessage } from "../lib/api";
+import { asArray, errorMessage } from "../lib/api";
+import { EmptyState, ErrorPanel, Skeleton } from "../components/StatePrimitives";
 import { usePolledFetch } from "../lib/hooks";
 import { useToast } from "../lib/toasts";
 import type { DeepAgentSkill, SkillDetail } from "../lib/types";
@@ -38,11 +39,23 @@ export function SkillsView({ client }: { client: ApiClient }) {
     <section className="section">
       <div className="section-head">
         <h2>DeepAgents · Skills habilitadas</h2>
-        <span className="muted small">{(skills.data ?? []).length} activas</span>
+        <span className="muted small">{asArray(skills.data).length} activas</span>
       </div>
+      {skills.error && asArray(skills.data).length === 0 && (
+        <ErrorPanel error={skills.error} onRetry={() => void skills.refetch()} />
+      )}
+      {skills.loading && asArray(skills.data).length === 0 && !skills.error && (
+        <Skeleton rows={3} />
+      )}
+      {!skills.loading && !skills.error && asArray(skills.data).length === 0 && (
+        <EmptyState
+          icon="skills"
+          title="Sin skills cargadas"
+          message="No hay skills habilitadas para el DeepAgent en este entorno."
+        />
+      )}
       <div className="grid">
-        {(skills.data ?? []).length === 0 && <p className="muted small">Sin skills cargadas.</p>}
-        {(skills.data ?? []).map((skill) => {
+        {asArray(skills.data).map((skill) => {
           const expanded = openName === skill.name;
           return (
             <article

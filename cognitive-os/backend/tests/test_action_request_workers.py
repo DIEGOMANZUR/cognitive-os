@@ -165,6 +165,98 @@ def test_run_action_request_short_circuits_when_job_already_terminal(
     assert calls == []
 
 
+def test_ingest_pdf_short_circuits_when_job_cancelled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job_id = UUID("67676767-6767-6767-6767-676767676767")
+    calls: list[object] = []
+
+    async def fake_read_job_status(_job_id: UUID) -> str | None:
+        return "cancelled"
+
+    async def fake_update_job(*args: Any, **kwargs: Any) -> None:
+        calls.append({"args": args, "kwargs": kwargs})
+
+    monkeypatch.setattr(tasks_module, "_read_job_status", fake_read_job_status)
+    monkeypatch.setattr(tasks_module, "_update_job", fake_update_job)
+
+    result = tasks_module.ingest_pdf_task.run("/tmp/not-used.pdf", str(job_id))
+
+    assert result["skipped"] is True
+    assert result["status"] == "cancelled"
+    assert calls == []
+
+
+def test_deepagent_short_circuits_when_job_cancelled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job_id = UUID("68686868-6868-6868-6868-686868686868")
+    calls: list[object] = []
+    service_calls: list[object] = []
+
+    async def fake_read_job_status(_job_id: UUID) -> str | None:
+        return "cancelled"
+
+    async def fake_update_job(*args: Any, **kwargs: Any) -> None:
+        calls.append({"args": args, "kwargs": kwargs})
+
+    def fake_run_deepagent_task(task: object) -> object:
+        service_calls.append(task)
+        raise AssertionError("must not run")
+
+    monkeypatch.setattr(tasks_module, "_read_job_status", fake_read_job_status)
+    monkeypatch.setattr(tasks_module, "_update_job", fake_update_job)
+    monkeypatch.setattr(tasks_module, "run_deepagent_task", fake_run_deepagent_task)
+
+    result = tasks_module.run_deepagent_task_async.run(
+        {
+            "task_id": "task-1",
+            "thread_id": "thread-1",
+            "user_id": "operator",
+            "task_type": "research",
+            "query": "q",
+        },
+        str(job_id),
+    )
+
+    assert result["skipped"] is True
+    assert result["status"] == "cancelled"
+    assert calls == []
+    assert service_calls == []
+
+
+def test_document_analysis_short_circuits_when_job_cancelled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job_id = UUID("69696969-6969-6969-6969-696969696969")
+    calls: list[object] = []
+
+    async def fake_read_job_status(_job_id: UUID) -> str | None:
+        return "cancelled"
+
+    async def fake_update_job(*args: Any, **kwargs: Any) -> None:
+        calls.append({"args": args, "kwargs": kwargs})
+
+    monkeypatch.setattr(tasks_module, "_read_job_status", fake_read_job_status)
+    monkeypatch.setattr(tasks_module, "_update_job", fake_update_job)
+
+    result = tasks_module.run_document_analysis_task_async.run(
+        {
+            "task_id": "task-1",
+            "thread_id": "thread-1",
+            "user_id": "operator",
+            "doc_ids": ["doc-1"],
+            "query": "q",
+            "modes": ["evidence_matrix"],
+        },
+        str(job_id),
+    )
+
+    assert result["skipped"] is True
+    assert result["status"] == "cancelled"
+    assert calls == []
+
+
 def test_run_action_request_short_circuits_when_job_already_running(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

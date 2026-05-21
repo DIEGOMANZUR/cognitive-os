@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 
 import type { ApiClient } from "../lib/api";
-import { statusClass } from "../lib/api";
+import { asArray, statusClass } from "../lib/api";
+import { EmptyState, ErrorPanel, Skeleton } from "../components/StatePrimitives";
 import { usePolledFetch } from "../lib/hooks";
 import type { AgentSummary } from "../lib/types";
 
@@ -23,7 +24,7 @@ export function AgentsView({ client }: { client: ApiClient }) {
   const agents = usePolledFetch<AgentSummary[]>(client, "/agents", 10000);
   const [openName, setOpenName] = useState<string | null>(null);
 
-  const list = useMemo(() => agents.data ?? [], [agents.data]);
+  const list = useMemo(() => asArray(agents.data), [agents.data]);
 
   return (
     <div className="stack">
@@ -39,10 +40,25 @@ export function AgentsView({ client }: { client: ApiClient }) {
         </p>
       </section>
 
+      {agents.error && list.length === 0 && (
+        <ErrorPanel error={agents.error} onRetry={() => void agents.refetch()} />
+      )}
+
+      {agents.loading && list.length === 0 && !agents.error && (
+        <section className="section">
+          <Skeleton rows={4} />
+        </section>
+      )}
+
+      {!agents.loading && !agents.error && list.length === 0 && (
+        <EmptyState
+          icon="agents"
+          title="Sin DeepAgents registrados"
+          message="Cuando el backend exponga al menos un agente vía /agents aparecerán aquí."
+        />
+      )}
+
       <div className="grid">
-        {list.length === 0 && (
-          <p className="muted small">Cargando agentes…</p>
-        )}
         {list.map((agent) => {
           const expanded = openName === agent.name;
           return (

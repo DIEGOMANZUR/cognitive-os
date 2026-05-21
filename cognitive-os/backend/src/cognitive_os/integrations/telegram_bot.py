@@ -1593,8 +1593,16 @@ def cmd_capabilities(bot: TelegramBot, chat_id: int, _arg: str) -> None:
 # -- entrypoint ---------------------------------------------------------------
 
 
-def main() -> int:
+def configure_telegram_logging() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    # httpx INFO logs include the full Telegram URL, which contains the bot
+    # token. Keep Telegram handler logs useful without leaking credentials.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+
+
+def main() -> int:
+    configure_telegram_logging()
     if not settings.telegram_enabled:
         logger.info("TELEGRAM_ENABLED=false; no arranco. Setealo a true en .env.")
         return 0

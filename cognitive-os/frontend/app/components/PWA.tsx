@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { Icon } from "./Icon";
+
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
@@ -73,16 +75,19 @@ export function PWA() {
   const canInstall = !installed && !hidden && installEvent;
   if (online && !updateReady && !canInstall) return null;
 
-  const title = !online
-    ? "Sin conexión"
-    : updateReady
-      ? "Actualización disponible"
-      : "Instalar Cognitive OS";
-  const detail = !online
-    ? "La consola seguirá abriendo el shell cacheado; las APIs quedan en vivo cuando vuelva la red."
-    : updateReady
-      ? "Hay una nueva versión del cockpit lista para activar."
-      : "Agregá el cockpit al escritorio para abrirlo como app local.";
+  const variant = !online ? "offline" : updateReady ? "update" : "install";
+  const title =
+    variant === "offline"
+      ? "Sin conexión"
+      : variant === "update"
+        ? "Actualización disponible"
+        : "Instalar Cognitive OS";
+  const detail =
+    variant === "offline"
+      ? "La consola seguirá abriendo el shell cacheado; las APIs vuelven cuando regresa la red."
+      : variant === "update"
+        ? "Hay una nueva versión del cockpit lista para activar."
+        : "Agregá el cockpit al escritorio para abrirlo como app local.";
 
   return (
     <div
@@ -90,14 +95,22 @@ export function PWA() {
       role={canInstall || updateReady ? "dialog" : "status"}
       aria-live="polite"
     >
-      <div className="stack">
+      <span className="pwa-mark" aria-hidden="true">
+        <Icon
+          name={
+            variant === "offline" ? "wifiOff" : variant === "update" ? "refresh" : "install"
+          }
+          size={18}
+        />
+      </span>
+      <div className="pwa-body stack" style={{ gap: 2 }}>
         <strong>{title}</strong>
         <span className="small">{detail}</span>
       </div>
-      <div className="row">
+      <div className="row" style={{ marginLeft: "auto" }}>
         {updateReady && (
           <button
-            className="primary"
+            className="primary small"
             onClick={() => {
               if (registration?.waiting) {
                 registration.waiting.postMessage({ type: "COGOS_SKIP_WAITING" });
@@ -107,12 +120,12 @@ export function PWA() {
             }}
             type="button"
           >
-            Actualizar
+            <Icon name="refresh" size={13} /> Actualizar
           </button>
         )}
         {canInstall && (
           <button
-            className="primary"
+            className="primary small"
             onClick={async () => {
               await installEvent.prompt();
               const choice = await installEvent.userChoice;
@@ -121,11 +134,11 @@ export function PWA() {
             }}
             type="button"
           >
-            Instalar
+            <Icon name="install" size={13} /> Instalar
           </button>
         )}
         {canInstall && (
-          <button className="ghost" onClick={() => setHidden(true)} type="button">
+          <button className="ghost small" onClick={() => setHidden(true)} type="button">
             Después
           </button>
         )}

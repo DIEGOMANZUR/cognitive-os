@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import Any
@@ -373,6 +374,13 @@ def test_every_view_has_at_least_one_slash_command() -> None:
     registered = set(telegram_bot.COMMAND_HANDLERS.keys())
     missing = expected - registered
     assert not missing, f"Missing slash commands: {sorted(missing)}"
+
+
+def test_telegram_logging_does_not_emit_httpx_info_urls() -> None:
+    telegram_bot.configure_telegram_logging()
+
+    assert logging.getLogger("httpx").getEffectiveLevel() >= logging.WARNING
+    assert logging.getLogger("httpcore").getEffectiveLevel() >= logging.WARNING
 
 
 # -- Fase 70 — plain messages + persistent thread + /reset --------------------

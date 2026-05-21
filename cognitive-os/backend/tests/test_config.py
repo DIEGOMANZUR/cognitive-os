@@ -22,6 +22,7 @@ def test_loads_env_example() -> None:
     assert loaded_settings.auth_default_roles == ["operator"]
     assert loaded_settings.auth_admin_roles == ["admin"]
     assert loaded_settings.langsmith_endpoints_require_admin is True
+    assert loaded_settings.health_component_timeout_seconds == 3.0
     assert loaded_settings.cors_allow_origins == [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
@@ -38,7 +39,85 @@ def test_loads_env_example() -> None:
     assert loaded_settings.microsoft_mail_scopes == ["Mail.ReadBasic", "offline_access"]
     assert loaded_settings.mail_imap_timeout_seconds == 30
     assert loaded_settings.mail_smtp_timeout_seconds == 30
+    assert loaded_settings.mail_background_sync_enabled is False
+    assert loaded_settings.mail_fetch_max_per_folder == 50
+    assert loaded_settings.mail_gmail_monitor_labels == ["TODOS", "SPAM"]
+    assert loaded_settings.mail_godaddy_monitor_folders == ["Spam"]
+    assert loaded_settings.mail_digest_hours_local == ["10", "20"]
+    assert loaded_settings.mail_digest_timezone == "America/Santiago"
+    assert loaded_settings.mail_digest_max_messages == 50
+    assert loaded_settings.mail_allow_explicit_send is False
     assert loaded_settings.research_persistence_backend == "memory"
+
+
+def test_dedicated_local_full_autonomy_overrides_legacy_friction_flags() -> None:
+    loaded_settings = Settings(
+        _env_file=None,
+        operator_profile="dedicated_local",
+        require_human_approval_for_external_actions=True,
+        approval_require_four_eyes=True,
+        tools_readonly_mode=True,
+        enable_kimi_webbridge=False,
+        kimi_webbridge_allowed_domains=[],
+        kimi_webbridge_allow_mutations=False,
+        kimi_webbridge_require_approval=True,
+        enable_computer_actions=False,
+        computer_allowed_roots=[],
+        computer_organize_dry_run_only=True,
+        enable_browser_automation=False,
+        browser_allowed_domains=[],
+        browser_allow_headed=False,
+        browser_allow_vision=False,
+        enable_browser_ssrf_check=True,
+        enable_email_send=False,
+        mail_require_approval_for_send=True,
+        enable_google_calendar=True,
+        enable_google_drive=True,
+        google_client_id="client-id",
+        google_client_secret="client-secret",  # pragma: allowlist secret
+    )
+
+    assert loaded_settings.local_autonomy_mode == "full"
+    assert loaded_settings.require_human_approval_for_external_actions is False
+    assert loaded_settings.approval_require_four_eyes is False
+    assert loaded_settings.tools_readonly_mode is False
+    assert loaded_settings.enable_kimi_webbridge is True
+    assert loaded_settings.kimi_webbridge_allowed_domains == ["*"]
+    assert loaded_settings.kimi_webbridge_allow_mutations is True
+    assert loaded_settings.kimi_webbridge_require_approval is False
+    assert loaded_settings.enable_computer_actions is True
+    assert loaded_settings.computer_allowed_roots
+    assert loaded_settings.computer_organize_dry_run_only is False
+    assert loaded_settings.enable_browser_automation is True
+    assert loaded_settings.browser_allowed_domains == ["*"]
+    assert loaded_settings.browser_allow_headed is True
+    assert loaded_settings.browser_allow_vision is True
+    assert loaded_settings.enable_browser_ssrf_check is False
+    assert loaded_settings.enable_email_send is False
+    assert loaded_settings.mail_require_approval_for_send is True
+    assert loaded_settings.mail_allow_explicit_send is False
+    assert loaded_settings.enable_google_calendar_write is True
+    assert loaded_settings.enable_google_drive_write is True
+    assert loaded_settings.research_persistence_backend == "postgres"
+
+
+def test_dedicated_local_guarded_keeps_explicit_friction_flags() -> None:
+    loaded_settings = Settings(
+        _env_file=None,
+        operator_profile="dedicated_local",
+        local_autonomy_mode="guarded",
+        require_human_approval_for_external_actions=True,
+        approval_require_four_eyes=True,
+        mail_require_approval_for_send=True,
+        kimi_webbridge_require_approval=True,
+        kimi_webbridge_allow_mutations=False,
+    )
+
+    assert loaded_settings.require_human_approval_for_external_actions is True
+    assert loaded_settings.approval_require_four_eyes is True
+    assert loaded_settings.mail_require_approval_for_send is True
+    assert loaded_settings.kimi_webbridge_require_approval is True
+    assert loaded_settings.kimi_webbridge_allow_mutations is False
 
 
 def test_parse_int_csv() -> None:
@@ -75,6 +154,13 @@ def test_parse_cors_origins() -> None:
 def test_rejects_cors_wildcard() -> None:
     with pytest.raises(ValidationError, match="must not contain"):
         Settings(jwt_secret="x" * 32, cors_allow_origins="*")
+
+
+def test_rejects_invalid_mail_digest_schedule() -> None:
+    with pytest.raises(ValidationError, match="MAIL_DIGEST_HOURS_LOCAL"):
+        Settings(_env_file=None, mail_digest_hours_local="10,25")
+    with pytest.raises(ValidationError, match="MAIL_DIGEST_TIMEZONE"):
+        Settings(_env_file=None, mail_digest_timezone="Chile/Nowhere")
 
 
 def test_external_capabilities_require_credentials_when_enabled() -> None:

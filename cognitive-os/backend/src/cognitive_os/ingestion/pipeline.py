@@ -584,6 +584,28 @@ class DocumentIngestionPipeline:
             if job is None:
                 return
             document = await session.get(Document, document_id)
+            if job.status in {"cancelled", "rejected"} and status not in {"cancelled", "rejected"}:
+                session.add(
+                    JobEvent(
+                        job_id=job_id,
+                        event_type=f"ingestion_{status}_ignored_after_{job.status}",
+                        status=job.status,
+                        message=(
+                            f"Ignored ingestion final status {status}; job is already {job.status}."
+                        ),
+                        metadata_json={"document_id": str(document_id)},
+                    )
+                )
+                if document is not None:
+                    if status == "completed" and document.status == "processing":
+                        document.status = "indexed"
+                    elif status != "completed":
+                        document.status = "failed"
+                    document.metadata_json = {
+                        **document.metadata_json,
+                        "ingestion_status_after_cancel": status,
+                    }
+                return
             job.status = status
             job.progress = 100 if status == "completed" else job.progress
             event_type = "ingestion_completed" if status == "completed" else "ingestion_failed"

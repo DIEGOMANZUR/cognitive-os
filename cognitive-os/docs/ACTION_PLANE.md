@@ -1,7 +1,7 @@
 # Action Plane
 
-> **Estado actual (2026-05-20, Fases 78-81 — plan de aprendizaje autónomo completo):** capa **preview-first con
-> `ActionRequest` persistente** y carril activo de **mail personal aprobado**.
+> **Estado actual (2026-05-21, Fase 85 — contrato mail read-only):** capa **preview-first con
+> `ActionRequest` persistente** y carril activo de **mail personal read-only por defecto**.
 > GoDaddy DNS verificado en vivo (auth producción HTTP 200) y habilitado en
 > postura segura: `GODADDY_DNS_DRY_RUN_ONLY=true` +
 > `GODADDY_ALLOW_PRODUCTION_WRITES=false` → solo preview/dry-run con
@@ -18,10 +18,14 @@
 > vuelva a pasar.
 > Hay ejecución real para `computer_organize`, `document_generate`,
 > `browser_preview`, `browser_interactive`, GoDaddy DNS (solo con dry-run
-> desactivado, dominio allow-listed y aprobación), Google Calendar create,
-> Google Drive upload/folder/organize **solo vía `/request` + aprobación**, y mail GoDaddy SMTP
-> (solo `/mail/messages/{id}/approve-send`, con `MAIL_REQUIRE_APPROVAL_FOR_SEND=true`).
-> Gmail sigue read-only para digest/label `TODOS`.
+> desactivado y dominio allow-listed), Google Calendar create,
+> Google Drive upload/folder/organize vía `/request`. Mail queda separado por
+> política de operador: el flujo normal lee Gmail `TODOS`/`SPAM` y GoDaddy
+> `Spam`, clasifica con el agente, genera digest 10:00/20:00 Chile y propone
+> respuestas como texto; **no crea drafts ni envía SMTP**. El endpoint
+> `/mail/messages/{id}/approve-send` solo funciona si se habilita
+> `MAIL_ALLOW_EXPLICIT_SEND=true`, `ENABLE_EMAIL_SEND=true` y la llamada trae
+> la frase de confirmación explícita.
 > Google Maps es read-only con rutas de tráfico y link navegable. Las migraciones
 > Alembic relevantes ya activas: `action_requests` (v1 + browser_preview +
 > browser_interactive + document_generate + `payload_executable` separado),
@@ -51,8 +55,8 @@ Hechos verificables (1:1 con `backend/src/cognitive_os/actions/` y `api/app.py`)
   `VisionAnalyzer` (default `ChatVisionAnalyzer.from_settings`).
 - `document_generate`: DOCX/XLSX/PPTX con guardrails (paths, tamaño, assets
   allow-listed, fórmulas XLSX no inyectables) y `pending_approval` por defecto.
-- Gmail: `digest/preview` redacta direcciones y propone borradores; **nunca**
-  crea drafts en el mailbox del usuario.
+- Gmail: `digest/preview` redacta direcciones y propone texto; **nunca** crea
+  drafts en el mailbox del usuario.
 - Google Maps: `geocode` y `route` son read-only; `route` incluye tráfico,
   duración estática, retraso y link Google Maps sin exponer API keys.
 - Google Calendar: `events/create` es preview-only; si llega `dry_run=false`
@@ -62,9 +66,9 @@ Hechos verificables (1:1 con `backend/src/cognitive_os/actions/` y `api/app.py`)
   `files/upload/request` sube archivos permitidos por raices de entregables o
   `COMPUTER_ALLOWED_ROOTS` y cap de tamaño; `organize/request` mueve archivos
   a carpeta destino sin borrar nada. Los endpoints directos rechazan writes.
-- Mail personal: `cognitive_os.mail` lee GoDaddy IMAP y Gmail label `TODOS`
-  cuando está habilitado, persiste mensajes, propone respuestas como texto y
-  envía desde GoDaddy SMTP solo tras aprobación humana.
+- Mail personal: `cognitive_os.mail` lee GoDaddy IMAP y Gmail REST en modo
+  read-only, persiste mensajes, clasifica sin confiar en carpetas del proveedor,
+  genera un digest y propone respuestas como texto. No envía en el flujo normal.
 - GoDaddy: `dns/preview` y `dns/request` aplican rate limit local; ejecución
   real solo si `GODADDY_DNS_DRY_RUN_ONLY=false` + dominio allow-listed +
   aprobación; producción exige `GODADDY_ALLOW_PRODUCTION_WRITES=true`.
@@ -119,7 +123,7 @@ Todos requieren JWT.
 | `GET /actions/gmail/status` | Estado de Gmail/OAuth/scopes | No |
 | `POST /actions/gmail/query/preview` | Valida una busqueda Gmail | No |
 | `POST /actions/gmail/query/request` | Crea `ActionRequest` persistente para query Gmail (preview-only) | No |
-| `POST /actions/gmail/digest/preview` | Resumen diario read-only con borradores propuestos (no crea drafts en Gmail) | No |
+| `POST /actions/gmail/digest/preview` | Resumen diario read-only con respuestas propuestas como texto (no crea drafts en Gmail) | No |
 | `GET /actions/maps/status` | Estado Maps/Routes/Geocoding | No |
 | `POST /actions/maps/geocode` | Geocodifica una dirección | No |
 | `POST /actions/maps/route` | Calcula ruta con tráfico/link Google Maps | No |
@@ -140,10 +144,11 @@ Todos requieren JWT.
 | `GET /mail/status` | Estado del carril mail personal y cuentas configuradas | No |
 | `POST /mail/sync` | Sincroniza GoDaddy IMAP/Gmail-label de forma manual | No |
 | `POST /mail/sync/dispatch` | Encola sync de mail en Celery queue `mail` | No |
+| `POST /mail/digest/preview` | Genera resumen de últimos correos y respuestas propuestas separadas, sin drafts/sends | No |
 | `GET /mail/messages` | Lista mensajes persistidos y propuestas | No |
 | `PATCH /mail/messages/{id}/reply` | Edita la propuesta escrita | No |
 | `POST /mail/messages/{id}/ignore` | Marca mensaje como ignorado | No |
-| `POST /mail/messages/{id}/approve-send` | Envía la respuesta aprobada por SMTP GoDaddy | Sí, solo aprobación explícita |
+| `POST /mail/messages/{id}/approve-send` | Escape hatch SMTP; requiere flags de envío y `explicit_send_confirmation` | Sí, solo si Diego lo pide explícitamente |
 | `GET /actions/godaddy/status` | Estado de GoDaddy/API/MCP publico | No |
 | `POST /actions/godaddy/dns/preview` | Previsualiza cambio DNS | No |
 | `POST /actions/godaddy/dns/request` | Crea `ActionRequest` persistente para cambio DNS (preview-only) | No |
@@ -355,11 +360,19 @@ Variables:
 - `MAIL_ENABLED=false`
 - `MAIL_DEFAULT_SENDER=diego@doctormanzur.com`
 - `MAIL_REQUIRE_APPROVAL_FOR_SEND=true`
+- `MAIL_ALLOW_EXPLICIT_SEND=false`
+- `MAIL_BACKGROUND_SYNC_ENABLED=false`
 - `MAIL_POLL_INTERVAL_SECONDS=120`
 - `MAIL_IMAP_TIMEOUT_SECONDS=30`
 - `MAIL_SMTP_TIMEOUT_SECONDS=30`
-- `MAIL_FETCH_MAX_PER_FOLDER=25`
+- `MAIL_FETCH_MAX_PER_FOLDER=50`
 - `MAIL_GMAIL_LABEL=TODOS`
+- `MAIL_GMAIL_MONITOR_LABELS=TODOS,SPAM`
+- `MAIL_DIGEST_ENABLED=true`
+- `MAIL_DIGEST_HOURS_LOCAL=10,20`
+- `MAIL_DIGEST_TIMEZONE=America/Santiago`
+- `MAIL_DIGEST_MAX_MESSAGES=50`
+- `MAIL_DIGEST_OUTPUT_DIR=mail_digests`
 - `MAIL_GODADDY_ENABLED=false`
 - `MAIL_GODADDY_IMAP_HOST=imap.secureserver.net`
 - `MAIL_GODADDY_IMAP_PORT=993`
@@ -367,17 +380,22 @@ Variables:
 - `MAIL_GODADDY_SMTP_PORT=465`
 - `MAIL_GODADDY_USERNAME=diego@doctormanzur.com`
 - `MAIL_GODADDY_PASSWORD=CHANGEME`
-- `MAIL_GODADDY_MONITOR_FOLDERS=INBOX,Bulk Mail,Junk Email,Spam`
+- `MAIL_GODADDY_MONITOR_FOLDERS=Spam`
 
 Diseño:
 
-- GoDaddy IMAP es la fuente principal de correo propio.
-- Gmail solo se lee por label (`MAIL_GMAIL_LABEL`, por defecto `TODOS`) si
-  `GMAIL_READ_ENABLED=true` y existe OAuth token.
+- Fuentes por defecto: Gmail `TODOS` + `SPAM` para
+  `diegomanzurn@gmail.com`; GoDaddy `Spam` para `diego@doctormanzur.com`.
+- El agente no confía en la carpeta ni en la clasificación del proveedor:
+  solo excluye lo que su propio clasificador marca como `spam`.
+- El digest programado corre dos veces al día, 10:00 y 20:00
+  `America/Santiago`, toma los últimos 50 mensajes persistidos tras sync y
+  produce dos campos: resumen general y respuestas propuestas para importantes.
 - El sistema genera propuestas de respuesta **como texto**; no crea drafts en el
-  buzón.
-- El envío real sale por SMTP GoDaddy y requiere `approve-send` autenticado.
-- `MAIL_REQUIRE_APPROVAL_FOR_SEND=true` debe mantenerse en producción.
+  buzón y no escribe en Gmail/GoDaddy durante el flujo normal.
+- El envío SMTP GoDaddy queda como escape hatch: exige `ENABLE_EMAIL_SEND=true`,
+  `MAIL_ALLOW_EXPLICIT_SEND=true` y `explicit_send_confirmation` con el valor
+  `SEND_THIS_EMAIL_EXPLICITLY`. No hay envío automático por beat, UI ni digest.
 - Los mensajes se guardan en `mail_messages`; los envíos en `mail_send_logs`.
 
 ## Google Maps / Calendar / Drive
@@ -575,10 +593,9 @@ Variables:
 Diseno:
 
 - `GmailDigestService.build_preview` redacta direcciones (`l***l@dominio`),
-  agrupa por remitente, ordena por fecha y propone borradores con
-  `requires_approval=True`.
+  agrupa por remitente, ordena por fecha y propone respuestas como texto.
 - **Nunca crea drafts en Gmail**, ni siquiera con flags de send activas. El
-  loop es: leer -> proponer -> aprobacion humana antes de tocar el mailbox.
+  loop es: leer -> proponer texto -> Diego decide fuera del mailbox.
 - El servicio consume un `GmailReader` Protocol. En tests se puede inyectar un
   fake; en runtime, si `GMAIL_READ_ENABLED=true`, el default es
   `GmailRestReader` leyendo `GMAIL_TOKEN_DIR/token.json`.

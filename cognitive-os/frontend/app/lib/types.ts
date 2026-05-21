@@ -47,6 +47,14 @@ export type JobEventResponse = {
   created_at: string;
 };
 
+export type JobCancelResponse = {
+  id: string;
+  status: string;
+  celery_task_id: string | null;
+  celery_revoke_requested: boolean;
+  celery_revoke_error: string | null;
+};
+
 export type ApprovalResponse = {
   id: string;
   requested_action: string;
@@ -102,6 +110,13 @@ export type MailStatus = {
   enabled: boolean;
   default_sender: string;
   require_approval_for_send: boolean;
+  allow_explicit_send: boolean;
+  background_sync_enabled: boolean;
+  digest_enabled: boolean;
+  digest_hours_local: string[];
+  digest_timezone: string;
+  digest_max_messages: number;
+  gmail_monitor_labels: string[];
   accounts: MailAccount[];
   reasons: string[];
 };
@@ -150,6 +165,35 @@ export type MailSyncResult = {
   inserted: number;
   skipped_existing: number;
   errors: string[];
+};
+
+export type MailDigestMessage = {
+  id: string;
+  account_label: string | null;
+  folder: string;
+  sender: string;
+  subject: string | null;
+  snippet: string | null;
+  received_at: string | null;
+  classification: MailClassification;
+  importance_score: number;
+  proposed_reply_text: string | null;
+  proposed_reply_rationale: string | null;
+};
+
+export type MailDigestResult = {
+  generated_at: string;
+  total_considered: number;
+  included_count: number;
+  excluded_spam_count: number;
+  important_count: number;
+  summary_text: string;
+  proposed_replies_text: string;
+  messages: MailDigestMessage[];
+  important_messages: MailDigestMessage[];
+  artifact_markdown_path: string | null;
+  artifact_json_path: string | null;
+  warnings: string[];
 };
 
 export type DeepAgentSkill = {
@@ -281,6 +325,7 @@ export type ReadinessGap = {
 
 export type ReadinessReport = {
   operator_profile: string;
+  local_autonomy_mode: string;
   summary: string;
   target_capabilities_unlocked: number;
   target_capabilities_total: number;
@@ -290,6 +335,7 @@ export type ReadinessReport = {
 export type PublicConfig = {
   environment: string;
   operator_profile: "strict" | "dedicated_local";
+  local_autonomy_mode: "guarded" | "full";
   auto_approve_reversible_actions: boolean;
   code_director_budget_mode: "soft" | "hard";
   web_search_enabled: boolean;
@@ -335,6 +381,7 @@ export type PublicConfig = {
   mail_enabled: boolean;
   mail_godaddy_enabled: boolean;
   mail_require_approval_for_send: boolean;
+  mail_background_sync_enabled: boolean;
   mail_poll_interval_seconds: number;
   mail_fetch_max_per_folder: number;
   mail_imap_timeout_seconds: number;

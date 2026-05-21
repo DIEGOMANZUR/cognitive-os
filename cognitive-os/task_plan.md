@@ -1,7 +1,83 @@
 # Cognitive OS Hardening And Action Plane Plan
 
-> **Estado actual (2026-05-20, Fases 78-81 cerradas — plan de aprendizaje
-> autónomo completo + aislamiento de DB de test):**
+> **Fase 83 iniciada (2026-05-20 — Remediación Codex responsable,
+> perfil PC dedicado / fricción mínima):** después de la auditoría
+> `docs/audits/CODEX_COMMERCIAL_READINESS_AUDIT.md`, el objetivo cambia:
+> no se persigue seguridad corporativa/multiusuario; Diego prioriza un
+> **PC dedicado al sistema**, autonomía total, uso del perfil real de
+> Edge/Kimi WebBridge y cero fricción operativa. La definición de "grado
+> comercial" para esta fase queda centrada en: arranque reproducible,
+> gates verdes, UI real verificada, trabajos trazables, errores explícitos,
+> idempotencia, recuperación, diagnósticos accionables, colas estables,
+> integraciones verificadas o marcadas como no verificadas, y documentación
+> que no prometa más de lo demostrado.
+>
+> **Regla de diseño F83:** se puede sacrificar approval/four-eyes y
+> restricciones de acceso local, pero NO se sacrifica observabilidad,
+> auditoría, logs, JobEvents, idempotencia, backups, estado visible,
+> timeouts, reintentos controlados ni rollback operacional. La autonomía
+> sin trazabilidad no es comercial: es una caja negra.
+>
+> **Plan maestro F83 por oleadas:**
+> 0. Baseline y control del worktree: identificar cambios preexistentes,
+>    no revertir nada del usuario, y trabajar con diffs pequeños.
+> 1. Gates reproducibles: reparar `test_frontend_static_assets`, ruff
+>    format, y revalidar backend/frontend build/lint.
+> 2. E2E cockpit real: corregir Playwright/contrato UI en `:3001`,
+>    asegurar 20 tabs, JWT local, Settings, Memory recipes, mobile y
+>    dashboard.
+> 3. Runtime dedicado sin fricción: formalizar perfil de autonomía local
+>    (`dedicated_local`) para Edge/Kimi/filesystem/mail/Drive/Calendar,
+>    manteniendo job/audit/log/idempotencia aunque no requiera approval.
+> 4. Jobs y colas infalibles: health de worker/beat/queue lag, reapers,
+>    broker failure visible, estados stuck, retry manual y diagnóstico.
+> 5. Integraciones live: LLM, MCP, Kimi/Edge, mail, Google, GoDaddy,
+>    Code Director y OpenHarness con smokes read-only/dry-run o etiqueta
+>    explícita `NO VERIFICADO`.
+> 6. Telegram y UI parity: cada comando crítico con test happy/degraded,
+>    y errores claros cuando falte backend/config.
+> 7. Documentos/RAG/legal: fixtures reales controladas, citas verificables,
+>    exports renderizados, fallos de OCR/parser visibles.
+> 8. Documentación contractual final: actualizar README/guias solo cuando
+>    los gates y smokes sostengan el estado real.
+>
+> **Orden inmediato:** cerrar Oleada 1, luego Oleada 2. No se tocarán
+> credenciales, DNS, env versionado ni datos externos reales en esta
+> primera pasada.
+>
+> **Estado F83 tras segunda remediación Codex:** Oleadas 1 y 2 cerradas
+> con `full-qa` verde (**804 passed**) y Playwright runtime **17 passed**.
+> Oleada 3 dejó operativo `LOCAL_AUTONOMY_MODE=full` y auto-dispatch de
+> Action Plane sin approvals, manteniendo trazabilidad. Edge/Kimi WebBridge
+> ya no falla por contrato `ok/data`: el adapter normaliza envelopes del
+> daemon, eleva `ok=false` como error real y el servicio usa el tab activo
+> para las acciones principales porque el modo `session` de Kimi v1.9.7
+> puede quedarse apuntando a `chrome-extension://`. Smoke live verificado:
+> restart del daemon, `extension_connected=true`, navigate a
+> `http://127.0.0.1:3001?tab=health` y snapshot OK. El launcher externo
+> ahora espera `extension_connected=true`; readiness runtime quedó
+> **14/14 sin gaps** y health overall `ok`. Siguiente foco: Oleada 4
+> (worker shutdown/recovery, queue observability, stuck jobs).
+
+> **Estado actual (2026-05-20, Fase 82 cerrada — Glass Cockpit frontend
+> a grado comercial):** Cockpit Next.js 16 reescrito a glassmorphism
+> dark-only de alto contraste e instalable como PWA. Sistema de diseño
+> centralizado en `frontend/app/globals.css`, tipografía self-hosted
+> (Inter + JetBrains Mono via `next/font/google`), set SVG curado de
+> ~55 íconos (`Icon.tsx`), charts SVG sin deps (`Charts.tsx`), centro
+> de notificaciones lateral con handshake push del SO, command palette
+> con fuzzy match real. PWA: manifest con 4 shortcuts + íconos PNG
+> 192/512 + maskable + SVG fallback, service worker
+> `cogos-v2026-05-20-glass-2` con offline shell y `/offline.html`
+> branded. **Defensive array guards** (`asArray<T>`) en las 13 vistas
+> que consumen colecciones. `playwright.config.ts` blindado contra SW
+> persistente y cache HTTP. QA verde: lint, build, tsc, E2E headless
+> full-walk (1440×900 + mobile 393×851) sobre las 20 tabs + palette +
+> notification center = **0 errores 5xx / 0 page errors / 0 console
+> errors**, 26 screenshots OK. Detalle en `progress.md` §Fase 82.
+>
+> **Estado anterior (2026-05-20, Fases 78-81 cerradas — plan de
+> aprendizaje autónomo completo + aislamiento de DB de test):**
 > Las **5 fases** del plan (`docs/AGENT_LEARNING_PLAN.md`) están en
 > producción. Todo el aprendizaje pasa por **proposals → approval del
 > operador → records activos**; cero auto-deploy, cero mutación de
@@ -1526,3 +1602,124 @@ evidencia reproducible.
 - Backend/frontend/build/typecheck/test verdes tras cambios.
 - Ningun write externo directo sin approval gate.
 - Riesgos residuales documentados sin esconderlos ni sobreprometer.
+
+## Fase 83 - Hardening comercial dirigido por Codex
+
+### Objetivo
+
+Convertir el stack local dedicado en un runtime real, no solo documentado:
+arranque reproducible, workers verificables, jobs cancelables, navegador real
+operable, frontend F82 respetado y health/readiness útiles para el operador.
+
+### Oleadas ejecutadas
+
+1. Workers/jobs: health inspecciona tareas registradas y colas consumidas;
+   jobs directos guardan `celery_task_id`; cancelación revoca Celery y no
+   marca falso `cancelled` si el revoke falla.
+2. Action Plane: dispatch audit conserva `celery_task_id`; cancelación de
+   ActionRequest revoca entregas pendientes y deja AuditEvent/JobEvent cuando
+   falla.
+3. Kimi/WebBridge: se corrigió envelope `ok/data/error`, pero se confirmó en
+   vivo que Kimi 1.9.7 falla en `snapshot/evaluate/screenshot` contra el popup
+   de extensión aunque navegue correctamente.
+4. Edge DevTools: nuevo carril comercial primario para `/actions/webbridge/*`
+   usando el Edge real del operador por `127.0.0.1:9222`; Kimi queda como
+   secundario.
+5. Launcher: Edge se abre con `setsid` y `--remote-debugging-port=9222`;
+   el popup Kimi ya no se despierta salvo `WAKE_KIMI_EXTENSION=true`.
+
+### Criterios De Cierre De La Oleada
+
+- `/system/readiness` en perfil `dedicated_local/full`: 14/14 capacidades.
+- `/actions/webbridge/status`: `active_provider=edge_devtools` cuando Kimi no
+  está conectado.
+- `/actions/webbridge/evaluate`: devuelve `document.title == "Cognitive OS"`.
+- Tests enfocados de config/WebBridge/health/jobs/actions/workers en verde.
+- Full QA verde antes de pasar a la siguiente oleada.
+
+## Fase 84 - Fricción cero de JWT local
+
+### Objetivo
+
+Eliminar el bloqueo operativo recurrente "Falta JWT local" en el cockpit:
+en un PC dedicado el frontend debe conseguir y persistir su JWT solo, sin que
+el operador lo pegue en cada sesión. El override manual debe seguir existiendo
+si Diego quiere cambiarlo intencionalmente.
+
+### Cambios Ejecutados
+
+1. Backend: `POST /auth/local-token` emite un JWT largo para
+   `local-operator` con roles `admin,operator`, solo cuando
+   `OPERATOR_PROFILE=dedicated_local` y `LOCAL_AUTONOMY_MODE=full`.
+2. Frontend: `page.tsx` pide ese token automáticamente si no hay token, si el
+   token automático está por vencer o si una llamada autenticada devuelve 401.
+3. Persistencia: `cogos.token` queda en `localStorage`; `cogos.token.source`
+   distingue `auto` vs `manual`.
+4. Conexión: `SettingsView` conserva el guardado manual y agrega
+   "Usar JWT local automático" para volver al modo sin fricción.
+5. Hidratación: el bootstrap espera a que React hidrate antes de leer/escribir
+   auth local, evitando el error React #418 que apareció al intentar leer
+   `localStorage` sincrónicamente.
+
+### Criterios De Cierre
+
+- Navegador limpio sin localStorage: input `JWT local` se rellena solo.
+- `localStorage["cogos.token.source"] == "auto"`.
+- `/health/dashboard` devuelve 200 sin pegado manual.
+- No aparece el banner "Falta JWT local".
+- Cero errores de consola/hidratación.
+- Override manual sigue cubierto por E2E.
+
+## Fase 85 - Contrato comercial de mail read-only
+
+### Objetivo
+
+Alinear el carril de mail con la regla operativa de Diego: el sistema lee y
+resume correo, clasifica por cuenta propia, propone respuestas como texto y no
+crea drafts ni envía correos salvo petición explícita futura.
+
+### Cambios Ejecutados
+
+1. Config: mail ya no se relaja en `dedicated_local/full`; `ENABLE_EMAIL_SEND`
+   queda falso, `MAIL_ALLOW_EXPLICIT_SEND=false`, digest 10:00/20:00
+   `America/Santiago`, últimos 50 mensajes.
+2. Fuentes: Gmail monitorea `TODOS,SPAM`; GoDaddy monitorea `Spam`. El lector
+   Gmail traduce `TODOS` a búsqueda de all-mail cuando no existe label custom.
+3. Clasificación: el agente no confía en carpeta spam/junk/bulk; solo excluye
+   contenido que su propio clasificador marca como `spam`.
+4. Backend: nuevo `POST /mail/digest/preview` devuelve dos textos separados
+   (`summary_text`, `proposed_replies_text`); Celery beat encola
+   `cognitive_os.build_personal_mail_digest` en queue `mail`.
+5. Envío: `/mail/messages/{id}/approve-send` queda como escape hatch con tres
+   condiciones: `ENABLE_EMAIL_SEND=true`, `MAIL_ALLOW_EXPLICIT_SEND=true` y
+   `explicit_send_confirmation=SEND_THIS_EMAIL_EXPLICITLY`.
+6. Frontend: `MailInboxView` muestra digest y propuestas en campos separados,
+   elimina botón de envío normal y deja solo guardar/copiar/ignorar.
+7. Docs: `.env.example`, guías y checklist reflejan que mail es read-only por
+   defecto.
+
+### Criterios De Cierre
+
+- Mail status muestra `allow_explicit_send=false` y digest 10/20 Chile.
+- Mail status/config muestra `MAIL_BACKGROUND_SYNC_ENABLED=false` y beat no
+  agenda `personal-mail-sync` salvo opt-in explícito.
+- UI no tiene botón `Enviar`/`Aprobar y enviar` en el flujo normal.
+- Digest puede generarse sin escribir en Gmail/GoDaddy.
+- Tests cubren no confiar en spam folder, bloqueo SMTP por política y schedule
+  Celery.
+- Full QA verde y smoke runtime sin errores de consola.
+
+### Cierre Verificado
+
+- `bash scripts/full-qa.sh` → 844 passed, 1 skipped, 20 deselected; ruff,
+  format, mypy, Alembic, npm audit/lint/build y `git diff --check` verdes.
+- Runtime real:
+  - `/mail/status`: `allow_explicit_send=false`,
+    `background_sync_enabled=false`, digest `10,20` `America/Santiago`.
+  - `POST /mail/digest/preview` con sync real: 50 considerados, 0 warnings,
+    sin artifacts ni envíos.
+  - `beat_schedule`: `personal-mail-digest` presente y `personal-mail-sync`
+    ausente.
+- `npx playwright test --reporter=list` → 21 passed.
+- `/health/dashboard` queda acotado por `HEALTH_COMPONENT_TIMEOUT_SECONDS` y
+  workers verifican tareas/colas sin bloquear la UI.

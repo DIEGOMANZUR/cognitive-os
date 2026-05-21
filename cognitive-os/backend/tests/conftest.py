@@ -180,11 +180,7 @@ def _provision_test_database() -> Iterator[None]:
     """
     asyncio.run(_recreate_test_database())
     alembic_bin = Path(sys.executable).with_name("alembic")
-    alembic_cmd = (
-        [str(alembic_bin)]
-        if alembic_bin.exists()
-        else [sys.executable, "-m", "alembic"]
-    )
+    alembic_cmd = [str(alembic_bin)] if alembic_bin.exists() else [sys.executable, "-m", "alembic"]
     result = subprocess.run(  # noqa: S603 - fixed argv, no shell
         [*alembic_cmd, "upgrade", "head"],
         cwd=_BACKEND_ROOT,

@@ -3,7 +3,8 @@
 import { useRef, useState } from "react";
 
 import type { ApiClient } from "../lib/api";
-import { errorMessage, statusClass } from "../lib/api";
+import { asArray, errorMessage, statusClass } from "../lib/api";
+import { Icon } from "../components/Icon";
 import { usePolledFetch } from "../lib/hooks";
 import { useToast } from "../lib/toasts";
 import type {
@@ -129,13 +130,21 @@ export function ApprovalsView({ client }: { client: ApiClient }) {
     }
   }
 
+  const pending = asArray(approvals.data).filter((a) => a.status === "pending").length;
+
   return (
     <section className="section">
       <div className="section-head">
-        <h2>Aprobaciones humanas</h2>
+        <div className="stack" style={{ gap: 2 }}>
+          <h2>Aprobaciones humanas</h2>
+          <span className="faint small">
+            Acciones sensibles que esperan tu visto bueno antes de ejecutarse.
+          </span>
+        </div>
         <div className="row">
-          <span className="muted small">
-            {(approvals.data ?? []).filter((a) => a.status === "pending").length} pendientes
+          <span className={`badge ${pending > 0 ? "warn" : "ok"}`}>
+            <span className={`dot ${pending > 0 ? "warn live" : "ok"}`} />
+            {pending} pendientes
           </span>
           <input
             ref={fileInputRef}
@@ -145,15 +154,15 @@ export function ApprovalsView({ client }: { client: ApiClient }) {
             onChange={handleImportFile}
           />
           <button
-            className="ghost"
+            className="ghost small"
             type="button"
             onClick={triggerImport}
             title="Importar workflow.v1 JSON"
           >
-            Importar workflow
+            <Icon name="download" size={13} /> Importar workflow
           </button>
-          <button className="ghost" onClick={() => approvals.refetch()} type="button">
-            Refrescar
+          <button className="ghost small" onClick={() => approvals.refetch()} type="button">
+            <Icon name="refresh" size={13} /> Refrescar
           </button>
         </div>
       </div>
@@ -169,14 +178,23 @@ export function ApprovalsView({ client }: { client: ApiClient }) {
             </tr>
           </thead>
           <tbody>
-            {(approvals.data ?? []).length === 0 && (
+            {asArray(approvals.data).length === 0 && (
               <tr>
-                <td colSpan={5} className="muted">
-                  Sin aprobaciones registradas.
+                <td colSpan={5}>
+                  <div className="empty-state">
+                    <span className="empty-icon">
+                      <Icon name="approvals" size={18} />
+                    </span>
+                    <strong>No hay aprobaciones registradas</strong>
+                    <span className="empty-msg">
+                      Cuando un agente proponga una acción que requiera firma humana
+                      aparecerá aquí.
+                    </span>
+                  </div>
                 </td>
               </tr>
             )}
-            {(approvals.data ?? []).map((approval) => (
+            {asArray(approvals.data).map((approval) => (
               <tr key={approval.id}>
                 <td>
                   <strong>{approval.requested_action}</strong>
@@ -200,33 +218,33 @@ export function ApprovalsView({ client }: { client: ApiClient }) {
                 <td>
                   <div className="row" style={{ flexWrap: "wrap", gap: 6 }}>
                     <button
-                      className="primary"
+                      className="primary small"
                       disabled={approval.status !== "pending" || decidingId !== null}
                       onClick={() => decide(approval.id, "approve")}
                       type="button"
                     >
-                      Aprobar
+                      <Icon name="check" size={13} /> Aprobar
                     </button>
                     <button
-                      className="danger"
+                      className="danger small"
                       disabled={approval.status !== "pending" || decidingId !== null}
                       onClick={() => decide(approval.id, "reject")}
                       type="button"
                     >
-                      Rechazar
+                      <Icon name="close" size={13} /> Rechazar
                     </button>
                     {(() => {
                       const actionRequestId = extractActionRequestId(approval.requested_action);
                       if (!actionRequestId) return null;
                       return (
                         <button
-                          className="ghost"
+                          className="ghost small"
                           type="button"
                           disabled={busyWorkflowId !== null}
                           onClick={() => void exportWorkflow(actionRequestId)}
                           title="Exportar como workflow.v1 JSON"
                         >
-                          Exportar
+                          <Icon name="download" size={13} /> Exportar
                         </button>
                       );
                     })()}

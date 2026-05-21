@@ -112,7 +112,7 @@ def _only_added(session: _FakeActionRequestSession, model: type[object]) -> obje
 
 
 def test_browser_validation_blocks_when_disabled() -> None:
-    service = BrowserActionService(Settings(enable_browser_automation=False))
+    service = BrowserActionService(Settings(_env_file=None, enable_browser_automation=False))
 
     result = service.validate_navigation(BrowserNavigationRequest(url="https://example.com"))
 
@@ -123,6 +123,7 @@ def test_browser_validation_blocks_when_disabled() -> None:
 def test_browser_validation_requires_allowlisted_domain() -> None:
     service = BrowserActionService(
         Settings(
+            _env_file=None,
             enable_browser_automation=True,
             browser_allowed_domains="example.com",
             enable_browser_ssrf_check=False,
@@ -149,6 +150,7 @@ def test_browser_validation_requires_allowlisted_domain() -> None:
 def test_browser_validation_blocks_headed_and_vision_unless_enabled() -> None:
     service = BrowserActionService(
         Settings(
+            _env_file=None,
             enable_browser_automation=True,
             browser_allowed_domains="example.com",
             browser_allow_headed=False,
@@ -204,6 +206,7 @@ def test_computer_organize_execution_moves_files_when_enabled(tmp_path: Path) ->
     (root / "photo.png").write_text("png", encoding="utf-8")
     service = ComputerActionService(
         Settings(
+            _env_file=None,
             enable_computer_actions=True,
             computer_allowed_roots=[str(tmp_path)],
             computer_organize_dry_run_only=False,
@@ -226,6 +229,7 @@ def test_computer_organize_execution_blocks_when_dry_run_only(tmp_path: Path) ->
     (root / "contract.pdf").write_text("pdf", encoding="utf-8")
     service = ComputerActionService(
         Settings(
+            _env_file=None,
             enable_computer_actions=True,
             computer_allowed_roots=[str(tmp_path)],
             computer_organize_dry_run_only=True,
@@ -293,10 +297,12 @@ def test_gmail_status_does_not_expose_token_paths(tmp_path: Path) -> None:
 def test_godaddy_dns_preview_is_dry_run_and_requires_approval() -> None:
     service = GoDaddyActionService(
         Settings(
+            _env_file=None,
             godaddy_enabled=True,
             godaddy_api_key="key",  # pragma: allowlist secret
             godaddy_api_secret="secret",  # pragma: allowlist secret
             godaddy_base_url="https://api.ote-godaddy.com",
+            require_human_approval_for_external_actions=True,
         )
     )
 
@@ -470,6 +476,27 @@ def test_godaddy_dns_execute_blocks_when_still_dry_run() -> None:
 
     assert result.status == "blocked"
     assert "dry-run" in (result.reason or "")
+
+
+def test_godaddy_status_reflects_execution_policy() -> None:
+    service = GoDaddyActionService(
+        Settings(
+            _env_file=None,
+            godaddy_enabled=True,
+            godaddy_api_key="key",  # pragma: allowlist secret
+            godaddy_api_secret="secret",  # pragma: allowlist secret
+            godaddy_base_url="https://api.ote-godaddy.com",
+            godaddy_dns_dry_run_only=False,
+            godaddy_allowed_domains=["example.com"],
+            require_human_approval_for_external_actions=False,
+        )
+    )
+
+    status = service.status()
+
+    assert status.status == "ready"
+    assert status.dry_run_only is False
+    assert status.requires_approval is False
 
 
 @pytest.mark.asyncio
@@ -759,6 +786,7 @@ async def test_action_request_payload_executable_is_encrypted_when_key_configure
             return CalendarStatus(status="ready", write_enabled=True)
 
     cfg = Settings(
+        _env_file=None,
         enable_google_calendar=True,
         enable_google_calendar_write=True,
         google_client_id="client-id",
@@ -1399,6 +1427,145 @@ async def test_queue_approved_action_request_locks_row_before_queue(
     assert view.status == "queued"
     assert action_request.status == "queued"
     assert job.status == "queued"
+
+
+@pytest.mark.asyncio
+async def test_cancel_action_request_revokes_submitted_celery_task(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime.now(UTC)
+    action_request_id = UUID("41414141-4141-4141-4141-414141414141")
+    job_id = UUID("51515151-5151-5151-5151-515151515151")
+    action_request = ActionRequest(
+        id=action_request_id,
+        action_type="browser_preview",
+        status="queued",
+        requested_by="operator-1",
+        job_id=job_id,
+        payload_redacted={},
+        payload_executable={},
+        preview={},
+        result={},
+        metadata_json={},
+        created_at=now,
+        updated_at=now,
+    )
+    job = Job(
+        id=job_id,
+        job_type="external_action",
+        status="queued",
+        progress=10,
+        metadata_json={"celery_task_id": "celery-action-1"},
+        created_at=now,
+        updated_at=now,
+    )
+    calls: list[dict[str, object]] = []
+    added: list[object] = []
+
+    class _Session(_FakeActionRequestSession):
+        def add(self, obj: object) -> None:
+            added.append(obj)
+
+        async def get(self, model: type[object], row_id: UUID) -> object | None:
+            if model is ActionRequest and row_id == action_request_id:
+                return action_request
+            if model is Job and row_id == job_id:
+                return job
+            return None
+
+    @asynccontextmanager
+    async def fake_session_scope():
+        yield _Session()
+
+    def fake_revoke(task_id: str, *, terminate: bool, signal: str) -> None:
+        calls.append({"task_id": task_id, "terminate": terminate, "signal": signal})
+
+    monkeypatch.setattr(action_service_module, "session_scope", fake_session_scope)
+    monkeypatch.setattr(action_service_module.celery_app.control, "revoke", fake_revoke)
+
+    view = await ActionRequestService().cancel_action_request(
+        action_request_id,
+        requested_by="operator-1",
+    )
+
+    assert view.status == "cancelled"
+    assert action_request.status == "cancelled"
+    assert job.status == "cancelled"
+    assert job.progress == 100
+    assert job.metadata_json["celery_revoke_signal"] == "SIGTERM"
+    assert calls == [{"task_id": "celery-action-1", "terminate": True, "signal": "SIGTERM"}]
+    job_event = next(item for item in added if isinstance(item, JobEvent))
+    assert job_event.event_type == "action_request_cancelled"
+    assert job_event.metadata_json["celery_revoke_requested"] is True
+
+
+@pytest.mark.asyncio
+async def test_cancel_action_request_revoke_failure_keeps_queued_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime.now(UTC)
+    action_request_id = UUID("42424242-4242-4242-4242-424242424242")
+    job_id = UUID("52525252-5252-5252-5252-525252525252")
+    action_request = ActionRequest(
+        id=action_request_id,
+        action_type="browser_preview",
+        status="queued",
+        requested_by="operator-1",
+        job_id=job_id,
+        payload_redacted={},
+        payload_executable={},
+        preview={},
+        result={},
+        metadata_json={},
+        created_at=now,
+        updated_at=now,
+    )
+    job = Job(
+        id=job_id,
+        job_type="external_action",
+        status="queued",
+        progress=10,
+        metadata_json={"celery_task_id": "celery-action-err"},
+        created_at=now,
+        updated_at=now,
+    )
+    added: list[object] = []
+
+    class _Session(_FakeActionRequestSession):
+        def add(self, obj: object) -> None:
+            added.append(obj)
+
+        async def get(self, model: type[object], row_id: UUID) -> object | None:
+            if model is ActionRequest and row_id == action_request_id:
+                return action_request
+            if model is Job and row_id == job_id:
+                return job
+            return None
+
+    @asynccontextmanager
+    async def fake_session_scope():
+        yield _Session()
+
+    def fake_revoke(task_id: str, *, terminate: bool, signal: str) -> None:
+        del task_id, terminate, signal
+        raise RuntimeError("broker offline")
+
+    monkeypatch.setattr(action_service_module, "session_scope", fake_session_scope)
+    monkeypatch.setattr(action_service_module.celery_app.control, "revoke", fake_revoke)
+
+    view = await ActionRequestService().cancel_action_request(
+        action_request_id,
+        requested_by="operator-1",
+    )
+
+    assert view.status == "queued"
+    assert action_request.status == "queued"
+    assert job.status == "queued"
+    assert job.metadata_json["celery_revoke_error_type"] == "RuntimeError"
+    job_event = next(item for item in added if isinstance(item, JobEvent))
+    audit_event = next(item for item in added if isinstance(item, AuditEvent))
+    assert job_event.event_type == "action_request_cancel_failed"
+    assert audit_event.action == "action_request.cancel_failed"
 
 
 @pytest.mark.asyncio
@@ -2253,6 +2420,7 @@ async def test_document_request_endpoint_uses_action_service(
 def test_browser_preview_blocks_when_disabled(tmp_path: Path) -> None:
     service = BrowserPreviewService(
         Settings(
+            _env_file=None,
             enable_browser_automation=False,
             browser_screenshot_dir=tmp_path,
         )
@@ -2267,6 +2435,7 @@ def test_browser_preview_blocks_when_disabled(tmp_path: Path) -> None:
 def test_browser_preview_blocks_non_allowlisted_domain(tmp_path: Path) -> None:
     service = BrowserPreviewService(
         Settings(
+            _env_file=None,
             enable_browser_automation=True,
             browser_allowed_domains="example.com",
             browser_screenshot_dir=tmp_path,
@@ -2282,6 +2451,7 @@ def test_browser_preview_blocks_non_allowlisted_domain(tmp_path: Path) -> None:
 def test_browser_preview_blocks_when_provider_missing(tmp_path: Path) -> None:
     service = BrowserPreviewService(
         Settings(
+            _env_file=None,
             enable_browser_automation=True,
             browser_allowed_domains="example.com",
             browser_screenshot_dir=tmp_path,
@@ -2289,19 +2459,10 @@ def test_browser_preview_blocks_when_provider_missing(tmp_path: Path) -> None:
         provider_factory=lambda _s: None,  # type: ignore[arg-type, return-value]
     )
 
-    # Falls through to find_spec; in test env playwright is not installed.
-    service_no_factory = BrowserPreviewService(
-        Settings(
-            enable_browser_automation=True,
-            browser_allowed_domains="example.com",
-            browser_screenshot_dir=tmp_path,
-        )
-    )
-    result = service_no_factory.execute(BrowserPreviewRequest(url="https://example.com"))
+    result = service.execute(BrowserPreviewRequest(url="https://example.com"))
 
     assert result.status == "blocked"
     assert "Playwright" in (result.reason or "")
-    del service  # keep ruff happy
 
 
 def test_browser_preview_executes_with_fake_provider(tmp_path: Path) -> None:
@@ -2478,17 +2639,75 @@ async def test_drive_folder_request_auto_approves_in_dedicated_local(
 
 
 @pytest.mark.asyncio
-async def test_drive_organize_does_not_auto_approve_even_in_dedicated_local(
+async def test_drive_organize_does_not_auto_approve_in_guarded_dedicated_local(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """drive_organize_files touches existing files: NOT in the whitelist, must
-    stay pending_approval even when auto_approve_reversible_actions=True."""
+    """Guarded dedicated_local preserves the old approval-heavy behavior for
+    drive_organize_files."""
     _install_fake_action_session(monkeypatch)
     called: list[bool] = []
 
     async def _spy(self: object, **_kwargs: object) -> object:
         called.append(True)
         raise AssertionError("auto-approve must not fire for drive_organize_files")
+
+    monkeypatch.setattr(
+        ActionRequestService,
+        "_auto_approve_and_dispatch",
+        _spy,
+        raising=True,
+    )
+
+    service = ActionRequestService(
+        Settings(
+            _env_file=None,
+            operator_profile="dedicated_local",
+            local_autonomy_mode="guarded",
+            enable_google_drive=True,
+            enable_google_drive_write=True,
+            google_client_id="client-id",
+            google_client_secret="client-secret",  # pragma: allowlist secret
+        )
+    )
+
+    view = await service.create_drive_organize_request(
+        DriveOrganizeRequest(),
+        requested_by="operator-1",
+    )
+
+    assert not called
+    assert view.status == "pending_approval"
+
+
+@pytest.mark.asyncio
+async def test_drive_organize_auto_approves_in_full_dedicated_local(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Full dedicated_local is intentionally zero-friction: executable Action
+    Plane requests auto-approve through the canonical queue/dispatch path."""
+    _install_fake_action_session(monkeypatch)
+    captured: dict[str, object] = {}
+
+    async def _spy(self: object, **kwargs: object) -> object:  # type: ignore[no-redef]
+        captured.update(kwargs)
+        from cognitive_os.actions.service import ActionRequestView  # noqa: PLC0415
+
+        return ActionRequestView(
+            id=kwargs["action_request_id"],  # type: ignore[arg-type]
+            action_type="drive_organize_files",
+            status="queued",
+            requested_by="operator-1",
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+            preview={},
+            payload_redacted={},
+            error=None,
+            metadata_json={},
+            idempotency_key=None,
+            job_id=None,
+            approval_id=None,
+            workflow_run_id=None,
+        )
 
     monkeypatch.setattr(
         ActionRequestService,
@@ -2513,8 +2732,19 @@ async def test_drive_organize_does_not_auto_approve_even_in_dedicated_local(
         requested_by="operator-1",
     )
 
-    assert not called
-    assert view.status == "pending_approval"
+    assert captured
+    assert view.status == "queued"
+
+
+def test_drive_upload_file_is_auto_approvable_when_reversible_policy_enabled() -> None:
+    service = ActionRequestService(
+        Settings(
+            _env_file=None,
+            auto_approve_reversible_actions=True,
+        )
+    )
+
+    assert service._should_auto_approve_action("drive_upload_file") is True
 
 
 @pytest.mark.asyncio

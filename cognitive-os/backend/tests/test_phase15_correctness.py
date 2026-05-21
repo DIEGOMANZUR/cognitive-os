@@ -75,6 +75,7 @@ def test_execute_approved_plan_runs_only_the_supplied_operations(tmp_path: Path)
     )
     service = ComputerActionService(
         Settings(
+            _env_file=None,
             enable_computer_actions=True,
             computer_allowed_roots=str(tmp_path),
             computer_organize_dry_run_only=False,
@@ -102,6 +103,7 @@ def test_execute_approved_plan_blocks_when_dry_run_only(tmp_path: Path) -> None:
     )
     service = ComputerActionService(
         Settings(
+            _env_file=None,
             enable_computer_actions=True,
             computer_allowed_roots=str(tmp_path),
             computer_organize_dry_run_only=True,

@@ -1,7 +1,7 @@
 # Cognitive OS — Guía Maestra
 
 > **Última actualización:** 2026-05-20, Fases 78-81 — plan de aprendizaje autónomo completo (Fases A-E del `AGENT_LEARNING_PLAN.md`) + aislamiento de DB de test. Cadena LLM del operador: primary+agent **gpt-5.5** (gateway, **Responses API + prompt caching 24h**), secondary/fallback **gemini-3.1-pro-low**, visión **glm-4.6v**; las 21 tools built-in del DeepAgent con `args_schema` Pydantic tipado + tools dinámicas MCP cuando `ENABLE_MCP_CLIENT=true`; suite hermética por construcción (conftest guard) **800 passed** corriendo contra una DB de test aislada. Telegram operativo (bot autorizado, slash commands + conversacional sin slash). Novedades Fases 78-81: el agente **aprende solo** — extrae recetas de jobs exitosos, detecta patrones de falla, puntúa la confiabilidad de sus tools, promueve procedures usados a skills YAML y reflexiona de noche sobre los threads del día. Todo pasa por el approval gate del operador.
-> **Estado del producto:** monorepo en grado comercial operativo (backend FastAPI 0.115+ con **143 endpoints REST**, **22 tareas Celery** distribuidas en **5 colas** `default`/`ingestion`/`agent_longrun`/`maintenance`/`mail` con **10 jobs beat**, **20 migraciones Alembic**, LangGraph 1.1.10 + DeepAgents 0.6.x + Postgres 16+pgvector + Redis 7 + Weaviate 1.29.0 + Neo4j 5 ligados a `127.0.0.1` por defecto; consola Next.js 16.2.6 con **20 vistas** en `app/views/*.tsx` incluidas `AssistView`, `GoogleOpsView`, `ResearchView` y `CodeDirectorView`; bot Telegram opcional con **37 slash commands** en paridad con el panel; Kimi WebBridge; fusión opcional con OpenHarness en la ruta `research`; **Code Director** (delegación a Claude Code/Codex/Kimi/DeepAgents con planner LLM-driven y prompts con contexto vivo, F9); **plan de aprendizaje autónomo** F78-81 con 2 tablas nuevas — `tool_invocation_metrics`, `procedure_invocation_log`). Runtime local (cadena verificada Fase 67/68): primary+agent **gpt-5.5** (gateway openai-compatible del operador), secondary/fallback **gemini-3.1-pro-low**, visión **glm-4.6v** (z.ai); Kimi-k2.6 solo vía el adapter CLI del Code Director (su endpoint HTTP da 403). Mail personal GoDaddy IMAP/SMTP + Gmail label `TODOS` soportado + propuestas escritas; Google Maps/Calendar/Drive operables; Telegram approvals con dispatch de `ActionRequest`; dispatch durable con broker failure controlado, JobEvents submit/fail y reserva atómica anti-submit duplicado; envío y writes externos solo aprobados (`MAIL_REQUIRE_APPROVAL_FOR_SEND=true`). Asistente personal con `PersonalTask`/`PersonalNote` CRUD y reminders.
+> **Estado del producto:** monorepo en grado comercial operativo (backend FastAPI 0.115+ con **143 endpoints REST**, **22 tareas Celery** distribuidas en **5 colas** `default`/`ingestion`/`agent_longrun`/`maintenance`/`mail` con **10 jobs beat**, **20 migraciones Alembic**, LangGraph 1.1.10 + DeepAgents 0.6.x + Postgres 16+pgvector + Redis 7 + Weaviate 1.29.0 + Neo4j 5 ligados a `127.0.0.1` por defecto; consola Next.js 16.2.6 con **20 vistas** en `app/views/*.tsx` incluidas `AssistView`, `GoogleOpsView`, `ResearchView` y `CodeDirectorView`; bot Telegram opcional con **37 slash commands** en paridad con el panel; Kimi WebBridge/Edge DevTools; fusión opcional con OpenHarness en la ruta `research`; **Code Director** (delegación a Claude Code/Codex/Kimi/DeepAgents con planner LLM-driven y prompts con contexto vivo, F9); **plan de aprendizaje autónomo** F78-81 con 2 tablas nuevas — `tool_invocation_metrics`, `procedure_invocation_log`). Runtime local (cadena verificada Fase 67/68): primary+agent **gpt-5.5** (gateway openai-compatible del operador), secondary/fallback **gemini-3.1-pro-low**, visión **glm-4.6v** (z.ai); Kimi-k2.6 solo vía el adapter CLI del Code Director (su endpoint HTTP da 403). Mail personal read-only por defecto: Gmail `TODOS`/`SPAM` + GoDaddy `Spam`, clasificación propia del agente, digest 10:00/20:00 Chile y propuestas escritas sin drafts ni envíos automáticos; Google Maps/Calendar/Drive operables; Telegram approvals con dispatch de `ActionRequest`; dispatch durable con broker failure controlado, JobEvents submit/fail y reserva atómica anti-submit duplicado. En `strict`, envíos y writes externos requieren aprobación manual; en `dedicated_local/full`, se autoaprueban acciones locales/Google para reducir fricción, pero mail sigue bloqueado salvo solicitud explícita de Diego. Asistente personal con `PersonalTask`/`PersonalNote` CRUD y reminders.
 > **QA snapshot persistente (Fases 78-81):** **800 pytest passed, 1 skipped, 20 deselected** contra `cognitive_os_test` (DB de test aislada; producción nunca se toca); ruff + ruff format + mypy (135 source files) + frontend lint + frontend build + Alembic head `202605200003` + `git diff --check` → todo verde.
 > **Para qué es este documento:** la **guía maestra técnica** "desde cero". Complementa la `USER_GUIDE.md` (orientada a operación cotidiana) con arquitectura detallada, mail multicuenta, escritorio, credenciales y troubleshooting profundo. Cada afirmación tiene su archivo o variable de respaldo en el repo.
 
@@ -74,7 +74,7 @@ Todo corre en tu infraestructura (Docker local), todas las acciones quedan audit
 | Previsualizar páginas web headless (titulo + screenshot) en dominios allow-listed | Action Plane → `browser_preview` |
 | Ejecutar planes interactivos en navegador (click/fill/scroll/screenshot/analyze con vision) | Action Plane → `browser_interactive` |
 | Leer Gmail en modo digest read-only (resumen redactado) sin enviar nada | Action Plane → Gmail `digest/preview` |
-| Revisar correo personal multicuenta, proponer respuestas y enviarlas con aprobación | `/mail/*` + GoDaddy IMAP/SMTP + Gmail label `TODOS` |
+| Revisar correo personal multicuenta, resumir últimos 50, clasificar spam por agente y proponer respuestas importantes como texto | `/mail/*` + Gmail `TODOS`/`SPAM` + GoDaddy `Spam` |
 | Planificar rutas con tráfico y link navegable | Action Plane → Google Maps `route` |
 | Crear eventos Calendar, subir entregables y organizar Drive con aprobación | Google Ops + `ActionRequest` (`calendar_create_event`, `drive_upload_file`, `drive_organize_files`) |
 | Preparar cambios DNS en GoDaddy con dry-run, allow-list y aprobación | Action Plane → GoDaddy `dns/preview` + `request` |
@@ -87,10 +87,10 @@ Todo corre en tu infraestructura (Docker local), todas las acciones quedan audit
 
 | No haces esto con Cognitive OS | Por qué |
 | --- | --- |
-| Enviar correos automáticamente | Prohibido por política inicial. `/mail/messages/{id}/approve-send` exige aprobación humana y `MAIL_REQUIRE_APPROVAL_FOR_SEND=true`. |
+| Enviar correos automáticamente | No. El flujo normal nunca crea drafts ni envía. SMTP GoDaddy queda como escape hatch solo si Diego pide explícitamente un envío y se habilitan `ENABLE_EMAIL_SEND=true` + `MAIL_ALLOW_EXPLICIT_SEND=true` + confirmación por request. |
 | Publicar en redes sociales | `enable_social_posting=false` por defecto; no hay executor de redes implementado. |
 | Cambiar DNS sin aprobación humana | Flujo `dry-run` por defecto, allow-list de dominios y aprobación obligatoria. |
-| Dar acceso a tu navegador real con tu sesión | `browser_preview/interactive` corre en perfiles aislados, headless, allow-list de dominios. **Nunca** usa tu perfil de Chrome/Firefox real. |
+| Dar acceso a tu navegador real con tu sesión | En `strict`, `browser_preview/interactive` corre aislado/headless/allow-listed. En `dedicated_local/full`, Edge DevTools puede usar el Edge real del operador en este PC dedicado. |
 | Tomar decisiones legales por ti | `legal_draft_support` siempre marca `needs_human_review`; los borradores son apoyo, no presentación final. |
 | Reemplazar un IDE/repo agent profesional | OpenShell sandbox (vendor) puede ejecutar código aislado, pero no hay flujo "edita un repo entero por mí" implementado. |
 | Procesar audio/voz | Backend STT/TTS ElevenLabs implementado; falta UX completa de voz en frontend/Telegram (ver §18). |
@@ -121,12 +121,12 @@ Todo corre en tu infraestructura (Docker local), todas las acciones quedan audit
    4. Apruebas en `Approvals`. Si `COMPUTER_ORGANIZE_DRY_RUN_ONLY=false`, Celery ejecuta los movimientos.
    5. Cada movimiento queda en `audit_events`.
 
-4. **"Quiero revisar mi correo importante y aprobar respuestas."**
-   1. En `Mail`, ejecutas `Sync ahora` o dejas Celery beat con `MAIL_ENABLED=true`.
-   2. El sistema lee GoDaddy IMAP (`INBOX`, spam/junk/bulk) y, si OAuth está listo, Gmail label `TODOS`.
-   3. Mensajes importantes quedan como `reply_proposed` con texto editable.
-   4. `Aprobar y enviar` manda por SMTP GoDaddy y registra `MailSendLog`.
-   5. No hay drafts ni auto-send.
+4. **"Quiero revisar mi correo importante y recibir respuestas sugeridas."**
+   1. En `Mail`, ejecutas `Generar resumen 50` o dejas Celery beat con `MAIL_ENABLED=true`.
+   2. El sistema lee Gmail `TODOS`/`SPAM` y GoDaddy `Spam`; no confía en la carpeta, clasifica con el agente.
+   3. El digest excluye solo lo que el agente marca como `spam`.
+   4. Los correos importantes reciben propuesta de respuesta en un campo de texto separado.
+   5. No hay drafts ni auto-send. Diego copia y envía manualmente salvo petición explícita futura.
 
 5. **"Quiero un digest diario de Gmail por Telegram."**
    1. Activas `GMAIL_READ_ENABLED=true`, generas `token.json` con scopes `gmail.readonly` (Google quickstart) y lo dejas en `GMAIL_TOKEN_DIR`.
@@ -299,12 +299,13 @@ Sigue una petición típica `POST /chat/stream` con un mensaje "Investiga X" par
 
 #### Mail personal GoDaddy/Gmail-label
 - `GET /mail/status` — cuentas y flags no sensibles.
-- `POST /mail/sync` — sincronización manual GoDaddy IMAP + Gmail label si OAuth está activo.
+- `POST /mail/sync` — sincronización manual GoDaddy IMAP + Gmail labels si OAuth está activo.
 - `POST /mail/sync/dispatch` — encola sync en Celery queue `mail`.
+- `POST /mail/digest/preview` — resume los últimos 50 y devuelve respuestas propuestas separadas, sin drafts/sends.
 - `GET /mail/messages`, `GET /mail/messages/{id}` — mensajes persistidos y propuestas.
 - `PATCH /mail/messages/{id}/reply` — edita la propuesta escrita.
 - `POST /mail/messages/{id}/ignore` — ignora un mensaje.
-- `POST /mail/messages/{id}/approve-send` — envía por SMTP GoDaddy solo tras aprobación explícita.
+- `POST /mail/messages/{id}/approve-send` — escape hatch SMTP; bloqueado salvo flags y confirmación explícita.
 
 #### Research Orchestrator
 - `POST /research/runs`, `GET /research/runs`, `GET /research/runs/{id}`, `POST /research/runs/{id}/cancel`, `GET /research/runs/{id}/events` (SSE).
@@ -366,7 +367,7 @@ Salida: `result.json`, `report.md`, `evidence_matrix.csv`, `timeline.csv`, `cont
 - **Drive**: listar/get, asegurar carpeta de entregables, subir archivos allow-listed y organizar archivos por `ActionRequest` (`drive_upload_file`, `drive_organize_files`).
 - **GoDaddy**: DNS preview + executor real con dry-run, allow-list, aprobación.
 - **Documents**: DOCX/XLSX/PPTX con guardrails de paths, tamaño, assets allow-listed, fórmulas XLSX no inyectables.
-- **Mail personal**: GoDaddy IMAP/SMTP + Gmail label `TODOS` opcional, propuestas escritas, envío por SMTP GoDaddy solo con aprobación.
+- **Mail personal**: Gmail `TODOS`/`SPAM` + GoDaddy `Spam`, propuestas escritas, sin drafts ni envío normal.
 
 ### 6.6. RAG / búsqueda (`backend/src/cognitive_os/memory/`, `ingestion/`)
 
@@ -409,7 +410,7 @@ Frontend en `frontend/`, Next.js 16 (Turbopack), React 19, ESLint 9. Vistas en `
 | **Documents** | Ingesta de PDFs | Pegas ruta absoluta visible para el backend; te devuelve `job_id`; sigues progreso en `Jobs` |
 | **DocumentAnalysis** | Pipeline legal | Eliges `doc_ids`, query, modos, formatos; encolas; cuando completa, descargas todos los artefactos |
 | **Configuration** | Capacidades + ActionRequests recientes | Lista `/actions/capabilities`, recientes; despacha automáticamente al aprobar `execute_action_request` |
-| **Mail** | Bandeja personal GoDaddy/Gmail-label | Sincronizas, filtras importantes, editas propuestas, ignoras o apruebas envío por SMTP GoDaddy |
+| **Mail** | Digest personal GoDaddy/Gmail | Resumen últimos 50, clasificación propia, propuestas de texto; sin drafts ni envío normal |
 | **Google Ops** | Operación Google Maps/Calendar/Drive | Calculas rutas con tráfico/link, creas requests aprobables de eventos Calendar y subes entregables a Drive |
 | **LangSmith** | Trazas/proyectos/runs externos | Solo si `LANGSMITH_TRACING=true` y endpoints disponibles |
 | **Agents** | Estado de agentes | Resumen `/agents`: políticas, recientes, capacidades |
@@ -665,7 +666,7 @@ Fuente de verdad: [`SETTINGS_REGISTRY_TABLE.md`](./SETTINGS_REGISTRY_TABLE.md) (
 | Documents | `ENABLE_DOCUMENT_GENERATION`, `DOCUMENT_OUTPUT_ROOT`, `DOCUMENT_ASSET_ROOTS`, `DOCUMENT_MAX_SIZE_BYTES` |
 | Gmail digest/label | `GMAIL_READ_ENABLED`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_TOKEN_DIR`, `GMAIL_SCOPES`, `GMAIL_SEND_ENABLED` (reservado; envío Gmail no implementado) |
 | Google Maps/Calendar/Drive | `GOOGLE_MAPS_API_KEY`, `ENABLE_MAPS_GEOCODING`, `ENABLE_MAPS_ROUTING`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_TOKEN_DIR`, `ENABLE_GOOGLE_CALENDAR`, `ENABLE_GOOGLE_CALENDAR_WRITE`, `ENABLE_GOOGLE_DRIVE`, `ENABLE_GOOGLE_DRIVE_WRITE`, `GOOGLE_DRIVE_UPLOAD_MAX_BYTES`, `GOOGLE_DRIVE_DELIVERABLES_FOLDER_NAME` |
-| Mail personal | `MAIL_ENABLED`, `MAIL_DEFAULT_SENDER`, `MAIL_REQUIRE_APPROVAL_FOR_SEND`, `MAIL_POLL_INTERVAL_SECONDS`, `MAIL_IMAP_TIMEOUT_SECONDS`, `MAIL_SMTP_TIMEOUT_SECONDS`, `MAIL_FETCH_MAX_PER_FOLDER`, `MAIL_GMAIL_LABEL`, `MAIL_GODADDY_*` |
+| Mail personal | `MAIL_ENABLED`, `MAIL_DEFAULT_SENDER`, `MAIL_REQUIRE_APPROVAL_FOR_SEND`, `MAIL_ALLOW_EXPLICIT_SEND`, `MAIL_BACKGROUND_SYNC_ENABLED`, `MAIL_POLL_INTERVAL_SECONDS`, `MAIL_IMAP_TIMEOUT_SECONDS`, `MAIL_SMTP_TIMEOUT_SECONDS`, `MAIL_FETCH_MAX_PER_FOLDER`, `MAIL_GMAIL_MONITOR_LABELS`, `MAIL_DIGEST_*`, `MAIL_GODADDY_*` |
 | GoDaddy | `GODADDY_ENABLED`, `GODADDY_BASE_URL`, `GODADDY_API_KEY`, `GODADDY_API_SECRET`, `GODADDY_ALLOWED_DOMAINS`, `GODADDY_DNS_DRY_RUN_ONLY`, `GODADDY_ALLOW_PRODUCTION_WRITES`, `GODADDY_MAX_REQUESTS_PER_MINUTE` |
 | Kimi WebBridge | `ENABLE_KIMI_WEBBRIDGE`, `KIMI_WEBBRIDGE_URL` (solo localhost), `KIMI_WEBBRIDGE_ALLOWED_DOMAINS`, `KIMI_WEBBRIDGE_ALLOW_MUTATIONS`, `KIMI_WEBBRIDGE_REQUIRE_APPROVAL`, `KIMI_WEBBRIDGE_REQUEST_TIMEOUT_SECONDS` |
 | Microsoft mail | `MICROSOFT_MAIL_ENABLED` (placeholder, integración pendiente) |
@@ -825,10 +826,12 @@ variables. Luego corres el quickstart oficial para generar
 | `MAIL_ENABLED` | Actívalo solo cuando las credenciales de correo estén listas. |
 | `MAIL_GODADDY_USERNAME`, `MAIL_GODADDY_PASSWORD` | Usuario y contraseña/app password del buzón GoDaddy; guardar solo en `.env` local ignorado. |
 | `MAIL_GODADDY_IMAP_HOST/PORT`, `MAIL_GODADDY_SMTP_HOST/PORT` | Valores del panel GoDaddy/Workspace Email. Defaults: IMAP 993, SMTP 465. |
-| `MAIL_GODADDY_MONITOR_FOLDERS` | Carpetas a revisar, por ejemplo `INBOX,Bulk Mail,Junk Email,Spam`. |
+| `MAIL_GODADDY_MONITOR_FOLDERS` | Carpetas GoDaddy a revisar; default `Spam` porque el resto reenvía a Gmail. |
 | `MAIL_IMAP_TIMEOUT_SECONDS`, `MAIL_SMTP_TIMEOUT_SECONDS` | Timeouts de red para no dejar workers colgados ante proveedores lentos. |
-| `MAIL_GMAIL_LABEL` | Label Gmail secundaria a leer si `GMAIL_READ_ENABLED=true`; default `TODOS`. |
-| `MAIL_REQUIRE_APPROVAL_FOR_SEND` | Debe quedar `true` salvo pruebas controladas; el producto no auto-envía. |
+| `MAIL_GMAIL_MONITOR_LABELS` | Labels Gmail a leer si `GMAIL_READ_ENABLED=true`; default `TODOS,SPAM`. |
+| `MAIL_DIGEST_HOURS_LOCAL`, `MAIL_DIGEST_TIMEZONE`, `MAIL_DIGEST_MAX_MESSAGES` | Schedule del digest: 10:00 y 20:00 `America/Santiago`, últimos 50. |
+| `MAIL_BACKGROUND_SYNC_ENABLED` | Default `false`: no hace polling continuo; el digest sincroniza a las horas pactadas. |
+| `MAIL_REQUIRE_APPROVAL_FOR_SEND`, `MAIL_ALLOW_EXPLICIT_SEND` | El flujo normal no envía. Solo habilita SMTP si Diego pide explícitamente un envío específico. |
 
 ### GoDaddy Domains/DNS
 | Variable | Cómo obtenerlo |
@@ -969,8 +972,8 @@ CONFIRM_RESTORE=YES bash scripts/restore_storage.sh backups/storage/ARCHIVO.tar.
 | `OpenShellPolicyViolation` | Tarea pidió acción bloqueada por policy | Revisa `args_redacted` en audit y ajusta input |
 | `openharness_research_fallback` en logs | El bridge OH falló (timeout, RuntimeError, error de red) | Mira `error` en el log; el grafo siguió con DeepAgent + fallback igual |
 | `openharness_query_timeout` | OH excedió `OPENHARNESS_QUERY_TIMEOUT_SECONDS` | Sube el timeout o cambia preset a `minimal` |
-| Mail sync no trae mensajes | `MAIL_ENABLED=false`, credenciales GoDaddy incompletas, carpeta mal escrita o Gmail OAuth apagado | Revisa `GET /mail/status`, logs de worker queue `mail`, `MAIL_GODADDY_*`, `MAIL_GMAIL_LABEL` |
-| Botón `Aprobar y enviar` falla | Falta SMTP GoDaddy o la propuesta está vacía | Edita propuesta, verifica `MAIL_DEFAULT_SENDER`, usuario SMTP y `MAIL_REQUIRE_APPROVAL_FOR_SEND=true` |
+| Mail sync no trae mensajes | `MAIL_ENABLED=false`, credenciales GoDaddy incompletas, carpeta mal escrita o Gmail OAuth apagado | Revisa `GET /mail/status`, logs de worker queue `mail`, `MAIL_GODADDY_*`, `MAIL_GMAIL_MONITOR_LABELS` |
+| Digest mail vacío | No hay mensajes persistidos, sync falló o el agente clasificó todo como spam | Ejecuta `Sync ahora`, revisa warnings del digest y valida OAuth/IMAP |
 | Frontend devuelve 401 | JWT inválido o expirado | Genera otro y pégalo en `Settings` |
 | `reject_changeme_in_production` impide arrancar | Hay secretos `CHANGEME` en prod | Reemplaza con secretos reales antes de poner `ENVIRONMENT=production` |
 
@@ -983,7 +986,7 @@ Lo que **funciona hoy** (verificado contra código y tests):
 - Backend completo (104 endpoints propios; 130 REST totales) + frontend (20 vistas, incluye `Assist`, `Google Ops` y `Research`).
 - Ruta `research` con fusión opcional OpenHarness y fallback determinista.
 - Ruta `legal` con Document Analysis y exportadores.
-- Action Plane con `computer_organize`, `document_generate`, `browser_preview`, `browser_interactive`, Google Calendar create y Drive upload/folder/organize ejecutables sólo por `ActionRequest` aprobado; Maps read-only con tráfico/link; Calendar free/busy read-only; Gmail digest read-only; mail GoDaddy IMAP/SMTP con envío aprobado; GoDaddy DNS preview/executor con dry-run.
+- Action Plane con `computer_organize`, `document_generate`, `browser_preview`, `browser_interactive`, Google Calendar create y Drive upload/folder/organize ejecutables sólo por `ActionRequest` aprobado; Maps read-only con tráfico/link; Calendar free/busy read-only; Gmail digest read-only; mail GoDaddy/Gmail con digest y propuestas escritas sin envío normal; GoDaddy DNS preview/executor con dry-run.
 - Memoria DeepAgents con propuestas + aprobación + episódica.
 - Bot Telegram con 25+ comandos.
 - Research Orchestrator multi-subtarea con SSE y cancelación.
@@ -994,7 +997,7 @@ Lo que **falta** para llegar a "asistente personal absoluto" (detalle en [`PERSO
 | Brecha | Variables reservadas | Estado |
 | --- | --- | --- |
 | **Memoria personal temporal y semántica** (perfil, hábitos, decisiones expirables) | DeepAgents memory (extender) | Base lista, falta capa de perfil/expiración. |
-| **Correo multi-cuenta completo** (Gmail send/drafts aprobados, Microsoft, acciones mailbox) | `GMAIL_SEND_ENABLED`, `MICROSOFT_MAIL_ENABLED`, `MAIL_*` | Primer corte fuerte listo: GoDaddy IMAP/SMTP, Gmail label `TODOS` si OAuth activo, propuestas escritas y envío aprobado desde GoDaddy. Falta Gmail send/drafts, Microsoft y acciones de archivo/label. |
+| **Correo multi-cuenta completo** (lectura Gmail/GoDaddy, digest, propuestas; send/drafts solo si Diego lo pide en el futuro) | `GMAIL_SEND_ENABLED`, `MICROSOFT_MAIL_ENABLED`, `MAIL_*` | Primer corte fuerte listo: Gmail `TODOS`/`SPAM`, GoDaddy `Spam`, propuestas escritas y digest 10:00/20:00. Falta Microsoft y acciones de archivo/label; Gmail/GoDaddy send queda fuera del flujo normal. |
 | **Web grounding avanzado** (paneles de coste, cross-check sintético, presupuestos) | Multi-provider web search | Base multi-provider lista; falta UI/telemetría. |
 | **Navegación completa** (Camoufox real, recorder/replay, login con secret manager) | `BROWSER_AUTOMATION_PROVIDER=camoufox` | Camoufox como flag; provider real falta. |
 | **Agenda/tareas/recordatorios reales** (Google Calendar, scheduler, push) | Personal Assistant API (tasks/notes); `ENABLE_GOOGLE_CALENDAR`, `ENABLE_PERSONAL_REMINDER_DELIVERY` | Tasks/notes funcionando; Calendar list/create operativo bajo OAuth y aprobación. Falta scheduling/push proactivo completo. |

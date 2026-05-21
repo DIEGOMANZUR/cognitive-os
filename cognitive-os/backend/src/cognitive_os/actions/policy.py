@@ -118,7 +118,9 @@ def validate_allowed_browser_domain(
     if not allowed_domains:
         msg = "No browser domains are allow-listed."
         raise ActionPolicyViolation(msg)
-    if not any(hostname == domain or hostname.endswith(f".{domain}") for domain in allowed_domains):
+    if "*" not in allowed_domains and not any(
+        hostname == domain or hostname.endswith(f".{domain}") for domain in allowed_domains
+    ):
         msg = f"Domain is not allow-listed: {hostname}"
         raise ActionPolicyViolation(msg)
     if resolve_ip:

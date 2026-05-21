@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 
 import type { ApiClient } from "../lib/api";
-import { errorMessage, statusClass } from "../lib/api";
+import { asArray, errorMessage, statusClass } from "../lib/api";
+import { Icon } from "../components/Icon";
 import { usePolledFetch } from "../lib/hooks";
 import { useToast } from "../lib/toasts";
-import type { JobEventResponse, JobResponse } from "../lib/types";
+import type { JobCancelResponse, JobEventResponse, JobResponse } from "../lib/types";
 
 const TYPE_OPTIONS = [
   "",
@@ -50,8 +51,14 @@ export function JobsView({ client }: { client: ApiClient }) {
     if (cancelingJobId) return;
     setCancelingJobId(id);
     try {
-      await client.post(`/jobs/${id}/cancel`, {});
-      toast.push("Job cancelado.", "success");
+      const result = await client.post<JobCancelResponse>(`/jobs/${id}/cancel`, {});
+      if (result.celery_revoke_error) {
+        toast.push(`Cancelación falló: ${result.celery_revoke_error}`, "error");
+      } else if (result.celery_revoke_requested) {
+        toast.push("Job cancelado y Celery recibió revoke.", "success");
+      } else {
+        toast.push("Job marcado como cancelado; no había task id de Celery.", "success");
+      }
       void jobs.refetch();
       if (selectedJobId === id) void events.refetch();
     } catch (caught) {
@@ -65,8 +72,16 @@ export function JobsView({ client }: { client: ApiClient }) {
     <div className="grid-2" style={{ gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)" }}>
       <section className="section">
         <div className="section-head">
-          <h2>Jobs</h2>
+          <div className="stack" style={{ gap: 2 }}>
+            <h2>Jobs</h2>
+            <span className="faint small">
+              {asArray(jobs.data).length} resultados · live polling cada 4s
+            </span>
+          </div>
           <div className="row">
+            <span className="field-icon faint" aria-hidden="true">
+              <Icon name="filter" size={14} />
+            </span>
             <select value={type} onChange={(event) => setType(event.target.value)}>
               {TYPE_OPTIONS.map((option) => (
                 <option key={option} value={option}>
@@ -81,8 +96,8 @@ export function JobsView({ client }: { client: ApiClient }) {
                 </option>
               ))}
             </select>
-            <button className="ghost" onClick={() => jobs.refetch()} type="button">
-              Refrescar
+            <button className="ghost small" onClick={() => jobs.refetch()} type="button">
+              <Icon name="refresh" size={13} /> Refrescar
             </button>
           </div>
         </div>
@@ -99,14 +114,22 @@ export function JobsView({ client }: { client: ApiClient }) {
               </tr>
             </thead>
             <tbody>
-              {(jobs.data ?? []).length === 0 && (
+              {asArray(jobs.data).length === 0 && (
                 <tr>
-                  <td colSpan={6} className="muted">
-                    Sin jobs para este filtro.
+                  <td colSpan={6}>
+                    <div className="empty-state">
+                      <span className="empty-icon">
+                        <Icon name="jobs" size={18} />
+                      </span>
+                      <strong>Sin jobs para este filtro</strong>
+                      <span className="empty-msg">
+                        Cambiá filtros o lanzá una acción desde el Dashboard.
+                      </span>
+                    </div>
                   </td>
                 </tr>
               )}
-              {(jobs.data ?? []).map((job) => {
+              {asArray(jobs.data).map((job) => {
                 const terminal = ["completed", "failed", "cancelled"].includes(job.status);
                 return (
                   <tr
@@ -133,16 +156,16 @@ export function JobsView({ client }: { client: ApiClient }) {
                     </td>
                     <td>
                       <div className="row">
-                        <button onClick={() => setSelectedJobId(job.id)} type="button">
-                          Ver
+                        <button className="small" onClick={() => setSelectedJobId(job.id)} type="button">
+                          <Icon name="search" size={12} /> Ver
                         </button>
                         <button
-                          className="danger"
+                          className="danger small"
                           onClick={() => cancel(job.id)}
                           disabled={terminal || cancelingJobId !== null}
                           type="button"
                         >
-                          Cancelar
+                          <Icon name="close" size={12} /> Cancelar
                         </button>
                       </div>
                     </td>
@@ -163,7 +186,18 @@ export function JobsView({ client }: { client: ApiClient }) {
             </span>
           )}
         </div>
-        {!selectedJobId && <p className="muted small">Seleccioná un job para ver sus eventos.</p>}
+        {!selectedJobId && (
+          <div className="empty-state">
+            <span className="empty-icon">
+              <Icon name="audit" size={18} />
+            </span>
+            <strong>Seleccioná un job</strong>
+            <span className="empty-msg">
+              Hacé click en <code>Ver</code> en cualquier fila para inspeccionar sus eventos en
+              vivo.
+            </span>
+          </div>
+        )}
         {selectedJobId && (
           <div className="table-wrap">
             <table className="table">
@@ -177,14 +211,14 @@ export function JobsView({ client }: { client: ApiClient }) {
                 </tr>
               </thead>
               <tbody>
-                {(events.data ?? []).length === 0 && (
+                {asArray(events.data).length === 0 && (
                   <tr>
-                    <td colSpan={5} className="muted">
-                      Sin eventos registrados para este job.
+                    <td colSpan={5}>
+                      <span className="muted small">Sin eventos registrados para este job.</span>
                     </td>
                   </tr>
                 )}
-                {(events.data ?? []).map((event) => (
+                {asArray(events.data).map((event) => (
                   <tr key={event.id}>
                     <td className="small muted">
                       {new Date(event.created_at).toLocaleTimeString()}

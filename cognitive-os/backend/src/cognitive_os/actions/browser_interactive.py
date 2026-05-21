@@ -25,7 +25,7 @@ import time
 from collections.abc import Callable, Sequence
 from importlib.util import find_spec
 from pathlib import Path
-from typing import Protocol
+from typing import Literal, Protocol, cast
 from urllib.parse import urlparse
 
 import structlog
@@ -44,6 +44,8 @@ from cognitive_os.actions.schemas import (
 from cognitive_os.core.config import Settings, settings
 
 log = structlog.get_logger(__name__)
+
+PlaywrightWaitUntil = Literal["commit", "domcontentloaded", "load", "networkidle"]
 
 
 class VisionAnalyzer(Protocol):
@@ -339,7 +341,7 @@ class PlaywrightBrowserInteractiveProvider:
         screenshot_dir: Path,
         vision_analyzer: VisionAnalyzer | None,
     ) -> list[BrowserStepResult]:
-        from playwright.sync_api import sync_playwright  # type: ignore[import-not-found]
+        from playwright.sync_api import sync_playwright
 
         results: list[BrowserStepResult] = []
         screenshot_seq = 0
@@ -357,7 +359,11 @@ class PlaywrightBrowserInteractiveProvider:
             try:
                 context = browser.new_context()
                 page = context.new_page()
-                page.goto(initial_url, wait_until=wait_until, timeout=timeout_ms)
+                page.goto(
+                    initial_url,
+                    wait_until=cast("PlaywrightWaitUntil", wait_until),
+                    timeout=timeout_ms,
+                )
                 for index, step in enumerate(steps):
                     started = time.monotonic()
                     try:

@@ -30,6 +30,8 @@ def _settings(
     require_approval: bool = True,
     ssrf_check: bool = False,
     url: str = "http://127.0.0.1:10086",
+    edge_devtools: bool = False,
+    edge_devtools_prefer: bool = False,
 ) -> Settings:
     return Settings.model_construct(
         enable_kimi_webbridge=enabled,
@@ -40,7 +42,26 @@ def _settings(
         kimi_webbridge_request_timeout_seconds=5,
         enable_browser_ssrf_check=ssrf_check,
         http_timeout_seconds=5.0,
+        enable_edge_devtools_webbridge=edge_devtools,
+        edge_devtools_url="http://127.0.0.1:9222",
+        edge_devtools_prefer=edge_devtools_prefer,
     )
+
+
+class FakeEdgeDevToolsProvider:
+    def __init__(self, *, running: bool = True, raises: bool = False) -> None:
+        self.running = running
+        self.raises = raises
+        self.calls: list[dict[str, Any]] = []
+
+    def status_probe(self) -> dict[str, Any]:
+        return {"running": self.running, "enabled": True, "pages": 1 if self.running else 0}
+
+    def call(self, action: str, args: dict[str, Any], session: str | None) -> dict[str, Any]:
+        self.calls.append({"action": action, "args": args, "session": session})
+        if self.raises:
+            raise KimiWebBridgeError("fake edge devtools failure")
+        return {"success": True, "action": action, "provider": "edge_devtools"}
 
 
 def test_host_helpers() -> None:
@@ -78,12 +99,68 @@ def test_status_disabled_blocked_ready() -> None:
     assert no_allowlist.status == "blocked"
     assert "ALLOWED_DOMAINS" in (no_allowlist.reason or "")
 
+    no_extension = KimiWebBridgeService(
+        provider=FakeWebBridgeProvider(extension_connected=False),
+        app_settings=_settings(domains=["google.com"]),
+    ).status()
+    assert no_extension.status == "blocked"
+    assert "extension" in (no_extension.reason or "").lower()
+
     ready = KimiWebBridgeService(
         provider=FakeWebBridgeProvider(),
         app_settings=_settings(domains=["google.com"]),
     ).status()
     assert ready.status == "ready"
     assert ready.allowed_domain_count == 1
+
+
+def test_status_uses_edge_devtools_when_kimi_extension_is_disconnected() -> None:
+    service = KimiWebBridgeService(
+        provider=FakeWebBridgeProvider(extension_connected=False),
+        devtools_provider=FakeEdgeDevToolsProvider(),
+        app_settings=_settings(domains=["*"], edge_devtools=True),
+    )
+
+    status = service.status()
+
+    assert status.status == "ready"
+    assert status.active_provider == "edge_devtools"
+    assert status.edge_devtools_running is True
+
+
+def test_edge_devtools_preferred_for_real_browser_calls() -> None:
+    fake_kimi = FakeWebBridgeProvider(responses={"snapshot": {"provider": "kimi"}})
+    fake_devtools = FakeEdgeDevToolsProvider()
+    service = KimiWebBridgeService(
+        provider=fake_kimi,
+        devtools_provider=fake_devtools,
+        app_settings=_settings(
+            domains=["google.com"],
+            edge_devtools=True,
+            edge_devtools_prefer=True,
+        ),
+    )
+
+    result = service.snapshot(SnapshotRequest(session="main"))
+
+    assert result.payload["provider"] == "edge_devtools"
+    assert fake_devtools.calls == [{"action": "snapshot", "args": {}, "session": "main"}]
+    assert fake_kimi.calls == []
+
+
+def test_edge_devtools_fallback_when_kimi_daemon_fails() -> None:
+    fake_devtools = FakeEdgeDevToolsProvider()
+    service = KimiWebBridgeService(
+        provider=FakeWebBridgeProvider(raises=True),
+        devtools_provider=fake_devtools,
+        app_settings=_settings(domains=["google.com"], edge_devtools=True),
+    )
+
+    result = service.snapshot(SnapshotRequest())
+
+    assert result.status == "ok"
+    assert result.payload["provider"] == "edge_devtools"
+    assert fake_devtools.calls[0]["action"] == "snapshot"
 
 
 def test_wildcard_domains_makes_status_ready_and_allows_any_host() -> None:
@@ -140,6 +217,27 @@ def test_navigate_accepts_subdomain_of_allowed_root() -> None:
             "session": None,
         }
     ]
+
+
+def test_sessioned_browser_actions_use_active_tab_transport() -> None:
+    fake = FakeWebBridgeProvider(responses={"snapshot": {"url": "https://google.com"}})
+    service = KimiWebBridgeService(
+        provider=fake,
+        app_settings=_settings(domains=["google.com"]),
+    )
+
+    service.navigate(NavigateRequest(url="https://google.com", session="agent-session"))
+    snap = service.snapshot(SnapshotRequest(session="agent-session"))
+    tabs = service.list_tabs(session="agent-session")
+
+    assert snap.payload == {"url": "https://google.com"}
+    assert fake.calls[0]["action"] == "navigate"
+    assert fake.calls[0]["session"] is None
+    assert fake.calls[1]["action"] == "snapshot"
+    assert fake.calls[1]["session"] is None
+    assert fake.calls[2]["action"] == "list_tabs"
+    assert fake.calls[2]["session"] == "agent-session"
+    assert tabs.status == "ok"
 
 
 def test_navigate_rejects_private_ip_when_ssrf_check_enabled() -> None:
@@ -228,18 +326,110 @@ def test_http_provider_call_parses_response(monkeypatch: pytest.MonkeyPatch) -> 
     def fake_post(url: str, **kwargs: Any) -> httpx.Response:
         received.append({"url": url, "json": kwargs.get("json")})
         return httpx.Response(
-            200, json={"ok": True, "tabId": 42}, request=httpx.Request("POST", url)
+            200,
+            json={"ok": True, "data": {"success": True, "tabId": 42}},
+            request=httpx.Request("POST", url),
         )
 
     monkeypatch.setattr(httpx, "post", fake_post)
     cfg = _settings(domains=["google.com"])
     payload = HttpWebBridgeProvider(cfg).call("navigate", {"url": "https://google.com"}, "main")
-    assert payload == {"ok": True, "tabId": 42}
+    assert payload == {"success": True, "tabId": 42}
     assert received[0]["json"] == {
         "action": "navigate",
         "args": {"url": "https://google.com"},
         "session": "main",
     }
+
+
+def test_http_provider_keeps_legacy_direct_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    from cognitive_os.actions.kimi_webbridge import HttpWebBridgeProvider
+
+    def fake_post(url: str, **kwargs: Any) -> httpx.Response:
+        del kwargs
+        return httpx.Response(
+            200,
+            json={"success": True, "tabs": []},
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    payload = HttpWebBridgeProvider(_settings(domains=["google.com"])).call(
+        "list_tabs",
+        {},
+        None,
+    )
+    assert payload == {"success": True, "tabs": []}
+
+
+def test_http_provider_wraps_scalar_envelope_data(monkeypatch: pytest.MonkeyPatch) -> None:
+    from cognitive_os.actions.kimi_webbridge import HttpWebBridgeProvider
+
+    def fake_post(url: str, **kwargs: Any) -> httpx.Response:
+        del kwargs
+        return httpx.Response(
+            200,
+            json={"ok": True, "data": "base64-image"},
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    payload = HttpWebBridgeProvider(_settings(domains=["google.com"])).call(
+        "screenshot",
+        {},
+        None,
+    )
+    assert payload == {"data": "base64-image"}
+
+
+def test_http_provider_raises_on_daemon_error_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from cognitive_os.actions.kimi_webbridge import HttpWebBridgeProvider
+
+    def fake_post(url: str, **kwargs: Any) -> httpx.Response:
+        del kwargs
+        return httpx.Response(
+            200,
+            json={
+                "ok": False,
+                "error": {"code": "extension_error", "message": "Cannot access current tab"},
+            },
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    with pytest.raises(KimiWebBridgeError, match="extension_error"):
+        HttpWebBridgeProvider(_settings(domains=["google.com"])).call(
+            "snapshot",
+            {},
+            None,
+        )
+
+
+def test_status_probe_unwraps_current_daemon_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from cognitive_os.actions.kimi_webbridge import HttpWebBridgeProvider
+
+    def fake_get(url: str, **kwargs: Any) -> httpx.Response:
+        del kwargs
+        return httpx.Response(404, text="page not found", request=httpx.Request("GET", url))
+
+    def fake_post(url: str, **kwargs: Any) -> httpx.Response:
+        del kwargs
+        return httpx.Response(
+            200,
+            json={"ok": True, "data": {"success": True, "tabs": []}},
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+    monkeypatch.setattr(httpx, "post", fake_post)
+    probe = HttpWebBridgeProvider(_settings(domains=["google.com"])).status_probe()
+    assert probe["running"] is True
+    assert probe["extension_connected"] is True
+    assert probe["tabs"] == 0
 
 
 def test_http_provider_raises_on_invalid_json(monkeypatch: pytest.MonkeyPatch) -> None:

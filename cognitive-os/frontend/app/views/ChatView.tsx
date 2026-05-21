@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ApiClient } from "../lib/api";
 import { errorMessage } from "../lib/api";
+import { Icon } from "../components/Icon";
 import { renderMarkdownLite } from "../lib/markdown";
 import { useHydrated } from "../lib/hooks";
 import { useToast } from "../lib/toasts";
@@ -181,8 +182,13 @@ export function ChatView({ client }: { client: ApiClient }) {
       <section className="section stack" style={{ position: "sticky", top: 16 }}>
         <div className="section-head">
           <h2>Threads</h2>
-          <button className="ghost" onClick={() => void refreshThreads()} type="button">
-            ↻
+          <button
+            className="ghost icon"
+            onClick={() => void refreshThreads()}
+            type="button"
+            aria-label="Refrescar threads"
+          >
+            <Icon name="refresh" size={14} />
           </button>
         </div>
         <button
@@ -196,11 +202,20 @@ export function ChatView({ client }: { client: ApiClient }) {
           }}
           type="button"
         >
-          + Nuevo thread
+          <Icon name="plus" size={14} /> Nuevo thread
         </button>
         <ul className="stack" style={{ gap: 4, listStyle: "none", padding: 0, margin: 0 }}>
           {recentThreads.length === 0 && (
-            <li className="muted small">Sin threads recientes.</li>
+            <li>
+              <div className="empty-state" style={{ padding: "18px 8px" }}>
+                <span className="empty-icon">
+                  <Icon name="chat" size={16} />
+                </span>
+                <span className="empty-msg">
+                  Aún no hay threads. Hacé tu primera consulta abajo.
+                </span>
+              </div>
+            </li>
           )}
           {recentThreads.map((thread) => (
             <li key={thread.thread_id}>
@@ -351,6 +366,7 @@ export function ChatView({ client }: { client: ApiClient }) {
               onClick={() => void send(false)}
               type="button"
             >
+              {busy ? <span className="spinner" aria-hidden="true" /> : <Icon name="send" size={14} />}
               Enviar
             </button>
             <button
@@ -358,15 +374,15 @@ export function ChatView({ client }: { client: ApiClient }) {
               onClick={() => void send(true)}
               type="button"
             >
-              Enviar (SSE)
+              <Icon name="zap" size={14} /> Enviar (SSE)
             </button>
             {currentThreadId && (
               <button
-                className="ghost"
+                className="ghost small"
                 onClick={() => void refreshThread(currentThreadId)}
                 type="button"
               >
-                Refrescar thread
+                <Icon name="refresh" size={13} /> Refrescar thread
               </button>
             )}
           </div>

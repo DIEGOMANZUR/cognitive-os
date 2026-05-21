@@ -3,7 +3,8 @@
 import { useState } from "react";
 
 import type { ApiClient } from "../lib/api";
-import { errorMessage, statusClass } from "../lib/api";
+import { asArray, errorMessage, statusClass } from "../lib/api";
+import { EmptyState, ErrorPanel, Skeleton } from "../components/StatePrimitives";
 import { usePolledFetch } from "../lib/hooks";
 import { useToast } from "../lib/toasts";
 import type { DocumentChunk, DocumentSummary, IngestResponse } from "../lib/types";
@@ -118,14 +119,32 @@ export function DocumentsView({ client }: { client: ApiClient }) {
               </tr>
             </thead>
             <tbody>
-              {(documents.data ?? []).length === 0 && (
+              {documents.error && asArray(documents.data).length === 0 && (
                 <tr>
-                  <td colSpan={8} className="muted">
-                    Aún no hay documentos ingestados.
+                  <td colSpan={8}>
+                    <ErrorPanel error={documents.error} onRetry={() => void documents.refetch()} />
                   </td>
                 </tr>
               )}
-              {(documents.data ?? []).map((document) => (
+              {documents.loading && asArray(documents.data).length === 0 && !documents.error && (
+                <tr>
+                  <td colSpan={8}>
+                    <Skeleton rows={4} />
+                  </td>
+                </tr>
+              )}
+              {!documents.loading && !documents.error && asArray(documents.data).length === 0 && (
+                <tr>
+                  <td colSpan={8}>
+                    <EmptyState
+                      icon="documents"
+                      title="Aún no hay documentos ingestados"
+                      message="Subí un PDF arriba o usá Ingestar PDF desde el Dashboard."
+                    />
+                  </td>
+                </tr>
+              )}
+              {asArray(documents.data).map((document) => (
                 <Row
                   key={document.id}
                   document={document}

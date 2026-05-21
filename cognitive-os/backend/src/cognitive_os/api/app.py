@@ -148,6 +148,7 @@ from cognitive_os.code_director.schemas import BuildPlan, CodeBuildRequest
 from cognitive_os.code_director.service import CodeDirectorError, CodeDirectorService
 from cognitive_os.core.auth import (
     AuthenticatedUser,
+    create_access_token,
     require_admin_user,
     require_authenticated_user,
     require_langsmith_api_access,
@@ -189,6 +190,8 @@ from cognitive_os.deepagents.openshell_schemas import OpenShellResult, OpenShell
 from cognitive_os.deepagents.skills_registry import DeepAgentSkillsRegistry
 from cognitive_os.mail.schemas import (
     MailApproveReplyRequest,
+    MailDigestRequest,
+    MailDigestResult,
     MailEditReplyRequest,
     MailMessageView,
     MailSendResult,
@@ -199,6 +202,7 @@ from cognitive_os.mail.service import MailServiceError, PersonalMailService
 from cognitive_os.memory.retrieval import RetrievedContext, retrieve_context
 from cognitive_os.voice.schemas import SpeakRequest, TranscriptionResult, VoiceStatus
 from cognitive_os.voice.service import VoiceError, VoiceService
+from cognitive_os.workers.celery_app import celery_app
 from cognitive_os.workers.tasks import (
     aggregate_tool_scorecard_task,
     consolidate_all_deepagent_memory_task,
@@ -215,6 +219,104 @@ from cognitive_os.workers.tasks import (
 )
 
 logger = structlog.get_logger(__name__)
+
+
+def _celery_task_id(async_result: Any) -> str | None:
+    raw_id = getattr(async_result, "id", None) or getattr(async_result, "task_id", None)
+    if raw_id is None:
+        return None
+    task_id = str(raw_id).strip()
+    return task_id or None
+
+
+async def _record_celery_dispatch_outcome(
+    *,
+    job_id: UUID,
+    task_name: str,
+    queue: str,
+    surface: str,
+    async_result: Any | None = None,
+    error: Exception | None = None,
+) -> None:
+    task_id = _celery_task_id(async_result)
+    async with session_scope() as session:
+        job = await session.get(Job, job_id)
+        if job is None:
+            return
+        metadata = dict(job.metadata_json or {})
+        metadata["celery_task_name"] = task_name
+        metadata["celery_queue"] = queue
+        metadata["celery_surface"] = surface
+        now = datetime.now(UTC).isoformat()
+        event_metadata: dict[str, Any] = {
+            "task_name": task_name,
+            "queue": queue,
+            "surface": surface,
+        }
+        if task_id is not None:
+            metadata["celery_task_id"] = task_id
+            event_metadata["celery_task_id"] = task_id
+        if error is None:
+            metadata["celery_submitted_at"] = now
+            event_type = f"{task_name}_dispatch_submitted"
+            event_status = job.status
+            message = f"{task_name} submitted to Celery queue {queue}."
+        else:
+            metadata["celery_dispatch_failed_at"] = now
+            metadata["celery_dispatch_error_type"] = type(error).__name__
+            metadata["celery_dispatch_error"] = str(error)
+            event_metadata["error_type"] = type(error).__name__
+            event_metadata["error"] = str(error)
+            job.status = "failed"
+            job.progress = 100
+            event_type = f"{task_name}_dispatch_failed"
+            event_status = "failed"
+            message = f"Celery refused {task_name} dispatch to queue {queue}."
+        job.metadata_json = metadata
+        session.add(
+            JobEvent(
+                job_id=job.id,
+                event_type=event_type,
+                status=event_status,
+                message=message,
+                metadata_json=event_metadata,
+            )
+        )
+
+
+async def _dispatch_job_to_celery_or_503(
+    *,
+    job_id: UUID,
+    task_name: str,
+    queue: str,
+    submit: Callable[[], Any],
+    surface: str = "rest",
+) -> Any:
+    try:
+        async_result = submit()
+    except Exception as exc:  # noqa: BLE001 - broker failures are operator-facing
+        await _record_celery_dispatch_outcome(
+            job_id=job_id,
+            task_name=task_name,
+            queue=queue,
+            surface=surface,
+            error=exc,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                f"Celery dispatch failed for {task_name} "
+                f"({type(exc).__name__}). The job was marked failed."
+            ),
+        ) from exc
+    await _record_celery_dispatch_outcome(
+        job_id=job_id,
+        task_name=task_name,
+        queue=queue,
+        surface=surface,
+        async_result=async_result,
+    )
+    return async_result
 
 
 def _empty_retriever(query: str) -> list[RetrievedContext]:
@@ -358,6 +460,14 @@ async def correlation_id_middleware(request: Any, call_next: Any) -> Any:
 class HealthResponse(BaseModel):
     status: str
     service: str
+
+
+class LocalTokenResponse(BaseModel):
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    user_id: str
+    roles: list[str]
+    expires_at: datetime
 
 
 class SystemInfoResponse(BaseModel):
@@ -525,6 +635,7 @@ class PublicConfigResponse(BaseModel):
     # leaking any secrets — `/config/public` is the read-only mirror of which
     # presets the operator chose.
     operator_profile: str
+    local_autonomy_mode: str
     auto_approve_reversible_actions: bool
     code_director_budget_mode: str
     web_search_enabled: bool
@@ -570,6 +681,7 @@ class PublicConfigResponse(BaseModel):
     mail_enabled: bool
     mail_godaddy_enabled: bool
     mail_require_approval_for_send: bool
+    mail_background_sync_enabled: bool
     mail_poll_interval_seconds: int
     mail_fetch_max_per_folder: int
     mail_imap_timeout_seconds: int
@@ -597,6 +709,9 @@ class PublicConfigResponse(BaseModel):
 class JobCancelResponse(BaseModel):
     id: UUID
     status: str
+    celery_task_id: str | None = None
+    celery_revoke_requested: bool = False
+    celery_revoke_error: str | None = None
 
 
 class ThreadSummaryResponse(BaseModel):
@@ -696,6 +811,37 @@ class LangSmithStatusView(BaseModel):
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     return HealthResponse(status="ok", service="cognitive-os")
+
+
+@app.post("/auth/local-token", response_model=LocalTokenResponse)
+async def create_local_operator_token(response: Response) -> LocalTokenResponse:
+    """Mint a long-lived local operator JWT for the dedicated-PC cockpit.
+
+    This is deliberately unavailable in `strict`/guarded modes. The single-PC
+    profile trades auth friction for operational autonomy, but the endpoint
+    must still be impossible to accidentally expose in the standard profile.
+    """
+    if settings.operator_profile != "dedicated_local" or settings.local_autonomy_mode != "full":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Local token bootstrap is only available in dedicated_local/full mode.",
+        )
+    issued_at = datetime.now(UTC)
+    expires_delta = timedelta(days=3650)
+    roles = sorted(set(settings.auth_default_roles) | set(settings.auth_admin_roles) | {"operator"})
+    token = create_access_token(
+        user_id="local-operator",
+        roles=roles,
+        expires_delta=expires_delta,
+        now=issued_at,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return LocalTokenResponse(
+        access_token=token,
+        user_id="local-operator",
+        roles=roles,
+        expires_at=issued_at + expires_delta,
+    )
 
 
 _SYSTEM_STARTED_AT = datetime.now(UTC)
@@ -866,7 +1012,28 @@ async def system_mcp_inventory(
     # (e.g. just edited MCP_SERVERS). Drop the per-role tool cache so the
     # next DeepAgent build re-handshakes instead of serving 5-min-stale data.
     invalidate_mcp_tool_cache()
-    _tools, statuses = await load_mcp_tools_async(settings)
+    try:
+        _tools, statuses = await asyncio.wait_for(
+            load_mcp_tools_async(settings),
+            timeout=settings.mcp_inventory_timeout_seconds,
+        )
+    except TimeoutError:
+        timeout = settings.mcp_inventory_timeout_seconds
+        return MCPInventoryResponse(
+            enabled=True,
+            declared_count=len(declared),
+            servers=[
+                MCPServerStatusResponse(
+                    name=spec.name,
+                    transport=spec.transport,
+                    target=spec.target,
+                    connected=False,
+                    tools_count=0,
+                    error=f"MCP inventory timed out after {timeout:g}s.",
+                )
+                for spec in declared
+            ],
+        )
     return MCPInventoryResponse(
         enabled=True,
         declared_count=len(declared),
@@ -1165,7 +1332,15 @@ async def ingest_document(
         )
         job_id = job.id
 
-    ingest_pdf_task.apply_async(args=[document_path, str(job_id)], queue="ingestion")
+    await _dispatch_job_to_celery_or_503(
+        job_id=job_id,
+        task_name="document_ingestion",
+        queue="ingestion",
+        submit=lambda: ingest_pdf_task.apply_async(
+            args=[document_path, str(job_id)],
+            queue="ingestion",
+        ),
+    )
     return IngestDocumentResponse(job_id=job_id, status="queued")
 
 
@@ -1211,7 +1386,15 @@ async def start_deepagent_research(
             )
         )
         job_id = job.id
-    run_deepagent_task_async.apply_async(args=[task_dict, str(job_id)], queue="agent_longrun")
+    await _dispatch_job_to_celery_or_503(
+        job_id=job_id,
+        task_name="deepagent_research",
+        queue="agent_longrun",
+        submit=lambda: run_deepagent_task_async.apply_async(
+            args=[task_dict, str(job_id)],
+            queue="agent_longrun",
+        ),
+    )
     return IngestDocumentResponse(job_id=job_id, status="queued")
 
 
@@ -1243,9 +1426,14 @@ async def run_openshell(
         return OpenShellRunResponse(status="needs_approval", job_id=job_id, approval_id=approval_id)
 
     job_id = await _create_openshell_job(task, user.user_id)
-    run_openshell_task_async.apply_async(
-        args=[task.model_dump(mode="json"), str(job_id)],
+    await _dispatch_job_to_celery_or_503(
+        job_id=job_id,
+        task_name="openshell",
         queue="agent_longrun",
+        submit=lambda: run_openshell_task_async.apply_async(
+            args=[task.model_dump(mode="json"), str(job_id)],
+            queue="agent_longrun",
+        ),
     )
     return OpenShellRunResponse(status="queued", job_id=job_id)
 
@@ -1261,9 +1449,14 @@ async def run_document_analysis(
 ) -> DocumentAnalysisRunResponse:
     task = request.model_copy(update={"user_id": request.user_id or user.user_id})
     job_id = await _create_document_analysis_job(task, user.user_id)
-    run_document_analysis_task_async.apply_async(
-        args=[task.model_dump(mode="json"), str(job_id)],
+    await _dispatch_job_to_celery_or_503(
+        job_id=job_id,
+        task_name="document_analysis",
         queue="agent_longrun",
+        submit=lambda: run_document_analysis_task_async.apply_async(
+            args=[task.model_dump(mode="json"), str(job_id)],
+            queue="agent_longrun",
+        ),
     )
     return DocumentAnalysisRunResponse(status="queued", task_id=task.task_id, job_id=job_id)
 
@@ -1858,30 +2051,87 @@ async def cancel_job(
     job_id: UUID,
     user: AuthenticatedUser = _auth_dependency,
 ) -> JobCancelResponse:
-    """Mark a job as cancelled and append an audit event.
-
-    This does *not* kill the underlying Celery task — it is an idempotent
-    state transition for the operator dashboard. Active workers will keep
-    running their current iteration but the cancel flag will be visible to
-    any code that polls the job state.
-    """
+    """Cancel a job and revoke its Celery task when the task id is known."""
     async with session_scope() as session:
         job = await session.get(Job, job_id)
         if job is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
         if job.status in {"completed", "failed", "cancelled"}:
             return JobCancelResponse(id=job.id, status=job.status)
+
+        metadata = dict(job.metadata_json or {})
+        raw_task_id = metadata.get("celery_task_id")
+        celery_task_id = raw_task_id if isinstance(raw_task_id, str) and raw_task_id else None
+        revoke_error: str | None = None
+        if celery_task_id is not None:
+            try:
+                await asyncio.to_thread(
+                    celery_app.control.revoke,
+                    celery_task_id,
+                    terminate=True,
+                    signal="SIGTERM",
+                )
+            except Exception as exc:  # noqa: BLE001 - broker/worker failure must be visible
+                revoke_error = f"{type(exc).__name__}: {exc}"
+                metadata["celery_revoke_failed_at"] = datetime.now(UTC).isoformat()
+                metadata["celery_revoke_error_type"] = type(exc).__name__
+                metadata["celery_revoke_error"] = str(exc)
+                job.metadata_json = metadata
+                session.add(
+                    JobEvent(
+                        job_id=job.id,
+                        event_type="job_cancel_failed",
+                        status=job.status,
+                        message="Celery revoke failed; job status was left unchanged",
+                        metadata_json={
+                            "by_user": user.user_id,
+                            "celery_task_id": celery_task_id,
+                            "error_type": type(exc).__name__,
+                            "error": str(exc),
+                        },
+                    )
+                )
+                return JobCancelResponse(
+                    id=job.id,
+                    status=job.status,
+                    celery_task_id=celery_task_id,
+                    celery_revoke_requested=False,
+                    celery_revoke_error=revoke_error,
+                )
+
+            metadata["celery_revoke_requested_at"] = datetime.now(UTC).isoformat()
+            metadata["celery_revoke_signal"] = "SIGTERM"
+        else:
+            metadata["cancel_without_celery_task_id"] = True
+            metadata["cancel_without_celery_task_id_at"] = datetime.now(UTC).isoformat()
+
         job.status = "cancelled"
+        job.progress = 100
+        job.metadata_json = metadata
         session.add(
             JobEvent(
                 job_id=job.id,
                 event_type="job_cancelled",
                 status="cancelled",
-                message="Cancelled from operator dashboard",
-                metadata_json={"by_user": user.user_id},
+                message=(
+                    "Cancelled from operator dashboard and Celery revoke requested"
+                    if celery_task_id is not None
+                    else "Cancelled from operator dashboard; no Celery task id was recorded"
+                ),
+                metadata_json={
+                    "by_user": user.user_id,
+                    "celery_task_id": celery_task_id,
+                    "celery_revoke_requested": celery_task_id is not None,
+                },
             )
         )
-        return JobCancelResponse(id=job.id, status=job.status)
+        return JobCancelResponse(
+            id=job.id,
+            status=job.status,
+            celery_task_id=celery_task_id,
+            celery_revoke_requested=celery_task_id is not None,
+            celery_revoke_error=revoke_error,
+        )
 
 
 @app.get("/documents", response_model=list[DocumentSummaryResponse])
@@ -2010,6 +2260,7 @@ async def public_config(
     return PublicConfigResponse(
         environment=settings.environment,
         operator_profile=settings.operator_profile,
+        local_autonomy_mode=settings.local_autonomy_mode,
         auto_approve_reversible_actions=settings.auto_approve_reversible_actions,
         code_director_budget_mode=settings.code_director_budget_mode,
         web_search_enabled=settings.web_search_enabled,
@@ -2057,6 +2308,7 @@ async def public_config(
         mail_enabled=settings.mail_enabled,
         mail_godaddy_enabled=settings.mail_godaddy_enabled,
         mail_require_approval_for_send=settings.mail_require_approval_for_send,
+        mail_background_sync_enabled=settings.mail_background_sync_enabled,
         mail_poll_interval_seconds=settings.mail_poll_interval_seconds,
         mail_fetch_max_per_folder=settings.mail_fetch_max_per_folder,
         mail_imap_timeout_seconds=settings.mail_imap_timeout_seconds,
@@ -2264,7 +2516,7 @@ async def dispatch_action_request(
             reason="Action request has no job to dispatch.",
         )
     try:
-        run_action_request_task_async.apply_async(
+        async_result = run_action_request_task_async.apply_async(
             args=[str(action_request.id), str(action_request.job_id)],
             queue="agent_longrun",
         )
@@ -2286,6 +2538,10 @@ async def dispatch_action_request(
                 "Action request remains queued; retry dispatch when the broker is healthy."
             ),
         )
+    dispatch_metadata: dict[str, object] = {"queue": "agent_longrun"}
+    dispatched_task_id = _celery_task_id(async_result)
+    if dispatched_task_id is not None:
+        dispatch_metadata["celery_task_id"] = dispatched_task_id
     await _record_action_dispatch_event(
         action_service,
         job_id=action_request.job_id,
@@ -2293,7 +2549,7 @@ async def dispatch_action_request(
         event_type="action_request_dispatch_submitted",
         status="queued",
         message="Action request submitted to Celery",
-        metadata_json={"queue": "agent_longrun"},
+        metadata_json=dispatch_metadata,
     )
     return ActionDispatchResponse(action_request=action_request, dispatched=True)
 
@@ -2924,6 +3180,15 @@ async def dispatch_personal_mail_sync(
     del user
     async_result = sync_personal_mail_task.apply_async(queue="mail")
     return {"task_id": str(async_result.id), "status": "dispatched"}
+
+
+@app.post("/mail/digest/preview", response_model=MailDigestResult)
+async def preview_personal_mail_digest(
+    request: MailDigestRequest,
+    user: AuthenticatedUser = _auth_dependency,
+) -> MailDigestResult:
+    del user
+    return await PersonalMailService().build_digest(request)
 
 
 @app.get("/mail/messages", response_model=list[MailMessageView])

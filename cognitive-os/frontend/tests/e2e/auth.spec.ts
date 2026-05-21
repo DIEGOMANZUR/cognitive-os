@@ -8,26 +8,44 @@ import {
   watchPageHealth,
 } from "./_helpers";
 
+const AUTO_JWT = fakeJwt(Date.now() + 365 * 24 * 60 * 60 * 1000);
+
 /**
- * El panel es un SPA sin login real: el operador pega un JWT en el
- * TopBar y eso desbloquea el polling autenticado. Auditamos los tres
- * casos: sin JWT, JWT inválido y JWT válido.
+ * El panel es un SPA local: en dedicated_local/full debe conseguir su JWT
+ * automáticamente, pero sigue permitiendo override manual en TopBar/Conexión.
  */
 test.describe("auth: el JWT controla el acceso autenticado", () => {
-  test("sin JWT el panel monta y muestra la TopBar pidiendo token", async ({
+  test("sin JWT persistido el panel autoprovisiona un JWT local", async ({
     page,
   }) => {
     const health = watchPageHealth(page);
-    // No seedAuth aquí.
+    await page.route("**/auth/local-token", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          access_token: AUTO_JWT,
+          token_type: "bearer",
+          user_id: "local-operator",
+          roles: ["admin", "operator"],
+          expires_at: "2036-05-20T00:00:00Z",
+        }),
+      });
+    });
     await page.goto("/");
 
-    // Sidebar sigue renderizando (el panel no se rompe sin JWT).
+    // Sidebar sigue renderizando y el JWT queda fijo en localStorage.
     await expect(page.getByRole("button", { name: "Dashboard" })).toBeVisible();
-    await expect(page.getByLabel("JWT local")).toBeVisible();
+    await expect(page.getByLabel("JWT local")).toHaveValue(AUTO_JWT);
+    await expect(
+      page.getByText("Falta JWT local"),
+    ).toHaveCount(0);
+    await expect
+      .poll(() =>
+        page.evaluate(() => window.localStorage.getItem("cogos.token.source")),
+      )
+      .toBe(JSON.stringify("auto"));
 
-    // Aviso esperado: tabs como Health/Dashboard polling con token vacío
-    // no pueden devolver 5xx; SI pueden devolver 401, eso es correcto.
-    // Sólo flunkeamos 5xx puros.
     expect(health.serverErrors).toEqual([]);
     health.dispose();
   });
@@ -87,3 +105,24 @@ test.describe("auth: el JWT controla el acceso autenticado", () => {
     health.dispose();
   });
 });
+
+function fakeJwt(expiresAtMs: number): string {
+  const payload = {
+    sub: "local-operator",
+    roles: ["admin", "operator"],
+    exp: Math.floor(expiresAtMs / 1000),
+  };
+  return [
+    base64Url({ alg: "HS256", typ: "JWT" }),
+    base64Url(payload),
+    "fake-signature",
+  ].join(".");
+}
+
+function base64Url(value: unknown): string {
+  return Buffer.from(JSON.stringify(value))
+    .toString("base64")
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+}

@@ -32,6 +32,21 @@ IMPORTANT_TERMS = {
     "important",
 }
 PROMO_TERMS = {"unsubscribe", "newsletter", "promotion", "descuento", "oferta", "sale"}
+SPAM_TERMS = {
+    "casino",
+    "crypto",
+    "viagra",
+    "lottery",
+    "premio",
+    "ganaste",
+    "winner",
+    "free money",
+    "password expired",
+    "verify your account",
+    "suspicious activity",
+    "click here",
+    "limited time",
+}
 
 
 def classify_and_propose(
@@ -55,20 +70,27 @@ def classify_and_propose(
     if any(term in lowered for term in PROMO_TERMS):
         score -= 0.25
         reasons.append("senales promocionales")
-    if "spam" in folder_lower or "junk" in folder_lower or "bulk" in folder_lower:
+    folder_is_spamish = "spam" in folder_lower or "junk" in folder_lower or "bulk" in folder_lower
+    if folder_is_spamish:
         score -= 0.05
-        reasons.append("origen carpeta spam/junk revisada explicitamente")
+        reasons.append("origen carpeta spam/junk revisada, sin confiar en esa clasificacion")
     if "doctormanzur.com" in lowered:
         score += 0.2
         reasons.append("menciona dominio/cuenta principal")
     score = max(0.0, min(1.0, score))
 
+    spam_hits = sorted(term for term in SPAM_TERMS if term in lowered)
+    if spam_hits:
+        score -= min(0.45, 0.15 * len(spam_hits))
+        reasons.append("senales de spam detectadas por contenido: " + ", ".join(spam_hits[:5]))
+    score = max(0.0, min(1.0, score))
+
     if score >= 0.62:
         classification = "important"
+    elif spam_hits:
+        classification = "spam"
     elif any(term in lowered for term in PROMO_TERMS):
         classification = "promo"
-    elif "spam" in folder_lower or "junk" in folder_lower or "bulk" in folder_lower:
-        classification = "spam"
     else:
         classification = "normal"
 

@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { ApiClient } from "../lib/api";
-import { errorMessage, statusClass } from "../lib/api";
+import { asArray, errorMessage, statusClass } from "../lib/api";
+import { EmptyState, ErrorPanel, Skeleton } from "../components/StatePrimitives";
 import { usePolledFetch } from "../lib/hooks";
 import { useToast } from "../lib/toasts";
 import type {
@@ -99,7 +100,7 @@ export function LangSmithView({ client }: { client: ApiClient }) {
           <label className="stack" style={{ minWidth: 220 }}>
             <span className="muted small">Proyecto</span>
             <select value={project} onChange={(event) => setProject(event.target.value)}>
-              {(projects.data ?? []).map((option) => (
+              {asArray(projects.data).map((option) => (
                 <option key={option.id} value={option.name}>
                   {option.name}
                 </option>
@@ -144,14 +145,32 @@ export function LangSmithView({ client }: { client: ApiClient }) {
                 </tr>
               </thead>
               <tbody>
-                {(runs.data ?? []).length === 0 && (
+                {runs.error && asArray(runs.data).length === 0 && (
                   <tr>
-                    <td colSpan={5} className="muted">
-                      Sin runs todavía.
+                    <td colSpan={5}>
+                      <ErrorPanel error={runs.error} onRetry={() => void runs.refetch()} />
                     </td>
                   </tr>
                 )}
-                {(runs.data ?? []).map((run) => (
+                {runs.loading && asArray(runs.data).length === 0 && !runs.error && (
+                  <tr>
+                    <td colSpan={5}>
+                      <Skeleton rows={4} />
+                    </td>
+                  </tr>
+                )}
+                {!runs.loading && !runs.error && asArray(runs.data).length === 0 && (
+                  <tr>
+                    <td colSpan={5}>
+                      <EmptyState
+                        icon="langsmith"
+                        title="Sin runs todavía"
+                        message="Cuando el orquestador disparé runs trazadas aparecerán aquí."
+                      />
+                    </td>
+                  </tr>
+                )}
+                {asArray(runs.data).map((run) => (
                   <tr
                     key={run.id}
                     onClick={() => setActiveId(run.id)}

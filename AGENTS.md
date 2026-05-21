@@ -1,6 +1,53 @@
 # AGENTS.md
 
-> **Estado actual (2026-05-20, Fase 78 — recipe extractor / Fase A del plan de aprendizaje):**
+> **Estado actual (2026-05-20, Fase 82.1 — Glass Cockpit + Robustez):**
+> El frontend (Next.js 16 App Router + React 19 + TS estricto) se reescribió
+> como un *command center glassmorphism dark-only de alto contraste,
+> instalable como PWA*, y luego se endureció a grado comercial robusto:
+> `usePolledFetch` pausa offline + tab oculta y refetcha al volver,
+> primitivas `StatePrimitives` (Skeleton/EmptyState/ErrorPanel) uniformes,
+> `asArray<T>` en las 13 vistas que consumen colecciones, `useFocusTrap`
+> en todos los modales, skip-link al main. Doc canónica en
+> `cognitive-os/docs/FRONTEND_ARCHITECTURE.md` con anti-patrones y
+> checklist pre-PR. Spec Playwright nueva `glass-cockpit.spec.ts` cubre
+> palette + notification center + defensive guards + skip-link. El sistema de diseño vive en
+> `cognitive-os/frontend/app/globals.css` con tokens centralizados,
+> tipografía self-hosted Inter + JetBrains Mono via `next/font/google`, y
+> un componente `<Icon>` con un set SVG curado (~55 íconos). Componentes
+> nuevos: `Charts.tsx` (Sparkline/AreaChart/BarList/Donut sin
+> dependencias), `NotificationCenter.tsx` (side-panel con feed unificado
+> + handshake push del SO), `CommandPalette.tsx` reescrito con fuzzy
+> match real + grupos + recientes. PWA endurecida: manifest con 4
+> shortcuts, íconos PNG 192/512 + maskable + SVG fallback, service
+> worker `cogos-v2026-05-20-glass-2` con offline shell y handlers de push
+> + notificación. **Defensive array guards** (`asArray<T>(...)` en
+> `lib/api.ts`) en las 13 vistas que consumen colecciones — la SPA ya no
+> cae al `ErrorBoundary` si el backend devuelve forma incorrecta.
+> `playwright.config.ts` blinda el suite oficial contra service-workers
+> persistentes y cache HTTP. QA: lint 0 warnings, `tsc --noEmit` limpio,
+> build Next 16 + Turbopack verde, Playwright headless full-walk
+> (1440×900 + 393×851 mobile) sobre las 20 tabs + palette + notification
+> center = 0 errores 5xx / 0 page errors / 0 console errors.
+>
+> **Reglas firmes para futuras intervenciones en el frontend:**
+> 1. **No reintroducir Tailwind, shadcn ni MUI.** El repo eligió CSS
+>    hand-rolled con tokens; nuevas reglas se añaden a
+>    `app/globals.css` y se consumen vía clases utilitarias del repo.
+> 2. **No usar emojis ni glifos Unicode para íconos estructurales.**
+>    Usar `<Icon name="…" />`.
+> 3. **No reintroducir el toggle de tema claro.** El cockpit es
+>    dark-only; `<html data-theme="dark">` queda fijo desde
+>    `layout.tsx`.
+> 4. **Listas:** preferir `asArray(x.data).filter|map|…` sobre
+>    `(x.data ?? []).filter(...)`.
+> 5. **Conservar anclajes E2E** (los tests existentes los chequean):
+>    `aria-label="JWT local"`, `URL base de la API`, `Abrir menú`,
+>    `Cerrar`, literales `Estado global`, `componentes ok`, los 20
+>    labels declarados en `tests/e2e/_helpers.ts:TAB_LABELS`, y los
+>    labels `Guardar` / `API base` / `JWT sin prefijo Bearer` en
+>    `SettingsView`.
+>
+> **Estado anterior (Fase 78 — recipe extractor / Fase A del plan de aprendizaje):**
 > Primera fase del plan documentado en `cognitive-os/docs/AGENT_LEARNING_PLAN.md`
 > está cerrada. El agente ahora **distila trayectorias de jobs exitosos
 > en procedimientos reutilizables** (`DeepAgentMemoryProposal(kind="procedure")`)

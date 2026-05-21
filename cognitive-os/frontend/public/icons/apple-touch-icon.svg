@@ -1,9 +1,31 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
-  <rect width="180" height="180" rx="36" fill="#0b1020"/>
-  <g fill="none" stroke="#4fd1bd" stroke-width="6" stroke-linecap="round">
-    <circle cx="90" cy="90" r="40"/>
-    <circle cx="90" cy="90" r="58"/>
-    <circle cx="90" cy="90" r="74"/>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1220"/>
+      <stop offset="100%" stop-color="#04060c"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8df4e6"/>
+      <stop offset="100%" stop-color="#1aa491"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#5fe3cf" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#5fe3cf" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="180" height="180" rx="40" fill="url(#bg)"/>
+  <circle cx="90" cy="90" r="80" fill="url(#glow)"/>
+  <g fill="none" stroke="url(#ring)" stroke-width="6" stroke-linecap="round">
+    <circle cx="90" cy="90" r="42"/>
+    <circle cx="90" cy="90" r="58" stroke-opacity="0.7"/>
+    <circle cx="90" cy="90" r="74" stroke-opacity="0.4"/>
   </g>
-  <circle cx="90" cy="90" r="9" fill="#4fd1bd"/>
+  <g stroke="#8df4e6" stroke-width="6" stroke-linecap="round">
+    <line x1="90" y1="32" x2="90" y2="20"/>
+    <line x1="90" y1="160" x2="90" y2="148"/>
+    <line x1="32" y1="90" x2="20" y2="90"/>
+    <line x1="160" y1="90" x2="148" y2="90"/>
+  </g>
+  <circle cx="90" cy="90" r="11" fill="#8df4e6"/>
+  <circle cx="90" cy="90" r="6" fill="#04060c"/>
 </svg>

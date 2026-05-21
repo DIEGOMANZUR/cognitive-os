@@ -46,8 +46,8 @@ class GoDaddyActionService:
             name="godaddy",
             status=status,
             summary="GoDaddy Domains API integration; DNS writes are preview-first.",
-            requires_approval=True,
-            dry_run_only=True,
+            requires_approval=self._manual_approval_required(),
+            dry_run_only=self._settings.godaddy_dns_dry_run_only,
             reasons=reasons,
             metadata={
                 "base_url": self._settings.godaddy_base_url,
@@ -94,7 +94,7 @@ class GoDaddyActionService:
             endpoint=endpoint,
             change=change.model_copy(update={"domain": normalized_domain}),
             dry_run_only=dry_run_only,
-            requires_approval=True,
+            requires_approval=self._manual_approval_required(),
         )
 
     def execute_dns_change(self, change: GoDaddyDnsRecordChange) -> GoDaddyDnsExecutionResult:
@@ -165,6 +165,9 @@ class GoDaddyActionService:
         return {
             domain.strip().lower().rstrip(".") for domain in self._settings.godaddy_allowed_domains
         }
+
+    def _manual_approval_required(self) -> bool:
+        return bool(self._settings.require_human_approval_for_external_actions)
 
 
 def _blocked(change: GoDaddyDnsRecordChange, reason: str) -> GoDaddyDnsChangePreview:

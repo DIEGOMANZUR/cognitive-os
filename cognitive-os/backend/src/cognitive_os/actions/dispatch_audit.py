@@ -21,9 +21,17 @@ from typing import Any
 from uuid import UUID
 
 from cognitive_os.core.db import session_scope
-from cognitive_os.db.models import JobEvent
+from cognitive_os.db.models import Job, JobEvent
 
 logger = logging.getLogger(__name__)
+
+
+def _celery_task_id(async_result: Any) -> str | None:
+    raw_id = getattr(async_result, "id", None) or getattr(async_result, "task_id", None)
+    if raw_id is None:
+        return None
+    task_id = str(raw_id).strip()
+    return task_id or None
 
 
 async def dispatch_celery_with_audit(
@@ -44,7 +52,7 @@ async def dispatch_celery_with_audit(
     or the auto-approve helper without scanning code paths after the fact.
     """
     try:
-        apply_async()
+        async_result = apply_async()
     except Exception as exc:  # noqa: BLE001 - broker offline is operator-facing
         logger.warning(
             "celery_dispatch_failed task=%s surface=%s error=%s",
@@ -54,6 +62,13 @@ async def dispatch_celery_with_audit(
         )
         with contextlib.suppress(Exception):
             async with session_scope() as session:
+                job = await session.get(Job, job_id)
+                if job is not None:
+                    metadata = dict(job.metadata_json or {})
+                    metadata["celery_task_name"] = task_name
+                    metadata["celery_surface"] = surface
+                    metadata["celery_dispatch_error_type"] = type(exc).__name__
+                    job.metadata_json = metadata
                 session.add(
                     JobEvent(
                         job_id=job_id,
@@ -72,14 +87,25 @@ async def dispatch_celery_with_audit(
                 )
         return False
     with contextlib.suppress(Exception):
+        task_id = _celery_task_id(async_result)
         async with session_scope() as session:
+            job = await session.get(Job, job_id)
+            metadata_json: dict[str, Any] = {"surface": surface}
+            if task_id is not None:
+                metadata_json["celery_task_id"] = task_id
+                if job is not None:
+                    metadata = dict(job.metadata_json or {})
+                    metadata["celery_task_id"] = task_id
+                    metadata["celery_task_name"] = task_name
+                    metadata["celery_surface"] = surface
+                    job.metadata_json = metadata
             session.add(
                 JobEvent(
                     job_id=job_id,
                     event_type=f"{task_name}_dispatch_submitted",
                     status="queued",
                     message=f"{task_name} submitted to Celery from {surface}.",
-                    metadata_json={"surface": surface},
+                    metadata_json=metadata_json,
                 )
             )
     return True

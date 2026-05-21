@@ -94,7 +94,7 @@ el mapa estable para auditoría: «qué paquete toca qué clase de variable».
 | Ingestión y grafos | `ingestion/pipeline.py`, `ingestion/neo4j.py` | `NEO4J_*`, rutas almacenamiento / tamaños documento |
 | DeepAgents y skills | `deepagents/factory.py`, `deepagents/tools.py`, `deepagents/memory_service.py`, `deepagents/skills_registry.py` | `DEEPAGENTS_*`, `TAVILY_*`, etc. |
 | Action Plane (browser, PC, Gmail digest/query, DNS, documentos) | `actions/browser*.py`, `actions/computer.py`, `actions/mail.py`, `actions/gmail_digest.py`, `actions/documents.py`, `actions/service.py`, `actions/payload_crypto.py` | `BROWSER_*`, `ENABLE_*`, `GMAIL_*`, `GODADDY_*`, `COMPUTER_*`, `DOCUMENT_*`, `ACTION_PAYLOAD_*` |
-| Mail personal GoDaddy/Gmail-label | `mail/*.py`, `workers/tasks.py::sync_personal_mail_task`, `api/app.py` endpoints `/mail/*` | `MAIL_*`, `GMAIL_READ_ENABLED`, `GMAIL_TOKEN_DIR`, `GMAIL_SCOPES` |
+| Mail personal GoDaddy/Gmail digest | `mail/*.py`, `workers/tasks.py::sync_personal_mail_task`, `workers/tasks.py::build_personal_mail_digest_task`, `api/app.py` endpoints `/mail/*` | `MAIL_*`, `GMAIL_READ_ENABLED`, `GMAIL_TOKEN_DIR`, `GMAIL_SCOPES` |
 | Celery / colas | `workers/celery_app.py`, `workers/tasks.py` | `CELERY_*`, `REDIS_URL` (si aplica) |
 | Observabilidad y salud | `core/observability.py`, `core/health.py` | `LANGSMITH_*`, `LOG_LEVEL`, etc. |
 | Asistente / Telegram | `assist/service.py`, `assist/reminders.py`, `integrations/telegram_*.py` | `TELEGRAM_*`, mapas de recordatorios |
@@ -106,7 +106,7 @@ Para un cambio concreto: buscar en el repo el **nombre del atributo Python**
 
 1. **Inventario**: abrir `SETTINGS_REGISTRY_TABLE.md` y confirmar que el número de filas coincide con lo esperado tras el último cambio en `Settings`.
 2. **Secrets de prod**: ejecutar `--secrets` y cruzar con el gestor de secretos real.
-3. **Flags de riesgo**: cualquier `ENABLE_*` o `MAIL_ENABLED` que encienda browser, email, sandbox u ordenador local debe ir acompañado de aprobación humana, dry-run/allow-list cuando aplique y límites según `reject_changeme_in_production` y `SECURITY.md`.
+3. **Flags de riesgo**: cualquier `ENABLE_*` que encienda browser, sandbox u ordenador local debe ir acompañado de dry-run/allow-list cuando aplique y límites según `reject_changeme_in_production` y `SECURITY.md`. Mail es especial: `MAIL_ENABLED=true` solo habilita lectura/digest; SMTP requiere además `ENABLE_EMAIL_SEND=true`, `MAIL_ALLOW_EXPLICIT_SEND=true` y petición explícita de Diego.
 4. **Integración**: tras editar `config.py`, regenerar la tabla y ejecutar tests (`uv run pytest`).
 5. **Despliegue**: volver a correr `scripts/verify_operator_ready.sh` desde `backend/` antes de promover.
 

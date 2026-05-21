@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Annotated, ClassVar, Literal, Self
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -116,15 +117,25 @@ class Settings(BaseSettings):
     # it. The profile relaxes friction wherever it doesn't cause
     # irreversible damage: four-eyes off, longer approval TTL, computer
     # roots covering the home directory, adapter env not sanitised by
-    # default. Browser/WebBridge wildcards and mail autosend are NOT
+    # default. Browser/WebBridge wildcards are NOT
     # silent defaults — the operator still needs to set them
-    # (`KIMI_WEBBRIDGE_ALLOWED_DOMAINS=*`, `MAIL_REQUIRE_APPROVAL_FOR_SEND=false`)
-    # so the choice is visible in `/health/dashboard`, but the profile
-    # documents and recommends them for a dedicated PC. See
-    # `_apply_operator_profile_defaults()`.
+    # (`KIMI_WEBBRIDGE_ALLOWED_DOMAINS=*`) so the choice is visible in
+    # `/health/dashboard`. Mail remains read-only by default even on the
+    # dedicated PC profile: Diego wants summaries + proposed replies, never
+    # remote drafts/sends unless he explicitly asks for that operation.
     operator_profile: Literal["strict", "dedicated_local"] = Field(
         default="strict",
         alias="OPERATOR_PROFILE",
+    )
+    local_autonomy_mode: Literal["guarded", "full"] = Field(
+        default="full",
+        alias="LOCAL_AUTONOMY_MODE",
+        description=(
+            "`full` makes OPERATOR_PROFILE=dedicated_local a zero-friction "
+            "single-PC profile: approval gates are relaxed, the real-browser "
+            "WebBridge may mutate, and local filesystem actions are enabled. "
+            "Use `guarded` only when you want the older approval-heavy local mode."
+        ),
     )
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     app_host: str = Field(default="127.0.0.1", alias="APP_HOST")
@@ -341,6 +352,16 @@ class Settings(BaseSettings):
         ),
     )
     http_timeout_seconds: float = Field(default=15.0, alias="HTTP_TIMEOUT_SECONDS")
+    health_component_timeout_seconds: float = Field(
+        default=3.0,
+        ge=0.5,
+        le=30.0,
+        alias="HEALTH_COMPONENT_TIMEOUT_SECONDS",
+        description=(
+            "Hard per-component timeout for /health/dashboard. Prevents one "
+            "stuck integration from hanging the dashboard or frontend polling."
+        ),
+    )
     http_max_retries: int = Field(default=2, alias="HTTP_MAX_RETRIES")
     circuit_breaker_failure_threshold: int = Field(
         default=3,
@@ -758,6 +779,25 @@ class Settings(BaseSettings):
         default=True,
         alias="MAIL_REQUIRE_APPROVAL_FOR_SEND",
     )
+    mail_allow_explicit_send: bool = Field(
+        default=False,
+        alias="MAIL_ALLOW_EXPLICIT_SEND",
+        description=(
+            "Emergency/manual escape hatch for SMTP sends. Normal product flow "
+            "is read-only: summaries and proposed replies are produced as text. "
+            "Even when True, /mail/messages/{id}/approve-send requires an "
+            "explicit confirmation phrase in the request body."
+        ),
+    )
+    mail_background_sync_enabled: bool = Field(
+        default=False,
+        alias="MAIL_BACKGROUND_SYNC_ENABLED",
+        description=(
+            "When True, Celery polls mail continuously using MAIL_POLL_INTERVAL_SECONDS. "
+            "Default False because Diego's normal contract is twice-daily digest "
+            "generation at MAIL_DIGEST_HOURS_LOCAL, not constant mailbox reads."
+        ),
+    )
     mail_poll_interval_seconds: int = Field(
         default=120,
         alias="MAIL_POLL_INTERVAL_SECONDS",
@@ -777,12 +817,41 @@ class Settings(BaseSettings):
         le=300,
     )
     mail_fetch_max_per_folder: int = Field(
-        default=25,
+        default=50,
         alias="MAIL_FETCH_MAX_PER_FOLDER",
         ge=1,
         le=200,
     )
     mail_gmail_label: str = Field(default="TODOS", alias="MAIL_GMAIL_LABEL")
+    mail_gmail_monitor_labels: StringList = Field(
+        default_factory=lambda: ["TODOS", "SPAM"],
+        alias="MAIL_GMAIL_MONITOR_LABELS",
+        description=(
+            "Gmail labels/folders read by the personal mail digest. Default is "
+            "Diego's all-mail label plus Spam; classification is performed by "
+            "the agent, not by trusting folder placement."
+        ),
+    )
+    mail_digest_enabled: bool = Field(default=True, alias="MAIL_DIGEST_ENABLED")
+    mail_digest_hours_local: StringList = Field(
+        default_factory=lambda: ["10", "20"],
+        alias="MAIL_DIGEST_HOURS_LOCAL",
+        description="Local hours for scheduled digest generation in MAIL_DIGEST_TIMEZONE.",
+    )
+    mail_digest_timezone: str = Field(
+        default="America/Santiago",
+        alias="MAIL_DIGEST_TIMEZONE",
+    )
+    mail_digest_max_messages: int = Field(
+        default=50,
+        alias="MAIL_DIGEST_MAX_MESSAGES",
+        ge=1,
+        le=200,
+    )
+    mail_digest_output_dir: Path = Field(
+        default=Path("mail_digests"),
+        alias="MAIL_DIGEST_OUTPUT_DIR",
+    )
     mail_godaddy_enabled: bool = Field(default=False, alias="MAIL_GODADDY_ENABLED")
     mail_godaddy_imap_host: str = Field(
         default="imap.secureserver.net",
@@ -803,7 +872,7 @@ class Settings(BaseSettings):
         alias="MAIL_GODADDY_PASSWORD",
     )
     mail_godaddy_monitor_folders: StringList = Field(
-        default_factory=lambda: ["INBOX", "Bulk Mail", "Junk Email", "Spam"],
+        default_factory=lambda: ["Spam"],
         alias="MAIL_GODADDY_MONITOR_FOLDERS",
     )
 
@@ -877,6 +946,12 @@ class Settings(BaseSettings):
     mcp_servers: StringList = Field(default_factory=list, alias="MCP_SERVERS")
     mcp_call_timeout_seconds: int = Field(
         default=30, ge=1, le=600, alias="MCP_CALL_TIMEOUT_SECONDS"
+    )
+    mcp_inventory_timeout_seconds: float = Field(
+        default=5.0,
+        ge=0.5,
+        le=30.0,
+        alias="MCP_INVENTORY_TIMEOUT_SECONDS",
     )
     mcp_allowed_for_research: StringList = Field(
         default_factory=list, alias="MCP_ALLOWED_FOR_RESEARCH"
@@ -1010,6 +1085,27 @@ class Settings(BaseSettings):
         ge=2,
         le=120,
         alias="KIMI_WEBBRIDGE_REQUEST_TIMEOUT_SECONDS",
+    )
+    enable_edge_devtools_webbridge: bool = Field(
+        default=False,
+        alias="ENABLE_EDGE_DEVTOOLS_WEBBRIDGE",
+        description=(
+            "Use the local Edge/Chrome DevTools endpoint as a real-browser "
+            "WebBridge lane. Intended for OPERATOR_PROFILE=dedicated_local "
+            "where Edge is launched with --remote-debugging-port."
+        ),
+    )
+    edge_devtools_url: str = Field(
+        default="http://127.0.0.1:9222",
+        alias="EDGE_DEVTOOLS_URL",
+    )
+    edge_devtools_prefer: bool = Field(
+        default=False,
+        alias="EDGE_DEVTOOLS_PREFER",
+        description=(
+            "Prefer Edge DevTools over the Kimi extension for /actions/webbridge "
+            "calls. Kimi remains a fallback when DevTools is unavailable."
+        ),
     )
 
     # === CapSolver (captcha solving for any browser navigation lane) ===
@@ -1383,19 +1479,20 @@ class Settings(BaseSettings):
     def apply_operator_profile_defaults(self) -> Self:
         """Soften defaults for `operator_profile=dedicated_local`.
 
-        Only fields still at their factory default are overridden — any
-        explicit value the operator put in `.env` wins (we never silently
-        flip an operator-set flag). Safe to chain with the production
-        validator: production reads the *final* values, so dedicated_local
-        + production still fails if approval gates were softened too far.
+        `LOCAL_AUTONOMY_MODE=full` is intentionally stronger than the legacy
+        "only fill missing defaults" rule. Diego's dedicated PC profile is a
+        product choice: remove approval friction and make the agent autonomous,
+        while keeping audit/events/idempotency/reapers as the reliability layer.
+        Mail is the exception by operator policy: normal flow is read-only
+        digest/proposed replies, not SMTP or Gmail drafts/sends.
+        `LOCAL_AUTONOMY_MODE=guarded` keeps the previous conservative behavior.
 
         Decisions:
           - approval_require_four_eyes      → False  (PC dedicado, un solo aprobador)
           - approval_pending_max_hours      → 168h   (1 semana)
           - require_human_approval_for_external_actions → False
-          - mail_require_approval_for_send  → True   (kept, sender mistakes are irreversible)
-          - browser_allowed_domains         → []     (kept, operator's choice to widen)
-          - kimi_webbridge_allowed_domains  → []     (idem)
+          - browser_allowed_domains         → ["*"]  (wildcard explícito en config pública)
+          - kimi_webbridge_allowed_domains  → ["*"]  (Edge real sin fricción)
         Doc: docs/USER_GUIDE.md "Perfiles de operación".
         """
         if self.operator_profile != "dedicated_local":
@@ -1409,6 +1506,37 @@ class Settings(BaseSettings):
 
         def _at_default(field: str) -> bool:
             return field not in explicit
+
+        if self.local_autonomy_mode == "full":
+            self.approval_require_four_eyes = False
+            self.approval_pending_max_hours = 168
+            self.require_human_approval_for_external_actions = False
+            self.code_director_budget_mode = "soft"
+            self.auto_approve_reversible_actions = True
+            self.tools_readonly_mode = False
+            self.enable_kimi_webbridge = True
+            if not self.kimi_webbridge_allowed_domains:
+                self.kimi_webbridge_allowed_domains = ["*"]
+            self.kimi_webbridge_allow_mutations = True
+            self.kimi_webbridge_require_approval = False
+            self.enable_edge_devtools_webbridge = True
+            self.edge_devtools_prefer = True
+            self.enable_computer_actions = True
+            if not self.computer_allowed_roots:
+                self.computer_allowed_roots = [str(Path.home()), "/tmp", "/mnt"]
+            self.computer_organize_dry_run_only = False
+            self.enable_browser_automation = True
+            if not self.browser_allowed_domains:
+                self.browser_allowed_domains = ["*"]
+            self.browser_allow_headed = True
+            self.browser_allow_vision = True
+            self.enable_browser_ssrf_check = False
+            self.research_persistence_backend = "postgres"
+            if self.enable_google_calendar:
+                self.enable_google_calendar_write = True
+            if self.enable_google_drive:
+                self.enable_google_drive_write = True
+            return self
 
         # In-place mutation: pydantic-settings models are not `frozen` here
         # and `model_validator(mode="after")` runs during construction, so
@@ -1524,6 +1652,20 @@ class Settings(BaseSettings):
         if self.godaddy_max_requests_per_minute < 1 or self.godaddy_max_requests_per_minute > 60:
             msg = "GoDaddy max requests per minute must be between 1 and 60."
             raise ValueError(msg)
+        for raw_hour in self.mail_digest_hours_local:
+            try:
+                hour = int(str(raw_hour))
+            except ValueError as exc:
+                msg = "MAIL_DIGEST_HOURS_LOCAL must contain integer hours 0-23."
+                raise ValueError(msg) from exc
+            if hour < 0 or hour > 23:
+                msg = "MAIL_DIGEST_HOURS_LOCAL must contain integer hours 0-23."
+                raise ValueError(msg)
+        try:
+            ZoneInfo(self.mail_digest_timezone)
+        except ZoneInfoNotFoundError as exc:
+            msg = "MAIL_DIGEST_TIMEZONE must be a valid IANA timezone."
+            raise ValueError(msg) from exc
         if (self.gmail_read_enabled or self.gmail_send_enabled) and (
             self._is_placeholder(self.gmail_client_id)
             or self._is_placeholder(self.gmail_client_secret)
@@ -1576,6 +1718,17 @@ class Settings(BaseSettings):
                 msg = (
                     "KIMI_WEBBRIDGE_URL must target localhost (the daemon is local). "
                     f"Refusing host {host!r}."
+                )
+                raise ValueError(msg)
+        if self.enable_edge_devtools_webbridge:
+            from urllib.parse import urlparse
+
+            parsed = urlparse(self.edge_devtools_url)
+            host = (parsed.hostname or "").lower()
+            if host not in {"127.0.0.1", "localhost", "::1"}:
+                msg = (
+                    "EDGE_DEVTOOLS_URL must target localhost because it controls "
+                    f"the real browser profile. Refusing host {host!r}."
                 )
                 raise ValueError(msg)
         return self

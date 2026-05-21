@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 
 import type { ApiClient } from "../lib/api";
-import { errorMessage, statusClass } from "../lib/api";
+import { asArray, errorMessage, statusClass } from "../lib/api";
 import { usePolledFetch } from "../lib/hooks";
 import { useToast } from "../lib/toasts";
 import type { PersonalNote, PersonalTask, PersonalTaskStatus } from "../lib/types";
@@ -196,12 +196,12 @@ export function AssistView({ client }: { client: ApiClient }) {
               </tr>
             </thead>
             <tbody>
-              {(tasks.data ?? []).length === 0 && (
+              {asArray(tasks.data).length === 0 && (
                 <tr>
                   <td colSpan={5} className="muted">Sin tareas para este filtro.</td>
                 </tr>
               )}
-              {(tasks.data ?? []).map((task) => (
+              {asArray(tasks.data).map((task) => (
                 <tr key={task.id}>
                   <td><span className={statusClass(task.status)}>{task.status}</span></td>
                   <td>
@@ -269,8 +269,8 @@ export function AssistView({ client }: { client: ApiClient }) {
         </div>
 
         <div className="stack">
-          {(notes.data ?? []).length === 0 && <p className="muted">Sin notas guardadas.</p>}
-          {(notes.data ?? []).map((note) => (
+          {asArray(notes.data).length === 0 && <p className="muted">Sin notas guardadas.</p>}
+          {asArray(notes.data).map((note) => (
             <article key={note.id} className="card soft stack">
               <div className="section-head">
                 <div>

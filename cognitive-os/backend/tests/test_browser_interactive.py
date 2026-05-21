@@ -134,7 +134,7 @@ class _FakeVisionAnalyzer:
 
 
 def test_validate_blocks_when_browser_automation_disabled(tmp_path: Path) -> None:
-    settings = Settings(enable_browser_automation=False)
+    settings = Settings(_env_file=None, enable_browser_automation=False)
     service = BrowserInteractiveService(settings)
     request = BrowserInteractiveRequest(url="https://example.com", steps=[])
     result = service.execute(request)
@@ -329,7 +329,7 @@ async def test_request_browser_interactive_endpoint_blocks_when_disabled(
 
     class _DisabledService(original):  # type: ignore[misc]
         def __init__(self) -> None:
-            super().__init__(Settings(enable_browser_automation=False))
+            super().__init__(Settings(_env_file=None, enable_browser_automation=False))
 
     monkeypatch.setattr(service_module, "ActionRequestService", _DisabledService)
     monkeypatch.setattr(api_app, "ActionRequestService", _DisabledService)

@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
+import { Icon, type IconName } from "../components/Icon";
 import type { Toast, ToastTone } from "./types";
 
 type ToastContextValue = {
@@ -12,6 +13,13 @@ type ToastContextValue = {
 };
 
 const ToastContext = createContext<ToastContextValue | null>(null);
+
+const TONE_ICON: Record<ToastTone, IconName> = {
+  info: "info",
+  success: "circleCheck",
+  warning: "alert",
+  error: "circleX"
+};
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -44,16 +52,23 @@ function ToastViewport() {
   const ctx = useContext(ToastContext);
   if (!ctx) return null;
   return (
-    <div className="toast-stack">
+    <div className="toast-stack" role="region" aria-label="Notificaciones" aria-live="polite">
       {ctx.toasts.map((toast) => (
-        <button
-          key={toast.id}
-          className={`toast toast-${toast.tone}`}
-          onClick={() => ctx.dismiss(toast.id)}
-          type="button"
-        >
-          {toast.message}
-        </button>
+        <div key={toast.id} className={`toast toast-${toast.tone}`} role="status">
+          <span className="toast-icon" aria-hidden="true">
+            <Icon name={TONE_ICON[toast.tone]} size={15} />
+          </span>
+          <span style={{ flex: 1 }}>{toast.message}</span>
+          <button
+            className="ghost icon"
+            type="button"
+            onClick={() => ctx.dismiss(toast.id)}
+            aria-label="Descartar"
+            style={{ width: 24, height: 24, minHeight: 24 }}
+          >
+            <Icon name="close" size={12} />
+          </button>
+        </div>
       ))}
     </div>
   );

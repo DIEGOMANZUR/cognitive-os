@@ -35,8 +35,8 @@ class BrowserActionService:
             name="browser",
             status=status,
             summary="Headless/headed web navigation through isolated automation profiles.",
-            requires_approval=True,
-            dry_run_only=True,
+            requires_approval=self._manual_approval_required(),
+            dry_run_only=False,
             reasons=reasons,
             metadata={
                 "provider": self._settings.browser_automation_provider,
@@ -92,10 +92,13 @@ class BrowserActionService:
             vision=request.vision,
             persistent_session=request.persistent_session,
             profile_dir=profile_dir,
-            requires_approval=True,
+            requires_approval=self._manual_approval_required(),
         )
 
     def _provider_available(self) -> bool:
         if self._settings.browser_automation_provider == "camoufox":
             return find_spec("camoufox") is not None
         return find_spec("playwright") is not None
+
+    def _manual_approval_required(self) -> bool:
+        return bool(self._settings.require_human_approval_for_external_actions)

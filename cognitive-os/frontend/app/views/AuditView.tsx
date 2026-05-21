@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import type { ApiClient } from "../lib/api";
+import { asArray } from "../lib/api";
 import { usePolledFetch } from "../lib/hooks";
 import type { AuditEvent } from "../lib/types";
 
@@ -11,7 +12,7 @@ export function AuditView({ client }: { client: ApiClient }) {
   const [filter, setFilter] = useState("");
 
   const filtered = useMemo(() => {
-    const list = audit.data ?? [];
+    const list = asArray(audit.data);
     const q = filter.trim().toLowerCase();
     if (!q) return list;
     return list.filter((event) =>

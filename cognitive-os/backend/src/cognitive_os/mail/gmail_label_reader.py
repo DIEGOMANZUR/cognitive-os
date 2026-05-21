@@ -25,6 +25,8 @@ class GmailLabelReader:
         with httpx.Client(timeout=self._timeout_seconds) as client:
             label_id = self._resolve_label_id(client, headers=headers)
             params = [("maxResults", str(max_messages))]
+            if _include_spam_trash(self._label_name):
+                params.append(("includeSpamTrash", "true"))
             if label_id:
                 params.append(("labelIds", label_id))
             else:
@@ -174,7 +176,15 @@ def _parse_date(value: str | None) -> datetime | None:
 
 
 def _label_search_query(label_name: str) -> str:
+    normalized = " ".join(label_name.strip().casefold().replace("_", " ").split())
+    if normalized in {"todos", "all", "all mail", "allmail", "all-mails"}:
+        return "in:anywhere -in:trash"
     escaped = label_name.replace("\\", "\\\\").replace('"', '\\"')
     if any(ch.isspace() for ch in escaped):
         return f'label:"{escaped}"'
     return f"label:{escaped}"
+
+
+def _include_spam_trash(label_name: str) -> bool:
+    normalized = " ".join(label_name.strip().casefold().replace("_", " ").split())
+    return normalized in {"todos", "all", "all mail", "allmail", "all-mails", "spam"}

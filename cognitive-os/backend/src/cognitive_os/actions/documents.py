@@ -70,7 +70,7 @@ class DocumentActionService:
             name="documents",
             status=status,
             summary="Generate DOCX/XLSX/PPTX documents into an allow-listed directory.",
-            requires_approval=False,
+            requires_approval=self._manual_approval_required(),
             dry_run_only=False,
             reasons=reasons,
             metadata={
@@ -92,7 +92,7 @@ class DocumentActionService:
                 format=request.format,
                 output_path=request.output_filename,
                 estimated_blocks=0,
-                requires_approval=False,
+                requires_approval=self._manual_approval_required(),
                 reason=str(exc),
             )
 
@@ -101,7 +101,7 @@ class DocumentActionService:
             format=request.format,
             output_path=str(output_path),
             estimated_blocks=_estimate_blocks(request),
-            requires_approval=False,
+            requires_approval=self._manual_approval_required(),
             reason=None,
         )
 
@@ -211,6 +211,9 @@ class DocumentActionService:
             if slide.layout == "two_column" and not (slide.bullets or slide.right_bullets):
                 msg = "two_column slides require bullets or right_bullets."
                 raise ActionPolicyViolation(msg)
+
+    def _manual_approval_required(self) -> bool:
+        return bool(self._settings.require_human_approval_for_external_actions)
 
 
 def _estimate_blocks(request: DocumentGenerateRequest) -> int:

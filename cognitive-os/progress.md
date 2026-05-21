@@ -2,6 +2,342 @@
 
 > Bitácora viva. La documentación estable de producto vive en `docs/`.
 
+## 2026-05-20 — Fase 83: Remediación Codex responsable, perfil dedicado sin fricción
+
+Inicio de remediación tras auditoría independiente. Diego define que la
+seguridad comercial estricta no es prioridad en este host: el sistema corre
+en un PC dedicado y debe poder usar el perfil real de Edge/Kimi WebBridge,
+filesystem amplio y acciones locales con mínima fricción. Se mantiene como
+no negociable la robustez operativa: gates verdes, estado visible, jobs,
+logs, AuditEvent/JobEvent donde corresponda, idempotencia y recuperación.
+
+### Estado inicial verificado
+
+- Branch: `codex/fase-34-baseline-hardening`.
+- Worktree: sucio preexistente con F82; se trabajará sin revertir cambios
+  ajenos.
+- Runtime: API en `127.0.0.1:8000`, Kimi WebBridge en `127.0.0.1:10086`,
+  Docker data services activos. `:3000` no es Cognitive OS; se usará
+  `:3001` para frontend.
+- Baseline focal:
+  - `uv run pytest tests/test_frontend_static_assets.py -q` → `1 failed,
+    2 passed`.
+  - `uv run ruff format --check .` → falla por `tests/conftest.py`.
+  - `npm run lint` → pass.
+  - `npm run build` → pass.
+
+### Próximo bloque
+
+1. Reparar gates pequeños de Oleada 1: SW static test y formato backend.
+2. Reejecutar pruebas focales.
+3. Levantar frontend en `:3001` y reparar Playwright E2E real.
+4. Convertir el plan de autonomía dedicada en cambios backend/UI concretos
+   después de que los gates base estén verdes.
+
+### Cierre parcial de Oleadas 1-3
+
+- Oleada 1 cerrada: `test_frontend_static_assets` ya valida el patrón de
+  versión del service worker en vez de un literal viejo; `tests/conftest.py`
+  quedó formateado; se corrigieron tests no herméticos que heredaban el
+  `.env` real.
+- Oleada 2 cerrada para el cockpit: drawer móvil con altura/scroll real,
+  topbar/bottom-nav sin overflow horizontal, y Playwright oficial sobre el
+  runtime vivo en `http://localhost:3001` → **17 passed**.
+- Oleada 3 iniciada: `OPERATOR_PROFILE=dedicated_local` ahora expone
+  `LOCAL_AUTONOMY_MODE=full`. En ese modo los flags antiguos de approval
+  ya no bloquean autonomía: `tools_readonly=false`, approvals externos
+  off, Kimi WebBridge mutante, browser wildcard, computer roots amplios,
+  mail send sin approval, Calendar/Drive writes habilitados si la
+  integración está activa, research persistence en Postgres.
+- Action Plane: los requests ejecutables válidos en
+  `dedicated_local/full` se auto-aprueban y se despachan por el mismo
+  carril canónico que el approval manual (`decide_approval` →
+  `queue_approved_action_request` → reserva atómica → Celery). No se
+  eliminó trazabilidad.
+- Browser backend: `playwright>=1.60.0` quedó como dependencia real del
+  backend; `/actions/capabilities` ya reporta `browser=ready` en runtime.
+- Observabilidad: `KimiWebBridgeService.status()` ya no marca `ready` si
+  el daemon corre pero la extensión del navegador no está conectada.
+  `/system/readiness` incorpora ese probe vivo y actualmente muestra
+  **13/14 capacidades**, con único gap `KIMI_WEBBRIDGE_RUNTIME=blocked`
+  por `extension_connected=false`.
+- Verificación:
+  - `bash scripts/full-qa.sh` → **804 passed, 1 skipped, 20 deselected**,
+    ruff, format, mypy, Alembic, frontend lint/build y `git diff --check`
+    OK.
+  - `npx playwright test --reporter=list` contra stack reiniciado →
+    **17 passed**.
+  - Stack reiniciado con `~/Escritorio/Reiniciar Cognitive OS.sh`; API,
+    worker, beat, frontend, Telegram y Kimi daemon arriba. Durante el
+    stop, el worker anterior requirió SIGKILL tras no responder a
+    SIGTERM. Se ajustó `~/Escritorio/cognitive-os.sh` para dar ventanas
+    graceful más largas a Telegram/Celery beat/worker antes de escalar;
+    `bash -n` y `Estado Cognitive OS.sh` OK.
+
+### Cierre Edge/Kimi WebBridge dentro de Oleada 3
+
+- Detectado en vivo: el daemon Kimi WebBridge estaba conectado a Edge, pero
+  el backend leía mal el contrato HTTP. El daemon devuelve envelopes
+  `ok/data/error`; el adapter esperaba el objeto interno. Resultado: falsa
+  readiness y errores `ok=false` tratados como payload normal.
+- Corregido `HttpWebBridgeProvider`: unwrap de `{"ok": true, "data": ...}`,
+  compatibilidad con payloads legacy directos, y `ok=false` convertido en
+  `KimiWebBridgeError` con código/mensaje del daemon.
+- Detectado segundo fallo runtime: el modo `session` de Kimi v1.9.7 puede
+  dejar `snapshot/screenshot/find_tab` apuntando a una URL
+  `chrome-extension://` de otra extensión. Para el perfil PC dedicado, el
+  servicio ahora ejecuta las acciones principales sobre el tab activo de
+  Edge; conserva la `session` solicitada en audit metadata y deja
+  `list_tabs/close_session` con sesión explícita.
+- Recovery probado: `~/.kimi-webbridge/bin/kimi-webbridge restart`,
+  reconexión de extensión a los 8s, `navigate` a
+  `http://127.0.0.1:3001?tab=health` y `snapshot` OK desde el servicio
+  backend corregido.
+- Launcher externo endurecido: `~/Escritorio/cognitive-os.sh start` ya no
+  considera Kimi listo solo por `"running":true`; espera
+  `extension_connected=true` y reinicia el daemon cuando queda desconectado.
+  Verificado en vivo: `start` detectó la desconexión, reinició Kimi, y la API
+  quedó con `/actions/webbridge/status=ready`, `/system/readiness=14/14` y
+  `/health/dashboard` overall `ok`.
+- Verificación focal: `uv run pytest tests/test_kimi_webbridge.py -q` →
+  **22 passed**; ruff, format y mypy del módulo Kimi verdes.
+
+## 2026-05-20 — Fase 82.1: Robustez profunda del cockpit (post Glass)
+
+Segunda pasada tras la Fase 82 inicial. Foco: convertir el cockpit en
+software de grado comercial *robusto*: resiliencia ante red, errores y
+malformaciones del backend; accesibilidad real; primitivas
+reutilizables; tests E2E para las features nuevas; doc de arquitectura
+canónica.
+
+### Resiliencia del polling
+
+- **`usePolledFetch` reescrito** (`app/lib/hooks.ts`) con tres reglas
+  PWA-aware: pausa cuando `navigator.onLine === false` (mantiene datos
+  cacheados, surface "Sin conexión" como `error`), pausa cuando
+  `document.visibilityState !== "visible"` (deja de hammer al backend
+  desde tabs ocultas), refetch instantáneo al recuperar online o
+  visibilidad. Expone nuevo `loading: boolean` (true solo durante la
+  primera carga) para skeletons sin flash en cada poll.
+- **`useOnline`** exportado y usado en `page.tsx` (reemplaza la
+  duplicación del listener online/offline que vivía inline).
+- Firma backwards-compatible (`{ data, error, refetch }` se preserva;
+  `loading` es additivo).
+
+### Primitivas de estado compartidas
+
+- **`app/components/StatePrimitives.tsx`** (nuevo): `Skeleton`,
+  `EmptyState`, `ErrorPanel`, `DataBoundary`. Garantizan que la
+  gramática visual de los 3 estados (loading / empty / error) sea
+  uniforme en todas las vistas. `ErrorPanel` siempre incluye botón
+  Reintentar.
+- **Aplicado** en `AgentsView`, `SkillsView`, `DocumentsView`,
+  `MailInboxView`, `LangSmithView`. El resto hereda el lenguaje visual
+  vía clases compartidas.
+
+### Accesibilidad
+
+- **`app/lib/a11y.ts → useFocusTrap`** (nuevo): hook minimal pero
+  real. Atrapa Tab/Shift+Tab dentro del contenedor, enfoca el primer
+  focuseable al abrir, restaura el foco al elemento previo al cerrar.
+- **Aplicado** a `CommandPalette` y `NotificationCenter`. Ambos:
+  `role="dialog"`, `aria-modal="true"`, `aria-label`, `tabIndex={-1}`.
+- **`NotificationCenter`**: ESC ahora también cierra el panel
+  (paridad con la palette).
+- **Skip-link** en `app/page.tsx`: `<a href="#cogos-main"
+  class="skip-link">Saltar al contenido principal</a>` invisible
+  hasta recibir foco; `<section className="main" id="cogos-main"
+  tabIndex={-1}>` lo recibe. CSS de `.skip-link` añadido a
+  `globals.css`.
+
+### Tests E2E
+
+- **`tests/e2e/glass-cockpit.spec.ts`** (nuevo): 4 specs.
+  - Command palette: abre con Ctrl+K, filtra "Aprob", Enter navega a
+    Aprobaciones; verifica que la tab queda `active`.
+  - Notification center: abre por el bell del TopBar, cierra con ESC.
+  - Defensive list guard: mockea `/agents` con `{}` y verifica que
+    `ErrorBoundary` NO aparece y la vista muestra empty-state.
+  - Skip-link: Tab desde el body lo enfoca; click sigue el href y
+    enfoca el `#cogos-main`.
+
+### Documentación canónica
+
+- **`cognitive-os/docs/FRONTEND_ARCHITECTURE.md`** (nuevo): doc
+  comprensivo del frontend para devs/agentes que tocan el código por
+  primera vez. Stack, layout, tokens, 5 patterns clave
+  (`usePolledFetch` resiliente, `asArray`, `StatePrimitives`,
+  `useFocusTrap`, PWA), RSC vs Client, testing, performance,
+  seguridad, "cómo añadir una vista nueva", anti-patrones, checklist
+  pre-PR.
+- **`docs/README.md`** actualizado: nueva entrada en el índice y en
+  la tabla "Documentación por área".
+
+### Verificación
+
+- `npm run lint` → 0 warnings (`--max-warnings 0`).
+- `npx tsc --noEmit` → 0 errores.
+- `npm run build` → Next 16.2.6 + Turbopack, 4 páginas estáticas OK.
+- Playwright headless full-walk tras todos los cambios: **0 errores
+  5xx, 0 page errors, 0 console errors, 26 screenshots OK**.
+
+### Archivos tocados
+
+- **Hooks/primitivas:** `app/lib/hooks.ts` (reescrito),
+  `app/lib/a11y.ts` (nuevo), `app/components/StatePrimitives.tsx`
+  (nuevo).
+- **Componentes:**
+  `app/components/{CommandPalette,NotificationCenter}.tsx` (focus
+  trap + a11y), `app/page.tsx` (skip-link + `useOnline`).
+- **Vistas:**
+  `app/views/{Agents,Skills,Documents,MailInbox,LangSmith}View.tsx`
+  (StatePrimitives).
+- **Tests:** `tests/e2e/glass-cockpit.spec.ts` (nuevo).
+- **CSS:** `app/globals.css` (`.skip-link`).
+- **Docs:** `cognitive-os/docs/FRONTEND_ARCHITECTURE.md` (nuevo),
+  `cognitive-os/docs/README.md` (índice).
+
+## 2026-05-20 — Fase 82: Glass Cockpit (frontend grado comercial)
+
+Rediseño completo del cockpit Next.js a un **command center glassmorphism
+dark-only de alto contraste, instalable como PWA**. Foco: pulido visual
+profesional, capacidades nuevas (charts, notificaciones, palette),
+PWA endurecida, hardening defensivo de vistas, y suite Playwright
+blindada contra service workers persistentes y cache HTTP.
+
+### Sistema de diseño nuevo
+
+- **`app/globals.css` reescrito desde 0** (~60 tokens nuevos): deep
+  backgrounds (`#04060c → #0d1220`), glass surfaces translúcidos
+  (`rgba(255,255,255,0.035 → 0.13)`), hairline borders, paleta acento
+  teal `#5fe3cf` con glow, iris `#8b93ff`, status semánticos (ok/warn/
+  danger/info con dot y badge dedicados), escala de radius (8/10/12/16/
+  22/pill), elevación en 3 niveles + inner-hi, easing expo
+  `cubic-bezier(0.16, 1, 0.3, 1)`, motion reducido respetado.
+- **Tema claro retirado.** `<html data-theme="dark">` queda fijo en
+  `app/layout.tsx`; el `theme` y `setTheme` se quitaron de la firma de
+  `SettingsView` (y del `useLocalState` en `page.tsx`).
+- **Tipografía self-hosted** vía `next/font/google` (Inter sans-serif +
+  JetBrains Mono). La PWA arranca offline sin pedir Google Fonts.
+- **Ambient backdrop** con dos blobs radiales animados (`drift-a`,
+  `drift-b`) que dan refracción al glass; respeta `prefers-reduced-motion`.
+
+### Iconografía y componentes nuevos
+
+- **`app/components/Icon.tsx`**: set curado de ~55 íconos Lucide-style
+  (stroke 1.75, viewBox 24, hereda `currentColor`). Sustituye los glifos
+  Unicode anteriores en sidebar, TopBar, dashboards y vistas. Anti-patrón
+  marcado en `AGENTS.md`: **no emojis ni glifos Unicode para iconografía
+  estructural**.
+- **`app/components/Charts.tsx`**: `Sparkline` (inline en métricas),
+  `AreaChart` con crosshair + leyenda + tooltips, `BarList` para ranking
+  y `Donut` con label central. Puro SVG, sin dependencias, themable.
+- **`app/components/NotificationCenter.tsx`**: side-panel glass derecho
+  con feed unificado de aprobaciones+jobs+auditoría. Tracking de
+  "vistos" persistido en `localStorage` (`cogos.notif.seen`). Handshake
+  para permisos de push del SO (`PushControls`); el SW ya tiene los
+  handlers `push` + `notificationclick`, falta el endpoint VAPID en el
+  backend (no bloqueante).
+- **`app/components/CommandPalette.tsx`** reescrito: fuzzy match real
+  con scoring de subsecuencia + boundary bonus, agrupación por
+  hint/group, íconos por entrada, recientes persistidos
+  (`cogos.palette.recent`), footer con shortcuts visibles.
+- **`app/components/Sidebar.tsx` y `TopBar.tsx`** redibujados con
+  `<Icon>`, brand mark con glow, ENV pill, badge de notificaciones,
+  botones de búsqueda global y campana persistente.
+- **`app/lib/toasts.tsx`** iconificado (ícono por tono, dismiss con
+  botón real, `aria-live="polite"`, `role="region"`).
+
+### Dashboard rediseñado
+
+- `DashboardView.tsx` con header tipográfico (`Operations Dashboard ·
+  status badge`), sub-header con `X/Y componentes ok` literal (el smoke
+  spec lo asierta), grilla de 4 metric cards con Sparkline + delta, un
+  donut de mix de jobs (running/queued/completed/failed), gráfico de
+  área de latencia de los 3 servicios más lentos (buffer en `useRef`,
+  trend de 24 polls), panel de aprobaciones con tarjetas amber, panel
+  de audit log compacto con dots de color, panel de jobs en ejecución
+  con `BarList` de progreso, y panel de configuración activa con grid
+  responsive.
+- `HealthView.tsx` rediseñada: page-head con dot live, donut de
+  distribución (ok / atención / fallo), 4 stat cards, tabla con
+  metadata colapsable.
+- `ApprovalsView.tsx`, `JobsView.tsx`, `ChatView.tsx` pulidos con
+  iconografía, empty-states con `<Icon>` + texto + ayuda, badges con
+  dot live, botones small con ícono.
+
+### Defensive array guards
+
+- `app/lib/api.ts` exporta `asArray<T>(value): T[]` con overload tipado
+  para `T[] | null | undefined` y `unknown`. Garantiza array vacío si
+  el backend devuelve forma incorrecta.
+- **13 archivos migrados** del patrón `(x.data ?? []).filter|map|…` al
+  `asArray(x.data).filter|map|…`: `page.tsx`, `AgentsView`,
+  `ApprovalsView`, `AssistView`, `AuditView`, `DashboardView`,
+  `DocumentsView`, `JobsView`, `LangSmithView`, `MailInboxView`,
+  `MemoryView`, `ResearchView`, `SkillsView`. La SPA ya no cae al
+  `ErrorBoundary` si el backend manda envoltura/error.
+
+### PWA endurecida
+
+- `app/manifest.ts`: `display_override: [window-controls-overlay,
+  standalone, minimal-ui]`, `categories: [productivity, utilities,
+  developer]`, **4 shortcuts** (Chat / Aprobaciones / Jobs / Health) con
+  íconos propios; PNG primarios + SVG fallback + maskable.
+- **Íconos rasterizados** desde los SVG fuente con headless Chromium
+  (preserva gradientes y opacity layering): `icon-{192,512}.png`,
+  `icon-maskable-512.png`, `apple-touch-icon.png`. SVG originales
+  quedan como any-size fallback.
+- **Service worker** v `cogos-v2026-05-20-glass-2`
+  (`public/sw.js`): SHELL_ASSETS extendido con todos los íconos PNG +
+  `/offline.html`; lista de prefijos network-only extendida (sumados
+  `/assist`, `/audit`, `/code-director`, `/langsmith`, `/sessions`,
+  `/skills`, `/system`); handlers `push` y `notificationclick`
+  estándar (el backend puede emitir Web Push payloads JSON con
+  `title`/`body`/`tag`/`url`).
+- **`public/offline.html`**: página branded glass-dark con botón
+  Reintentar. Cacheada por el SW para que offline no muestre el HTML
+  por defecto del browser.
+- `PWA.tsx` con íconos por estado (`install` / `refresh` / `wifiOff`) y
+  marca circular teal.
+- **Deep-link `?tab=<id>`** desde shortcuts: navega al view correcto y
+  limpia el query string.
+
+### Testing endurecido
+
+- `playwright.config.ts` ahora aplica `serviceWorkers: 'block'`,
+  `launchOptions.args: --disable-cache`, `extraHTTPHeaders.Cache-Control:
+  no-store` al global `use`. Razón: una PWA con SW persistente puede
+  contaminar runs siguientes con chunks viejos que devuelven 500 con
+  MIME `text/plain`, rompiendo hidratación.
+- Test E2E ad-hoc con Playwright recorre: Dashboard → las 19 tabs →
+  command palette (abrir + filtrar) → notification center (abrir +
+  cerrar) → mobile viewport 393×851 → drawer → navegación.
+  **Resultado: 0 errores 5xx, 0 page errors, 0 console errors, 26
+  screenshots capturados.**
+
+### Verificación
+
+- `npm run lint` → 0 warnings (`--max-warnings 0`).
+- `npm run build` → Next 16.2.6 + Turbopack, 4 páginas estáticas OK.
+- `npx tsc --noEmit` → 0 errores.
+- Anclajes E2E intactos: `aria-label="JWT local"`, `URL base de la
+  API`, `Abrir menú`, `Cerrar`, literal `Estado global`,
+  `componentes ok`, los 20 `TAB_LABELS`, labels en `SettingsView`.
+
+### Archivos tocados (frontend)
+
+- **Reescritos:** `app/globals.css`, `app/layout.tsx`, `app/page.tsx`,
+  `app/manifest.ts`, `app/components/{Sidebar,TopBar,PWA,CommandPalette}.tsx`,
+  `app/lib/toasts.tsx`, `app/views/{Dashboard,Health,Approvals,Jobs,Chat,Settings}View.tsx`,
+  `public/sw.js`.
+- **Creados:** `app/components/{Icon,Charts,NotificationCenter}.tsx`,
+  `public/offline.html`, `public/icons/{icon,icon-maskable,icon-{192,512},icon-maskable-512,apple-touch-icon}.{svg,png}`.
+- **Endurecidos con `asArray`:** `app/page.tsx`,
+  `app/views/{Agents,Approvals,Assist,Audit,Dashboard,Documents,Jobs,LangSmith,MailInbox,Memory,Research,Skills}View.tsx`,
+  `app/lib/api.ts`.
+- **Hardening de tests:** `playwright.config.ts`.
+
 ## 2026-05-20 — Fases 79-81: plan de aprendizaje autónomo completo + aislamiento de DB de test
 
 Cierre de las 5 fases del `docs/AGENT_LEARNING_PLAN.md` y endurecimiento
@@ -2336,3 +2672,179 @@ con poll hasta status=ready.
 Verificación: **465 passed, 1 skipped, 20 deselected**; ruff/format/mypy
 strict verdes (106 source files); frontend lint/build verdes; status live
 `ready`; CapSolver key NO filtrada a código/docs/tests.
+
+## 2026-05-20 — Fase 83 — Hardening comercial en curso
+
+Completado:
+
+- Workers/jobs/action dispatch endurecidos con `celery_task_id`, revoke real,
+  eventos de fallo y guards contra reentrada tardía sobre estados terminales.
+- Health de workers ya valida tareas registradas, colas esperadas y conteos
+  active/reserved/scheduled.
+- WebBridge real migrado a carril primario Edge DevTools en perfil dedicado.
+- Launcher abre Edge con `setsid` + `--remote-debugging-port=9222` y no despierta
+  el popup Kimi salvo opt-in explícito.
+- Runtime verificado:
+  - `/system/readiness` → 14/14.
+  - `/actions/webbridge/status` → `active_provider=edge_devtools`.
+  - `/actions/webbridge/evaluate` → `document.title == "Cognitive OS"`.
+- QA enfocado:
+  - `tests/test_config.py tests/test_kimi_webbridge.py` → 41 passed.
+  - WebBridge/config/health/jobs/actions/workers/celery → 129 passed.
+  - `ruff check`, `ruff format --check`, `mypy` en archivos tocados → verde.
+
+Pendiente inmediato:
+
+- `bash scripts/full-qa.sh` → OK: 822 passed, 1 skipped, 20 deselected;
+  ruff, format check, mypy, Alembic, frontend lint/build y `git diff --check`
+  verdes.
+- Stack reiniciado y runtime revalidado:
+  - `/health/dashboard` → `status=ok`, workers 22/22, `active_provider=edge_devtools`.
+  - `/system/readiness` → 14/14.
+  - `/actions/webbridge/evaluate` → `Cognitive OS`.
+- `COGOS_JWT=... npx playwright test --reporter=list` → 17 passed.
+
+Siguiente oleada:
+
+- Telegram auditado:
+  - 37 comandos registrados.
+  - `tests/test_telegram_bot.py` → 22 passed.
+  - Bot vivo long-poll 200 y `authorized=1`.
+  - Fix aplicado: no volver a loggear URLs `httpx` con el bot token.
+- `bash scripts/full-qa.sh` post-Telegram → OK: 823 passed, 1 skipped,
+  20 deselected; ruff, format check, mypy, Alembic, frontend lint/build y
+  `git diff --check` verdes.
+
+Siguiente oleada:
+
+- Revisar mail/envíos y Action Plane externo en modo dedicado: confirmar si el
+  contrato actual acepta auto-send local o si debe seguir usando el gate central
+  para evitar duplicados y estados no auditables.
+
+## 2026-05-21 — Fase 84 — JWT local automático cerrado
+
+Completado:
+
+- `backend/src/cognitive_os/api/app.py`: nuevo `POST /auth/local-token` para
+  perfil `dedicated_local/full`; emite JWT largo `local-operator` con roles
+  `admin,operator` y `Cache-Control: no-store`.
+- `frontend/app/page.tsx`: bootstrap automático de JWT local, persistencia de
+  origen `auto|manual`, refresh ante expiración/401 y banner de error solo si
+  el bootstrap falla.
+- `frontend/app/views/SettingsView.tsx`: muestra modo de JWT y botón
+  "Usar JWT local automático".
+- `frontend/app/views/DashboardView.tsx`: texto de sesión sin autenticar ya no
+  instruye pegado manual como flujo normal.
+- `frontend/tests/e2e/auth.spec.ts`: cubre autoprovisión sin token, override
+  manual inválido y token válido.
+
+Verificación:
+
+- `cd backend && uv run pytest tests/test_api.py -q` → 10 passed.
+- `cd backend && uv run ruff check .` → verde.
+- `cd backend && uv run ruff format --check .` → verde.
+- `cd frontend && npm run lint` → verde.
+- `cd frontend && npm run build` → verde.
+- Stack reiniciado con `bash ~/Escritorio/cognitive-os.sh restart`.
+- Runtime real sin mocks:
+  - `POST /auth/local-token` → 200, no-store, roles admin/operator.
+  - Navegador limpio → `jwt_input_has_value=true`.
+  - `cogos.token.source` → `"auto"`.
+  - `/health/dashboard` → al menos un 200.
+  - banner "Falta JWT local" → 0.
+  - errores de consola → 0.
+- `COGOS_JWT=... npx playwright test tests/e2e/auth.spec.ts --reporter=list`
+  → 3 passed.
+
+Riesgo residual:
+
+- La extensión Kimi no quedó conectada tras restart, pero Edge DevTools sí está
+  listo en `127.0.0.1:9222` y es el proveedor primario para WebBridge.
+
+## 2026-05-21 — Fase 85 — Mail read-only/digest cerrado
+
+Completado:
+
+- `Settings`: mail queda read-only incluso en `dedicated_local/full`;
+  `MAIL_ALLOW_EXPLICIT_SEND=false`, `MAIL_GMAIL_MONITOR_LABELS=TODOS,SPAM`,
+  `MAIL_GODADDY_MONITOR_FOLDERS=Spam`, digest `10,20`
+  `America/Santiago`, últimos 50.
+- `GmailLabelReader`: `TODOS` cae a all-mail (`in:anywhere -in:trash`) cuando
+  no existe un label custom; `SPAM` incluye spam/trash explícitamente.
+- `mail.classifier`: no confía en carpeta spam/junk/bulk; solo marca `spam`
+  por señales de contenido.
+- `PersonalMailService`: `build_digest()` genera resumen + respuestas
+  propuestas separadas, puede persistir artefactos locales y no toca mailbox.
+- `approve_and_send()`: bloqueado salvo flags de escape hatch + frase
+  `SEND_THIS_EMAIL_EXPLICITLY`; no hay SMTP desde UI/digest normal.
+- Celery: tarea `cognitive_os.build_personal_mail_digest` en queue `mail` con
+  beat `personal-mail-digest`.
+- Frontend `MailInboxView`: sección digest con dos textareas read-only, copiar
+  texto, y sin botón de envío normal.
+- Docs y `.env.example`: sincronizados con la política de Diego.
+
+Verificación focalizada:
+
+- `uv run pytest tests/test_config.py tests/test_mail_classifier.py tests/test_mail_api.py tests/test_gmail_digest.py tests/test_celery_config.py -q`
+  → 56 passed.
+- `bash scripts/full-qa.sh` → OK: 840 passed, 1 skipped, 20 deselected;
+  ruff, format check, mypy src, Alembic check, npm audit/lint/build y
+  `git diff --check` verdes.
+- Runtime restart detectó `beat: stopped`: el digest usaba `lambda` como
+  `crontab.nowfun`; Celery beat no puede picklear lambdas en el
+  PersistentScheduler. Corregido con `mail_digest_now()` de módulo y test
+  `pickle.dumps(schedule["schedule"])`.
+- `bash scripts/full-qa.sh` post-fix beat → OK: 840 passed, 1 skipped,
+  20 deselected; checks completos verdes.
+
+Pendiente inmediato:
+
+- Reiniciar stack y verificar `/mail/status`, `/mail/digest/preview` y vista
+  Mail en navegador real.
+
+## 2026-05-21 — Fase 85.1 — Mail runtime + health comercial cerrado
+
+Completado:
+
+- `/health/dashboard` ya no puede quedar colgado por un componente lento:
+  `HEALTH_COMPONENT_TIMEOUT_SECONDS=3` envuelve cada check y devuelve
+  `degraded` explícito con latencia si se agota.
+- Health de Celery dejó de hacer `ping` + cinco inspecciones secuenciales en
+  cada polling del frontend. Ahora verifica tareas registradas y colas
+  consumidas, lo necesario para readiness comercial del dashboard.
+- `MAIL_BACKGROUND_SYNC_ENABLED=false` apaga el polling continuo por defecto.
+  El modo normal queda exactamente como lo pidió Diego: digest con sync interno
+  a las 10:00 y 20:00 `America/Santiago`; `/mail/sync` queda manual.
+- `/mail/status`, `/config/public` y la UI exponen si el sync continuo está
+  apagado o encendido.
+
+Verificación:
+
+- `uv run pytest tests/test_health_dashboard.py tests/test_config.py -q` →
+  24 passed.
+- `uv run pytest tests/test_config.py tests/test_celery_config.py tests/test_mail_api.py -q`
+  → 36 passed.
+- `bash scripts/full-qa.sh` → OK: 844 passed, 1 skipped, 20 deselected; ruff,
+  format check, mypy src, Alembic check, npm audit/lint/build y
+  `git diff --check` verdes.
+- Stack reiniciado: docker, api, worker, beat, frontend, telegram y Kimi
+  corriendo.
+- Runtime:
+  - `/health/dashboard` x3 → 200 `overall=ok`, workers `ok`, sin tareas/colas
+    faltantes.
+  - `/system/readiness` → "Sin fricción", gaps 0.
+  - `/mail/status` → `background_sync_enabled=false`,
+    `digest_hours_local=["10","20"]`, timezone `America/Santiago`.
+  - `beat_schedule` vivo → `personal-mail-digest` presente,
+    `personal-mail-sync` ausente.
+  - `POST /mail/digest/preview` con sync real y `persist=false` → 50
+    considerados, 50 incluidos, 0 warnings, 0 artifacts, 0 sends.
+  - Logs beat tras restart: no volvió a emitirse `personal-mail-sync` después
+    de 05:06:53.
+- `npx playwright test --reporter=list` con JWT local → 21 passed.
+
+Estado:
+
+- Mail queda read-only/proposal-only por defecto.
+- Digest programado dos veces al día.
+- Health dashboard queda acotado y estable para polling de frontend.

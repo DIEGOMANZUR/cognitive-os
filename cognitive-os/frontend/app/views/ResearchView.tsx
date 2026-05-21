@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ApiClient } from "../lib/api";
-import { errorMessage, statusClass } from "../lib/api";
+import { asArray, errorMessage, statusClass } from "../lib/api";
 import { usePolledFetch } from "../lib/hooks";
 import { useToast } from "../lib/toasts";
 import type {
@@ -181,10 +181,10 @@ export function ResearchView({ client }: { client: ApiClient }) {
         <aside>
           <h3 className="muted small">Runs recientes</h3>
           <div className="research-run-list">
-            {(runs.data ?? []).length === 0 && (
+            {asArray(runs.data).length === 0 && (
               <p className="muted small">Aún no hay runs.</p>
             )}
-            {(runs.data ?? []).map((r) => (
+            {asArray(runs.data).map((r) => (
               <button
                 key={r.run_id}
                 className={`research-run-item${r.run_id === selectedRunId ? " active" : ""}`}

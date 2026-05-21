@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from celery import Celery
 from celery.schedules import crontab
 from celery.signals import worker_process_init
@@ -43,6 +46,10 @@ celery_app.conf.update(
             "queue": "maintenance",
             "routing_key": "maintenance",
         },
+        "cognitive_os.reap_stale_running_jobs": {
+            "queue": "maintenance",
+            "routing_key": "maintenance",
+        },
         "cognitive_os.debug_fast": {"queue": "default", "routing_key": "default"},
         "cognitive_os.run_deepagent_task": {
             "queue": "agent_longrun",
@@ -81,6 +88,7 @@ celery_app.conf.update(
             "routing_key": "maintenance",
         },
         "cognitive_os.sync_personal_mail": {"queue": "mail", "routing_key": "mail"},
+        "cognitive_os.build_personal_mail_digest": {"queue": "mail", "routing_key": "mail"},
         # Fase 78 — recipe extractor reuses the maintenance queue, same
         # tier as the existing memory consolidator. Cheap CPU work plus
         # one short LLM call per job; no need for a dedicated queue.
@@ -118,6 +126,13 @@ celery_app.conf.update(
     enable_utc=True,
 )
 
+
+def mail_digest_now() -> datetime:
+    """Return Chile-local time for the personal mail digest crontab."""
+
+    return datetime.now(ZoneInfo(settings.mail_digest_timezone))
+
+
 beat_schedule: dict[str, object] = {}
 if settings.deepagents_memory_consolidation_enabled:
     minute, hour, day_of_month, month_of_year, day_of_week = (
@@ -148,10 +163,20 @@ if (
         "task": "cognitive_os.telegram_gmail_digest",
         "schedule": crontab(minute=12, hour=digest_hour),
     }
-if settings.mail_enabled:
+if settings.mail_enabled and settings.mail_background_sync_enabled:
     beat_schedule["personal-mail-sync"] = {
         "task": "cognitive_os.sync_personal_mail",
         "schedule": settings.mail_poll_interval_seconds,
+    }
+if settings.mail_enabled and settings.mail_digest_enabled:
+    digest_hours = ",".join(str(int(hour)) for hour in settings.mail_digest_hours_local)
+    beat_schedule["personal-mail-digest"] = {
+        "task": "cognitive_os.build_personal_mail_digest",
+        "schedule": crontab(
+            minute=0,
+            hour=digest_hours,
+            nowfun=mail_digest_now,
+        ),
     }
 beat_schedule["action-request-reaper"] = {
     "task": "cognitive_os.reap_stuck_action_requests",

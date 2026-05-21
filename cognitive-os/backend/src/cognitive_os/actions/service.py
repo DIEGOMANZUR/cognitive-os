@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import hashlib
 import json
@@ -49,8 +50,18 @@ from cognitive_os.core.config import Settings, settings
 from cognitive_os.core.db import session_scope
 from cognitive_os.db.models import ActionRequest, AuditEvent, HumanApproval, Job, JobEvent
 from cognitive_os.tools.policy import redact_tool_args
+from cognitive_os.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
+
+
+def _celery_task_id(async_result: Any) -> str | None:
+    raw_id = getattr(async_result, "id", None) or getattr(async_result, "task_id", None)
+    if raw_id is None:
+        return None
+    task_id = str(raw_id).strip()
+    return task_id or None
+
 
 _ACTIVE_STATUSES: tuple[str, ...] = (
     "previewed",
@@ -72,7 +83,7 @@ _ACTIVE_STATUSES: tuple[str, ...] = (
 _AUTO_APPROVABLE_REVERSIBLE_ACTIONS: frozenset[str] = frozenset(
     {
         "drive_ensure_folder",
-        "drive_upload",
+        "drive_upload_file",
         "computer_organize",
     }
 )
@@ -308,6 +319,18 @@ class ActionRequestService:
     def __init__(self, app_settings: Settings = settings) -> None:
         self._settings = app_settings
 
+    def _should_auto_approve_action(self, action_type: str) -> bool:
+        if (
+            self._settings.operator_profile == "dedicated_local"
+            and getattr(self._settings, "local_autonomy_mode", "guarded") == "full"
+            and not self._settings.require_human_approval_for_external_actions
+        ):
+            return True
+        return (
+            self._settings.auto_approve_reversible_actions
+            and action_type in _AUTO_APPROVABLE_REVERSIBLE_ACTIONS
+        )
+
     async def _find_active_idempotent_request(
         self,
         session: object,
@@ -435,7 +458,21 @@ class ActionRequestService:
                 )
             )
             await session.flush()
-            return _view(action_request)
+            view = _view(action_request)
+            auto_approve_eligible = (
+                action_status == "pending_approval"
+                and self._should_auto_approve_action("computer_organize")
+                and action_request.approval_id is not None
+            )
+            approval_id_to_auto = action_request.approval_id if auto_approve_eligible else None
+
+        if approval_id_to_auto is not None:
+            view = await self._auto_approve_and_dispatch(
+                approval_id=approval_id_to_auto,
+                action_request_id=view.id,
+                requested_by=requested_by,
+            )
+        return view
 
     async def create_browser_navigation_request(
         self,
@@ -574,7 +611,21 @@ class ActionRequestService:
                 )
             )
             await session.flush()
-            return _view(action_request)
+            view = _view(action_request)
+            auto_approve_eligible = (
+                action_status == "pending_approval"
+                and self._should_auto_approve_action("godaddy_dns_change")
+                and action_request.approval_id is not None
+            )
+            approval_id_to_auto = action_request.approval_id if auto_approve_eligible else None
+
+        if approval_id_to_auto is not None:
+            view = await self._auto_approve_and_dispatch(
+                approval_id=approval_id_to_auto,
+                action_request_id=view.id,
+                requested_by=requested_by,
+            )
+        return view
 
     async def create_document_generate_request(
         self,
@@ -675,7 +726,21 @@ class ActionRequestService:
                 )
             )
             await session.flush()
-            return _view(action_request)
+            view = _view(action_request)
+            auto_approve_eligible = (
+                action_status == "pending_approval"
+                and self._should_auto_approve_action("document_generate")
+                and action_request.approval_id is not None
+            )
+            approval_id_to_auto = action_request.approval_id if auto_approve_eligible else None
+
+        if approval_id_to_auto is not None:
+            view = await self._auto_approve_and_dispatch(
+                approval_id=approval_id_to_auto,
+                action_request_id=view.id,
+                requested_by=requested_by,
+            )
+        return view
 
     async def create_calendar_event_request(
         self,
@@ -961,7 +1026,21 @@ class ActionRequestService:
                 )
             )
             await session.flush()
-            return _view(action_request)
+            view = _view(action_request)
+            auto_approve_eligible = (
+                action_status == "pending_approval"
+                and self._should_auto_approve_action("browser_preview")
+                and action_request.approval_id is not None
+            )
+            approval_id_to_auto = action_request.approval_id if auto_approve_eligible else None
+
+        if approval_id_to_auto is not None:
+            view = await self._auto_approve_and_dispatch(
+                approval_id=approval_id_to_auto,
+                action_request_id=view.id,
+                requested_by=requested_by,
+            )
+        return view
 
     async def create_browser_interactive_request(
         self,
@@ -1083,7 +1162,21 @@ class ActionRequestService:
                 )
             )
             await session.flush()
-            return _view(action_request)
+            view = _view(action_request)
+            auto_approve_eligible = (
+                action_status == "pending_approval"
+                and self._should_auto_approve_action("browser_interactive")
+                and action_request.approval_id is not None
+            )
+            approval_id_to_auto = action_request.approval_id if auto_approve_eligible else None
+
+        if approval_id_to_auto is not None:
+            view = await self._auto_approve_and_dispatch(
+                approval_id=approval_id_to_auto,
+                action_request_id=view.id,
+                requested_by=requested_by,
+            )
+        return view
 
     async def _persist_preview_request(
         self,
@@ -1235,8 +1328,7 @@ class ActionRequestService:
             view = _view(action_request)
             auto_approve_eligible = (
                 action_status == "pending_approval"
-                and self._settings.auto_approve_reversible_actions
-                and action_type in _AUTO_APPROVABLE_REVERSIBLE_ACTIONS
+                and self._should_auto_approve_action(action_type)
                 and action_request.approval_id is not None
             )
             approval_id_to_auto = action_request.approval_id if auto_approve_eligible else None
@@ -1302,7 +1394,7 @@ class ActionRequestService:
         try:
             from cognitive_os.workers.tasks import run_action_request_task_async
 
-            run_action_request_task_async.apply_async(
+            async_result = run_action_request_task_async.apply_async(
                 args=[str(action_request.id), str(action_request.job_id)],
                 queue="agent_longrun",
             )
@@ -1328,16 +1420,20 @@ class ActionRequestService:
                 )
         else:
             with contextlib.suppress(Exception):
+                dispatch_metadata: dict[str, object] = {
+                    "queue": "agent_longrun",
+                    "surface": "auto_approve",
+                }
+                task_id = _celery_task_id(async_result)
+                if task_id is not None:
+                    dispatch_metadata["celery_task_id"] = task_id
                 await self.record_action_dispatch_event(
                     job_id=action_request.job_id,
                     action_request_id=action_request.id,
                     event_type="action_request_dispatch_submitted",
                     status="queued",
                     message="Auto-approve submitted action request to Celery",
-                    metadata_json={
-                        "queue": "agent_longrun",
-                        "surface": "auto_approve",
-                    },
+                    metadata_json=dispatch_metadata,
                 )
         return action_request
 
@@ -1367,24 +1463,89 @@ class ActionRequestService:
                 raise ActionRequestError(msg)
 
             previous_status = action_request.status
-            action_request.status = "cancelled"
+            job: Job | None = None
+            celery_task_id: str | None = None
             if action_request.job_id is not None:
                 job = await session.get(Job, action_request.job_id)
                 if job is not None:
-                    job.status = "cancelled"
-                    job.progress = 100
+                    raw_task_id = (job.metadata_json or {}).get("celery_task_id")
+                    celery_task_id = (
+                        raw_task_id if isinstance(raw_task_id, str) and raw_task_id else None
+                    )
+            if previous_status == "queued" and celery_task_id is not None:
+                try:
+                    await asyncio.to_thread(
+                        celery_app.control.revoke,
+                        celery_task_id,
+                        terminate=True,
+                        signal="SIGTERM",
+                    )
+                except Exception as exc:  # noqa: BLE001 - operator-facing broker failure
+                    if job is not None:
+                        metadata = dict(job.metadata_json or {})
+                        metadata["celery_revoke_failed_at"] = datetime.now(UTC).isoformat()
+                        metadata["celery_revoke_error_type"] = type(exc).__name__
+                        metadata["celery_revoke_error"] = str(exc)
+                        job.metadata_json = metadata
+                        session.add(
+                            JobEvent(
+                                job_id=job.id,
+                                event_type="action_request_cancel_failed",
+                                status=job.status,
+                                message=(
+                                    "Celery revoke failed; action request status was left unchanged"
+                                ),
+                                metadata_json={
+                                    "action_request_id": str(action_request.id),
+                                    "celery_task_id": celery_task_id,
+                                    "previous_status": previous_status,
+                                    "error_type": type(exc).__name__,
+                                    "error": str(exc),
+                                },
+                            )
+                        )
                     session.add(
-                        JobEvent(
-                            job_id=job.id,
-                            event_type="action_request_cancelled",
-                            status="cancelled",
-                            message="Action request cancelled by operator",
+                        AuditEvent(
+                            actor_id=requested_by,
+                            action="action_request.cancel_failed",
+                            resource_type="action_request",
+                            resource_id=str(action_request.id),
                             metadata_json={
-                                "action_request_id": str(action_request.id),
+                                "action_type": action_request.action_type,
                                 "previous_status": previous_status,
+                                "error_type": type(exc).__name__,
                             },
                         )
                     )
+                    await session.flush()
+                    return _view(action_request)
+
+            action_request.status = "cancelled"
+            if job is not None:
+                job.status = "cancelled"
+                job.progress = 100
+                job_metadata = dict(job.metadata_json or {})
+                if celery_task_id is not None:
+                    job_metadata["celery_revoke_requested_at"] = datetime.now(UTC).isoformat()
+                    job_metadata["celery_revoke_signal"] = "SIGTERM"
+                else:
+                    job_metadata["cancel_without_celery_task_id"] = True
+                    job_metadata["cancel_without_celery_task_id_at"] = datetime.now(UTC).isoformat()
+                job.metadata_json = job_metadata
+                session.add(
+                    JobEvent(
+                        job_id=job.id,
+                        event_type="action_request_cancelled",
+                        status="cancelled",
+                        message="Action request cancelled by operator",
+                        metadata_json={
+                            "action_request_id": str(action_request.id),
+                            "previous_status": previous_status,
+                            "celery_task_id": celery_task_id,
+                            "celery_revoke_requested": celery_task_id is not None,
+                        },
+                    )
+                )
             session.add(
                 AuditEvent(
                     actor_id=requested_by,
@@ -1656,6 +1817,27 @@ class ActionRequestService:
                     if isinstance(error_type, str):
                         metadata["dispatch_last_error_type"] = error_type
                 action_request.metadata_json = metadata
+            job = await session.get(Job, job_id)
+            if job is not None:
+                job_metadata = dict(job.metadata_json or {})
+                celery_task_id = (metadata_json or {}).get("celery_task_id")
+                if isinstance(celery_task_id, str) and celery_task_id:
+                    job_metadata["celery_task_id"] = celery_task_id
+                    job_metadata["celery_task_name"] = "action_request"
+                queue_name = (metadata_json or {}).get("queue")
+                if isinstance(queue_name, str):
+                    job_metadata["celery_queue"] = queue_name
+                surface_name = (metadata_json or {}).get("surface")
+                if isinstance(surface_name, str):
+                    job_metadata["celery_surface"] = surface_name
+                if event_type == "action_request_dispatch_submitted":
+                    job_metadata["celery_submitted_at"] = datetime.now(UTC).isoformat()
+                elif event_type == "action_request_dispatch_failed":
+                    error_type = (metadata_json or {}).get("error_type")
+                    if isinstance(error_type, str):
+                        job_metadata["celery_dispatch_error_type"] = error_type
+                    job_metadata["celery_dispatch_failed_at"] = datetime.now(UTC).isoformat()
+                job.metadata_json = job_metadata
             session.add(
                 JobEvent(
                     job_id=job_id,

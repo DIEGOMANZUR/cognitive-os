@@ -180,6 +180,27 @@ class DocumentAnalysisService:
             if job is None:
                 msg = f"Job not found: {job_id}"
                 raise ValueError(msg)
+            if job.status in {"cancelled", "rejected"} and status not in {
+                "cancelled",
+                "rejected",
+            }:
+                session.add(
+                    JobEvent(
+                        job_id=job_id,
+                        event_type=f"{event_type}_ignored_after_{job.status}",
+                        status=job.status,
+                        message=(
+                            f"Ignored document-analysis update to {status}; "
+                            f"job is already {job.status}."
+                        ),
+                        metadata_json={
+                            "attempted_status": status,
+                            "attempted_event_type": event_type,
+                            **(metadata_json or {}),
+                        },
+                    )
+                )
+                return
             job.status = status
             job.progress = progress
             if metadata_json:

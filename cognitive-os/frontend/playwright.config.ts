@@ -28,6 +28,19 @@ export default defineConfig({
     video: "retain-on-failure",
     actionTimeout: 10_000,
     navigationTimeout: 30_000,
+    // The cockpit ships a service worker (PWA). Across test runs a stale
+    // SW registration can keep returning cached chunks from a previous
+    // build — that surfaces as MIME-type errors and 500s on chunk URLs
+    // that no longer exist. Blocking SW registration in tests + disabling
+    // the HTTP cache keeps the suite deterministic without weakening the
+    // actual SW in production.
+    serviceWorkers: "block",
+    launchOptions: {
+      args: ["--disable-application-cache", "--disable-cache"],
+    },
+    extraHTTPHeaders: {
+      "Cache-Control": "no-store",
+    },
   },
   expect: {
     timeout: 7_000,

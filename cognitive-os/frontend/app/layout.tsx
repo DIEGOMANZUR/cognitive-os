@@ -1,7 +1,22 @@
 import type { Metadata, Viewport } from "next";
+import { Inter, JetBrains_Mono } from "next/font/google";
 
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import "./globals.css";
+
+// Self-hosted by next/font at build time — no runtime request, no FOIT,
+// and the PWA works fully offline (the font files are part of the bundle).
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-sans"
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-mono"
+});
 
 export const metadata: Metadata = {
   title: "Cognitive OS",
@@ -14,8 +29,12 @@ export const metadata: Metadata = {
     title: "Cognitive OS"
   },
   icons: {
-    icon: [{ url: "/icons/icon-192.svg", type: "image/svg+xml", sizes: "192x192" }],
-    apple: [{ url: "/icons/apple-touch-icon.svg", sizes: "180x180" }]
+    icon: [
+      { url: "/icons/icon.svg", type: "image/svg+xml" },
+      { url: "/icons/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icons/icon-512.png", type: "image/png", sizes: "512x512" }
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }]
   },
   formatDetection: {
     telephone: false,
@@ -25,7 +44,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b1020",
+  themeColor: "#070a12",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover"
@@ -37,7 +56,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
+    <html lang="es" data-theme="dark" className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <body>
         <ErrorBoundary>{children}</ErrorBoundary>
       </body>

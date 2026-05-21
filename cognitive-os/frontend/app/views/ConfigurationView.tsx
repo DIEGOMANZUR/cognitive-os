@@ -28,6 +28,10 @@ const GROUPS: Array<{
         danger: (c) => c.environment === "production" && c.operator_profile === "dedicated_local"
       },
       {
+        label: "LOCAL_AUTONOMY_MODE",
+        extract: (c) => c.local_autonomy_mode
+      },
+      {
         label: "AUTO_APPROVE_REVERSIBLE_ACTIONS",
         extract: (c) => String(c.auto_approve_reversible_actions)
       },
@@ -72,7 +76,8 @@ const GROUPS: Array<{
       {
         label: "BROWSER_ALLOW_HEADED · VISION",
         extract: (c) => `${c.browser_allow_headed} · ${c.browser_allow_vision}`,
-        danger: (c) => c.browser_allow_headed || c.browser_allow_vision
+        danger: (c) =>
+          c.operator_profile === "strict" ? c.browser_allow_headed || c.browser_allow_vision : false
       },
       {
         label: "BROWSER_ALLOWED_DOMAINS",
@@ -85,7 +90,10 @@ const GROUPS: Array<{
       {
         label: "COMPUTER_ROOTS · DRY_RUN",
         extract: (c) => `${c.computer_allowed_roots_count} · ${c.computer_organize_dry_run_only}`,
-        danger: (c) => c.enable_computer_actions && !c.computer_organize_dry_run_only
+        danger: (c) =>
+          c.operator_profile === "strict"
+            ? c.enable_computer_actions && !c.computer_organize_dry_run_only
+            : false
       },
       {
         label: "ENABLE_DOCUMENT_GENERATION",
@@ -106,7 +114,13 @@ const GROUPS: Array<{
       {
         label: "MAIL_REQUIRE_APPROVAL_FOR_SEND",
         extract: (c) => String(c.mail_require_approval_for_send),
-        danger: (c) => !c.mail_require_approval_for_send
+        danger: (c) =>
+          c.operator_profile === "strict" ? !c.mail_require_approval_for_send : false
+      },
+      {
+        label: "MAIL_BACKGROUND_SYNC_ENABLED",
+        extract: (c) => String(c.mail_background_sync_enabled),
+        danger: (c) => c.mail_background_sync_enabled
       },
       {
         label: "MAIL_POLL · FETCH_LIMIT",
@@ -127,7 +141,10 @@ const GROUPS: Array<{
       {
         label: "GODADDY_DRY_RUN · PROD_WRITES",
         extract: (c) => `${c.godaddy_dns_dry_run_only} · ${c.godaddy_allow_production_writes}`,
-        danger: (c) => !c.godaddy_dns_dry_run_only || c.godaddy_allow_production_writes
+        danger: (c) =>
+          c.operator_profile === "strict"
+            ? !c.godaddy_dns_dry_run_only || c.godaddy_allow_production_writes
+            : false
       },
       {
         label: "GODADDY_ALLOWED_DOMAINS",

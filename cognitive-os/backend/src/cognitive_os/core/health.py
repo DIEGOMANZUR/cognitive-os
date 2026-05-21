@@ -31,6 +31,59 @@ class HealthDashboard(BaseModel):
     components: list[ComponentHealth]
 
 
+def _inspect_workers_snapshot() -> dict[str, Any]:
+    """Inspect only the worker facts needed by the dashboard.
+
+    Celery inspect calls are broadcast RPCs. Calling registered/active/reserved/
+    scheduled/queues sequentially can exceed the dashboard timeout even when the
+    worker is healthy. Commercial health only needs two hard facts here:
+    expected task registration and consumed queues. Deeper job activity belongs
+    in job/worker diagnostics, not in every frontend poll.
+    """
+    inspector = celery_app.control.inspect(timeout=1.0)
+    return {
+        "registered": inspector.registered() or {},
+        "active_queues": inspector.active_queues() or {},
+        "active": {},
+        "reserved": {},
+        "scheduled": {},
+    }
+
+
+def _inspect_item_count(value: Any) -> int:
+    if not isinstance(value, dict):
+        return 0
+    total = 0
+    for items in value.values():
+        if isinstance(items, list):
+            total += len(items)
+    return total
+
+
+def _registered_task_names(value: Any) -> set[str]:
+    if not isinstance(value, dict):
+        return set()
+    names: set[str] = set()
+    for items in value.values():
+        if not isinstance(items, list):
+            continue
+        names.update(str(item) for item in items)
+    return names
+
+
+def _consumed_queue_names(value: Any) -> set[str]:
+    if not isinstance(value, dict):
+        return set()
+    names: set[str] = set()
+    for items in value.values():
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if isinstance(item, dict) and isinstance(item.get("name"), str):
+                names.add(item["name"])
+    return names
+
+
 async def check_health_dashboard() -> HealthDashboard:
     components = await asyncio.gather(
         _safe_check("postgres", _check_postgres()),
@@ -278,6 +331,9 @@ async def _check_webbridge() -> ComponentHealth:
             "daemon_url": wb.daemon_url,
             "daemon_running": wb.daemon_running,
             "extension_connected": wb.extension_connected,
+            "active_provider": wb.active_provider,
+            "edge_devtools_url": wb.edge_devtools_url,
+            "edge_devtools_running": wb.edge_devtools_running,
             "allow_mutations": wb.allow_mutations,
             "allowed_domain_count": wb.allowed_domain_count,
         },
@@ -379,14 +435,65 @@ async def _check_mcp() -> ComponentHealth:
 async def _check_workers() -> ComponentHealth:
     started = _now_ms()
     try:
-        replies = await asyncio.to_thread(celery_app.control.ping, timeout=1.0)
-        status = "ok" if replies else "degraded"
+        expected_tasks = set(celery_app.conf.task_routes.keys())
+        expected_queues = {queue.name for queue in celery_app.conf.task_queues}
+        snapshot: dict[str, Any] = {}
+        inspect_error: str | None = None
+        try:
+            snapshot = await asyncio.to_thread(_inspect_workers_snapshot)
+        except Exception as exc:  # noqa: BLE001 - health must degrade, not raise
+            inspect_error = f"{type(exc).__name__}: {_sanitize_detail(str(exc))}"
+        registered_tasks = _registered_task_names(snapshot.get("registered"))
+        consumed_queues = _consumed_queue_names(snapshot.get("active_queues"))
+        worker_names = sorted(
+            {
+                *(
+                    snapshot.get("registered", {})
+                    if isinstance(snapshot.get("registered"), dict)
+                    else {}
+                ),
+                *(
+                    snapshot.get("active_queues", {})
+                    if isinstance(snapshot.get("active_queues"), dict)
+                    else {}
+                ),
+            }
+        )
+        missing_tasks = sorted(expected_tasks - registered_tasks)
+        missing_queues = sorted(expected_queues - consumed_queues)
+        status = "ok"
+        details: list[str] = []
+        if not worker_names:
+            status = "degraded"
+            details.append("No active Celery workers exposed registered tasks or queues.")
+        if inspect_error:
+            status = "degraded"
+            details.append(f"Worker inspect failed: {inspect_error}")
+        if missing_tasks:
+            status = "degraded"
+            details.append(f"Missing registered task(s): {', '.join(missing_tasks[:5])}.")
+        if missing_queues:
+            status = "degraded"
+            details.append(f"Worker is not consuming queue(s): {', '.join(missing_queues)}.")
         return ComponentHealth(
             name="workers",
             status=status,
-            detail=None if replies else "No active Celery workers replied.",
+            detail=" ".join(details) if details else None,
             latency_ms=_elapsed_ms(started),
-            metadata={"replies": replies},
+            metadata={
+                "workers": worker_names,
+                "worker_count": len(worker_names),
+                "registered_task_count": len(registered_tasks),
+                "expected_task_count": len(expected_tasks),
+                "missing_registered_tasks": missing_tasks,
+                "consumed_queues": sorted(consumed_queues),
+                "expected_queues": sorted(expected_queues),
+                "missing_queues": missing_queues,
+                "active_count": _inspect_item_count(snapshot.get("active")),
+                "reserved_count": _inspect_item_count(snapshot.get("reserved")),
+                "scheduled_count": _inspect_item_count(snapshot.get("scheduled")),
+                "activity_counts_skipped": True,
+            },
         )
     except Exception as exc:
         return _failed("workers", exc, started)
@@ -411,7 +518,19 @@ def _failed(name: str, exc: Exception, started: float) -> ComponentHealth:
 async def _safe_check(name: str, check: Awaitable[ComponentHealth]) -> ComponentHealth:
     started = _now_ms()
     try:
-        return await check
+        return await asyncio.wait_for(
+            check,
+            timeout=settings.health_component_timeout_seconds,
+        )
+    except TimeoutError:
+        return ComponentHealth(
+            name=name,
+            status="degraded",
+            detail=(
+                f"Health check timed out after {settings.health_component_timeout_seconds:g}s."
+            ),
+            latency_ms=_elapsed_ms(started),
+        )
     except Exception as exc:
         return _failed(name, exc, started)
 

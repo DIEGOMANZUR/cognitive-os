@@ -1,6 +1,23 @@
 # Cognitive OS — Guía de Usuario (comercial)
 
-> Estado: **Fases 78-81 cerradas (2026-05-20)** — plan de aprendizaje
+> Estado: **Fase 82 cerrada (2026-05-20)** — Glass Cockpit. Frontend
+> reescrito a un *command center glassmorphism dark-only de alto
+> contraste, instalable como PWA*. Tokens nuevos en `app/globals.css`,
+> tipografía self-hosted (Inter + JetBrains Mono via `next/font/google`),
+> set SVG curado de ~55 íconos, **charts SVG nativos** (sparklines,
+> donut, área), **centro de notificaciones** lateral, **command palette**
+> con fuzzy match y recientes, **PWA endurecida** con manifest 4
+> shortcuts + íconos PNG/SVG/maskable + service worker
+> `cogos-v2026-05-20-glass-2` + página `/offline.html` branded + handlers
+> de push del SO. **Defensive array guards** (`asArray<T>`) en las 13
+> vistas que consumen colecciones — la SPA ya no cae al `ErrorBoundary`
+> si el backend devuelve forma incorrecta. `playwright.config.ts`
+> blindado contra service-workers persistentes y cache HTTP. QA verde:
+> lint 0 warnings, build, tsc, E2E headless (1440×900 + mobile 393×851)
+> sobre las 20 tabs + palette + notification center = 0 errores 5xx / 0
+> page errors / 0 console errors.
+>
+> **Estado anterior: Fases 78-81 cerradas** — plan de aprendizaje
 > autónomo completo (Fases A-E) + aislamiento de DB de test. Cadena LLM
 > del operador verificada en vivo:
 > **primary + agent = `gpt-5.5`** (gateway OpenAI-compatible, **Responses
@@ -333,14 +350,14 @@ budget caps, ejecutándose en `127.0.0.1`.
   persistida `DeepAgentMemoryService`. Las skills nuevas se proponen y
   esperan aprobación humana antes de activarse.
 - **Action Plane** — la capa que convierte *intención* en *acción
-  externa con rastro*: mail (GoDaddy IMAP/SMTP + Gmail label `TODOS`),
+  externa con rastro*: mail read-only (Gmail `TODOS`/`SPAM` + GoDaddy `Spam`),
   Google Maps/Calendar/Drive, GoDaddy DNS (dry-run), navegador
   (Playwright + visión), computador local (organizar/inventario),
   documentos Office (DOCX/XLSX/PPTX), sandbox OpenShell opcional, y el
   **Code Director** (delegación a coding agents externos).
 - **Celery 5.4** con 5 colas: `default`, `ingestion`, `agent_longrun`,
   `maintenance`, `mail`. Trabajos largos, ingesta de PDFs, builds de
-  código, mantenimiento de tokens, envío diferido de correos.
+  código, mantenimiento de tokens y digest de correo.
 - **Datos** ligados a loopback: **Postgres 16 + pgvector** (vectores +
   estado de grafo LangGraph), **Redis 7** (cache, rate limit backend
   opcional, broker Celery), **Weaviate 1.29.0** (búsqueda híbrida
@@ -483,12 +500,14 @@ comandos (buscás cualquier vista o acción por nombre).
   indexan en Weaviate y son buscables (`/assist/notes/search`).
 
 #### Mail (✉)
-- **Qué hace:** inbox unificado GoDaddy IMAP + Gmail label `TODOS`.
-  Clasifica (important/normal/spam/promo) y propone respuestas
-  redactadas con su rationale.
-- **Click "Enviar":** **NO envía directo** — pasa por `HumanApproval`
-  (`MAIL_REQUIRE_APPROVAL_FOR_SEND=true`). Recién al aprobar, el worker
-  `mail` hace el SMTP/Gmail send y deja `AuditEvent` + `mail_send_logs`.
+- **Qué hace:** digest personal read-only. Lee Gmail `TODOS`/`SPAM` y
+  GoDaddy `Spam`, clasifica con el agente (no confía en carpetas del
+  proveedor), resume los últimos 50 y propone respuestas como texto.
+- **Qué NO hace:** no crea borradores en Gmail/GoDaddy y no envía SMTP en
+  el flujo normal. Diego copia la propuesta y la envía manualmente, salvo
+  una petición explícita futura de envío. Tampoco hace polling continuo
+  salvo que `MAIL_BACKGROUND_SYNC_ENABLED=true`; el modo normal es digest
+  a las 10:00 y 20:00 Chile.
 
 ### Conocimiento
 
@@ -721,7 +740,7 @@ bot → Diego — me lo dijiste recién.
 |---|---|---|
 | "¿qué es el teorema CAP?" | `research` | responde directo, con RAG si hay docs |
 | "buscá en mi Drive el contrato ACME" | `research` | usa la tool `search_drive_files` |
-| "redactá un mail a juan@x.com" | `comm` | propone borrador, **pide tu OK** para enviar |
+| "redactá un mail a juan@x.com" | `comm` | propone texto para copiar; no envía en el flujo normal |
 | "publicá esto en mis redes" | `social` | propone, pide aprobación |
 | "analizá estos 3 PDFs de demanda" | `legal` | pipeline document-analysis |
 
@@ -823,10 +842,9 @@ panel. Four-eyes, reaper y dispatch idempotente funcionan igual.
 1. **Chat** → "Mirá mi calendar de mañana, contesta los pendientes de
    GoDaddy/Gmail con horarios libres de la mañana; sugerime 3 slots por
    reunión, dejame aprobar antes de mandar."
-2. El grafo: Calendar free/busy → mail inbox → drafter → propone slots
-   → **`HumanApproval` por cada borrador**.
-3. Aprobás los que quieras desde *Aprobaciones* o `/approve <id>` → el
-   worker `mail` envía → `AuditEvent` + `mail_send_logs`.
+2. El grafo: Calendar free/busy → mail digest → drafter → propone slots
+   y textos separados.
+3. Copias las respuestas que te gusten y las envías manualmente desde tu correo.
 
 ### 6.3 "Análisis legal de 6 PDFs de demanda"
 
@@ -890,17 +908,15 @@ todo para revisar en la vista **Memoria**. Un día de uso típico:
 
 ### 6.8 "Ordená mi bandeja: leé, clasificá y prepará respuestas"
 
-1. **Mail** → el inbox unificado (GoDaddy IMAP + Gmail label `TODOS`) ya
-   está sincronizado por el beat `personal-mail-sync`. Cada correo trae
-   su clasificación (`important` / `normal` / `spam` / `promo`).
-2. Para los importantes, el agente propone un **borrador de respuesta**
-   con su rationale ("por qué respondo esto así").
-3. Revisás el borrador. Click **Enviar** → **NO sale** todavía: crea un
-   `HumanApproval`. El envío de mail es **irreversible**, así que el
-   gate no se afloja ni en `dedicated_local`.
-4. Vas a **Aprobaciones** (o `/approve <id>` por Telegram) → recién ahí
-   el worker `mail` hace el SMTP/Gmail send real y deja `AuditEvent` +
-   fila en `mail_send_logs`.
+1. **Mail** → `Generar resumen 50` o beat `personal-mail-digest` a las
+   10:00 y 20:00 Chile. Fuentes: Gmail `TODOS`/`SPAM` y GoDaddy `Spam`;
+   no hay sync continuo por defecto.
+2. Cada correo trae clasificación del agente (`important` / `normal` /
+   `spam` / `promo`). Solo se excluye lo que el agente marca como spam.
+3. El panel muestra dos campos: resumen general y respuestas propuestas
+   para importantes.
+4. Revisás el texto, lo copiás y lo envías tú desde el cliente de correo
+   si corresponde. El sistema no crea drafts y no hace SMTP en este flujo.
 
 > Si una cuenta falla (IMAP caído, token vencido) el sync reporta
 > *partial failure* con el detalle por cuenta — no se cae el inbox
@@ -917,9 +933,9 @@ todo para revisar en la vista **Memoria**. Un día de uso típico:
   determinista).
 - **Análisis legal estructurado**: matriz evidencia, contradicciones,
   timeline, full report, draft support, case summary.
-- **Mail personal multicuenta** (GoDaddy IMAP/SMTP + Gmail label
-  `TODOS`): leer, clasificar, redactar borradores. **Envía solo con
-  aprobación humana.**
+- **Mail personal multicuenta** (Gmail `TODOS`/`SPAM` + GoDaddy `Spam`):
+  leer, clasificar con el agente, resumir y redactar propuestas de texto.
+  **No envía ni crea drafts en el flujo normal.**
 - **Google Workspace**: Maps (read-only con tráfico), Calendar (eventos,
   free/busy, write bajo `ActionRequest`), Drive (búsqueda, nube de
   entregables, upload, organización bajo `ActionRequest`).
@@ -967,6 +983,7 @@ sepas dónde estás parado.
 ```
 OPERATOR_PROFILE=strict           # ← histórico (default)
 # OPERATOR_PROFILE=dedicated_local
+LOCAL_AUTONOMY_MODE=full          # full = cero fricción local; guarded = modo antiguo
 ```
 
 ### Perfil `strict` (default)
@@ -981,16 +998,18 @@ operador no es dueño exclusivo del PC. Posturas:
 | `approval_pending_max_hours` | `48 h` (reaper cierra pendientes viejas) |
 | `code_director_budget_mode` | `soft` (build termina `partial`, no crash) |
 | `mail_require_approval_for_send` | `true` |
+| `mail_allow_explicit_send` | `false` |
 | `browser_allowed_domains` / `kimi_webbridge_allowed_domains` | lista explícita |
 | `computer_allowed_roots` | acotado |
 
 ### Perfil `dedicated_local` (PC dedicado al agente, tu perfil de Edge)
 
 Pensado para el caso real: un PC dedicado al agente, con **tu perfil de
-Edge real** (Google, Outlook, banca, GoDaddy, todo logueado). En este
-contexto, "fricción" sin daño irreversible es ruido. El perfil afloja
-silenciosamente lo que **no rompe nada en frío** y deja **visible** lo
-que sí tiene cola de regret.
+Edge real** (Google, Outlook, banca, GoDaddy, todo logueado). En
+`LOCAL_AUTONOMY_MODE=full`, el sistema sacrifica seguridad operativa para
+eliminar fricción: los approvals dejan de ser el control primario y la
+responsabilidad pasa a observabilidad, audit trail, idempotencia, retries y
+diagnóstico visible.
 
 | Capacidad | `dedicated_local` | Razón |
 |---|---|---|
@@ -998,15 +1017,19 @@ que sí tiene cola de regret.
 | `approval_require_four_eyes` | `false` | un solo operador, no tiene sentido |
 | `approval_pending_max_hours` | `168 h` (1 semana) | aprobás cuando podés, no se expiran solas en 2 días |
 | `code_director_budget_mode` | `soft` | el build termina lo que está haciendo aunque cruce el cap |
-| `browser_allowed_domains` | **lo decidís vos** (default `[]`) | wildcard `*` es opción explícita, no oculta |
-| `kimi_webbridge_allowed_domains` | **lo decidís vos** | mismo principio |
-| `mail_require_approval_for_send` | **default `true`**, opt-out visible | mail mal enviado no se desmanda; el opt-out se ve en Health |
-| `computer_allowed_roots` | **lo decidís vos** (recomendación: tu `$HOME`) | |
+| `browser_allowed_domains` | `*` si estaba vacío | Playwright puede navegar cualquier host |
+| `kimi_webbridge_allowed_domains` | `*` si estaba vacío | Edge real sin allow-list manual |
+| `kimi_webbridge_allow_mutations` | `true` | puede clickear, escribir y ejecutar acciones en el navegador real |
+| `kimi_webbridge_require_approval` | `false` | sin approval intermedio |
+| `mail_require_approval_for_send` | `true` | mail sigue read-only por política de Diego |
+| `mail_allow_explicit_send` | `false` | escape hatch SMTP apagado salvo petición explícita |
+| `computer_allowed_roots` | `$HOME`, `/tmp`, `/mnt` si estaba vacío | acceso local amplio |
+| `research_persistence_backend` | `postgres` | los runs sobreviven reinicios |
 
-**Importante**: una variable explícita del operador en `.env` **siempre
-gana** sobre los presets del perfil. Si ponés
-`APPROVAL_REQUIRE_FOUR_EYES=true` con `dedicated_local`, four-eyes sigue
-activo. El perfil solo rellena valores que dejaste en su default.
+**Importante**: en `LOCAL_AUTONOMY_MODE=full`, el perfil puede sobreescribir
+flags explícitos antiguos que mantenían fricción (`MAIL_REQUIRE_APPROVAL_FOR_SEND=true`,
+`KIMI_WEBBRIDGE_REQUIRE_APPROVAL=true`, etc.). Si querés el comportamiento
+conservador anterior, usá `LOCAL_AUTONOMY_MODE=guarded`.
 
 ### Setup recomendado: PC de Diego (PC dedicado)
 
@@ -1014,15 +1037,10 @@ activo. El perfil solo rellena valores que dejaste en su default.
 
 ```
 OPERATOR_PROFILE=dedicated_local
-# Browser real (Edge) con sesiones logueadas: explícito y amplio.
-# (No es un wildcard oculto: aparece en /config/public y en Health.)
-KIMI_WEBBRIDGE_ALLOWED_DOMAINS=*
-KIMI_WEBBRIDGE_ALLOW_MUTATIONS=true
-# Permitir computer_organize sobre el home (read+plan; movimientos siguen
-# pasando por approval salvo que también aflojes ese gate explícitamente).
-ENABLE_COMPUTER_ACTIONS=true
-COMPUTER_ALLOWED_ROOTS=/home/jgonz,/home/jgonz/Escritorio,/home/jgonz/Descargas,/mnt
-# Mail send siempre pide approval — irreversible.
+LOCAL_AUTONOMY_MODE=full
+# Opcional: acotar si no querés el default amplio de full mode.
+# KIMI_WEBBRIDGE_ALLOWED_DOMAINS=*
+# COMPUTER_ALLOWED_ROOTS=/home/jgonz,/home/jgonz/Escritorio,/home/jgonz/Descargas,/mnt
 # Code Director: los adapters CLI heredan tu entorno por default (necesario
 # para que `claude`, `codex` o `kimi` usen tus credenciales ya autenticadas
 # en este PC). No hay knob para "sanitizar" — si lo necesitás en otro perfil,
@@ -1056,17 +1074,17 @@ perfil `dedicated_local` no te alcance.
 | Google Maps (rutas / geocode) | ✅ | — | — |
 | Calendar list / freebusy | ✅ | — | — |
 | Drive search / get | ✅ | — | — |
-| Calendar event create | — | ✅ siempre | (queda con approval; el set congelado se ejecuta exacto) |
+| Calendar event create | ✅ en `dedicated_local/full` | ✅ bajo `strict` | `ENABLE_GOOGLE_CALENDAR_WRITE=true` |
 | Drive folder ensure | ✅ bajo `dedicated_local` (auto-approve reversible) | ✅ bajo `strict` | `ENABLE_GOOGLE_DRIVE_WRITE=true` |
 | Drive upload (a carpeta propia) | ✅ bajo `dedicated_local` (auto-approve reversible) | ✅ bajo `strict` | `ENABLE_GOOGLE_DRIVE_WRITE=true` |
-| Drive organize (mover/renombrar) | — | ✅ siempre | toca archivos existentes — **no** está en la whitelist auto-approve |
-| Mail send (GoDaddy / Gmail) | — | ✅ siempre | **irreversible** — `MAIL_REQUIRE_APPROVAL_FOR_SEND=true` es el contrato; no hay carril autosend |
-| Browser preview (screenshot) | — | ✅ | allow-list `BROWSER_ALLOWED_DOMAINS` |
-| Browser interactivo (Playwright) | — | ✅ | allow-list + `BROWSER_ALLOW_HEADED` |
-| Kimi WebBridge (tu Edge real) | ✅ con domain en allow-list | — para reads | `KIMI_WEBBRIDGE_ALLOWED_DOMAINS=*` (dedicated_local) |
-| Kimi WebBridge mutations | — | ✅ por defecto | `KIMI_WEBBRIDGE_ALLOW_MUTATIONS=true` + `KIMI_WEBBRIDGE_REQUIRE_APPROVAL=false` |
+| Drive organize (mover/renombrar) | ✅ si está implementado por Action Plane | ✅ bajo `strict` | `ENABLE_GOOGLE_DRIVE_WRITE=true` |
+| Mail send (GoDaddy / Gmail) | ❌ fuera del flujo normal | ❌ fuera del flujo normal | Solo con solicitud explícita + `ENABLE_EMAIL_SEND=true` + `MAIL_ALLOW_EXPLICIT_SEND=true` |
+| Browser preview (screenshot) | ✅ en `dedicated_local/full` | ✅ bajo `strict` | `BROWSER_ALLOWED_DOMAINS=*` |
+| Browser interactivo (Playwright) | ✅ en `dedicated_local/full` | ✅ bajo `strict` | allow-list + `BROWSER_ALLOW_HEADED` |
+| Kimi WebBridge (tu Edge real) | ✅ wildcard por default en `full` | — para reads | `KIMI_WEBBRIDGE_ALLOWED_DOMAINS=*` |
+| Kimi WebBridge mutations | ✅ en `dedicated_local/full` | ✅ bajo `strict` | `KIMI_WEBBRIDGE_ALLOW_MUTATIONS=true` + `KIMI_WEBBRIDGE_REQUIRE_APPROVAL=false` |
 | computer_inventory (read) | ✅ | — | `ENABLE_COMPUTER_ACTIONS=true` |
-| computer_organize | — | ✅ | mismo + `COMPUTER_ALLOWED_ROOTS=<dirs>` |
+| computer_organize | ✅ en `dedicated_local/full` | ✅ bajo `strict` | `COMPUTER_ALLOWED_ROOTS=<dirs>` |
 | GoDaddy DNS preview | ✅ | — | `GODADDY_ENABLED=true` |
 | GoDaddy DNS write real | — | ✅ + flags | `GODADDY_DNS_DRY_RUN_ONLY=false` + `GODADDY_ALLOW_PRODUCTION_WRITES=true` |
 | Code Director plan | ✅ | — | — |
@@ -1149,7 +1167,7 @@ Detalle completo en `docs/SECURITY.md`.
 | `/mail` dice `MAIL_ENABLED=false` | mail multicuenta apagado | configurá `MAIL_*` y `ENABLE` |
 | Build Code Director `failed` "adapter unavailable" | CLI no instalado/logueado | `claude --version`, `codex --version`, `kimi --version` |
 | `Approval pending` desaparece sola | reaper la marcó expirada (>48 h) | volvé a generarla |
-| Mail nunca sale | `MAIL_REQUIRE_APPROVAL_FOR_SEND=true` y no aprobaste | *Aprobaciones* o `/approve <id>` |
+| Envío explícito de mail falla | SMTP/credenciales incompletas, body vacío, flags de escape hatch apagadas o confirmación faltante | revisá `/mail/status`, `MAIL_GODADDY_*`, `ENABLE_EMAIL_SEND`, `MAIL_ALLOW_EXPLICIT_SEND` y la confirmación explícita |
 | ActionRequest queda `dispatched=false` | Redis/Celery caído | levantá el stack y reintentá el dispatch |
 | Drive folder/organize daba 500 en Postgres | (corregido en Fase 65: migración `202605170001`) | `uv run alembic upgrade head` |
 | `detect-secrets` falso positivo en test | falta pragma | `# pragma: allowlist secret` en esa línea |
@@ -1215,8 +1233,8 @@ un mini-ejemplo para que lo veas en acción.
   cifrado. *Ejemplo:* `drive_organize_files` te muestra exactamente qué
   archivos se moverían antes de aprobar.
 - **HumanApproval.** La compuerta. Un cambio sensible se detiene acá y
-  espera tu **Aprobar** o **Rechazar**. *Ejemplo:* el envío de un mail
-  crea un `HumanApproval`; hasta que no lo aprobás, el correo no sale.
+  espera tu **Aprobar** o **Rechazar**. *Ejemplo:* un cambio DNS o un
+  upload Drive no se ejecuta hasta que lo aprobás.
 - **AuditEvent.** El rastro inmutable: quién hizo qué, cuándo. Se escribe
   igual venga del panel o de Telegram. *Ejemplo:* aprobás por el bot →
   `AuditEvent` con `actor="telegram:<chat_id>"`.
@@ -1226,8 +1244,8 @@ un mini-ejemplo para que lo veas en acción.
   nuevo.
 - **Interrupt.** Cuando el grafo necesita tu aprobación a mitad de
   camino, se *detiene* en un `interrupt(...)`. Resolvés en **Aprobaciones**
-  y el thread se reanuda. *Ejemplo:* le pedís que mande 3 mails → el
-  grafo se interrumpe 3 veces, una por borrador.
+  y el thread se reanuda. *Ejemplo:* le pedís 3 acciones reales → el
+  grafo se interrumpe una vez por acción.
 - **Reaper.** Una tarea de mantenimiento que limpia lo que quedó colgado
   (aprobaciones viejas, jobs zombi). *Ejemplo:* una aprobación que nadie
   decidió en `APPROVAL_PENDING_MAX_HOURS` la cierra el reaper.
@@ -1272,7 +1290,7 @@ un mini-ejemplo para que lo veas en acción.
 - **`OPERATOR_PROFILE`.** `strict` (default, máquinas compartidas) o
   `dedicated_local` (PC dedicado, sin fricción para lo reversible). Ver
   §8. *Ejemplo:* en `dedicated_local`, crear una carpeta de Drive no
-  pide aprobación; mandar un mail sí.
+  pide aprobación; el mail normal solo propone texto.
 - **Degradación elegante.** Si falta una credencial o un servicio se
   cae, la capacidad queda `disabled`/`blocked` con el motivo — **nunca**
   rompe el arranque. *Ejemplo:* sin `GOOGLE_MAPS_API_KEY`, la vista
@@ -1346,13 +1364,13 @@ equivalente en Telegram, se indica.
 ### 13.5 Mail: leer, clasificar, responder (Mail)
 
 - **Querés:** ordenar la bandeja y responder sin redactar de cero.
-- **Hacés:** vista **Mail** → revisás clasificación y borradores
-  propuestos → **Enviar**. Telegram: `/mail [max]`.
-- **Pasa:** el envío crea un `HumanApproval` — **el mail no sale hasta
-  que lo aprobás** (gate irreversible, no se afloja nunca). Al aprobar,
-  el worker `mail` hace el SMTP/Gmail send.
+- **Hacés:** vista **Mail** → `Generar resumen 50` → revisás resumen y
+  propuestas en campos separados. Telegram: `/mail [max]` lista mensajes.
+- **Pasa:** no hay draft ni envío. El agente clasifica y propone texto;
+  Diego copia la respuesta y la manda manualmente si corresponde.
 - **Ejemplo:** ver §6.8 (receta completa de triage).
-- **Queda registro:** `mail_send_logs` + `AuditEvent`.
+- **Queda registro:** mensajes persistidos y digest/job events. `mail_send_logs`
+  solo aparece si Diego pide explícitamente un envío real.
 
 ### 13.6 Calendar: agenda y eventos (Google Ops)
 
@@ -1574,10 +1592,9 @@ muestra **qué no esperar / qué no hacer** y **qué hacer en su lugar**.
   **mueve y renombra, no borra**; `drive_organize_files` tampoco borra ni
   cambia permisos. ✅ *En su lugar:* pedile que los **mueva** a una carpeta
   `_para_borrar/` y borrás vos tras revisar.
-- ❌ **"Mandá este mail ya, sin que yo lo apruebe."** El envío de mail es
-  irreversible: `MAIL_REQUIRE_APPROVAL_FOR_SEND=true` es un contrato que
-  **no se afloja ni en `dedicated_local`**. ✅ *En su lugar:* aprobás en 1
-  click desde *Aprobaciones* o `/approve <id>`.
+- ❌ **"Mandá este mail ya, sin trazabilidad."** El flujo normal de mail no
+  envía. Si Diego pide un envío explícito, debe quedar `MailSendLog`, errores
+  visibles y audit trail; si no, solo se entrega texto para copiar.
 
 ### 14.2 No saltees la aprobación ni apruebes a ciegas
 

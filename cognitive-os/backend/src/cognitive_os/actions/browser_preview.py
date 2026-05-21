@@ -5,7 +5,7 @@ import time
 from collections.abc import Callable
 from importlib.util import find_spec
 from pathlib import Path
-from typing import Protocol
+from typing import Literal, Protocol, cast
 from urllib.parse import urlparse
 
 from cognitive_os.actions.policy import (
@@ -18,6 +18,8 @@ from cognitive_os.actions.schemas import (
     BrowserPreviewRequest,
 )
 from cognitive_os.core.config import Settings, settings
+
+PlaywrightWaitUntil = Literal["commit", "domcontentloaded", "load", "networkidle"]
 
 
 class BrowserPreviewProvider(Protocol):
@@ -180,14 +182,18 @@ class PlaywrightBrowserPreviewProvider:
         capture_screenshot: bool,
         screenshot_path: Path,
     ) -> BrowserPreviewProviderResult:
-        from playwright.sync_api import sync_playwright  # type: ignore[import-not-found]
+        from playwright.sync_api import sync_playwright
 
         with sync_playwright() as runtime:
             browser = runtime.chromium.launch(headless=True)
             try:
                 context = browser.new_context()
                 page = context.new_page()
-                response = page.goto(url, wait_until=wait_until, timeout=timeout_ms)
+                response = page.goto(
+                    url,
+                    wait_until=cast("PlaywrightWaitUntil", wait_until),
+                    timeout=timeout_ms,
+                )
                 final_url = response.url if response is not None else page.url
                 title = page.title()
                 screenshot_bytes = 0

@@ -75,6 +75,11 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
       ),
     [maps.data, calendar.data, drive.data]
   );
+  const mapsReady = maps.data?.status === "ready";
+  const calendarReady = calendar.data?.status === "ready";
+  const calendarWriteReady = calendarReady && Boolean(calendar.data?.write_enabled);
+  const driveReady = drive.data?.status === "ready";
+  const driveWriteReady = driveReady && Boolean(drive.data?.write_enabled);
 
   async function planRoute() {
     if (!origin.trim() || !destination.trim() || busy) return;
@@ -262,7 +267,7 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
           <div>
             <h2>Google Ops</h2>
             <p className="muted small">
-              Maps es read-only. Calendar y Drive crean solicitudes aprobables antes de tocar Google.
+              Maps es read-only. Calendar y Drive ejecutan por Action Plane; en modo dedicado no piden aprobación manual.
             </p>
           </div>
           <div className="row">
@@ -299,7 +304,7 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
               />
               alternativas
             </label>
-            <button className="primary" disabled={busy !== null || !origin || !destination} onClick={planRoute} type="button">
+            <button className="primary" disabled={busy !== null || !origin || !destination || !mapsReady} onClick={planRoute} type="button">
               Calcular ruta
             </button>
           </div>
@@ -342,12 +347,12 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
             </p>
           )}
           <div className="row">
-            <button onClick={listCalendar} disabled={busy !== null} type="button">Listar agenda</button>
-            <button onClick={checkFreeBusy} disabled={busy !== null} type="button">Disponibilidad</button>
+            <button onClick={listCalendar} disabled={busy !== null || !calendarReady} type="button">Listar agenda</button>
+            <button onClick={checkFreeBusy} disabled={busy !== null || !calendarReady} type="button">Disponibilidad</button>
             <span className="muted small">write={String(calendar.data?.write_enabled ?? false)}</span>
           </div>
           <div className="card soft stack">
-            <h3>Solicitar evento</h3>
+            <h3>Crear evento</h3>
             <input value={eventSummary} onChange={(event) => setEventSummary(event.target.value)} placeholder="Resumen" />
             <input type="datetime-local" value={eventStart} onChange={(event) => setEventStart(event.target.value)} />
             <input type="datetime-local" value={eventEnd} onChange={(event) => setEventEnd(event.target.value)} />
@@ -359,13 +364,13 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
                 !eventSummary ||
                 !eventStart ||
                 !eventEnd ||
-                !calendar.data?.write_enabled
+                !calendarWriteReady
               }
               onClick={requestCalendarEvent}
               type="button"
-              title={calendar.data?.write_enabled ? "" : "ENABLE_GOOGLE_CALENDAR_WRITE=true para habilitar"}
+              title={calendarWriteReady ? "" : "Calendar debe estar ready y write=true"}
             >
-              Crear solicitud aprobable
+              Crear evento
             </button>
             </div>
           {freeBusy && (
@@ -442,7 +447,7 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
                 <option value="user">Mi unidad</option>
                 <option value="all_drives">Todo Drive</option>
               </select>
-              <button className="primary" onClick={searchDrive} disabled={busy !== null} type="button">Buscar</button>
+              <button className="primary" onClick={searchDrive} disabled={busy !== null || !driveReady} type="button">Buscar</button>
             </div>
             <label className="check">
               <input
@@ -452,16 +457,16 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
               />
               incluir carpetas
             </label>
-            <button onClick={previewFolder} disabled={busy !== null} type="button">
+            <button onClick={previewFolder} disabled={busy !== null || !driveReady} type="button">
               Validar carpeta de entregables
             </button>
             <button
               onClick={requestFolder}
-              disabled={busy !== null || !drive.data?.write_enabled}
+              disabled={busy !== null || !driveWriteReady}
               type="button"
-              title={drive.data?.write_enabled ? "" : "ENABLE_GOOGLE_DRIVE_WRITE=true para habilitar"}
+              title={driveWriteReady ? "" : "Drive debe estar ready y write=true"}
             >
-              Crear solicitud de carpeta
+              Crear carpeta
             </button>
             <input
               value={organizeTarget}
@@ -469,16 +474,16 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
               placeholder="Carpeta destino opcional"
             />
             <div className="row">
-              <button onClick={previewDriveOrganize} disabled={busy !== null} type="button">
+              <button onClick={previewDriveOrganize} disabled={busy !== null || !driveReady} type="button">
                 Preview organización
               </button>
               <button
                 onClick={requestDriveOrganize}
-                disabled={busy !== null || !drive.data?.write_enabled}
+                disabled={busy !== null || !driveWriteReady}
                 type="button"
-                title={drive.data?.write_enabled ? "" : "ENABLE_GOOGLE_DRIVE_WRITE=true para habilitar"}
+                title={driveWriteReady ? "" : "Drive debe estar ready y write=true"}
               >
-                Solicitar organización
+                Organizar en Drive
               </button>
             </div>
             {folderPreview && (
@@ -491,17 +496,17 @@ export function GoogleOpsView({ client }: { client: ApiClient }) {
             )}
           </div>
           <div className="card soft stack">
-            <h3>Solicitar upload aprobado</h3>
+            <h3>Subir archivo</h3>
             <input value={uploadPath} onChange={(event) => setUploadPath(event.target.value)} placeholder="Ruta local permitida" />
             <input value={uploadName} onChange={(event) => setUploadName(event.target.value)} placeholder="Nombre en Drive opcional" />
             <button
               className="primary"
-              disabled={busy !== null || !uploadPath.trim() || !drive.data?.write_enabled}
+              disabled={busy !== null || !uploadPath.trim() || !driveWriteReady}
               onClick={requestUpload}
               type="button"
-              title={drive.data?.write_enabled ? "" : "ENABLE_GOOGLE_DRIVE_WRITE=true para habilitar"}
+              title={driveWriteReady ? "" : "Drive debe estar ready y write=true"}
             >
-              Crear solicitud Drive
+              Subir a Drive
             </button>
             <p className="muted small">
               Límite: {formatBytes(drive.data?.upload_max_bytes ?? null)} · write={String(drive.data?.write_enabled ?? false)}.

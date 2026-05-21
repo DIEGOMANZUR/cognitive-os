@@ -324,6 +324,26 @@ export function errorMessage(caught: unknown): string {
   return caught instanceof Error ? caught.message : "Error desconocido";
 }
 
+/**
+ * Defensive array guard used by every view that polls a list endpoint.
+ *
+ * The previous pattern `(data ?? []).filter(...)` only protects against
+ * `null` / `undefined` — if the backend ever responds with a non-array
+ * (object error envelope, garbled JSON, malformed proxy response, schema
+ * drift), `.filter` blows up and React un-mounts the whole SPA into the
+ * global ErrorBoundary. `asArray` turns "wrong shape" into an empty list
+ * so the affected view just shows its empty state.
+ *
+ * The overload signature lets TypeScript infer the element type when the
+ * input is already typed (`T[] | null` from `usePolledFetch<T[]>`) so the
+ * callers don't need to repeat the type parameter.
+ */
+export function asArray<T>(value: T[] | null | undefined): T[];
+export function asArray<T = unknown>(value: unknown): T[];
+export function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
 export function statusClass(status: string): string {
   if (["ok", "completed", "approved", "active", "ready", "sent", "normal"].includes(status)) {
     return "badge ok";

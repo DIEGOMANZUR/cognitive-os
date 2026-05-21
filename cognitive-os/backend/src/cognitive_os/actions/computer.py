@@ -73,7 +73,7 @@ class ComputerActionService:
             name="computer",
             status=status,
             summary="Local filesystem organization through preview-first move plans.",
-            requires_approval=True,
+            requires_approval=self._manual_approval_required(),
             dry_run_only=self._settings.computer_organize_dry_run_only,
             reasons=reasons,
             metadata={
@@ -96,7 +96,7 @@ class ComputerActionService:
                 status="ok",
                 root_path=str(root),
                 dry_run_only=self._settings.computer_organize_dry_run_only,
-                requires_approval=True,
+                requires_approval=self._manual_approval_required(),
                 operations=operations,
                 warnings=[],
             )
@@ -105,7 +105,7 @@ class ComputerActionService:
                 status="blocked",
                 root_path=request.root_path,
                 dry_run_only=True,
-                requires_approval=True,
+                requires_approval=self._manual_approval_required(),
                 reason=str(exc),
             )
 
@@ -347,6 +347,9 @@ class ComputerActionService:
             encoding="utf-8",
         )
         return path
+
+    def _manual_approval_required(self) -> bool:
+        return bool(self._settings.require_human_approval_for_external_actions)
 
 
 def _category_for(path: Path) -> str:

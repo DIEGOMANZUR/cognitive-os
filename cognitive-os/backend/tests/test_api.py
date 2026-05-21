@@ -9,7 +9,7 @@ import cognitive_os.api.app as api_app
 from cognitive_os.agents.graph import build_graph
 from cognitive_os.agents.research import ReadOnlyResearchTools, ResearchAgent
 from cognitive_os.api.app import app
-from cognitive_os.core.auth import create_access_token
+from cognitive_os.core.auth import create_access_token, decode_jwt
 from cognitive_os.core.health import ComponentHealth, HealthDashboard
 from cognitive_os.deepagents.schemas import DeepAgentResult, DeepAgentTask
 
@@ -47,6 +47,42 @@ async def test_health_is_public() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "service": "cognitive-os"}
+
+
+@pytest.mark.asyncio
+async def test_local_token_bootstrap_requires_dedicated_local_full(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(api_app.settings, "operator_profile", "strict")
+    monkeypatch.setattr(api_app.settings, "local_autonomy_mode", "full")
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/auth/local-token")
+
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_local_token_bootstrap_mints_admin_operator_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(api_app.settings, "operator_profile", "dedicated_local")
+    monkeypatch.setattr(api_app.settings, "local_autonomy_mode", "full")
+    monkeypatch.setattr(api_app.settings, "auth_default_roles", ["operator"])
+    monkeypatch.setattr(api_app.settings, "auth_admin_roles", ["admin"])
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/auth/local-token")
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    body = response.json()
+    payload = decode_jwt(body["access_token"])
+    assert body["token_type"] == "bearer"
+    assert body["user_id"] == "local-operator"
+    assert set(body["roles"]) == {"admin", "operator"}
+    assert payload["sub"] == "local-operator"
+    assert set(payload["roles"]) == {"admin", "operator"}
 
 
 @pytest.mark.asyncio

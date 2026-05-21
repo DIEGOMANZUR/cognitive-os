@@ -1,49 +1,97 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CommandPalette, type CommandAction } from "./components/CommandPalette";
+import { Icon } from "./components/Icon";
+import {
+  NotificationCenter,
+  buildNotificationItems,
+  useUnreadCount
+} from "./components/NotificationCenter";
 import { PWA } from "./components/PWA";
 import { Sidebar, type SidebarBadges } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
-import { ApiClient } from "./lib/api";
-import { useKeyboard, useLocalState, usePolledFetch } from "./lib/hooks";
+import { ApiClient, asArray } from "./lib/api";
+import {
+  useHydrated,
+  useKeyboard,
+  useLocalState,
+  useOnline,
+  usePolledFetch
+} from "./lib/hooks";
 import { ToastProvider, useToast } from "./lib/toasts";
 import type {
   ApprovalResponse,
+  AuditEvent,
   HealthDashboardResponse,
+  JobResponse,
   KnowledgeStats,
-  Tab,
-  Theme
+  Tab
 } from "./lib/types";
 import { AgentsView } from "./views/AgentsView";
 import { ApprovalsView } from "./views/ApprovalsView";
 import { AssistView } from "./views/AssistView";
 import { AuditView } from "./views/AuditView";
 import { ChatView } from "./views/ChatView";
+import { CodeDirectorView } from "./views/CodeDirectorView";
 import { ConfigurationView } from "./views/ConfigurationView";
 import { DashboardView } from "./views/DashboardView";
 import { DocumentAnalysisView } from "./views/DocumentAnalysisView";
 import { DocumentsView } from "./views/DocumentsView";
-import { HealthView } from "./views/HealthView";
 import { GoogleOpsView } from "./views/GoogleOpsView";
+import { HealthView } from "./views/HealthView";
 import { JobsView } from "./views/JobsView";
 import { LangSmithView } from "./views/LangSmithView";
 import { MailInboxView } from "./views/MailInboxView";
-import { CodeDirectorView } from "./views/CodeDirectorView";
 import { MemoryView } from "./views/MemoryView";
 import { ResearchView } from "./views/ResearchView";
 import { SandboxView } from "./views/SandboxView";
 import { SettingsView } from "./views/SettingsView";
 import { SkillsView } from "./views/SkillsView";
 
-const MOBILE_QUICK_TABS: Array<{ id: Tab; label: string; icon: string }> = [
-  { id: "dashboard", label: "Home", icon: "◧" },
-  { id: "chat", label: "Chat", icon: "◇" },
-  { id: "jobs", label: "Jobs", icon: "▶" },
-  { id: "approvals", label: "Aprob.", icon: "✓" },
-  { id: "langsmith", label: "Traces", icon: "⌬" }
+const MOBILE_QUICK_TABS: Array<{ id: Tab; label: string; icon: Parameters<typeof Icon>[0]["name"] }> = [
+  { id: "dashboard", label: "Home", icon: "dashboard" },
+  { id: "chat", label: "Chat", icon: "chat" },
+  { id: "jobs", label: "Jobs", icon: "jobs" },
+  { id: "approvals", label: "Aprob.", icon: "approvals" },
+  { id: "langsmith", label: "Traces", icon: "langsmith" }
 ];
+
+const VALID_TABS = new Set<Tab>([
+  "dashboard",
+  "chat",
+  "agents",
+  "skills",
+  "memory",
+  "assist",
+  "googleOps",
+  "mail",
+  "documents",
+  "documentAnalysis",
+  "jobs",
+  "approvals",
+  "sandbox",
+  "research",
+  "codeDirector",
+  "langsmith",
+  "audit",
+  "health",
+  "configuration",
+  "settings"
+]);
+
+type TokenSource = "" | "auto" | "manual";
+
+type LocalTokenResponse = {
+  access_token: string;
+  token_type: "bearer";
+  user_id: string;
+  roles: string[];
+  expires_at: string;
+};
+
+const AUTO_TOKEN_REFRESH_SKEW_MS = 5 * 60 * 1000;
 
 export default function Home() {
   return (
@@ -61,10 +109,21 @@ function App() {
   // contract that says "JWT en localStorage" for dedicated_local. XSS risk
   // is low on a single-operator PC without third-party scripts. (Fase 71 P1.H)
   const [token, setToken] = useLocalState<string>("cogos.token", "");
-  const [theme, setTheme] = useLocalState<Theme>("cogos.theme", "dark");
+  const [tokenSource, setTokenSource] = useLocalState<TokenSource>(
+    "cogos.token.source",
+    ""
+  );
+  const [localAuthState, setLocalAuthState] = useState<
+    "idle" | "loading" | "ready" | "unavailable"
+  >("idle");
+  const [localAuthError, setLocalAuthError] = useState<string | null>(null);
+  const lastAuthRefreshKey = useRef("");
+  const hydrated = useHydrated();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const online = useOnline();
   const toast = useToast();
 
   useEffect(() => {
@@ -72,11 +131,69 @@ function App() {
     if (env) setApiBase(env);
   }, [setApiBase]);
 
-  useEffect(() => {
-    if (typeof document !== "undefined") {
-      document.documentElement.dataset.theme = theme;
+  const applyManualToken = useCallback(
+    (value: string) => {
+      setTokenSource("manual");
+      setToken(value.trim().replace(/^Bearer\s+/i, ""));
+    },
+    [setToken, setTokenSource]
+  );
+
+  const applyAutomaticToken = useCallback(
+    (value: string) => {
+      setTokenSource("auto");
+      setToken(value.trim().replace(/^Bearer\s+/i, ""));
+    },
+    [setToken, setTokenSource]
+  );
+
+  const requestLocalToken = useCallback(async () => {
+    setLocalAuthState("loading");
+    setLocalAuthError(null);
+    try {
+      const response = await fetch(`${apiBase.replace(/\/+$/, "")}/auth/local-token`, {
+        method: "POST",
+        headers: { Accept: "application/json" },
+        cache: "no-store"
+      });
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`${response.status} ${response.statusText}: ${detail}`);
+      }
+      const payload = (await response.json()) as LocalTokenResponse;
+      applyAutomaticToken(payload.access_token);
+      setLocalAuthState("ready");
+    } catch (caught) {
+      setLocalAuthState("unavailable");
+      setLocalAuthError(caught instanceof Error ? caught.message : "JWT local no disponible");
     }
-  }, [theme]);
+  }, [apiBase, applyAutomaticToken]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (tokenSource === "manual") return;
+    if (token && !jwtExpiresSoon(token)) {
+      setLocalAuthState("ready");
+      setLocalAuthError(null);
+      return;
+    }
+    void requestLocalToken();
+  }, [hydrated, requestLocalToken, token, tokenSource]);
+
+  // PWA deep-link via shortcut (?tab=jobs|approvals|chat|...). Runs once on mount.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const target = params.get("tab");
+    if (target && VALID_TABS.has(target as Tab)) {
+      setTab(target as Tab);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("tab");
+      url.searchParams.delete("source");
+      window.history.replaceState({}, "", url.toString());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -104,11 +221,27 @@ function App() {
     token ? "/approvals" : null,
     8000
   );
+  const jobsFeed = usePolledFetch<JobResponse[]>(
+    client,
+    token ? "/jobs?limit=12" : null,
+    10000
+  );
+  const auditFeed = usePolledFetch<AuditEvent[]>(
+    client,
+    token ? "/audit/events?limit=12" : null,
+    20000
+  );
+
+  const notificationItems = useMemo(
+    () => buildNotificationItems(approvals.data, jobsFeed.data, auditFeed.data),
+    [approvals.data, jobsFeed.data, auditFeed.data]
+  );
+  const unreadCount = useUnreadCount(notificationItems);
 
   const badges: SidebarBadges = useMemo(() => {
     const pendingApprovals =
       stats.data?.approvals_pending ??
-      (approvals.data ?? []).filter((a) => a.status === "pending").length;
+      asArray(approvals.data).filter((a) => a.status === "pending").length;
     const runningJobs = stats.data?.jobs_running ?? 0;
     return {
       approvals: pendingApprovals,
@@ -117,19 +250,42 @@ function App() {
   }, [stats.data, approvals.data]);
 
   const healthStatus = !token ? "no-auth" : health.data?.status ?? "?";
+  const authFailureSignal = [
+    stats.error,
+    health.error,
+    approvals.error,
+    jobsFeed.error,
+    auditFeed.error
+  ]
+    .filter(Boolean)
+    .join("|");
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (tokenSource === "manual") return;
+    if (!token || !authFailureSignal || !isUnauthorizedError(authFailureSignal)) return;
+    const refreshKey = `${token}:${authFailureSignal}`;
+    if (lastAuthRefreshKey.current === refreshKey) return;
+    lastAuthRefreshKey.current = refreshKey;
+    void requestLocalToken();
+  }, [authFailureSignal, hydrated, requestLocalToken, token, tokenSource]);
 
   const extraActions: CommandAction[] = useMemo(
     () => [
       {
-        id: "theme-toggle",
-        label: theme === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro",
+        id: "open-notifications",
+        label: "Abrir centro de notificaciones",
+        icon: "bell",
         hint: "UI",
-        run: () => setTheme(theme === "dark" ? "light" : "dark")
+        group: "UI",
+        run: () => setNotifOpen(true)
       },
       {
         id: "consolidate-memory",
         label: "Consolidar memoria DeepAgents",
+        icon: "memory",
         hint: "Acción",
+        group: "Acciones",
         run: async () => {
           try {
             await client.post("/deepagents/memory/consolidate/run", {});
@@ -142,15 +298,19 @@ function App() {
       {
         id: "refresh-stats",
         label: "Refrescar datos en vivo",
+        icon: "refresh",
         hint: "Datos",
+        group: "Acciones",
         run: () => {
           void stats.refetch();
           void health.refetch();
           void approvals.refetch();
+          void jobsFeed.refetch();
+          void auditFeed.refetch();
         }
       }
     ],
-    [theme, setTheme, client, toast, stats, health, approvals]
+    [client, toast, stats, health, approvals, jobsFeed, auditFeed]
   );
 
   useKeyboard((event) => {
@@ -162,6 +322,7 @@ function App() {
     if (event.key === "Escape") {
       setPaletteOpen(false);
       setDrawerOpen(false);
+      setNotifOpen(false);
       return;
     }
     const target = event.target as HTMLElement | null;
@@ -186,6 +347,9 @@ function App() {
 
   return (
     <main className="shell">
+      <a href="#cogos-main" className="skip-link">
+        Saltar al contenido principal
+      </a>
       {showSidebar && (
         <div
           className={`sidebar-wrap${showDrawer ? " is-drawer" : ""}`}
@@ -201,14 +365,14 @@ function App() {
             onSelect={setTab}
             badges={badges}
             healthStatus={healthStatus}
-            envName={token ? "ops" : "guest"}
+            envName={token ? "ops" : localAuthState === "loading" ? "local" : "guest"}
             onCommand={() => setPaletteOpen(true)}
             isMobile={isMobile}
             onCloseMobile={() => setDrawerOpen(false)}
           />
         </div>
       )}
-      <section className="main">
+      <section className="main" id="cogos-main" tabIndex={-1}>
         <div className="main-head">
           {isMobile && (
             <button
@@ -217,22 +381,34 @@ function App() {
               type="button"
               aria-label="Abrir menú"
             >
-              ☰
+              <Icon name="menu" size={18} />
             </button>
           )}
           <TopBar
             apiBase={apiBase}
             setApiBase={setApiBase}
             token={token}
-            setToken={setToken}
-            theme={theme}
-            toggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
+            setToken={applyManualToken}
+            onOpenCommand={() => setPaletteOpen(true)}
+            onOpenNotifications={() => setNotifOpen(true)}
+            notificationsUnread={unreadCount}
+            online={online}
           />
         </div>
-        {!token && (
-          <div className="warn-box">
-            Falta JWT local. Pegalo sin prefijo Bearer en el TopBar (o en la pestaña <em>Conexión</em>) para
-            activar las consultas autenticadas.
+        {hydrated && !token && localAuthState === "loading" && (
+          <div className="warn-box row" role="status" style={{ gap: 10 }}>
+            <Icon name="key" size={16} />
+            <span>Activando JWT local automático para este PC.</span>
+          </div>
+        )}
+        {hydrated && !token && localAuthState !== "loading" && (
+          <div className="warn-box row" role="alert" style={{ gap: 10 }}>
+            <Icon name="key" size={16} />
+            <span>
+              No se pudo activar el JWT local automático. Podés pegar uno manualmente
+              sin prefijo Bearer en el TopBar o en <em>Conexión</em>.
+              {localAuthError ? ` Detalle: ${localAuthError}` : ""}
+            </span>
           </div>
         )}
         {tab === "dashboard" && <DashboardView client={client} onNavigate={setTab} />}
@@ -260,22 +436,25 @@ function App() {
             apiBase={apiBase}
             setApiBase={setApiBase}
             token={token}
-            setToken={setToken}
-            theme={theme}
-            setTheme={setTheme}
+            setToken={applyManualToken}
+            tokenSource={tokenSource}
+            requestLocalToken={requestLocalToken}
           />
         )}
       </section>
       {isMobile && (
-        <nav className="bottom-nav">
+        <nav className="bottom-nav" aria-label="Navegación rápida">
           {MOBILE_QUICK_TABS.map((item) => (
             <button
               key={item.id}
               className={tab === item.id ? "active" : ""}
               onClick={() => setTab(item.id)}
               type="button"
+              aria-label={item.label}
             >
-              <span className="bn-icon">{item.icon}</span>
+              <span className="bn-icon">
+                <Icon name={item.icon} size={18} />
+              </span>
               <span className="bn-label">{item.label}</span>
             </button>
           ))}
@@ -290,7 +469,38 @@ function App() {
         }}
         extraActions={extraActions}
       />
+      <NotificationCenter
+        open={notifOpen}
+        onClose={() => setNotifOpen(false)}
+        client={client}
+        items={notificationItems}
+        onNavigate={setTab}
+      />
       <PWA />
     </main>
   );
+}
+
+function isUnauthorizedError(message: string): boolean {
+  return /(^|\D)401(\D|$)|invalid bearer token|bearer token required/i.test(message);
+}
+
+function jwtExpiresSoon(token: string): boolean {
+  const payload = decodeJwtPayload(token);
+  const exp = typeof payload?.exp === "number" ? payload.exp : null;
+  if (!exp) return true;
+  return exp * 1000 <= Date.now() + AUTO_TOKEN_REFRESH_SKEW_MS;
+}
+
+function decodeJwtPayload(token: string): { exp?: number } | null {
+  const [, payload] = token.split(".");
+  if (!payload) return null;
+  try {
+    const padded = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const json = window.atob(padded.padEnd(Math.ceil(padded.length / 4) * 4, "="));
+    const parsed = JSON.parse(json) as unknown;
+    return parsed && typeof parsed === "object" ? (parsed as { exp?: number }) : null;
+  } catch {
+    return null;
+  }
 }

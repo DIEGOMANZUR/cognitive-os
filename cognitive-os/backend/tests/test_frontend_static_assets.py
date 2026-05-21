@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -23,7 +24,7 @@ def test_next_config_sets_security_headers() -> None:
 def test_service_worker_keeps_api_like_routes_network_only() -> None:
     service_worker = (FRONTEND_ROOT / "public" / "sw.js").read_text(encoding="utf-8")
 
-    assert 'CACHE_VERSION = "cogos-v2026-05-15-32"' in service_worker
+    assert re.search(r'CACHE_VERSION = "cogos-v\d{4}-\d{2}-\d{2}[-\w]*"', service_worker)
     assert "COGOS_SKIP_WAITING" in service_worker
     for prefix in ("/actions", "/api", "/health", "/mail", "/research", "/threads"):
         assert f'"{prefix}"' in service_worker

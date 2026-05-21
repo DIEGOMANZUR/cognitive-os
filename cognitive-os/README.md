@@ -1,6 +1,34 @@
 # Cognitive OS
 
-> **Estado actual (2026-05-20, Fases 78-81 — plan de aprendizaje completo +
+> **Estado actual (2026-05-20, Fase 82.1 — Glass Cockpit + Robustez profunda):**
+> Frontend reescrito a un **command center glassmorphism dark-only de alto
+> contraste, instalable como PWA** y endurecido para grado comercial.
+> Sistema de diseño nuevo (tokens en `app/globals.css`), tipografía
+> self-hosted Inter + JetBrains Mono vía `next/font/google`, **set SVG
+> curado de ~55 íconos** (`Icon.tsx`), **charts SVG sin dependencias**
+> (`Sparkline`, `AreaChart`, `BarList`, `Donut`), **centro de
+> notificaciones** con feed unificado + handshake push del SO,
+> **command palette** con fuzzy match + recientes + grupos. **PWA**:
+> manifest con 4 shortcuts, íconos PNG 192/512 + maskable, service
+> worker `cogos-v2026-05-20-glass-2` con offline shell +
+> `/offline.html` + push handlers. **Robustez (Fase 82.1):**
+> `usePolledFetch` resiliente — pausa offline + tab oculta, refetch
+> instantáneo al recuperar online/visibility, expone `loading` para
+> skeletons. **`StatePrimitives`** compartidas (Skeleton/EmptyState/
+> ErrorPanel/DataBoundary) aplicadas en las 5 vistas más críticas.
+> **`asArray<T>`** en las 13 vistas que consumen colecciones (la SPA
+> ya no cae al `ErrorBoundary` si el backend devuelve forma
+> incorrecta). **A11y**: `useFocusTrap` en modales (palette,
+> notification center), skip-link al main, `role="dialog"` +
+> `aria-modal` + ESC. **Tests E2E**: `glass-cockpit.spec.ts` cubre
+> palette, notification center, defensive guards y skip-link.
+> Documentación canónica: `cognitive-os/docs/FRONTEND_ARCHITECTURE.md`.
+> Playwright `playwright.config.ts` blinda el suite contra SW persistente y
+> cache HTTP. QA verde: lint 0 warnings, build, tsc, E2E headless
+> full-walk 1440×900 + mobile 393×851 = 0 errores 5xx / 0 page errors /
+> 0 console errors.
+>
+> **Estado anterior (Fases 78-81 — plan de aprendizaje completo +
 > aislamiento de DB de test):**
 > Las **5 fases** del plan de aprendizaje autónomo
 > (`docs/AGENT_LEARNING_PLAN.md`) están cerradas en producción:
@@ -42,9 +70,10 @@
 > Director (su endpoint HTTP da 403). **Cliente MCP nativo** (Fase 73): el
 > DeepAgent carga tools dinámicas de servidores MCP externos (Supermemory,
 > GitHub, filesystem) declarados en `.env`. El asistente personal opera
-> **correo multicuenta** GoDaddy IMAP/SMTP + Gmail label `TODOS`, Google
-> Maps, Calendar, Drive bajo `ActionRequest`, y envío solo tras aprobación
-> humana. **Telegram conversacional** (Fase 70): mensajes sin slash entran
+> **correo multicuenta read-only por defecto**: Gmail `TODOS`/`SPAM` +
+> GoDaddy `Spam`, clasificación propia del agente, digest 10:00/20:00 Chile
+> y respuestas propuestas como texto, sin drafts ni envíos automáticos. Google
+> Maps, Calendar y Drive quedan bajo `ActionRequest`. **Telegram conversacional** (Fase 70): mensajes sin slash entran
 > al orquestador con memoria de conversación persistente. **Perfil
 > `dedicated_local`**: acceso total al `/home` del operador, auto-aprueba
 > acciones reversibles. Ejecutables de escritorio
@@ -278,7 +307,7 @@ Motor opcional **OpenHarness**: `uv sync --extra openharness` + `ENABLE_OPENHARN
 Variables de entorno: copia `.env.example` en la raíz a `.env` y ajusta secretos.
 
 - **CORS**: `CORS_ALLOW_ORIGINS` (lista CSV). Vacío ⇒ defaults `http://localhost:{3000,3001}` y `http://127.0.0.1:{3000,3001}` (frontend real corre en :3001 porque OpenChamber ocupa :3000; :3000 queda para compatibilidad). No uses `*` con credenciales habilitadas (lo rechaza la configuración).
-- **Action Plane y mail personal**: las acciones externas arrancan desactivadas o con aprobación humana. Configura `ENABLE_BROWSER_AUTOMATION`, `ENABLE_COMPUTER_ACTIONS`, `GMAIL_*`, `GODADDY_*`, `MAIL_*` y sus allow-lists antes de cualquier ejecución real. `MAIL_REQUIRE_APPROVAL_FOR_SEND=true` es la política obligatoria inicial.
+- **Action Plane y mail personal**: en `strict`, las acciones externas arrancan desactivadas o con aprobación humana. En `OPERATOR_PROFILE=dedicated_local` + `LOCAL_AUTONOMY_MODE=full`, el PC dedicado elimina approvals manuales para reducir fricción en browser/computer/Google, pero conserva `ActionRequest`, `JobEvent`, `AuditEvent`, idempotencia y errores visibles. Mail queda fuera de esa relajación: por defecto solo lee, resume y propone texto; SMTP requiere una petición explícita de Diego. Configura `ENABLE_BROWSER_AUTOMATION`, `ENABLE_COMPUTER_ACTIONS`, `GMAIL_*`, `GODADDY_*`, `MAIL_*` y allow-lists/flags antes de cualquier ejecución real.
 
 ## Infra local (Docker)
 
@@ -301,7 +330,51 @@ npm run lint
 npm run build
 ```
 
-En desarrollo el panel puede apuntar al API desde ajustes en la UI; si defines `NEXT_PUBLIC_API_BASE_URL` al hacer build, esa URL inicial tendrá prioridad.
+En desarrollo el panel puede apuntar al API desde ajustes en la UI; si defines
+`NEXT_PUBLIC_API_BASE_URL` al hacer build, esa URL inicial tendrá prioridad.
+
+**Stack y lenguaje visual (Fase 82):**
+
+- Next.js 16.2.6 App Router + React 19 + TypeScript 5.8 estricto.
+- **Glassmorphism dark-only** de alto contraste. Sin Tailwind, sin
+  shadcn. Tokens centralizados en `app/globals.css`; `<html
+  data-theme="dark">` fijo desde `layout.tsx`.
+- **Tipografía:** Inter + JetBrains Mono self-hosted vía `next/font/google`
+  (la PWA arranca offline sin pedir Google Fonts).
+- **Iconografía:** componente `<Icon name="…" />` (`app/components/Icon.tsx`)
+  con ~55 SVGs Lucide-style consistentes. **No usar emojis ni glifos
+  Unicode para íconos estructurales.**
+- **Charts SVG** sin dependencias en `app/components/Charts.tsx`:
+  `Sparkline`, `AreaChart`, `BarList`, `Donut`.
+- **PWA instalable**: `app/manifest.ts` + `public/sw.js` v
+  `cogos-v2026-05-20-glass-2`. 4 shortcuts (Chat / Aprobaciones / Jobs /
+  Health), íconos PNG 192/512 + maskable + SVG fallback,
+  `/offline.html` con branding propio. Handlers de `push` y
+  `notificationclick` listos para que el backend mande notificaciones del
+  SO cuando exponga el endpoint VAPID.
+- **Centro de notificaciones** (`NotificationCenter.tsx`) en panel lateral
+  derecho con feed unificado de aprobaciones, jobs y eventos de
+  auditoría. Tracking de "vistos" persistido en `localStorage`.
+- **Command palette** (`CommandPalette.tsx`) con fuzzy match real,
+  agrupación, íconos por acción, footer de shortcuts y recientes
+  persistidos. Atajo `Ctrl/Cmd+K`.
+- **Defensive list guards** (`api.ts → asArray<T>(...)`): cada vista que
+  consume `usePolledFetch<T[]>` usa `asArray(data).filter|map|…` en lugar
+  de `(data ?? []).filter(…)`. Si el backend responde malformado, la
+  vista muestra empty state en lugar de tirar la SPA al `ErrorBoundary`.
+
+**QA del frontend (snapshot Fase 82):**
+
+- `npm run lint` → 0 warnings (`--max-warnings 0`).
+- `npm run build` → Next 16.2.6 + Turbopack, 4 páginas estáticas OK.
+- `npx tsc --noEmit` → 0 errores.
+- Playwright headless full-walk (1440×900 + 393×851 mobile) sobre las 20
+  tabs, palette y notification center: 0 errores 5xx, 0 page errors, 0
+  console errors. Anclajes E2E (`aria-label="JWT local"`, `URL base de la
+  API`, `Abrir menú`, `Cerrar`, literal `Estado global`, `componentes
+  ok`, los 20 `TAB_LABELS`) intactos. `playwright.config.ts` ahora bloquea
+  el service worker durante los tests y deshabilita el cache HTTP, para
+  que un SW persistente nunca contamine la suite.
 
 ## Ensayo local rápido
 

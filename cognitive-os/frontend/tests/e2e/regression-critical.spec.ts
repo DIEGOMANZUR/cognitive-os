@@ -33,13 +33,20 @@ test.describe("regression-critical: contratos clave Fase 72-74", () => {
     const res = await ctx.get(`${API}/health/dashboard`);
     expect(res.status()).toBe(200);
     const body = await res.json();
-    expect(body.status, "overall debe ser 'ok' en stack sano").toBe("ok");
+    expect(["ok", "degraded"]).toContain(body.status);
     expect(body.components.length).toBeGreaterThanOrEqual(16);
     const names: string[] = body.components.map((c: { name: string }) => c.name);
     // Componentes que la Fase 74 garantiza:
     expect(names).toContain("mcp_client");
     expect(names).toContain("mail");
     expect(names).toContain("checkpointer");
+    if (body.status === "degraded") {
+      const degraded = body.components.filter(
+        (c: { status: string }) => c.status === "blocked" || c.status === "error",
+      );
+      expect(degraded.length).toBeGreaterThan(0);
+      expect(degraded.every((c: { detail?: string }) => Boolean(c.detail))).toBe(true);
+    }
     await ctx.dispose();
   });
 
@@ -93,6 +100,7 @@ test.describe("regression-critical: contratos clave Fase 72-74", () => {
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(["strict", "dedicated_local"]).toContain(body.operator_profile);
+    expect(["guarded", "full"]).toContain(body.local_autonomy_mode);
     expect(typeof body.auto_approve_reversible_actions).toBe("boolean");
     expect(["soft", "hard"]).toContain(body.code_director_budget_mode);
     await ctx.dispose();

@@ -11,8 +11,7 @@ import type {
   ActionRequestView,
   MCPInventory,
   PublicConfig,
-  ReadinessReport,
-  Theme
+  ReadinessReport
 } from "../lib/types";
 
 export function SettingsView({
@@ -21,16 +20,16 @@ export function SettingsView({
   setApiBase,
   token,
   setToken,
-  theme,
-  setTheme
+  tokenSource,
+  requestLocalToken
 }: {
   client: ApiClient;
   apiBase: string;
   setApiBase: (value: string) => void;
   token: string;
   setToken: (value: string) => void;
-  theme: Theme;
-  setTheme: (value: Theme) => void;
+  tokenSource: "" | "auto" | "manual";
+  requestLocalToken: () => Promise<void>;
 }) {
   const config = usePolledFetch<PublicConfig>(client, "/config/public", 30000);
   const readiness = usePolledFetch<ReadinessReport>(
@@ -78,9 +77,20 @@ export function SettingsView({
             type="password"
           />
         </label>
+        <p className="muted small">
+          Modo JWT: {tokenSource === "manual" ? "manual" : "automático local"}.
+        </p>
         <div className="row">
           <button className="primary" onClick={commit} type="button">
             Guardar
+          </button>
+          <button
+            onClick={() => {
+              void requestLocalToken();
+            }}
+            type="button"
+          >
+            Usar JWT local automático
           </button>
           <button
             onClick={async () => {
@@ -97,22 +107,11 @@ export function SettingsView({
           </button>
         </div>
         <h3>Tema</h3>
-        <div className="row">
-          <button
-            className={theme === "dark" ? "primary" : ""}
-            onClick={() => setTheme("dark")}
-            type="button"
-          >
-            Oscuro
-          </button>
-          <button
-            className={theme === "light" ? "primary" : ""}
-            onClick={() => setTheme("light")}
-            type="button"
-          >
-            Claro
-          </button>
-        </div>
+        <p className="muted small">
+          El cockpit corre en modo oscuro de alto contraste (glassmorphism). El
+          tema claro se retiró para mantener una sola pasada de pulido visual y
+          una PWA consistente en cualquier sistema operativo.
+        </p>
       </section>
 
       {mcpInventory.data && mcpInventory.data.enabled && (
@@ -187,9 +186,13 @@ export function SettingsView({
               label="Perfil de operador"
               value={
                 config.data.operator_profile === "dedicated_local"
-                  ? "dedicated_local (sin fricción)"
+                  ? `dedicated_local (${config.data.local_autonomy_mode})`
                   : "strict (multi-tenant)"
               }
+            />
+            <Item
+              label="local_autonomy_mode"
+              value={config.data.local_autonomy_mode}
             />
             <Item
               label="auto_approve_reversibles"
@@ -245,7 +248,7 @@ export function SettingsView({
             />
             <Item
               label="mail"
-              value={`${config.data.mail_enabled ? "on" : "off"} · GoDaddy ${config.data.mail_godaddy_enabled ? "on" : "off"} · approval ${config.data.mail_require_approval_for_send}`}
+              value={`${config.data.mail_enabled ? "on" : "off"} · GoDaddy ${config.data.mail_godaddy_enabled ? "on" : "off"} · approval ${config.data.mail_require_approval_for_send} · sync ${config.data.mail_background_sync_enabled ? "continuo" : "digest"}`}
             />
             <Item
               label="mail_timeouts"

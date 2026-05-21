@@ -466,8 +466,26 @@ def test_gmail_label_reader_falls_back_to_label_query_when_label_name_is_missing
 
     assert reader.fetch_recent(max_messages=1) == []
 
-    assert ("q", "label:TODOS") in client.calls[1]["params"]
+    assert ("q", "in:anywhere -in:trash") in client.calls[1]["params"]
+    assert ("includeSpamTrash", "true") in client.calls[1]["params"]
     assert not any(key == "labelIds" for key, _value in client.calls[1]["params"])
+
+
+def test_gmail_label_reader_includes_spam_when_label_is_spam(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    token_path = tmp_path / "token.json"
+    token_path.write_text("{}", encoding="utf-8")
+    client = _FakeGmailLabelClient(labels=[{"id": "SPAM", "name": "SPAM"}])
+    reader = GmailLabelReader(token_path=token_path, label_name="SPAM")
+    monkeypatch.setattr(reader, "_load_credentials", lambda: SimpleNamespace(token="token-live"))
+    monkeypatch.setattr(gmail_label_reader_module.httpx, "Client", lambda **_: client)
+
+    assert reader.fetch_recent(max_messages=1) == []
+
+    assert ("labelIds", "SPAM") in client.calls[1]["params"]
+    assert ("includeSpamTrash", "true") in client.calls[1]["params"]
 
 
 def test_digest_reader_errors_are_blocked_and_redacted() -> None:

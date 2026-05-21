@@ -8,10 +8,15 @@ verify the integration contract without spinning up a real MCP server.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
+import httpx
 import pytest
 
+import cognitive_os.api.app as api_app
+from cognitive_os.api.app import app
+from cognitive_os.core.auth import create_access_token
 from cognitive_os.core.config import Settings
 from cognitive_os.integrations import mcp_client
 
@@ -119,6 +124,39 @@ async def test_load_mcp_tools_async_records_per_server_failure(
     assert by_name["good"].tools_count == 2
 
     assert {getattr(t, "name", "") for t in tools} == {"good_search", "good_get"}
+
+
+@pytest.mark.asyncio
+async def test_system_mcp_inventory_timeout_returns_degraded_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _slow_loader(
+        _settings: Settings,
+    ) -> tuple[list[Any], list[mcp_client.MCPServerStatus]]:
+        await asyncio.sleep(10)
+        return [], []
+
+    monkeypatch.setattr(api_app.settings, "enable_mcp_client", True, raising=False)
+    monkeypatch.setattr(
+        api_app.settings,
+        "mcp_servers",
+        ["slow:sse:http://localhost:9999/sse"],
+        raising=False,
+    )
+    monkeypatch.setattr(api_app.settings, "mcp_inventory_timeout_seconds", 0.01, raising=False)
+    monkeypatch.setattr(mcp_client, "load_mcp_tools_async", _slow_loader)
+
+    transport = httpx.ASGITransport(app=app)
+    headers = {"Authorization": f"Bearer {create_access_token(user_id='operator')}"}
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/system/mcp", headers=headers)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["enabled"] is True
+    assert body["declared_count"] == 1
+    assert body["servers"][0]["connected"] is False
+    assert "timed out" in body["servers"][0]["error"]
 
 
 def test_sync_wrapper_short_circuits_off_dedicated_local(

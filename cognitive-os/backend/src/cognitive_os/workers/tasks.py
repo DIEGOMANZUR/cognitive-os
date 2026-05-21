@@ -47,6 +47,7 @@ from cognitive_os.deepagents.tool_scorecard import (
 )
 from cognitive_os.ingestion.pipeline import DocumentIngestionPipeline
 from cognitive_os.integrations.telegram_notify import send_telegram_markdown
+from cognitive_os.mail.schemas import MailDigestRequest
 from cognitive_os.mail.service import PersonalMailService
 from cognitive_os.workers.celery_app import celery_app
 
@@ -57,6 +58,8 @@ _ACTION_REQUEST_TERMINAL_JOB_STATUS = {
     "cancelled": "cancelled",
     "rejected": "rejected",
 }
+_WORKER_REENTRY_TERMINAL_STATUSES = {"completed", "failed", "cancelled", "rejected"}
+_CANCEL_GUARD_STATUSES = {"cancelled", "rejected"}
 
 
 def _run[T](coro: Coroutine[Any, Any, T]) -> T:
@@ -96,6 +99,21 @@ async def _update_job(
         if job is None:
             msg = f"Job not found: {job_id}"
             raise ValueError(msg)
+        if job.status in _CANCEL_GUARD_STATUSES and status not in _CANCEL_GUARD_STATUSES:
+            session.add(
+                JobEvent(
+                    job_id=job_id,
+                    event_type=f"{event_type}_ignored_after_{job.status}",
+                    status=job.status,
+                    message=(f"Ignored worker update to {status}; job is already {job.status}."),
+                    metadata_json={
+                        "attempted_status": status,
+                        "attempted_event_type": event_type,
+                        **(metadata_json or {}),
+                    },
+                )
+            )
+            return
         job.status = status
         if progress is not None:
             job.progress = progress
@@ -121,6 +139,15 @@ async def _read_job_status(job_id: UUID) -> str | None:
     async with session_scope() as session:
         job = await session.get(Job, job_id)
         return None if job is None else job.status
+
+
+def _worker_skip_payload(job_id: UUID, status: str | None, reason: str) -> dict[str, Any]:
+    return {
+        "job_id": str(job_id),
+        "status": status,
+        "skipped": True,
+        "reason": reason,
+    }
 
 
 async def _read_action_request_status(action_request_id: UUID) -> str | None:
@@ -213,6 +240,19 @@ async def _mark_job_failed(job_id: UUID, exc: Exception) -> None:
 def ingest_pdf_task(self: Task, document_path: str, job_id: str) -> dict[str, Any]:
     del self
     active_job_id = UUID(job_id)
+    existing_status = _run(_read_job_status(active_job_id))
+    if existing_status in {"completed", "cancelled", "rejected"}:
+        return _worker_skip_payload(
+            active_job_id,
+            existing_status,
+            "Worker re-entry on a job already in a terminal state.",
+        )
+    if existing_status == "running":
+        return _worker_skip_payload(
+            active_job_id,
+            existing_status,
+            "Duplicate dispatch: document ingestion is already running.",
+        )
     try:
         _run(
             _update_job(
@@ -372,10 +412,67 @@ def sync_personal_mail_task() -> dict[str, Any]:
         raise
 
 
+@celery_app.task(
+    name="cognitive_os.build_personal_mail_digest",
+    autoretry_for=TRANSIENT_EXCEPTIONS,
+    retry_backoff=True,
+    retry_kwargs={"max_retries": 3},
+)
+def build_personal_mail_digest_task() -> dict[str, Any]:
+    job_id = _run(
+        _create_job(
+            job_type="personal_mail_digest",
+            status="running",
+            progress=0,
+            metadata_json={"task": "build_personal_mail_digest"},
+        )
+    )
+    try:
+        result = _run(
+            PersonalMailService().build_digest(
+                MailDigestRequest(
+                    limit=settings.mail_digest_max_messages,
+                    sync_first=True,
+                    persist_artifact=True,
+                )
+            )
+        )
+        _run(
+            _update_job(
+                job_id,
+                status="completed",
+                progress=100,
+                event_type="personal_mail_digest_completed",
+                message=(
+                    f"Digest generated: considered={result.total_considered}, "
+                    f"included={result.included_count}, important={result.important_count}"
+                ),
+                metadata_json=result.model_dump(mode="json"),
+            )
+        )
+        return {"job_id": str(job_id), **result.model_dump(mode="json")}
+    except Exception as exc:
+        _run(_mark_job_failed(job_id, exc))
+        raise
+
+
 @celery_app.task(name="cognitive_os.run_deepagent_task")
 def run_deepagent_task_async(task_dict: dict[str, Any], job_id: str) -> dict[str, Any]:
     active_job_id = UUID(job_id)
     task = DeepAgentTask.model_validate(task_dict)
+    existing_status = _run(_read_job_status(active_job_id))
+    if existing_status in _WORKER_REENTRY_TERMINAL_STATUSES:
+        return _worker_skip_payload(
+            active_job_id,
+            existing_status,
+            "Worker re-entry on a job already in a terminal state.",
+        )
+    if existing_status == "running":
+        return _worker_skip_payload(
+            active_job_id,
+            existing_status,
+            "Duplicate dispatch: a DeepAgent task for this job is already running.",
+        )
     try:
         _run(
             _update_job(
@@ -806,6 +903,19 @@ def consolidate_all_deepagent_memory_task(
 def run_document_analysis_task_async(task_dict: dict[str, Any], job_id: str) -> dict[str, Any]:
     active_job_id = UUID(job_id)
     task = DocumentAnalysisTask.model_validate(task_dict)
+    existing_status = _run(_read_job_status(active_job_id))
+    if existing_status in _WORKER_REENTRY_TERMINAL_STATUSES:
+        return _worker_skip_payload(
+            active_job_id,
+            existing_status,
+            "Worker re-entry on a job already in a terminal state.",
+        )
+    if existing_status == "running":
+        return _worker_skip_payload(
+            active_job_id,
+            existing_status,
+            "Duplicate dispatch: document analysis is already running.",
+        )
     try:
         _run(
             _update_job(
