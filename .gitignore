@@ -28,6 +28,7 @@ memory-bank/
 task_plan.local.md
 findings.local.md
 progress.local.md
+.codex-audit/
 *.bak-*
 
 # Project snapshots/backups are read-only recovery material, never source.
