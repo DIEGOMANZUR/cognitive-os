@@ -228,7 +228,7 @@ Si me piden algo de esta lista, decirlo claramente, no inventar.
 
 ## 6. CONTEXTO PERSISTENTE
 
-- Estoy en la rama `codex/fase-34-baseline-hardening`.
+- Estoy en la rama `main`.
 - Postgres + Redis + Weaviate + Neo4j corren en `127.0.0.1`. Si `/health`
   reporta `degraded`, no asumir que las herramientas funcionan — leer
   `detail` del componente con problema. Si reporta `configured`, significa

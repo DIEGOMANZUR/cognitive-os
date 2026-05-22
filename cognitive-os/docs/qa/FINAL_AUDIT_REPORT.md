@@ -208,7 +208,7 @@ npx playwright show-report                          # HTML report
   endpoint.
 - **CI:** integrar `COGOS_JWT` como secret (test-only token con
   expiración corta) y correr la suite en cada push a la rama
-  `codex/fase-34-baseline-hardening`. Hoy se corre manual.
+  `main`. Hoy se corre manual.
 - **Monitor de polling intervals:** la suite no mide ancho de banda; si
   el operador percibe lag, vale revisar los `usePolledFetch` intervals
   (algunos en 10s podrían subir a 30s sin pérdida funcional).

@@ -56,8 +56,9 @@
 > `docs/audits/CODEX_COMMERCIAL_READINESS_AUDIT.md` §0.1.
 
 Este directorio contiene la documentacion estable del proyecto. Los archivos
-`task_plan.md`, `findings.md` y `progress.md` en la raiz no son documentacion de
-producto: son bitacora de trabajo de la sesion actual.
+`task_plan.md`, `findings.md` y `progress.md` de `cognitive-os/` no son
+documentacion de producto: son bitacora de trabajo de sesion, archivos locales
+**gitignored** (no versionados, AUDIT-2026-I).
 
 ## Leer Primero
 

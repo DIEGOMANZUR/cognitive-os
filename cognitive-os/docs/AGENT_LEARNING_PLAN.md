@@ -17,7 +17,7 @@
 > **(c)** las 5 fases del plan de aprendizaje autónomo, con código, schemas,
 > tests y orden de implementación.
 
-Branch: `codex/fase-34-baseline-hardening`.
+Branch: `main`.
 
 ## 🟢 Status — Plan completo: las 5 fases en producción (F78-F81, 2026-05-20)
 
@@ -1048,7 +1048,7 @@ Si estás abriendo este doc desde un chat nuevo:
    skills code-based.
 6. **Convención de Fases:** las anteriores van hasta F77. Las nuevas serían
    F78 (Fase A), F79 (Fase D), F80 (Fase C), F81 (Fase B), F82 (Fase E).
-7. **Branch:** continúa en `codex/fase-34-baseline-hardening` salvo
+7. **Branch:** continúa en `main` salvo
    instrucción contraria.
 8. **Operator profile:** `dedicated_local` — auto-approve para
    reversibles, approval explícito para irreversibles.

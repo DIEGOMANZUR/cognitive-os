@@ -31,6 +31,14 @@ progress.local.md
 .codex-audit/
 *.bak-*
 
+# Session work logs (bitácora). Local working files, not product
+# documentation — kept out of version control per AUDIT-2026-I.
+cognitive-os/task_plan.md
+cognitive-os/findings.md
+cognitive-os/progress.md
+conversacion_recuperada_codex_claude.md
+sesion_14_15_mayo_completa.md
+
 # Project snapshots/backups are read-only recovery material, never source.
 cognitive-os-backup-*/
 cognitive-os-snapshot-*/

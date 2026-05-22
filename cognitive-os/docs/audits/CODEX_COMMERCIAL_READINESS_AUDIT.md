@@ -20,14 +20,15 @@
 Fecha: **2026-05-22**
 Auditor: Claude Opus 4.7 (responsable técnico entrante / release gatekeeper)
 Modo: lectura → **remediación aplicada** (ver §0.1).
-Branch: `codex/fase-34-baseline-hardening` · último commit base `bd203a4`.
+Branch: `main` · último commit base `bd203a4`.
 
 ---
 
 ## 0.1 Estado de remediación (2026-05-22, post-auditoría)
 
 Tras la auditoría se ejecutó la remediación completa de **todos** los hallazgos
-accionables (A–H). Resumen:
+accionables: las 8 funcionales (A–H) y las 3 de higiene de repo (I–K).
+`L`/`M` eran informativos (decisiones conscientes). Resumen:
 
 | Hallazgo | Sev | Estado | Qué se hizo |
 |---|---|---|---|
@@ -39,7 +40,9 @@ accionables (A–H). Resumen:
 | AUDIT-2026-F | P2 | ✅ Resuelto | `_check_operational_backlog` en health: approvals/jobs/action-requests atascados + lag del beat. Tile "Backlog operacional" en HealthView. |
 | AUDIT-2026-G | P3 | ✅ Resuelto | `scripts/sync_doc_counts.py` genera el bloque `AUTO:counts` de `CURRENT_STATE.md`; `--check` corre en `full-qa.sh`. |
 | AUDIT-2026-H | P3 | ✅ Resuelto | `dev_up.sh` valida variables sin default antes de `docker compose`; RUNBOOK documenta el comando único. |
-| AUDIT-2026-I/J/K | P3 | Pendiente (higiene) | Bitácoras vivas trackeadas, árboles de backup, historia en README — limpieza de repo, sin impacto funcional. |
+| AUDIT-2026-I | P3 | ✅ Resuelto | `task_plan.md`, `findings.md`, `progress.md` y los transcripts de sesión quedaron gitignored y fuera de control de versiones (archivos de trabajo locales). `AGENTS.md` y `docs/README.md` lo reflejan. |
+| AUDIT-2026-J | P3 | ✅ Resuelto | `cognitive-os-backup-*/` y `cognitive-os-snapshot-*/` ya están gitignored; no contaminan el control de versiones. Su reubicación física fuera del workspace queda a criterio del operador. |
+| AUDIT-2026-K | P3 | ✅ Resuelto | `README.md` reescrito: se eliminó la pila de snapshots históricos por fase; queda un único snapshot vigente + sección "Cambios Recientes". |
 | AUDIT-2026-L/M | — | Informativo | Decisiones conscientes documentadas; no requieren acción. |
 
 **QA post-remediación:** `bash scripts/full-qa.sh` verde — backend **941 passed,
@@ -930,7 +933,7 @@ documenta.
 1. Decidir el incidente `tsconfig.json` modificado por mi sesión de build
    (§9). Recomendación: `git checkout cognitive-os/frontend/tsconfig.json`.
 2. Crear branch `repair/audit-2026-wave1` desde
-   `codex/fase-34-baseline-hardening`.
+   `main`.
 3. Confirmar que `.env` real está backupeado fuera del repo.
 4. Confirmar `OPERATOR_PROFILE`, `LOCAL_AUTONOMY_MODE` y especialmente
    **`TELEGRAM_AUTHORIZED_USER_IDS`** (poblado o vacío).

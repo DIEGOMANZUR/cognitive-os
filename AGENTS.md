@@ -121,9 +121,12 @@ responder o actuar.
     `/assist/notes`, `/assist/notes/search` (indexación Weaviate).
   - `actions/` (Action Plane): browser, calendar, captcha, computer,
     documents, drive, gmail, godaddy, kimi_webbridge, mail, maps, voice.
-  - `task_plan.md`, `findings.md`, `progress.md`, `ACCEPTANCE_CHECKLIST.md`,
-    `docs/` con runbooks y registries.
-- `cognitive-os-backup-*/` y `cognitive-os-snapshot-*/` — **solo lectura**, no editar.
+  - `ACCEPTANCE_CHECKLIST.md` y `docs/` con runbooks y registries (versionados).
+  - `task_plan.md`, `findings.md`, `progress.md` — bitácora de sesión, archivos
+    de trabajo **locales y gitignored** (no versionados, AUDIT-2026-I); la
+    skill `planning-with-files` los crea/usa en disco.
+- `cognitive-os-backup-*/` y `cognitive-os-snapshot-*/` — **solo lectura**,
+  gitignored, no editar.
 - `docs/` (raíz) — documentación transversal (`SECURITY.md`,
   `openchamber-cognitive-os.md`, `opencode-agent-stack.md`).
 - `memory-bank/cognitive-os/` — Memory Bank MCP scoped al proyecto
@@ -176,7 +179,8 @@ Para tareas complejas usa la skill **planning-with-files**:
 6. No tratar estos archivos como memoria productiva.
 
 En este repo el estado vivo está en `cognitive-os/task_plan.md`,
-`cognitive-os/findings.md`, `cognitive-os/progress.md`.
+`cognitive-os/findings.md`, `cognitive-os/progress.md` — archivos **locales
+y gitignored** (bitácora de trabajo, no se versionan).
 
 ## Validación antes de terminar
 

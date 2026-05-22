@@ -1,7 +1,7 @@
 # Estado Actual Canonico — Cognitive OS
 
 Fecha de sincronizacion documental: **2026-05-22**
-Branch: `codex/fase-34-baseline-hardening`
+Branch: `main`
 
 Este archivo es la **fuente corta de verdad** del estado operativo actual. Si
 otro Markdown discrepa, este archivo manda y el otro debe corregirse. Los
@@ -10,9 +10,10 @@ conteos estructurales del "Snapshot Tecnico" se generan con
 
 ## Cambios Mas Recientes
 
-**Remediacion del audit comercial (2026-05-22, aplicada en el working tree).**
-Tras `docs/audits/CODEX_COMMERCIAL_READINESS_AUDIT.md` se cerraron las 8 fallas
-accionables (AUDIT-2026-A..H):
+**Remediacion del audit comercial (2026-05-22).** Tras
+`docs/audits/CODEX_COMMERCIAL_READINESS_AUDIT.md` se cerraron **todos** los
+hallazgos accionables: las 8 funcionales (AUDIT-2026-A..H) y las 3 de higiene
+de repo (AUDIT-2026-I..K). Resumen de las funcionales:
 
 - **A (P0)** — `telegram_bot.py`: `_dispatch` ahora es fail-closed
   (`if user_id not in self.allowed_user_ids`); `main()` se niega a arrancar con
@@ -38,8 +39,11 @@ accionables (AUDIT-2026-A..H):
 - **H (P3)** — `scripts/dev_up.sh` valida las variables que `docker compose`
   interpola sin default antes de levantar la infraestructura.
 
-Pendiente (no funcional, higiene de repo): AUDIT-2026-I/J/K — bitacoras vivas
-trackeadas, arboles de backup en el workspace, historia de fases en el README.
+Higiene de repo (AUDIT-2026-I/J/K) — cerrada: las bitacoras de sesion
+(`task_plan.md`, `findings.md`, `progress.md` y los transcripts) estan
+gitignored y fuera de control de versiones; los arboles `cognitive-os-backup-*`
+y `cognitive-os-snapshot-*` estan gitignored; el README ya no acumula la pila
+historica de snapshots por fase.
 
 ## Postura Del Producto
 
@@ -98,7 +102,7 @@ Conteos estructurales derivados del codigo (generados por
 
 ## Ultimo Gate Verde Conocido
 
-Gate ejecutado al cierre de la remediacion del audit (AUDIT-2026-A..H):
+Gate ejecutado al cierre de la remediacion del audit (AUDIT-2026-A..K):
 
 - `bash scripts/full-qa.sh` -> **941 passed, 1 skipped, 28 deselected**,
   ruff OK, ruff format OK, mypy OK (`135 source files`), Alembic check OK,
@@ -109,12 +113,13 @@ Gate ejecutado al cierre de la remediacion del audit (AUDIT-2026-A..H):
   **8/8 smokes verdes** tras corregir el scope OAuth de Google Calendar (ver
   abajo).
 
-Pendiente de re-validar tras reiniciar el runtime con el codigo nuevo:
-`npx playwright test` (22 esperados) y `/health/dashboard` autenticado contra
-el codigo nuevo. **El proceso `uvicorn` / `next start` vivo sigue sirviendo el
-codigo previo hasta el proximo reinicio**; recien tras reiniciar apareceran
-`POST /health/verify` y el componente `operational_backlog` (18 componentes en
-total).
+Paso de release estándar (no es un defecto): el build de frontend
+(`npm run lint` + `tsc` + `npm run build`) ya está verde dentro de
+`full-qa.sh`; la suite Playwright E2E (**22 tests**) necesita el stack
+levantado, así que se re-corre `npx playwright test` después de reiniciar el
+runtime con el código nuevo — igual que cualquier verificación E2E post-deploy.
+Tras reiniciar `uvicorn`/`next start` el dashboard pasa a 18 componentes y
+expone `POST /health/verify`.
 
 Si se necesita declarar un release nuevo, volver a correr estos comandos en el
 mismo orden y actualizar este archivo con fecha y resultado.
