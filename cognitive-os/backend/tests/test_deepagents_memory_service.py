@@ -46,12 +46,12 @@ async def test_rejects_secrets() -> None:
 @pytest.mark.parametrize(
     "leak",
     [
-        "sk-1234567890abcdef1234567890abcdef",
-        "ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ012345",
-        "sm_aBcDeFgHiJkLmNoPqRsT",
-        "xoxb-12345-67890-AbCdEfGhIjKl",
-        "AKIAIOSFODNN7EXAMPLE",
-        "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dQw4w9WgXcQ",
+        "sk-1234567890abcdef1234567890abcdef",  # pragma: allowlist secret
+        "ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ012345",  # pragma: allowlist secret
+        "sm_aBcDeFgHiJkLmNoPqRsT",  # pragma: allowlist secret
+        "xoxb-12345-67890-AbCdEfGhIjKl",  # pragma: allowlist secret
+        "AKIAIOSFODNN7EXAMPLE",  # pragma: allowlist secret
+        "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dQw4w9WgXcQ",  # pragma: allowlist secret
         "password=hunter2",
         "access_token: ya29.A0AfH6SMC...",
     ],
@@ -75,9 +75,9 @@ async def test_rejects_specific_secret_shapes(leak: str) -> None:
         # old `{33,}` catch-all but is perfectly safe content.
         "doc_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         # Google Drive file ID (33 chars, base64-ish) — same story.
-        "drive_file_id=1aBcDeFgHiJkLmNoPqRsTuVwXyZ012345",
+        "drive_file_id=1aBcDeFgHiJkLmNoPqRsTuVwXyZ012345",  # pragma: allowlist secret
         # Supermemory chunk_id (UUID-ish).
-        "chunk_id=01HXYZ12345678901234567890ABCD",
+        "chunk_id=01HXYZ12345678901234567890ABCD",  # pragma: allowlist secret
         # Just a long alphanumeric token from a tool input.
         "session_id=abcdef0123456789abcdef0123456789abcdef0123",
     ],
