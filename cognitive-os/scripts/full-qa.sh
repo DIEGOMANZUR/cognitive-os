@@ -6,6 +6,11 @@
 # y se sigue.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+QA_NEXT_DIST=".next-qa"
+cleanup_qa_artifacts() {
+  rm -rf "$ROOT/frontend/$QA_NEXT_DIST"
+}
+trap cleanup_qa_artifacts EXIT
 cd "$ROOT/backend"
 uv sync --extra openharness
 uv run pytest -q
@@ -24,7 +29,11 @@ fi
 cd "$ROOT/frontend"
 npm ci
 npm run lint
-npm run build
+rm -rf "$QA_NEXT_DIST"
+# Build in an isolated Next dist dir so QA never invalidates a live
+# `next start` process serving frontend/.next on the dedicated PC.
+NEXT_DIST_DIR="$QA_NEXT_DIST" npm run build
+rm -rf "$QA_NEXT_DIST"
 cd "$ROOT"
 if command -v git >/dev/null && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   if git diff --check >/dev/null; then

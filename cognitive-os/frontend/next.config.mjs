@@ -2,11 +2,13 @@ import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const distDir = process.env.NEXT_DIST_DIR?.trim() || ".next";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  distDir,
   // The project path contains a space ("PROYECTO COGNITIVE OS") and there
   // are parent lockfiles outside the project (~/.local, ~/.opencode), so
   // Next.js 16 mis-infers the workspace root and refuses to compile

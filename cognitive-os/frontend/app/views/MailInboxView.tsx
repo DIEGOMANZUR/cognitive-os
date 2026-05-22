@@ -7,7 +7,7 @@ import { asArray, errorMessage, statusClass } from "../lib/api";
 import { EmptyState, ErrorPanel, Skeleton } from "../components/StatePrimitives";
 import { usePolledFetch } from "../lib/hooks";
 import { useToast } from "../lib/toasts";
-import type { MailDigestResult, MailMessage, MailStatus, MailSyncResult } from "../lib/types";
+import type { MailDigestResult, MailMessage, MailStatus, MailSyncDispatchResponse } from "../lib/types";
 
 const STATUS_OPTIONS = ["", "reply_proposed", "pending_send", "new", "ignored", "sent", "failed"];
 
@@ -38,8 +38,8 @@ export function MailInboxView({ client }: { client: ApiClient }) {
   async function syncNow() {
     setBusy(true);
     try {
-      const result = await client.post<MailSyncResult>("/mail/sync", {});
-      toast.push(`Mail sync: ${result.inserted} nuevos / ${result.fetched} leídos.`, "success");
+      const result = await client.post<MailSyncDispatchResponse>("/mail/sync/dispatch", {});
+      toast.push(`Sync encolado en mail (${result.task_id.slice(0, 8)}).`, "success");
       void messages.refetch();
       void mailStatus.refetch();
     } catch (caught) {
@@ -208,7 +208,7 @@ export function MailInboxView({ client }: { client: ApiClient }) {
               ))}
             </select>
             <button className="ghost" disabled={busy} onClick={syncNow} type="button">
-              Sync ahora
+              Sync por worker
             </button>
           </div>
         </div>
@@ -254,7 +254,7 @@ export function MailInboxView({ client }: { client: ApiClient }) {
                     <EmptyState
                       icon="mail"
                       title="Sin mensajes para este filtro"
-                      message="Cambiá el filtro o sincronizá los mailboxes con el botón Sync ahora."
+                      message="Cambiá el filtro o encolá la sincronización con el botón Sync por worker."
                     />
                   </td>
                 </tr>

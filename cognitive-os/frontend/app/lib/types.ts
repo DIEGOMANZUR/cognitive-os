@@ -167,6 +167,11 @@ export type MailSyncResult = {
   errors: string[];
 };
 
+export type MailSyncDispatchResponse = {
+  task_id: string;
+  status: string;
+};
+
 export type MailDigestMessage = {
   id: string;
   account_label: string | null;

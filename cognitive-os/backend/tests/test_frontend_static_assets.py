@@ -11,6 +11,8 @@ def test_next_config_sets_security_headers() -> None:
     config = (FRONTEND_ROOT / "next.config.mjs").read_text(encoding="utf-8")
 
     assert "poweredByHeader: false" in config
+    assert "NEXT_DIST_DIR" in config
+    assert "distDir" in config
     for header in (
         "X-Content-Type-Options",
         "X-Frame-Options",
@@ -43,3 +45,20 @@ def test_pwa_component_exposes_offline_and_update_states() -> None:
     assert "controllerchange" in pwa
     assert "Sin conexión" in pwa
     assert "Actualización disponible" in pwa
+
+
+def test_mail_view_uses_worker_dispatch_for_manual_sync() -> None:
+    mail_view = (FRONTEND_ROOT / "app" / "views" / "MailInboxView.tsx").read_text(encoding="utf-8")
+
+    assert '"/mail/sync/dispatch"' in mail_view
+    assert 'client.post<MailSyncResult>("/mail/sync"' not in mail_view
+    assert "MailSyncDispatchResponse" in mail_view
+
+
+def test_full_qa_builds_next_in_isolated_dist_dir() -> None:
+    full_qa = (PROJECT_ROOT / "scripts" / "full-qa.sh").read_text(encoding="utf-8")
+    gitignore = (PROJECT_ROOT / ".gitignore").read_text(encoding="utf-8")
+
+    assert 'QA_NEXT_DIST=".next-qa"' in full_qa
+    assert 'NEXT_DIST_DIR="$QA_NEXT_DIST" npm run build' in full_qa
+    assert "frontend/.next-qa/" in gitignore
