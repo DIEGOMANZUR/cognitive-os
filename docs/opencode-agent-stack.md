@@ -1,6 +1,13 @@
 # OpenCode Agent Stack — Cognitive OS
 
-> **Estado actual (2026-05-15, 04:47 hora Chile):** OpenCode actúa como cockpit
+> **Estado actual (2026-05-22):** OpenCode sigue siendo cockpit de
+> desarrollo, no runtime productivo. El runtime Cognitive OS se documenta
+> en `cognitive-os/docs/CURRENT_STATE.md` y prioriza fricción casi nula en
+> PC dedicado por sobre seguridad estricta. Para trabajo de desarrollo,
+> siguen vigentes las reglas de no filtrar secretos, no tocar backups/
+> snapshots y no ejecutar acciones destructivas sin instrucción explícita.
+>
+> **Histórico (2026-05-15, 04:47 hora Chile):** OpenCode actúa como cockpit
 > de desarrollo. `opencode.json` usa `{env:VAR}` para secretos MCP; las
 > credenciales reales viven en `.env.local` ignorado por git con permisos
 > `600`. Stack vigente: **21 MCPs** (17 conectados directos + 4 wrappers

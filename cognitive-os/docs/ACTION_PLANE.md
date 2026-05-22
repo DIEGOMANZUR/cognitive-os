@@ -1,6 +1,15 @@
 # Action Plane
 
-> **Estado actual (2026-05-21, Fase 85 — contrato mail read-only):** capa **preview-first con
+> **Estado canonico actual (2026-05-22):** en el PC dedicado el Action Plane se
+> interpreta bajo `dedicated_local/full`: **friccion casi nula primero**,
+> seguridad estricta despues. En `strict`, preview/request/approval sigue siendo
+> la postura conservadora. En `dedicated_local/full`, algunas approvals pueden
+> auto-resolverse y la defensa pasa a audit, idempotencia, reapers y
+> observabilidad. Mail se mantiene fuera del auto-send: solo lectura, digest y
+> propuestas de texto. Ver `CURRENT_STATE.md` y
+> `ZERO_FRICTION_OPERATING_MODEL.md`.
+>
+> **Estado historico (2026-05-21, Fase 85 — contrato mail read-only):** capa **preview-first con
 > `ActionRequest` persistente** y carril activo de **mail personal read-only por defecto**.
 > GoDaddy DNS verificado en vivo (auth producción HTTP 200) y habilitado en
 > postura segura: `GODADDY_DNS_DRY_RUN_ONLY=true` +
@@ -40,8 +49,8 @@
 > rate limiter por usuario (memory/Redis) y correlation IDs propagados.
 
 El action plane es la capa que prepara a Cognitive OS para actuar en el computador,
-en navegador y en servicios externos sin saltarse seguridad, auditoria ni aprobacion
-humana.
+en navegador y en servicios externos sin saltarse trazabilidad, auditoria,
+idempotencia ni el perfil operativo elegido.
 
 Hechos verificables (1:1 con `backend/src/cognitive_os/actions/` y `api/app.py`):
 
@@ -142,9 +151,10 @@ Todos requieren JWT.
 | `POST /actions/drive/files/upload` | Preview/upload directo; rechaza `dry_run=false` con `409` | No |
 | `POST /actions/drive/files/upload/request` | Crea `ActionRequest` aprobable para upload Drive | No directamente |
 | `GET /mail/status` | Estado del carril mail personal y cuentas configuradas | No |
-| `POST /mail/sync` | Sincroniza GoDaddy IMAP/Gmail-label de forma manual | No |
-| `POST /mail/sync/dispatch` | Encola sync de mail en Celery queue `mail` | No |
-| `POST /mail/digest/preview` | Genera resumen de últimos correos y respuestas propuestas separadas, sin drafts/sends | No |
+| `POST /mail/sync` | Endpoint directo legacy para sync IMAP/Gmail; evitar desde UI porque puede bloquear el API | No |
+| `POST /mail/sync/dispatch` | Encola sync de mail en Celery queue `mail`; es el camino de la UI | No |
+| `POST /mail/digest/preview` | Genera resumen de mensajes locales y respuestas propuestas separadas, sin drafts/sends; la UI usa `sync_first=false` | No |
+| `POST /mail/digest/dispatch` | Encola digest persistente en Celery queue `mail` | No |
 | `GET /mail/messages` | Lista mensajes persistidos y propuestas | No |
 | `PATCH /mail/messages/{id}/reply` | Edita la propuesta escrita | No |
 | `POST /mail/messages/{id}/ignore` | Marca mensaje como ignorado | No |

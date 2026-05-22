@@ -1,6 +1,13 @@
 # OpenShell Sandbox (referencia técnica)
 
-> **Estado (2026-05-20, Fase 74):** integración separada e independiente
+> **Estado actual (2026-05-22):** integración separada e independiente,
+> documentada para el modelo local dedicado. Aunque el producto prioriza
+> fricción casi nula por sobre seguridad estricta, OpenShell sigue siendo
+> un sandbox opcional: si se enciende, debe fallar de forma explícita,
+> registrar JobEvents/AuditEvents y no simular que ejecutó cuando el vendor,
+> Docker o gateway no están disponibles.
+>
+> **Histórico (2026-05-20, Fase 74):** integración separada e independiente
 > de OpenHarness y del carril mail. OpenShell se ejecuta vía un *vendor*
 > externo dentro de Docker; OpenHarness corre en proceso del backend
 > cuando se activa el extra. Worker dedicado:

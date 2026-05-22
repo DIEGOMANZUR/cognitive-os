@@ -1,263 +1,93 @@
 # Cognitive OS
 
-> **Estado actual (2026-05-20, Fase 82.1 — Glass Cockpit + Robustez profunda):**
-> Frontend reescrito a un **command center glassmorphism dark-only de alto
-> contraste, instalable como PWA** y endurecido para grado comercial.
-> Sistema de diseño nuevo (tokens en `app/globals.css`), tipografía
-> self-hosted Inter + JetBrains Mono vía `next/font/google`, **set SVG
-> curado de ~55 íconos** (`Icon.tsx`), **charts SVG sin dependencias**
-> (`Sparkline`, `AreaChart`, `BarList`, `Donut`), **centro de
-> notificaciones** con feed unificado + handshake push del SO,
-> **command palette** con fuzzy match + recientes + grupos. **PWA**:
-> manifest con 4 shortcuts, íconos PNG 192/512 + maskable, service
-> worker `cogos-v2026-05-20-glass-2` con offline shell +
-> `/offline.html` + push handlers. **Robustez (Fase 82.1):**
-> `usePolledFetch` resiliente — pausa offline + tab oculta, refetch
-> instantáneo al recuperar online/visibility, expone `loading` para
-> skeletons. **`StatePrimitives`** compartidas (Skeleton/EmptyState/
-> ErrorPanel/DataBoundary) aplicadas en las 5 vistas más críticas.
-> **`asArray<T>`** en las 13 vistas que consumen colecciones (la SPA
-> ya no cae al `ErrorBoundary` si el backend devuelve forma
-> incorrecta). **A11y**: `useFocusTrap` en modales (palette,
-> notification center), skip-link al main, `role="dialog"` +
-> `aria-modal` + ESC. **Tests E2E**: `glass-cockpit.spec.ts` cubre
-> palette, notification center, defensive guards y skip-link.
-> Documentación canónica: `cognitive-os/docs/FRONTEND_ARCHITECTURE.md`.
-> Playwright `playwright.config.ts` blinda el suite contra SW persistente y
-> cache HTTP. QA verde: lint 0 warnings, build, tsc, E2E headless
-> full-walk 1440×900 + mobile 393×851 = 0 errores 5xx / 0 page errors /
-> 0 console errors.
->
-> **Estado anterior (Fases 78-81 — plan de aprendizaje completo +
-> aislamiento de DB de test):**
-> Las **5 fases** del plan de aprendizaje autónomo
-> (`docs/AGENT_LEARNING_PLAN.md`) están cerradas en producción:
-> **A** recipe extractor (jobs exitosos → recetas `kind=procedure`),
-> **D** failure post-mortem (patrones fallo→recuperación → warnings),
-> **C** tool scorecard (confiabilidad por tool, inyectada al prompt),
-> **B** skill promotion (procedures usados ≥3× con <30% fallos →
-> skills YAML auto-materializados, con rollback automático), y
-> **E** nightly reflection (el LLM revisa los threads del día y
-> propone preferences/lessons con evidencia literal obligatoria).
-> Todo el aprendizaje pasa por el **approval gate del operador** —
-> cero auto-deploy de comportamiento, cero modificación de
-> `AGENT_SELF.md`. **7 tareas Celery beat** detrás de feature flags.
-> 2 tablas nuevas (`procedure_invocation_log`, `tool_invocation_metrics`);
-> migración Alembic head `202605200003` (**20 migraciones**). **143
-> endpoints REST**, **22 tareas Celery**. Suite hermética **800 passed**
-> (+88 vs Fase 74). Panel completo en `MemoryView` (Recetas, Warnings,
-> Scorecard, Promociones a skill, Reflexiones nocturnas) + endpoints
-> `/deepagents/learning/*`.
-> **Aislamiento de DB de test:** `pytest` nunca toca la base de
-> producción — `tests/conftest.py` redirige `DATABASE_URL` a una base
-> `cognitive_os_test` dedicada que se dropea + recrea + migra a head en
-> cada corrida (con red de seguridad que se niega a correr si la URL
-> apunta a producción).
->
-> **Estado anterior (Fase 74 — auditoría completa + cliente MCP + Telegram conversacional + acceso total al PC):** monorepo en grado
-> comercial operativo y **verificado funcionando con el stack real
-> levantado** (Docker infra + API + worker + credenciales del operador).
-> Backend FastAPI 0.115+ (**130 endpoints REST**, **17 tareas Celery**
-> distribuidas en 5 colas, **17 migraciones Alembic** aplicadas en Postgres
-> real) + LangGraph 1.1.10 + DeepAgents 0.6.x + Celery 5.4 +
-> Postgres 16+pgvector + Redis 7 + Weaviate 1.29.0 + Neo4j 5 (servicios de
-> datos ligados a `127.0.0.1`) y consola Next.js 16.2.6 con **20 vistas**
-> en `app/views/*.tsx`. La ruta **`research`** sigue fusionada con
-> [OpenHarness](https://github.com/HKUDS/OpenHarness) opcional (`extra`
-> `openharness`). LLM: **primary+agent `gpt-5.5`** (gateway
-> openai-compatible), **secondary/fallback `gemini-3.1-pro-low`**,
-> **visión `glm-4.6v`** (z.ai). Kimi K2.6 solo vía el adapter CLI del Code
-> Director (su endpoint HTTP da 403). **Cliente MCP nativo** (Fase 73): el
-> DeepAgent carga tools dinámicas de servidores MCP externos (Supermemory,
-> GitHub, filesystem) declarados en `.env`. El asistente personal opera
-> **correo multicuenta read-only por defecto**: Gmail `TODOS`/`SPAM` +
-> GoDaddy `Spam`, clasificación propia del agente, digest 10:00/20:00 Chile
-> y respuestas propuestas como texto, sin drafts ni envíos automáticos. Google
-> Maps, Calendar y Drive quedan bajo `ActionRequest`. **Telegram conversacional** (Fase 70): mensajes sin slash entran
-> al orquestador con memoria de conversación persistente. **Perfil
-> `dedicated_local`**: acceso total al `/home` del operador, auto-aprueba
-> acciones reversibles. Ejecutables de escritorio
-> (`Levantar/Reiniciar/Detener/Estado Cognitive OS`) gestionan el stack
-> completo y se verifican con `bash scripts/verify_desktop_launchers.sh`.
-> Telegram bot expone **37 slash commands** con paridad real frente a la
-> consola. `/health/dashboard` reporta **17 componentes**. Estado
-> reproducible vía `bash scripts/full-qa.sh`: **712 passed, 1 skipped,
-> 20 deselected**.
+> **Estado canonico (2026-05-22):** Cognitive OS corre como **sistema cognitivo
+> local mono-operador** para el PC dedicado de Diego. Prioridad de producto:
+> **friccion operativa casi nula por sobre seguridad estricta** — perfil real de
+> Edge, operacion amplia en el PC y approvals reducidos cuando el perfil es
+> `dedicated_local/full`. Los controles principales son trazabilidad,
+> idempotencia, logs, health/readiness honesto, reapers y tests. Excepcion dura:
+> **mail** — el flujo normal solo lee, clasifica, resume y propone respuestas
+> como texto; no crea drafts ni envia correos salvo peticion explicita + flags
+> de escape hatch. Fuente de verdad corta: `docs/CURRENT_STATE.md` y
+> `docs/ZERO_FRICTION_OPERATING_MODEL.md`.
 
-### Novedades Fase 68 (2026-05-19) — GoDaddy DNS prod + doble revisión profunda
+## Snapshot Tecnico
 
-- **GoDaddy DNS de producción operativo:** credenciales verificadas en
-  vivo contra `api.godaddy.com` (HTTP 200, devuelve dominios reales).
-  Postura segura: `GODADDY_DNS_DRY_RUN_ONLY=true` +
-  `GODADDY_ALLOW_PRODUCTION_WRITES=false` → preview/dry-run con aprobación
-  humana, cero escrituras DNS reales sin opt-in explícito.
-- **Bug de config corregido:** el `.env` usaba `ENABLE_GODADDY` pero el
-  alias real es `GODADDY_ENABLED` — el primero era no-op (GoDaddy nunca
-  se habilitaba). Corregido en `.env` y `guia_credenciales.md`.
-- **Doble revisión profunda:** auditoría sistemática alias `.env`↔Settings
-  (sin más no-ops); `KIMI_CODING_*` documentadas como referencia (el
-  adapter `kimi` usa el CLI con su propio `~/.kimi`); `.env.example`
-  actualizado (documenta el carril crítico `AGENT_LLM_*`).
-- **Backup completo de credenciales** en `.env` y Supermemory MCP.
-- **Telegram pendiente:** el `TELEGRAM_BOT_TOKEN` del `.env` da HTTP 401
-  (revocado) y falta `TELEGRAM_AUTHORIZED_USER_IDS` — requiere token
-  nuevo del operador (@BotFather) + su user_id. No bloquea el resto.
-- Suite **685 passed, 1 skipped, 20 deselected**, hermética por
-  construcción; ruff/mypy/format/lint/build/pre-commit/git verdes.
+Conteos derivados del codigo por `scripts/sync_doc_counts.py` (`full-qa.sh`
+falla si quedan desincronizados):
 
-### Novedades Fase 67 (2026-05-18) — Esquemas de tools tipados + cadena LLM
+- **Backend** FastAPI 0.115+ — **147 endpoints REST**, **23 tareas Celery** en
+  **5 colas** (`default`, `ingestion`, `agent_longrun`, `maintenance`, `mail`),
+  hasta **13 jobs beat** segun feature flags.
+- **DB** Postgres 16+pgvector — **20 migraciones Alembic**, head
+  `202605200003`, `alembic check` sin drift.
+- **Orquestacion** LangGraph 1.1.10 + DeepAgents 0.6.x + cliente MCP nativo +
+  Action Plane. Ruta `research` fusionada con OpenHarness opcional.
+- **Telegram** — **37 slash commands** (dispatch fail-closed) + modo
+  conversacional sin slash en `dedicated_local`.
+- **Health** — `/health/dashboard` con **18 componentes**; `POST /health/verify`
+  para probe real bajo demanda; componente `operational_backlog`.
+- **Frontend** Next.js 16.2.6 + React 19 + TypeScript estricto — **20 vistas**,
+  PWA dark-only glassmorphism, sin Tailwind/shadcn.
+- **LLM** — primary+agent `gpt-5.5` (Responses API + prompt caching 24h),
+  secondary/fallback `gemini-3.1-pro-low`, vision `glm-4.6v`.
+- **QA** — `full-qa.sh` **941 passed, 1 skipped, 28 deselected** +
+  ruff/format/mypy/Alembic/lint/build/`sync_doc_counts`/`git diff --check`;
+  `stress-qa.sh` 3 pasadas verdes; Playwright **22 passed**; carril opt-in
+  `tests/live/` para smokes read-only contra proveedores reales.
+- Infra de datos (Postgres / Redis 7 / Weaviate 1.29.0 / Neo4j 5) ligada a
+  `127.0.0.1`, sin exposicion a internet.
 
-- **21 tools del DeepAgent** reescritas con `args_schema` Pydantic
-  tipado/descrito/validado: antes los `lambda` sin tipos producían
-  propiedades `{}` vacías que los gateways estrictos rechazaban con
-  `400 "Invalid schema"`. Verificado: 0 propiedades vacías.
-- **Cadena LLM del operador** (verificada en vivo httpx + LangChain):
-  primary+agent `gpt-5.5`, secondary/fallback `gemini-3.1-pro-low`,
-  visión `glm-4.6v`. Kimi-k2.6 HTTP da 403 (solo Code Director CLI).
-- **Suite hermética por construcción:** `tests/conftest.py` con guard
-  autouse que impide cualquier llamada LLM real en el suite por defecto
-  (router → `deterministic_route`); determinista y rápido.
+## Cambios Recientes
 
-### Novedades Fase 66 (2026-05-18) — Auditoría en vivo: 4 bugs críticos corregidos
+**Remediacion del audit comercial (2026-05-22).** Tras
+`docs/audits/CODEX_COMMERCIAL_READINESS_AUDIT.md` se cerraron las 8 fallas
+accionables (AUDIT-2026-A..H):
 
-Stack real levantado con credenciales del operador. La resiliencia del
-sistema **enmascaraba** fallos del carril principal. Encontrados y
-corregidos, todos verificados en vivo:
+- **A (P0)** — dispatch de Telegram fail-closed: una allowlist vacia rechaza a
+  todos y `main()` se niega a arrancar en ese estado.
+- **B (P1)** — `/health/dashboard` distingue `verified` de `configured` y no
+  pinta verde lo que nunca se probo; nuevo `POST /health/verify`.
+- **C (P1)** — kill switch `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED` para la
+  unica ruta de auto-deploy del plan de aprendizaje.
+- **D (P2)** — matriz de tests de los 37 comandos Telegram.
+- **E (P2)** — carril `tests/live/` opt-in (`LIVE_TESTS_ENABLED=1`).
+- **F (P2)** — componente `operational_backlog` en health.
+- **G (P3)** — `scripts/sync_doc_counts.py` mantiene los conteos canonicos.
+- **H (P3)** — `scripts/dev_up.sh` valida variables antes de `docker compose`.
 
-- **DeepAgent nunca funcionaba:** `deepseek-v4-pro` (=reasoner) responde
-  HTTP 400 a `tool_choice` forzado (structured output), así que *todo*
-  DeepAgent caía silenciosamente al fallback RAG. Fix:
-  `create_agent_chat_model()` + `AGENT_LLM_MODEL=deepseek-chat`. Confirmado:
-  `/chat` → DeepAgent real sin fallback.
-- **SECONDARY/FALLBACK LLM 403 garantizado:** el endpoint Kimi-for-Coding
-  rechaza clientes HTTP. Repuntados a DeepSeek; `VISION_FALLBACK` a GLM.
-  Los 6 carriles LLM → HTTP 200.
-- **LangSmith dropeaba todas las trazas (403):** la `LANGSMITH_API_KEY`
-  scoped no puede ingestar runs. `configure_langsmith()` ahora prefiere el
-  `LANGSMITH_PERSONAL_ACCESS_TOKEN` (full scope). `/sessions` → 200.
-- **Maps traffic-aware siempre 400:** `departureTime=now` llega a Google
-  ya en el pasado ("Timestamp must be set to a future time"). Fix:
-  default/clamp a `now + 60s`. Confirmado: ruta real `19.5 km · 25 min`.
+**Plan de aprendizaje autonomo (Fases A-E, `docs/AGENT_LEARNING_PLAN.md`):** en
+produccion. Fase A recipe extractor, Fase B skill promotion (procedure → skill
+YAML con rollback automatico), Fase C tool scorecard, Fase D failure
+post-mortem, Fase E nightly reflection con evidencia literal obligatoria. Todo
+pasa por el approval gate del operador; la unica excepcion acotada es el
+auto-promote de *warnings* de Fase D, con kill switch.
 
-Hardening: 7 tests pasados a herméticos (`_env_file=None`),
-`SETTINGS_REGISTRY_TABLE.md` regenerado. Migración crítica `202605170001`
-aplicada y verificada contra Postgres real. Suite: **685 passed, 1
-skipped, 20 deselected**; full-qa verde. Único pendiente operador: OAuth
-Google interactivo (`auth_google.py`) y `GODADDY_API_SECRET`.
+**Code Director:** meta-agente que delega builds a coding agents externos
+(Claude Code / Codex / Kimi CLI o DeepAgents in-process) bajo aprobacion humana
++ budget caps + audit, con planner LLM-driven y fallback heuristico.
 
-### Novedades Fase 65 (2026-05-17) — Paridad UI↔Telegram + bugfix CHECK constraint
+El historial fase-a-fase detallado vive en `git log` y en el contexto del
+documento de auditoria; este README mantiene solo el estado vigente.
 
-- **Migración `202605170001_action_requests_drive_folder_organize`**
-  amplía `ck_ar_action_type` para aceptar `drive_ensure_folder` y
-  `drive_organize_files`. Sin esta migración el INSERT real (Postgres)
-  rompía los endpoints `/actions/drive/folders/ensure/request` y
-  `/actions/drive/organize/request` con `CheckViolation`. El bug pasaba
-  inadvertido porque los tests mocan `session_scope`.
-- **Regresión `test_action_request_check_constraint.py`** mantiene
-  alineados el ORM, la migración más reciente y `WORKFLOW_EXPORTABLE_TYPES`
-  del servicio.
-- **Telegram bot** sube de 25 → 37 commands: `/maps origen | destino`,
-  `/calendar [max]`, `/freebusy [días]`, `/drive <query>`,
-  `/documents [max]`, `/audit [max]`, `/mail [max]`, `/research [max]`,
-  `/codebuild [max]`, `/sandbox`, `/capabilities`. Todos respetan los
-  flags (Maps/Calendar/Drive status, `MAIL_ENABLED`,
-  `ENABLE_OPENSHELL_SANDBOX`, etc.).
-- Suite QA: **685 passed, 1 skipped, 20 deselected** (stress 3 corridas
-  idénticas en baseline pre-fix).
+## Que Es Cognitive OS
 
-### Novedades Fase 64 (2026-05-17) — Dispatch idempotente
+Monorepo con backend **FastAPI** (agentes LangGraph, Celery, Postgres) y
+**Next.js 16** como consola web.
 
-- Reserva atómica `dispatch_state=submitting|submitted|failed` en
-  `ActionRequest.metadata_json` antes de llamar a Celery.
-- `submitting` bloquea dispatch concurrente, `submitted` evita re-enviar el
-  mismo trabajo mientras el worker procesa y `failed` permite retry.
-- REST y Telegram comparten el contrato.
-- Suite QA: **674 passed, 1 skipped, 20 deselected**.
+**Investigacion (`research`):** Cognitive OS **fusiona** tres capas cuando se
+activa el motor opcional OpenHarness: LangGraph orquesta → [OpenHarness](https://github.com/HKUDS/OpenHarness)
+puede generar un **preludio** con su `QueryEngine` (en el mismo workspace que
+DeepAgents si `OPENHARNESS_WORKSPACE_MODE=deepagent_mirror`) → [DeepAgents](https://github.com/langchain-ai/deepagents)
+produce el informe con citas y politica del proyecto. Si OpenHarness no esta
+instalado/habilitado o falla, el grafo continua solo con DeepAgents y, si este
+no responde, con un agente RAG determinista de fallback.
 
-### Novedades Fases 59-63 (2026-05-17) — Dispatch durable
-
-- REST `/actions/requests/{id}/dispatch` captura fallos del broker Celery y
-  responde `dispatched=false` con reason de retry, sin 500 opaco.
-- REST y Telegram registran `action_request_dispatch_submitted` y
-  `action_request_dispatch_failed` como `JobEvent`.
-- `run_action_request_task_async` short-circuitea si el job ya está `running`,
-  evitando eventos duplicados por entregas repetidas del broker.
-- Suite QA: **671 passed, 1 skipped, 20 deselected**.
-
-### Novedades Fases 50-58 (2026-05-17) — Bloque operativo humano
-
-- Telegram `/approve` y `/reject` aceptan UUID completo o prefijo único, rechazan
-  prefijos ambiguos/cortos o con wildcard, firman como `telegram:<chat_id>` y
-  mantienen four-eyes/audit.
-- Aprobar un `execute_action_request:<id>` desde Telegram encola y despacha
-  `run_action_request_task_async` en `agent_longrun`.
-- Nuevo smoke versionado `scripts/verify_desktop_launchers.sh` para validar
-  maestro, wrappers `.sh` y accesos `.desktop` sin levantar servicios.
-- Suite QA: **669 passed, 1 skipped, 20 deselected**.
-
-### Novedades Fase 42 (2026-05-17) — Legal pack DeepAgents (Apache 2.0)
-
-- **5 skills core nuevas** adaptadas del repo
-  [claude-for-legal](https://github.com/anthropics/claude-for-legal)
-  (Apache 2.0) sin copiar código: `legal-hold`,
-  `privilege-log-review`, `oss-license-review`, `worker-classification`,
-  `matter-intake`. Atribución y obligaciones cubiertas en
-  `skills/core/NOTICE.md`. **13 skills core** en total.
-- Suite QA: **642 passed, 1 skipped, 20 deselected**.
-
-### Novedades Fase 41 (2026-05-17) — Code Director F9
-
-- **`code_director/planner.py`** — `LLMPlanner` descompone el objetivo
-  vía LLM primario en subtareas reales, con `HeuristicPlanner`
-  determinista como fallback ante **cualquier** fallo (sin key, JSON
-  malformado, deps alucinadas, etc.). Un build nunca muere por el
-  planner.
-- **`code_director/prompt_builder.py`** — cada subtarea recibe un
-  prompt estructurado y acotado con árbol vivo del workspace, contenido
-  de archivos relevantes y resumen de upstream. En un reintento se
-  inyecta el error del intento anterior con "arregla esto, no empieces
-  de cero" → `iterate_until_tests_pass` converge en vez de repetir el
-  mismo fallo.
-- **Suite QA**: **632 passed, 1 skipped, 20 deselected**. Cero tokens
-  reales gastados en tests.
-
-### Novedades Fase 40 (2026-05-17) — Code Director
-
-- **Vista `Code Director`** + 4 endpoints REST + Celery task
-  `cognitive_os.run_code_build` + `tar.gz` descargable con manifest.
-- **Adapters**: `claude_code`, `codex`, `kimi` (subprocess, STDIN-only,
-  SIGTERM→SIGKILL del process group) y `deepagent` (in-process).
-- **HITL completo**: `HumanApproval` antes de gastar un token; budget
-  caps duros; `partial` entrega lo construido si se exceden.
-
-### Novedades Fase 39 (2026-05-17)
-
-- **`/system/info`** — versión runtime + commit + alembic head + policy flags.
-- **`/system/credentials-status`** (admin) — inventario vivo de las 21
-  credenciales operador con estado, capacidad habilitada y dónde
-  obtenerlas. Nunca devuelve valores.
-- **`/actions/requests/{id}/workflow`** + **`/actions/requests/from-workflow`**
-  — export/import de planes como JSON `workflow.v1` portátil.
-- **Vista `Research`** con plan animado vía SSE.
-- **Rate limit** con backend Redis pluggable (`RATE_LIMIT_BACKEND=memory|redis`).
-- **Approval reaper** (`APPROVAL_PENDING_MAX_HOURS=48`) cierra approvals stale.
-- **Four-eyes** para approvals (`APPROVAL_REQUIRE_FOUR_EYES=true`).
-- **Correlation IDs** propagados a logs vía `X-Request-ID`.
-- **OAuth Google self-healing**: `auth_google.py` detecta token válido y
-  refresca sin abrir navegador; health detail trae el comando exacto si
-  falta el `token.json`.
-- **Wizard CLI**: `bash scripts/init_credentials.sh` reporta checklist
-  REQ/OPT/OK de las 21 credenciales con `--ci` para gate de pipeline.
-
-Monorepo con backend **FastAPI** (agentes LangGraph, Celery, Postgres) y **Next.js** 16 como consola web.
-
-**Investigación (`research`):** Cognitive OS **fusiona** tres capas cuando se activa el motor opcional OpenHarness: LangGraph orquesta → [OpenHarness](https://github.com/HKUDS/OpenHarness) puede generar un **preludio** con su `QueryEngine` (en el mismo workspace que DeepAgents si `OPENHARNESS_WORKSPACE_MODE=deepagent_mirror`) → [DeepAgents](https://github.com/langchain-ai/deepagents) produce el informe con citas y política del proyecto. Si OpenHarness no está instalado/habilitado o falla, el grafo continúa solo con DeepAgents y, si éste no responde, con un agente RAG determinista de fallback.
-
-Incluye una capa de **Action Plane** para preparar acciones seguras de navegador,
-computador local, Gmail, Google Maps/Calendar/Drive, GoDaddy DNS, documentos
-Office y correo personal. Las
-acciones sensibles requieren aprobación humana y quedan auditadas. Ver
-`docs/ACTION_PLANE.md` y `docs/PERSONAL_ASSISTANT_ROADMAP.md`.
+Incluye una capa de **Action Plane** para preparar acciones seguras de
+navegador, computador local, Gmail, Google Maps/Calendar/Drive, GoDaddy DNS,
+documentos Office y correo personal. Las acciones sensibles quedan auditadas
+(`ActionRequest`, `JobEvent`, `AuditEvent`) y, en `strict`, pasan por aprobacion
+humana. Ver `docs/ACTION_PLANE.md` y `docs/PERSONAL_ASSISTANT_ROADMAP.md`.
 
 ## Leer Primero
 
@@ -283,8 +113,8 @@ rsync -a --exclude node_modules --exclude .next --exclude .venv --exclude '__pyc
 
 - Python ≥ 3.12 y [uv](https://docs.astral.sh/uv/)
 - Node.js ≥ 22 y npm
-- Verificación reproducible: `bash scripts/full-qa.sh` (`uv sync --extra openharness` + `pytest` + `ruff check` + `ruff format --check` + `mypy` + `npm ci` + `npm run lint` + `npm run build`). Estrés: `bash scripts/stress-qa.sh` (3 pasadas de pytest por defecto).
-- Snapshot QA vigente (2026-05-20, Fase 74 cerrada): **712 pytest passed, 1 skipped, 20 deselected**; ruff/ruff format/mypy (128 source files), frontend lint/build (20 vistas), Alembic head (`202605170001`), pre-commit y `git diff --check` verdes.
+- Verificación reproducible: `bash scripts/full-qa.sh` (`uv sync --extra openharness` + `pytest` + `ruff check` + `ruff format --check` + `mypy` + `npm ci` + `npm run lint` + `npm run build` + `sync_doc_counts.py --check` + `git diff --check`). Estrés: `bash scripts/stress-qa.sh` (3 pasadas de pytest por defecto). Smokes en vivo opt-in: `bash scripts/full-qa-live.sh`.
+- Snapshot QA vigente (2026-05-22): `bash scripts/full-qa.sh` **941 passed, 1 skipped, 28 deselected**; ruff/ruff format/mypy, frontend lint/build aislado con `.next-qa`, Alembic head `202605200003` y `git diff --check` verdes. Playwright frontend: **22 passed**. Stress QA: 3 pasadas de **941 passed**.
 
 ## Backend
 
@@ -311,6 +141,15 @@ Variables de entorno: copia `.env.example` en la raíz a `.env` y ajusta secreto
 
 ## Infra local (Docker)
 
+Comando único correcto (valida variables y espera health checks):
+
+```bash
+bash scripts/dev_up.sh
+```
+
+Equivalente manual (no recomendado — `dev_up.sh` además valida que las
+variables que el compose interpola sin default no estén vacías):
+
 ```bash
 cd infra
 docker compose --env-file ../.env up -d
@@ -333,7 +172,7 @@ npm run build
 En desarrollo el panel puede apuntar al API desde ajustes en la UI; si defines
 `NEXT_PUBLIC_API_BASE_URL` al hacer build, esa URL inicial tendrá prioridad.
 
-**Stack y lenguaje visual (Fase 82):**
+**Stack y lenguaje visual:**
 
 - Next.js 16.2.6 App Router + React 19 + TypeScript 5.8 estricto.
 - **Glassmorphism dark-only** de alto contraste. Sin Tailwind, sin
@@ -342,39 +181,31 @@ En desarrollo el panel puede apuntar al API desde ajustes en la UI; si defines
 - **Tipografía:** Inter + JetBrains Mono self-hosted vía `next/font/google`
   (la PWA arranca offline sin pedir Google Fonts).
 - **Iconografía:** componente `<Icon name="…" />` (`app/components/Icon.tsx`)
-  con ~55 SVGs Lucide-style consistentes. **No usar emojis ni glifos
+  con SVGs Lucide-style consistentes. **No usar emojis ni glifos
   Unicode para íconos estructurales.**
 - **Charts SVG** sin dependencias en `app/components/Charts.tsx`:
   `Sparkline`, `AreaChart`, `BarList`, `Donut`.
-- **PWA instalable**: `app/manifest.ts` + `public/sw.js` v
-  `cogos-v2026-05-20-glass-2`. 4 shortcuts (Chat / Aprobaciones / Jobs /
-  Health), íconos PNG 192/512 + maskable + SVG fallback,
+- **PWA instalable**: `app/manifest.ts` + `public/sw.js`. Shortcuts (Chat /
+  Aprobaciones / Jobs / Health), íconos PNG 192/512 + maskable + SVG fallback,
   `/offline.html` con branding propio. Handlers de `push` y
-  `notificationclick` listos para que el backend mande notificaciones del
-  SO cuando exponga el endpoint VAPID.
-- **Centro de notificaciones** (`NotificationCenter.tsx`) en panel lateral
-  derecho con feed unificado de aprobaciones, jobs y eventos de
-  auditoría. Tracking de "vistos" persistido en `localStorage`.
-- **Command palette** (`CommandPalette.tsx`) con fuzzy match real,
-  agrupación, íconos por acción, footer de shortcuts y recientes
-  persistidos. Atajo `Ctrl/Cmd+K`.
+  `notificationclick` listos para notificaciones del SO.
+- **Centro de notificaciones** (`NotificationCenter.tsx`) con feed unificado de
+  aprobaciones, jobs y eventos de auditoría.
+- **Command palette** (`CommandPalette.tsx`) con fuzzy match real, atajo
+  `Ctrl/Cmd+K`.
 - **Defensive list guards** (`api.ts → asArray<T>(...)`): cada vista que
-  consume `usePolledFetch<T[]>` usa `asArray(data).filter|map|…` en lugar
-  de `(data ?? []).filter(…)`. Si el backend responde malformado, la
-  vista muestra empty state en lugar de tirar la SPA al `ErrorBoundary`.
+  consume `usePolledFetch<T[]>` usa `asArray(data)` para no caer al
+  `ErrorBoundary` si el backend responde malformado.
 
-**QA del frontend (snapshot Fase 82):**
+**QA del frontend:**
 
 - `npm run lint` → 0 warnings (`--max-warnings 0`).
-- `npm run build` → Next 16.2.6 + Turbopack, 4 páginas estáticas OK.
+- `npm run build` → Next 16.2.6 + Turbopack OK.
 - `npx tsc --noEmit` → 0 errores.
 - Playwright headless full-walk (1440×900 + 393×851 mobile) sobre las 20
-  tabs, palette y notification center: 0 errores 5xx, 0 page errors, 0
-  console errors. Anclajes E2E (`aria-label="JWT local"`, `URL base de la
-  API`, `Abrir menú`, `Cerrar`, literal `Estado global`, `componentes
-  ok`, los 20 `TAB_LABELS`) intactos. `playwright.config.ts` ahora bloquea
-  el service worker durante los tests y deshabilita el cache HTTP, para
-  que un SW persistente nunca contamine la suite.
+  tabs, palette y notification center: **22 passed**, 0 errores 5xx, 0 page
+  errors, 0 console errors. `playwright.config.ts` bloquea el service worker
+  durante los tests y deshabilita el cache HTTP.
 
 ## Ensayo local rápido
 

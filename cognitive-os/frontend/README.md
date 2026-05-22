@@ -1,26 +1,35 @@
 # Cognitive OS Frontend
 
-> **Estado actual (2026-05-20, Fase 82 — Glass Cockpit):** Next.js 16.2.6,
-> React 19, ESLint 9.39.4, TypeScript 5.8. **20 vistas** en
-> `app/views/*.tsx`: `ChatView`, `DashboardView`, `SettingsView`,
-> `ApprovalsView` (con import/export `workflow.v1`), `MemoryView`,
-> `JobsView`, `SandboxView`, `DocumentsView`, `DocumentAnalysisView`,
-> `ConfigurationView`, `MailInboxView`, `LangSmithView`, `AgentsView`,
-> `SkillsView`, `HealthView`, `AuditView`, `AssistView`, `GoogleOpsView`,
-> `ResearchView` (plan animado sobre SSE) y `CodeDirectorView`
-> (delegación de builds con aprobación humana + descarga `tar.gz`).
+> **Estado actual (2026-05-22):** cockpit definitivo Next.js 16.2.6 +
+> React 19 + TypeScript estricto, dark-only glass cockpit, 20 vistas en
+> `app/views/*.tsx`, PWA instalable y API client con JWT local persistente.
+> La prioridad de producto es fricción casi nula en un PC dedicado:
+> `dedicated_local/full` puede operar con el perfil real del operador y
+> auto-resolver aprobaciones permitidas por backend. El frontend debe
+> mostrar ese modelo con claridad, sin esconder degradaciones ni errores.
+>
+> **Vistas:** `ChatView`, `DashboardView`, `SettingsView`,
+> `ApprovalsView`, `MemoryView`, `JobsView`, `SandboxView`,
+> `DocumentsView`, `DocumentAnalysisView`, `ConfigurationView`,
+> `MailInboxView`, `LangSmithView`, `AgentsView`, `SkillsView`,
+> `HealthView`, `AuditView`, `AssistView`, `GoogleOpsView`,
+> `ResearchView` y `CodeDirectorView`.
+>
+> **Mail UI actual:** `Sync por worker` usa `/mail/sync/dispatch`; `Generar
+> resumen 50` usa `/mail/digest/preview` con `sync_first=false`, por lo que
+> trabaja sobre mensajes ya persistidos y no intenta sincronizar IMAP/OAuth
+> desde el navegador. El resultado muestra resumen y respuestas sugeridas
+> como texto; no crea drafts y no envía emails.
 >
 > **Componentes:** `Sidebar.tsx`, `TopBar.tsx`, `CommandPalette.tsx`,
 > `NotificationCenter.tsx`, `PWA.tsx`, `ErrorBoundary.tsx`, `Charts.tsx`,
 > `Icon.tsx` (set SVG curado de ~55 íconos Lucide-style).
 >
-> **Lenguaje visual (Fase 82):** glassmorphism oscuro de alto contraste,
-> *dark-only* (sin toggle de tema claro), tipografía self-hosted Inter +
-> JetBrains Mono vía `next/font/google`. Paleta dirigida por tokens en
-> `app/globals.css` (deep `#04060c` → glass `rgba(255,255,255,.05)`,
-> acento teal `#5fe3cf`, iris `#8b93ff`, status semánticos).
+> **Lenguaje visual:** glassmorphism oscuro de alto contraste, *dark-only*
+> (sin toggle de tema claro), tipografía self-hosted Inter + JetBrains Mono
+> vía `next/font/google`. Paleta dirigida por tokens en `app/globals.css`.
 >
-> **Capacidades nuevas Fase 82:**
+> **Capacidades Fase 82+:**
 > - **Charts SVG sin dependencias** (`components/Charts.tsx`): `Sparkline`
 >   por métrica, `AreaChart` con crosshair y leyenda, `BarList` para
 >   ranking, `Donut` con centro tipado. Usa tokens, hereda `currentColor`.
@@ -49,20 +58,26 @@
 >   `operator_profile`.
 > - `GoogleOpsView` deshabilita los botones de write cuando
 >   `write_enabled=false` y muestra `missing_scopes`.
-> - `HealthView` lista metadata como key=value; 17 componentes incluido
->   `mcp_client`.
+> - `HealthView` lista metadata como key=value; **18 componentes** (incluye
+>   `mcp_client` y `operational_backlog`). Tiene el botón "Verificar en vivo"
+>   (`POST /health/verify`) y el tile "Backlog operacional" — un componente
+>   sólo `configured` se pinta en amarillo, no en verde (AUDIT-2026-B).
+> - `MemoryView` muestra el estado del flag
+>   `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED` en la sección de warnings.
 > - `ChatView` muestra `tg…<sufijo>` para threads de Telegram.
 >
-> **QA verde tras la intervención:**
+> **QA verde vigente:**
 > - `npm run lint` → 0 warnings (`--max-warnings 0`).
 > - `npm run build` → Next 16.2.6 + Turbopack, 4 páginas estáticas OK.
 > - `npx tsc --noEmit` → 0 errores.
-> - Playwright headless full-walk (1440×900 + 393×851 mobile): 0 errores
->   5xx, 0 page errors, 0 console errors inesperados, 26 screenshots
->   capturados. Anclajes de la suite oficial (`aria-label="JWT local"`,
->   `URL base de la API`, `Abrir menú`, `Cerrar`, "Estado global",
->   "componentes ok", 20 TAB_LABELS, labels "Guardar"/"API base"/
->   "JWT sin prefijo Bearer" en `SettingsView`) intactos.
+> - `npx playwright test --reporter=list` → **22 passed**.
+> - `bash scripts/full-qa.sh` desde la raíz del repo ejecuta build frontend
+>   aislado con `NEXT_DIST_DIR=.next-qa` y limpia ese directorio para no
+>   romper un `next start` vivo servido desde `.next`.
+> - Anclajes de la suite oficial (`aria-label="JWT local"`, `URL base de la
+>   API`, `Abrir menú`, `Cerrar`, "Estado global", "componentes ok", 20
+>   TAB_LABELS, labels "Guardar"/"API base"/"JWT sin prefijo Bearer" en
+>   `SettingsView`) intactos.
 >
 > El `ApiClient` normaliza tokens con prefijo `Bearer`, omite
 > `Content-Type` en requests sin body y soporta `AbortSignal`. Next.js

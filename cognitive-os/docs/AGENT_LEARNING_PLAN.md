@@ -1,12 +1,23 @@
 # AGENT_LEARNING_PLAN — Cómo el agente aprende solo
 
+> **Actualización vigente (2026-05-22):** el plan de aprendizaje autónomo
+> está implementado y convive con el modelo operativo de baja fricción.
+> La prioridad del sistema en este PC dedicado es reducir fricción por
+> sobre seguridad estricta, pero las promociones de memoria/skills siguen
+> pasando por proposals porque afectan el comportamiento futuro del agente.
+> La **única excepción de auto-deploy** es el auto-promote de *warnings* de
+> Fase D, con kill switch `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED` (default
+> `true`, AUDIT-2026-C) — ver §1 y §3.4.
+> QA vigente del repo: `full-qa.sh` **941 passed, 1 skipped, 28
+> deselected**, Playwright **22 passed**, stress QA 3 pasadas de **941
+> passed**. Ver `CURRENT_STATE.md`.
+
 > Documento de handoff. Pensado para que un chat nuevo entienda **(a)** el estado
 > actual del proyecto, **(b)** la arquitectura de memoria existente, y
 > **(c)** las 5 fases del plan de aprendizaje autónomo, con código, schemas,
 > tests y orden de implementación.
 
-Fecha: 2026-05-20 · Branch: `codex/fase-34-baseline-hardening` · Último commit
-relevante: `cbdb96a` (Fase 76 — Playwright E2E QA audit).
+Branch: `codex/fase-34-baseline-hardening`.
 
 ## 🟢 Status — Plan completo: las 5 fases en producción (F78-F81, 2026-05-20)
 
@@ -129,7 +140,7 @@ automática entre ellas. Cada una se llena/lee desde un punto distinto del flujo
 | Code Director | `code_director/director.py` | Fase B (code-based) lo usa para compilar Python en sandbox con tests. |
 | Audit trail | `job_events` + `audit_events` + `human_approvals` | Fuente de verdad para Fase A/D/C/E. |
 | Celery beat | `workers/tasks.py` + beat schedule | Donde colgamos los nuevos extractors y reflectors. |
-| `/health/dashboard` | 17 componentes incl. `mcp_client` + `checkpointer` | Cada fase agrega su propio tile de salud. |
+| `/health/dashboard` | 18 componentes incl. `mcp_client`, `operational_backlog` + `checkpointer` | Cada fase agrega su propio tile de salud. |
 
 ---
 
@@ -140,8 +151,20 @@ automática entre ellas. Cada una se llena/lee desde un punto distinto del flujo
 **sin** introducir cambios no aprobados por el operador.
 
 **Principio rector:** todo aprendizaje pasa por **proposals** → **operator
-approval** → **records activos**. Cero `auto-deploy` de cambios al
-comportamiento.
+approval** → **records activos**.
+
+**Excepción única y acotada (Fase D):** el escáner de post-mortems
+auto-promueve un *warning* (no un skill, no el system prompt, no código
+ejecutable) cuando el mismo patrón `(agent_role, tool_name)` se observa
+`FAILURE_POSTMORTEM_AUTOPROMOTE_THRESHOLD` veces (default 3) sin rechazos
+previos del operador — el silencio del operador cuenta como aprobación
+tácita para *advertencias* recurrentes. Es la única ruta de auto-deploy del
+plan y está acotada a memoria `kind=warning`, que sólo agrega texto de
+contexto al prompt; nunca habilita una acción nueva. Tiene **kill switch**:
+`FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED=false` fuerza *toda* advertencia
+aprendida por la puerta de aprobación, restaurando un literal "cero
+auto-deploy". Ver §3.4. Todo lo demás (Fases A/B/C/E, skills, prompt,
+código) es **siempre** proposal → approval, sin excepción.
 
 ### 1.1 Diagrama de acoplamiento
 
@@ -590,8 +613,18 @@ backend/src/cognitive_os/deepagents/
 | Disparo | Acción |
 |---|---|
 | 1ra detección de un patrón | Crear `DeepAgentMemoryProposal(kind="warning", confidence=0.4)` → approval requerido |
-| 3ra detección del **mismo patrón** (similarity de embedding ≥ 0.85) | Auto-promover a `DeepAgentMemoryRecord(kind="warning", source="consolidated")` sin approval (es un patrón ya validado por evidencia) |
+| `FAILURE_POSTMORTEM_AUTOPROMOTE_THRESHOLD`ª detección del **mismo patrón** `(agent_role, tool_name)` sin rechazos previos | Auto-promover a `DeepAgentMemoryRecord(kind="warning", source="consolidated")` sin approval (es un patrón ya validado por evidencia) |
 | Si un warning produce ≥3 falsos positivos (el agente lo aplicó y igual falló) | Desactivar automáticamente (`status=archived`) |
+
+> **Kill switch (AUDIT-2026-C).** El auto-promote de la fila 2 es la única
+> ruta de auto-deploy de todo el plan de aprendizaje. Está acotado a memoria
+> `kind=warning` (texto de contexto, nunca una acción nueva) y se desactiva
+> con `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED=false`: con el flag en `false`
+> *toda* advertencia aprendida queda como proposal a la espera de aprobación
+> del operador, sin importar cuántas veces se repita el patrón. Default
+> `true` (postura zero-friction del PC dedicado). El registro auto-promovido
+> lleva `metadata_json.approved_by="auto_promotion"`, distinguible en la
+> vista Memoria del frontend.
 
 ### 3.5 Inyección en el system prompt
 

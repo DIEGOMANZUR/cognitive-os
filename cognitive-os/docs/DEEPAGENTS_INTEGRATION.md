@@ -1,6 +1,14 @@
 # Integración de DeepAgents (referencia técnica)
 
-> **Estado (2026-05-20, Fase 74):** DeepAgents (`deepagents>=0.6.1,<0.7.0`)
+> **Estado actual (2026-05-22):** DeepAgents sigue siendo el worker
+> cognitivo productivo para `research` y `document_analysis`. En el perfil
+> local dedicado se prioriza baja fricción: las tools permitidas por la
+> policy pueden usar contexto real del operador, Kimi WebBridge y workspace
+> local cuando están habilitadas. Eso no elimina la obligación de citas,
+> logs, JobEvents y fallos explícitos; tampoco habilita envío automático de
+> correo.
+>
+> **Histórico (2026-05-20, Fase 74):** DeepAgents (`deepagents>=0.6.1,<0.7.0`)
 > es el subagente productivo de las rutas `research` y `document_analysis`
 > del orquestador LangGraph. Expone **21 tools built-in** con `args_schema`
 > Pydantic tipado (Fase 67 — antes los `lambda` sin tipos producían

@@ -1,6 +1,33 @@
 # ACCEPTANCE CHECKLIST
 
-> **Estado actual (2026-05-20, Fase 82 — Glass Cockpit cerrada):**
+> **Estado canónico actual (2026-05-22):** aceptación vigente para el
+> proyecto como instalación local dedicada. La prioridad de producto es
+> fricción casi nula por sobre seguridad estricta, por lo que `strict`
+> documenta el modo conservador y `dedicated_local/full` documenta el modo
+> operativo preferido. La aceptación comercial se mide por arranque
+> reproducible, diagnóstico explícito, jobs trazables, idempotencia,
+> recovery, UI honesta, workers registrados y ausencia de fallos silenciosos.
+>
+> **Snapshot aceptado** (conteos por `scripts/sync_doc_counts.py`): 147
+> decoradores REST, 23 tareas Celery en 5 colas (hasta 13 jobs beat), 20
+> migraciones Alembic head `202605200003`, 20 vistas frontend, 37 comandos
+> Telegram, 18 componentes de health + `POST /health/verify`. Mail personal
+> usa Gmail `diegomanzurn@gmail.com` `TODOS`+`SPAM` y GoDaddy
+> `diego@doctormanzur.com` `Spam`; el agente clasifica spam por sí mismo,
+> entrega digest 10:00/20:00 Chile y propone respuestas como texto sin
+> drafts ni envíos automáticos.
+>
+> **Gates vigentes:** `bash scripts/full-qa.sh` verde con **941 passed, 1
+> skipped, 28 deselected**; ruff/format/mypy/Alembic/lint/build/`sync_doc_counts
+> --check`/`git diff --check` OK; Playwright **22 passed**; `bash
+> scripts/stress-qa.sh` verde con 3 pasadas de **941 passed**; carril
+> opt-in `tests/live/` para smokes read-only.
+>
+> **Remediación del audit (AUDIT-2026-A..H, 2026-05-22):** las 8 fallas
+> accionables del audit comercial están cerradas — ver
+> `docs/audits/CODEX_COMMERCIAL_READINESS_AUDIT.md` §0.1.
+>
+> **Estado histórico (2026-05-20, Fase 82 — Glass Cockpit cerrada):**
 > Frontend en grado comercial: glassmorphism dark-only de alto
 > contraste, instalable como PWA. Sistema de diseño nuevo, tipografía
 > self-hosted, set SVG de íconos, charts SVG nativos, centro de
@@ -117,6 +144,25 @@ Plan canónico: `docs/AGENT_LEARNING_PLAN.md`. Las 5 fases cerradas.
 - [x] `pytest` corre contra `cognitive_os_test`, nunca producción.
 - [x] La base de test se dropea + recrea + migra a head cada corrida.
 - [x] `conftest.py` se niega a correr si la URL apunta a producción.
+
+## Verificado - 2026-05-22 (remediación audit comercial AUDIT-2026-A..H)
+
+- [x] AUDIT-2026-A — dispatch Telegram fail-closed; `main()` no arranca con
+  allowlist vacía. Matriz de 37 comandos × {auth-deny, no-crash}.
+- [x] AUDIT-2026-B — `health.py` distingue `verified` de `configured`;
+  overall honesto; `POST /health/verify` para probe en vivo.
+- [x] AUDIT-2026-C — kill switch `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED`;
+  docs del plan de aprendizaje corregidas.
+- [x] AUDIT-2026-D/E/F — matriz de tests Telegram, carril `tests/live/`
+  opt-in, componente `operational_backlog` en health.
+- [x] AUDIT-2026-G/H — `scripts/sync_doc_counts.py` (integrado a `full-qa.sh`),
+  `scripts/dev_up.sh` valida variables antes de `docker compose`.
+- [x] `bash scripts/full-qa.sh` → **941 passed, 1 skipped, 28 deselected**;
+  ruff/format/mypy (135 files)/Alembic/lint/build/`sync_doc_counts`/`git diff`
+  verdes.
+- [x] `bash scripts/stress-qa.sh 3` → 3 pasadas de **941 passed**, sin flakiness.
+- [x] Carril live (`LIVE_TESTS_ENABLED=1 pytest -m live_readonly`) → 8/8
+  smokes verdes tras corregir el scope OAuth de Google Calendar.
 
 ## Verificado en vivo - 2026-05-18 (Fase 66, stack real + credenciales reales)
 
@@ -411,8 +457,9 @@ DeepAgents tools personales, SecretStore y endurecimiento de capacidades.
   REST con `gmail.readonly`, refresca token si puede, normaliza metadata/snippet
   y convierte fallos en `blocked` con secretos redactados. Envío y drafts reales
   siguen deshabilitados en esta fase.
-- [x] Mail personal GoDaddy/Gmail digest: `/mail/status`, `/mail/sync`,
-  `/mail/sync/dispatch`, `/mail/digest/preview`, `/mail/messages`,
+- [x] Mail personal GoDaddy/Gmail digest: `/mail/status`, `/mail/sync`
+  legacy, `/mail/sync/dispatch`, `/mail/digest/preview`,
+  `/mail/digest/dispatch`, `/mail/messages`,
   `/mail/messages/{id}`, `/mail/messages/{id}/reply` y
   `/mail/messages/{id}/ignore` persisten mensajes/propuestas en Postgres;
   Gmail `TODOS`/`SPAM` se lee si OAuth está activo; GoDaddy revisa `Spam`;

@@ -1,24 +1,26 @@
 # Roadmap: Cognitive OS como asistente personal
 
-> **Estado actual (2026-05-20, Fases 78-81 — plan de aprendizaje autónomo completo):** roadmap vivo, mayormente
-> ejecutado. El correo multicuenta está implementado y verificado contra
-> GoDaddy IMAP/SMTP real + Gmail label `TODOS`. La vista frontend
-> `AssistView` cubre tareas/notas personales (`PersonalTask`/
-> `PersonalNote`) con CRUD; `GoogleOpsView` opera Maps/Calendar/Drive.
-> Telegram operativo (slash + conversacional). El asistente tiene acceso
-> total al `/home` del operador (Fase 73b) + cliente MCP (Fase 73). La
-> queue Celery `mail` está integrada en los launchers de escritorio.
-> Calendar/Drive writes reales bajo `ActionRequest` + aprobación (o
-> auto-approve reversible en `dedicated_local`). El **plan de aprendizaje
-> autónomo** (Fases A-E) está cerrado: el agente aprende de cada
-> interacción bajo el approval gate del operador. QA: **800 passed, 1
-> skipped, 20 deselected** contra DB de test aislada;
-> ruff/format/mypy/frontend verdes. La ruta
-> `research` sigue fusionada con OpenHarness opcional y puede persistir runs
-> en Postgres. Pendiente para
-> "asistente personal absoluto": OAuth real Gmail/Calendar/Drive operados
-> por el usuario en runtime, voice STT/TTS productiva en frontend, y los ítems Fase
-> 29 operativos de credenciales/UX.
+> **Estado actual (2026-05-22):** roadmap vivo, mayormente ejecutado para
+> una instalación local dedicada. La prioridad de producto es fricción casi
+> nula por sobre seguridad estricta: acceso real al PC, Edge real/Kimi
+> WebBridge, filesystem local y auto-resolución en `dedicated_local/full`
+> cuando la capacidad lo soporte. `strict` queda como modo conservador.
+>
+> **Correo personal actual:** dos veces al día, 10:00 y 20:00 hora Chile,
+> el sistema prepara un digest de hasta 50 correos desde Gmail
+> `diegomanzurn@gmail.com` (`TODOS` + `SPAM`) y GoDaddy
+> `diego@doctormanzur.com` (`Spam`). No se confía en la clasificación de
+> las bandejas: el agente reclasifica spam por sí mismo, excluye lo que él
+> marque como spam y propone respuestas solo para los mensajes importantes.
+> El resultado se entrega como documento/campos de texto separados; no se
+> crean borradores y no se envía nada en el flujo normal.
+>
+> **QA vigente:** `bash scripts/full-qa.sh` verde con **941 passed, 1
+> skipped, 28 deselected**; frontend Playwright **22 passed**; stress QA 3
+> pasadas de **941 passed**; carril opt-in `tests/live/` para smokes
+> read-only. Pendiente para "asistente personal absoluto": voz productiva
+> en frontend/Telegram, YouTube/video summaries y automatizaciones
+> proactivas avanzadas.
 
 Este documento separa lo que ya funciona, lo que esta parcialmente listo y lo
 que falta para que Cognitive OS sea un asistente personal operativo.
@@ -31,7 +33,7 @@ que falta para que Cognitive OS sea un asistente personal operativo.
 | Investigacion | Parcial fuerte | RAG local; web multi-provider; research orchestrator async + SSE; DeepAgents + subagents; **fusión opcional OpenHarness** (`prelude_merge` / `short_circuit`, ver `OPENHARNESS_FUSION.md`) |
 | Navegador | Parcial fuerte | `browser_preview` y `browser_interactive` headless con screenshots + vision |
 | Archivos locales | Parcial fuerte | Organizar carpetas aprobado + inventario read-only allow-listed |
-| Mail multicuenta | Parcial fuerte | GoDaddy IMAP/SMTP, Gmail label `TODOS` soportado si OAuth activo, Postgres `mail_*`, propuestas escritas, envío aprobado desde GoDaddy |
+| Mail multicuenta | Funcional fuerte con contrato restrictivo | GoDaddy IMAP/SMTP, Gmail `TODOS`+`SPAM`, GoDaddy `Spam`, Postgres `mail_*`, digest 10:00/20:00 Chile, propuestas escritas; no drafts ni envío automático |
 | Google Ops | Parcial fuerte | Maps route/geocode read-only con tráfico/link; Calendar list/create bajo OAuth y `ActionRequest`; Drive list/get/folder/upload bajo OAuth, allow-list y aprobación |
 | GoDaddy | Parcial | Preview + executor DNS seguro con dry-run/allow-list/aprobacion |
 | Documentos Office | Parcial fuerte | DOCX/XLSX/PPTX con guardrails, tablas, imagenes, formulas y layouts |
@@ -64,17 +66,19 @@ Regla: memoria sensible requiere aprobacion o redaccion; no guardar secretos.
 
 Implementado primer corte:
 
-- GoDaddy IMAP para carpetas configuradas (`INBOX`, spam/junk/bulk).
-- Gmail label `TODOS` soportado por `GmailLabelReader` cuando OAuth está activo.
+- GoDaddy IMAP para `Spam` de `diego@doctormanzur.com` en el flujo principal.
+- Gmail label `TODOS` y `SPAM` de `diegomanzurn@gmail.com` por `GmailLabelReader` cuando OAuth está activo.
 - Tablas `mail_accounts`, `mail_messages`, `mail_send_logs`.
-- Endpoint `/mail/sync` + worker `cognitive_os.sync_personal_mail` en queue `mail`.
+- Endpoint UI `/mail/sync/dispatch` + worker `cognitive_os.sync_personal_mail` en queue `mail`.
+- Endpoint `/mail/digest/preview` para generar digest desde mensajes locales (`sync_first=false` en UI).
+- Endpoint `/mail/digest/dispatch` para digest por worker.
 - Propuestas de respuesta como texto, no drafts.
-- Envío por SMTP GoDaddy solo vía `/mail/messages/{id}/approve-send`.
+- Envío SMTP solo como escape hatch explícito: flags `ENABLE_EMAIL_SEND=true`, `MAIL_ALLOW_EXPLICIT_SEND=true` y confirmación literal por request.
 
 Falta:
 
 - Mejor clasificación LLM sobre DeepSeek V4 Pro en vez de heurística inicial.
-- Telegram inline buttons para aprobar/editar/ignorar.
+- Mejor edición/aprobación humana de respuestas propuestas desde UI/Telegram sin usar drafts.
 - Acciones de archivar, etiquetar, marcar spam/no-spam.
 
 ### 3. Grounding web multi-provider

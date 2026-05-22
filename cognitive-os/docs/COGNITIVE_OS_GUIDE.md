@@ -1,8 +1,42 @@
 # Cognitive OS — Guía Maestra
 
-> **Última actualización:** 2026-05-20, Fases 78-81 — plan de aprendizaje autónomo completo (Fases A-E del `AGENT_LEARNING_PLAN.md`) + aislamiento de DB de test. Cadena LLM del operador: primary+agent **gpt-5.5** (gateway, **Responses API + prompt caching 24h**), secondary/fallback **gemini-3.1-pro-low**, visión **glm-4.6v**; las 21 tools built-in del DeepAgent con `args_schema` Pydantic tipado + tools dinámicas MCP cuando `ENABLE_MCP_CLIENT=true`; suite hermética por construcción (conftest guard) **800 passed** corriendo contra una DB de test aislada. Telegram operativo (bot autorizado, slash commands + conversacional sin slash). Novedades Fases 78-81: el agente **aprende solo** — extrae recetas de jobs exitosos, detecta patrones de falla, puntúa la confiabilidad de sus tools, promueve procedures usados a skills YAML y reflexiona de noche sobre los threads del día. Todo pasa por el approval gate del operador.
-> **Estado del producto:** monorepo en grado comercial operativo (backend FastAPI 0.115+ con **143 endpoints REST**, **22 tareas Celery** distribuidas en **5 colas** `default`/`ingestion`/`agent_longrun`/`maintenance`/`mail` con **10 jobs beat**, **20 migraciones Alembic**, LangGraph 1.1.10 + DeepAgents 0.6.x + Postgres 16+pgvector + Redis 7 + Weaviate 1.29.0 + Neo4j 5 ligados a `127.0.0.1` por defecto; consola Next.js 16.2.6 con **20 vistas** en `app/views/*.tsx` incluidas `AssistView`, `GoogleOpsView`, `ResearchView` y `CodeDirectorView`; bot Telegram opcional con **37 slash commands** en paridad con el panel; Kimi WebBridge/Edge DevTools; fusión opcional con OpenHarness en la ruta `research`; **Code Director** (delegación a Claude Code/Codex/Kimi/DeepAgents con planner LLM-driven y prompts con contexto vivo, F9); **plan de aprendizaje autónomo** F78-81 con 2 tablas nuevas — `tool_invocation_metrics`, `procedure_invocation_log`). Runtime local (cadena verificada Fase 67/68): primary+agent **gpt-5.5** (gateway openai-compatible del operador), secondary/fallback **gemini-3.1-pro-low**, visión **glm-4.6v** (z.ai); Kimi-k2.6 solo vía el adapter CLI del Code Director (su endpoint HTTP da 403). Mail personal read-only por defecto: Gmail `TODOS`/`SPAM` + GoDaddy `Spam`, clasificación propia del agente, digest 10:00/20:00 Chile y propuestas escritas sin drafts ni envíos automáticos; Google Maps/Calendar/Drive operables; Telegram approvals con dispatch de `ActionRequest`; dispatch durable con broker failure controlado, JobEvents submit/fail y reserva atómica anti-submit duplicado. En `strict`, envíos y writes externos requieren aprobación manual; en `dedicated_local/full`, se autoaprueban acciones locales/Google para reducir fricción, pero mail sigue bloqueado salvo solicitud explícita de Diego. Asistente personal con `PersonalTask`/`PersonalNote` CRUD y reminders.
-> **QA snapshot persistente (Fases 78-81):** **800 pytest passed, 1 skipped, 20 deselected** contra `cognitive_os_test` (DB de test aislada; producción nunca se toca); ruff + ruff format + mypy (135 source files) + frontend lint + frontend build + Alembic head `202605200003` + `git diff --check` → todo verde.
+> **Estado canónico actual (2026-05-22):** esta guía describe el sistema
+> vivo después de los ciclos de hardening de frontend, mail, QA aislado y
+> runtime local. Fuente corta: `docs/CURRENT_STATE.md`. Modelo operativo:
+> `docs/ZERO_FRICTION_OPERATING_MODEL.md`.
+>
+> **Prioridad del producto en este PC dedicado:** fricción casi nula por
+> sobre seguridad estricta. Cognitive OS está diseñado para usar el perfil
+> real del operador, Edge real/Kimi WebBridge, filesystem local y
+> auto-resolución de aprobaciones cuando el perfil `dedicated_local/full`
+> lo permite. La seguridad tipo SaaS no es prioridad en esta instalación.
+> Lo que sí sigue siendo no negociable es trazabilidad, diagnóstico,
+> idempotencia, recuperación y no fallar en silencio.
+>
+> **Excepción dura de correo:** el flujo normal de mail **lee y redacta
+> propuestas**, pero no crea drafts ni envía mensajes. Solo puede enviar si
+> Diego lo pide de forma absolutamente explícita y además están activados
+> `ENABLE_EMAIL_SEND=true`, `MAIL_ALLOW_EXPLICIT_SEND=true` y la request
+> incluye `explicit_send_confirmation="SEND_THIS_EMAIL_EXPLICITLY"`.
+>
+> **Snapshot verificado** (conteos generados por
+> `scripts/sync_doc_counts.py`): backend FastAPI con **147 decoradores
+> REST**, **23 tareas Celery** en **5 colas** (`default`, `ingestion`,
+> `agent_longrun`, `maintenance`, `mail`) con hasta **13 jobs beat**, **20
+> migraciones Alembic** (head `202605200003`), frontend Next.js 16.2.6 con
+> **20 vistas**, Telegram con **37 slash commands** (dispatch fail-closed),
+> `/health/dashboard` con **18 componentes** + `POST /health/verify` para
+> probe real. Mail: Gmail `diegomanzurn@gmail.com` `TODOS` + `SPAM`,
+> GoDaddy `diego@doctormanzur.com` `Spam`, clasificación de spam por
+> agente, digest 10:00/20:00 Chile, máximo 50 correos, respuestas sugeridas
+> como campos de texto separados.
+>
+> **QA más reciente:** `bash scripts/full-qa.sh` verde con **941 passed, 1
+> skipped, 28 deselected**, ruff/format/mypy/Alembic/lint/build/`sync_doc_counts
+> --check`/`git diff --check` OK; build frontend aislado con
+> `NEXT_DIST_DIR=.next-qa`; Playwright **22 passed**; `bash
+> scripts/stress-qa.sh` verde con 3 pasadas de **941 passed**; carril
+> opt-in `tests/live/` para smokes read-only contra proveedores reales.
 > **Para qué es este documento:** la **guía maestra técnica** "desde cero". Complementa la `USER_GUIDE.md` (orientada a operación cotidiana) con arquitectura detallada, mail multicuenta, escritorio, credenciales y troubleshooting profundo. Cada afirmación tiene su archivo o variable de respaldo en el repo.
 
 ---
@@ -15,7 +49,7 @@
 4. [Mapa mental: cómo encajan las piezas](#4-mapa-mental-cómo-encajan-las-piezas)
 5. [El recorrido completo de una petición](#5-el-recorrido-completo-de-una-petición)
 6. [Componentes del backend, uno por uno](#6-componentes-del-backend-uno-por-uno)
-7. [Frontend: las 20 vistas y cómo usar cada una](#7-frontend-las-18-vistas-y-cómo-usar-cada-una)
+7. [Frontend: las 20 vistas y cómo usar cada una](#7-frontend-las-20-vistas-y-cómo-usar-cada-una)
 8. [Telegram: cada comando con ejemplo](#8-telegram-cada-comando-con-ejemplo)
 9. [La fusión OpenHarness + DeepAgents en `research`](#9-la-fusión-openharness--deepagents-en-research)
 10. [Document Analysis (ruta legal)](#10-document-analysis-ruta-legal)
@@ -33,7 +67,7 @@
 ## 1. Qué es Cognitive OS
 
 **En una frase:**
-Cognitive OS es un **sistema operativo cognitivo local-first y auditable** que coordina LLMs, agentes y herramientas para investigar, analizar documentos con citas, recordar lo aprobado, preparar acciones reales (navegador, archivos, correo, DNS, documentos Office) y ejecutar tareas largas en background, **sin entregar el control a un solo modelo** y con **aprobación humana obligatoria** en cualquier acción sensible.
+Cognitive OS es un **sistema operativo cognitivo local-first y auditable** que coordina LLMs, agentes y herramientas para investigar, analizar documentos con citas, recordar lo aprobado, preparar acciones reales (navegador, archivos, correo, DNS, documentos Office) y ejecutar tareas largas en background, **sin entregar el control a un solo modelo**. En el perfil actual `dedicated_local/full`, la prioridad es cero fricción: muchas acciones locales o de Google pueden auto-resolverse si están configuradas; en `strict`, vuelven a requerir aprobación humana. Mail queda fuera de esa relajación: no se envía ni se crean drafts salvo instrucción explícita de Diego.
 
 **En palabras simples:**
 Imagina un equipo de trabajo dentro de tu computador:
@@ -47,7 +81,7 @@ Imagina un equipo de trabajo dentro de tu computador:
 - **Un motor de tareas largas (Celery)** que corre ingesta de PDFs, document analysis, memoria diaria, navegador headless, etc.
 - **Capa de fusión OpenHarness** opcional: cuando se activa, el QueryEngine de OpenHarness corre **antes** del DeepAgent en la ruta `research`, comparten workspace y el DeepAgent integra el preludio en su informe.
 
-Todo corre en tu infraestructura (Docker local), todas las acciones quedan auditadas en Postgres, los secretos no se loguean, y nada externo se ejecuta sin un flag explícito y normalmente sin aprobación humana.
+Todo corre en tu infraestructura (Docker local), las acciones quedan auditadas en Postgres, los secretos no se loguean, y el comportamiento exacto depende del perfil operativo: `strict` prioriza compuertas humanas; `dedicated_local/full` prioriza velocidad y uso del PC real del operador. La obligación transversal es que el sistema diga qué hizo, por qué falló y cómo reintentarlo.
 
 **Lo que NO es:**
 
@@ -79,7 +113,7 @@ Todo corre en tu infraestructura (Docker local), todas las acciones quedan audit
 | Crear eventos Calendar, subir entregables y organizar Drive con aprobación | Google Ops + `ActionRequest` (`calendar_create_event`, `drive_upload_file`, `drive_organize_files`) |
 | Preparar cambios DNS en GoDaddy con dry-run, allow-list y aprobación | Action Plane → GoDaddy `dns/preview` + `request` |
 | Coordinar **investigación multi-subtarea con presupuesto y SSE** | Research Orchestrator (`/research/runs`) con cancelación y eventos |
-| Operar todo desde Telegram (móvil) | Bot opcional con 25+ comandos slash |
+| Operar todo desde Telegram (móvil) | Bot opcional con 37 comandos slash |
 | Trazar runs en LangSmith (cuando se quiere observabilidad nube) | `/langsmith/*` |
 | Grabar memoria episódica (qué hizo el agente y cuándo) | `POST /deepagents/memory/episodic` |
 
@@ -150,7 +184,7 @@ Todo corre en tu infraestructura (Docker local), todas las acciones quedan audit
 
 ```
 ┌─────────────────┐                ┌─────────────────────────────────────────┐
-│  Frontend       │                │ FastAPI app (117 propios / 143 REST)    │
+│  Frontend       │                │ FastAPI app (147 decoradores REST)      │
 │  Next.js 16     │ ─── REST/SSE ──│  /chat /chat/stream /threads/*          │
 │  20 vistas      │ ◄── JWT ───────│  /documents/* /document-analysis/*      │
 │  (panel web)    │                │  /jobs /approvals /audit /health/*      │
@@ -239,11 +273,12 @@ Sigue una petición típica `POST /chat/stream` con un mensaje "Investiga X" par
 
 ### 6.1. API FastAPI (`backend/src/cognitive_os/api/app.py`)
 
-143 endpoints REST agrupados por dominio (117 propios + 26 de orquestación/transversales; excluye `/docs`, `/redoc`, `/openapi.json` y `/docs/oauth2-redirect`). Incluye los 7 endpoints `/deepagents/learning/*` del plan de aprendizaje (scorecard, skill-promotions, reflection). Catálogo resumido de rutas reales del código, todas requieren JWT excepto `/health`:
+147 decoradores REST agrupados por dominio, verificados contra `backend/src/cognitive_os/api/app.py` el 2026-05-22 (conteo generado por `scripts/sync_doc_counts.py`). Incluye los endpoints `/deepagents/learning/*` del plan de aprendizaje (scorecard, skill-promotions, reflection) y los dispatchers de mail (`/mail/sync/dispatch`, `/mail/digest/dispatch`). Catálogo resumido de rutas reales del código, todas requieren JWT excepto `/health`:
 
 #### Salud y configuración
 - `GET /health` — público, devuelve `{status: "ok"}`.
-- `GET /health/dashboard` — Postgres/Redis/Weaviate/Neo4j/LLMs/Embeddings/Workers/Checkpointer con latencia.
+- `GET /health/dashboard` — 18 componentes (Postgres/Redis/Weaviate/Neo4j/LLMs/Embeddings/Workers/Voice/Maps/Calendar/Drive/Kimi/Captcha/Mail/MCP/`operational_backlog`/Checkpointer) con latencia. El overall distingue `ok` de `configured` (cableado pero sin probe en vivo).
+- `POST /health/verify` — health check LIVE bajo demanda del operador: hace una completion LLM mínima, un embedding real y un login IMAP. Convierte los `configured` en `ok` verificados.
 - `GET /config/public` — flags no sensibles para que el frontend sepa qué encender/apagar.
 - `GET /knowledge/stats` — número de documentos, páginas, chunks, jobs, aprobaciones.
 
@@ -299,9 +334,10 @@ Sigue una petición típica `POST /chat/stream` con un mensaje "Investiga X" par
 
 #### Mail personal GoDaddy/Gmail-label
 - `GET /mail/status` — cuentas y flags no sensibles.
-- `POST /mail/sync` — sincronización manual GoDaddy IMAP + Gmail labels si OAuth está activo.
-- `POST /mail/sync/dispatch` — encola sync en Celery queue `mail`.
-- `POST /mail/digest/preview` — resume los últimos 50 y devuelve respuestas propuestas separadas, sin drafts/sends.
+- `POST /mail/sync` — sincronización directa legacy GoDaddy IMAP + Gmail; no es el camino preferido de UI.
+- `POST /mail/sync/dispatch` — encola sync en Celery queue `mail`; camino preferido de UI para no bloquear el navegador.
+- `POST /mail/digest/preview` — genera digest desde mensajes locales, resume los últimos 50 y devuelve respuestas propuestas separadas, sin drafts/sends. La UI lo llama con `sync_first=false`.
+- `POST /mail/digest/dispatch` — encola digest programado/manual en Celery queue `mail`.
 - `GET /mail/messages`, `GET /mail/messages/{id}` — mensajes persistidos y propuestas.
 - `PATCH /mail/messages/{id}/reply` — edita la propuesta escrita.
 - `POST /mail/messages/{id}/ignore` — ignora un mensaje.
@@ -415,11 +451,13 @@ Frontend en `frontend/`, Next.js 16 (Turbopack), React 19, ESLint 9. Vistas en `
 | **LangSmith** | Trazas/proyectos/runs externos | Solo si `LANGSMITH_TRACING=true` y endpoints disponibles |
 | **Agents** | Estado de agentes | Resumen `/agents`: políticas, recientes, capacidades |
 | **Skills** | Skills DeepAgents | Listadas core + user; ves definición y `risk_level` |
-| **Health** | Componentes y latencias | `/health/dashboard` con backend del checkpointer (`postgres` o `memory`) |
+| **Health** | Componentes y latencias | `/health/dashboard` (18 componentes), botón "Verificar en vivo" → `POST /health/verify`, tile "Backlog operacional" |
 | **Audit** | Auditoría | `/audit/events` con filtros |
 
 > En desarrollo, `NEXT_PUBLIC_API_BASE_URL` define la URL inicial del API; en runtime, `Settings` permite cambiarla sin rebuild.
-> El JWT se mantiene en memoria de sesión del frontend, no en `localStorage`; si recargas, vuelve a pegarlo o implementa un flujo auth real.
+> El JWT se guarda en `localStorage` bajo `cogos.token`. El riesgo XSS se
+> asume aceptable en un cockpit local mono-operador sin scripts de terceros
+> (decisión consciente — ver `FRONTEND_ARCHITECTURE.md §8`).
 
 ---
 
@@ -441,12 +479,17 @@ Long-polling, no necesitas webhook (funciona detrás de NAT).
 
 ### Comandos disponibles
 
+Los **37 slash commands** (paridad real frente a la consola; el test
+`test_every_view_has_at_least_one_slash_command` mantiene ambas superficies
+sincronizadas):
+
 | Comando | Para qué | Ejemplo |
 | --- | --- | --- |
 | `/start`, `/help` | Bienvenida + lista de comandos | `/help` |
 | `/health` | Resumen healthy/degraded de componentes | `/health` |
 | `/stats` | Knowledge stats (docs/pages/chunks/jobs/approvals) | `/stats` |
 | `/config` | Flags no sensibles | `/config` |
+| `/capabilities` | Estado de cada capacidad del Action Plane | `/capabilities` |
 | `/agents` | Estado DeepAgents + política + actividad reciente | `/agents` |
 | `/skills` | Skills habilitadas | `/skills` |
 | `/memory` | Propuestas pendientes | `/memory` |
@@ -459,6 +502,7 @@ Long-polling, no necesitas webhook (funciona detrás de NAT).
 | `/reject <id>` | Rechaza | `/reject 1f0…` |
 | `/threads` | Threads LangGraph recientes | `/threads` |
 | `/chat <mensaje>` | Conversa con el orquestador (REST equivalente) | `/chat investiga LangGraph vs DeepAgents` |
+| `/reset` | Inicia un thread de conversación nuevo | `/reset` |
 | `/ingest <ruta>` | Encola un PDF (ruta visible para el backend) | `/ingest /home/me/docs/contrato.pdf` |
 | `/runs` | Runs recientes en LangSmith (si está activo) | `/runs` |
 | `/tasks` | Lista tus personal tasks | `/tasks` |
@@ -467,6 +511,21 @@ Long-polling, no necesitas webhook (funciona detrás de NAT).
 | `/notes` | Lista notas personales (Markdown) | `/notes` |
 | `/note <título \| body>` | Crea una nota | `/note Recordatorio reunión \| traer las cifras Q3` |
 | `/gmaildigest` | Digest Gmail read-only inmediato | `/gmaildigest` |
+| `/maps <origen \| destino>` | Ruta read-only con tráfico/ETA | `/maps Las Condes \| Providencia` |
+| `/calendar [max]` | Próximos eventos de Google Calendar | `/calendar 5` |
+| `/freebusy [días]` | Ventanas ocupadas read-only | `/freebusy 3` |
+| `/drive <query>` | Busca archivos en Google Drive | `/drive contrato 2025` |
+| `/documents [max]` | Documentos Office generados | `/documents` |
+| `/audit [max]` | Eventos de auditoría recientes | `/audit 20` |
+| `/mail [max]` | Digest de correo personal (read-only) | `/mail` |
+| `/research [max]` | Runs del research orchestrator | `/research` |
+| `/codebuild [max]` | Builds del Code Director | `/codebuild` |
+| `/sandbox` | Estado del sandbox OpenShell | `/sandbox` |
+
+En `dedicated_local`, un mensaje **sin** slash entra al orquestador como un
+turno de `/chat` con thread persistente. Cada comando respeta sus feature
+flags (Maps/Calendar/Drive status, `MAIL_ENABLED`, `ENABLE_OPENSHELL_SANDBOX`,
+etc.) y reporta `disabled`/`blocked` en vez de fallar en silencio.
 
 ### Mapas (chat ↔ user)
 
@@ -476,7 +535,10 @@ Long-polling, no necesitas webhook (funciona detrás de NAT).
 
 ### Reglas de seguridad del bot
 
-- Solo responde a IDs en `TELEGRAM_AUTHORIZED_USER_IDS`.
+- **Dispatch fail-closed (AUDIT-2026-A):** solo responde a IDs en
+  `TELEGRAM_AUTHORIZED_USER_IDS`. Una allowlist **vacía** rechaza a *todos*
+  (no a nadie); además `main()` se niega a arrancar el bot con la allowlist
+  vacía y lo dice en el log, en vez de quedar un bot vivo pero inútil.
 - Cada comando pasa por la **misma capa de servicio** que la API: no se saltea políticas de aprobación.
 - Respuestas Markdown, capadas a 4000 chars (límite Telegram).
 - Si un comando requiere acción sensible (ej. `/cancel`, `/approve`), queda registrado en `audit_events` con el `chat_id` como actor.
@@ -548,8 +610,8 @@ Detalle: [`ACTION_PLANE.md`](./ACTION_PLANE.md).
 
 Detalle: [`DEEPAGENTS_SKILLS_MEMORY.md`](./DEEPAGENTS_SKILLS_MEMORY.md).
 
-- **Skills core**: `backend/src/cognitive_os/deepagents/skills/core/` (8 SKILL.md). No se modifican desde fuera.
-- **Skills user**: `storage/deepagents/skills/user/<user_id>/<skill_name>/SKILL.md`. Validadas, no pueden activar tools peligrosas por defecto.
+- **Skills core**: `backend/src/cognitive_os/deepagents/skills/core/` (13 SKILL.md). No se modifican desde fuera.
+- **Skills user**: `storage/deepagents/skills/user/<user_id>/<skill_name>/SKILL.md`. Validadas, no pueden activar tools peligrosas por defecto. Las skills auto-promovidas por Fase B viven en `storage/deepagents/skills/user/_auto/<slug>/SKILL.md`.
 - **Memoria**:
   - Activa: `deepagent_memory_records` (Postgres). Solo aprobada.
   - Propuestas: `deepagent_memory_proposals`. Generadas por subagentes (`propose_memory_update`) o por la consolidación diaria. Promoción → humano.
@@ -561,6 +623,19 @@ Detalle: [`DEEPAGENTS_SKILLS_MEMORY.md`](./DEEPAGENTS_SKILLS_MEMORY.md).
   - Se aprueban/rechazan vía API o panel `Approvals`.
   - Una aprobación firma `approver_user_id` y `decided_at`.
   - Para `execute_action_request`, el panel intenta `dispatch` automáticamente al aprobar.
+
+- **Plan de aprendizaje autónomo (Fases A-E, `AGENT_LEARNING_PLAN.md`)**: el
+  agente acumula capacidad sin tocar su system prompt. Fase A distila jobs
+  exitosos en recetas (`kind=procedure`); Fase B promueve procedures usados a
+  skills YAML con rollback automático; Fase C arma un scorecard de
+  confiabilidad por tool; Fase D detecta patrones fallo→recuperación y propone
+  warnings; Fase E es la reflexión nocturna con evidencia literal obligatoria.
+  Todo pasa por el approval gate del operador, con **una única excepción
+  acotada**: Fase D auto-promueve un *warning* (texto de contexto, nunca una
+  acción) tras N detecciones del mismo patrón. Esa excepción tiene kill
+  switch: `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED=false` fuerza toda warning
+  por la puerta de aprobación. El panel `MemoryView` muestra el estado del
+  flag y un badge en los registros auto-promovidos.
 
 ---
 
@@ -614,9 +689,13 @@ Pega el token en el campo "JWT" del panel Next.js.
 ### Validación reproducible (antes de promover cambios)
 
 ```bash
-bash scripts/full-qa.sh    # uv sync --extra openharness + pytest + ruff + format + mypy + npm ci + lint + build
-bash scripts/stress-qa.sh  # repite pytest N veces (default 3) para detectar flakiness
+bash scripts/full-qa.sh       # uv sync --extra openharness + pytest + ruff + format + mypy + npm ci + lint + build + sync_doc_counts --check + git diff --check
+bash scripts/stress-qa.sh     # repite pytest N veces (default 3) para detectar flakiness
+bash scripts/full-qa-live.sh  # opt-in: smokes read-only contra proveedores reales (LIVE_TESTS_ENABLED=1)
 ```
+
+Snapshot vigente: `full-qa.sh` → **941 passed, 1 skipped, 28 deselected**;
+`stress-qa.sh 3` → 3 pasadas de 941; Playwright **22 passed**.
 
 ---
 
@@ -762,7 +841,7 @@ cubre dos:
                                             │
                                             ▼
    Browser consent te da:   ──┐
-   - access_token             │  "diegomanzurn8@gmail.com permitió a
+   - access_token             │  "diegomanzurn@gmail.com permitió a
    - refresh_token            │   Cognitive OS leer SU calendar/drive"
    (en token.json)          ──┘
 ```
@@ -782,8 +861,12 @@ uv run python scripts/auth_google.py
 Lo que ocurre paso a paso:
 
 1. El script lee `GOOGLE_CLIENT_ID/SECRET` de `.env` y los scopes
-   `calendar.events` + `calendar.freebusy` + `drive` de `GOOGLE_CALENDAR_SCOPES` /
-   `GOOGLE_DRIVE_SCOPES`.
+   configurados en `GOOGLE_CALENDAR_SCOPES` / `GOOGLE_DRIVE_SCOPES`. El
+   valor vigente de `GOOGLE_CALENDAR_SCOPES` es
+   `https://www.googleapis.com/auth/calendar` (acceso completo: cubre
+   `list_events`, `create_event` **y** `freebusy`). El scope `calendar.events`
+   por sí solo NO autoriza la consulta free/busy — usarlo devuelve
+   `HTTP 403 ACCESS_TOKEN_SCOPE_INSUFFICIENT`.
 2. Abre tu navegador en una URL de Google con esos scopes.
 3. Google muestra: *"Cognitive OS quiere acceder a tu Calendar y Drive —
    ¿Permitir?"* (con tu cuenta logueada). Click "Permitir".
@@ -819,6 +902,7 @@ variables. Luego corres el quickstart oficial para generar
 | Mismo, pero el detail menciona `refresh failed` | Token revocado o scopes nuevos. | Borra `token.json` y vuelve a correr el script. |
 | Calendar/Drive responden 502 con `Cannot refresh Google token` | Refresh genuinamente falló (red, proyecto deshabilitado). | Verifica que el proyecto Cloud sigue activo y las APIs habilitadas. |
 | `/system/credentials-status` reporta `GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET` configurada pero Calendar sigue blocked | Tienes la identidad de la app, falta tu consentimiento. | Mismo: `auth_google.py`. |
+| `freeBusy` devuelve `HTTP 403 ACCESS_TOKEN_SCOPE_INSUFFICIENT` aunque `status()` diga `ready` | El token se emitió con un scope insuficiente (`calendar.events` no cubre free/busy). | Ampliar `GOOGLE_CALENDAR_SCOPES` a `https://www.googleapis.com/auth/calendar`, borrar `token.json` y re-correr `auth_google.py` para re-consentir. |
 
 ### Mail personal GoDaddy/Gmail-label
 | Variable | Cómo obtenerlo |
@@ -957,7 +1041,13 @@ CONFIRM_RESTORE=YES bash scripts/restore_storage.sh backups/storage/ARCHIVO.tar.
 
 ### Beat (jobs periódicos)
 
-`bash scripts/dev_beat.sh` lanza Celery beat con: consolidación diaria de memoria DeepAgents, cleanup de jobs > 30 días, reaper de `action_requests` colgados en `running`, sync de mail personal si `MAIL_ENABLED=true`, digest Telegram Gmail si está activo.
+`bash scripts/dev_beat.sh` lanza Celery beat con hasta 13 jobs (según feature
+flags): consolidación diaria de memoria DeepAgents; los 3 reapers
+(`reap_stale_approvals`, `reap_stuck_action_requests`,
+`reap_stale_running_jobs`); las 5 tareas de aprendizaje Fases A-E
+(recipe extractor, failure post-mortem, tool scorecard, skill promoter,
+nightly reflection); sync de mail personal y digest Telegram/Gmail si están
+activos; y recordatorios del asistente personal. Ver `ARCHITECTURE.md §6`.
 
 ---
 
@@ -983,12 +1073,12 @@ CONFIRM_RESTORE=YES bash scripts/restore_storage.sh backups/storage/ARCHIVO.tar.
 
 Lo que **funciona hoy** (verificado contra código y tests):
 
-- Backend completo (104 endpoints propios; 130 REST totales) + frontend (20 vistas, incluye `Assist`, `Google Ops` y `Research`).
+- Backend completo (147 decoradores REST) + frontend (20 vistas, incluye `Assist`, `Google Ops` y `Research`).
 - Ruta `research` con fusión opcional OpenHarness y fallback determinista.
 - Ruta `legal` con Document Analysis y exportadores.
 - Action Plane con `computer_organize`, `document_generate`, `browser_preview`, `browser_interactive`, Google Calendar create y Drive upload/folder/organize ejecutables sólo por `ActionRequest` aprobado; Maps read-only con tráfico/link; Calendar free/busy read-only; Gmail digest read-only; mail GoDaddy/Gmail con digest y propuestas escritas sin envío normal; GoDaddy DNS preview/executor con dry-run.
 - Memoria DeepAgents con propuestas + aprobación + episódica.
-- Bot Telegram con 25+ comandos.
+- Bot Telegram con 37 comandos slash.
 - Research Orchestrator multi-subtarea con SSE y cancelación.
 - QA reproducible actual: `uv run pytest -m 'not integration and not slow'` → 484 passed, 1 skipped, 20 deselected; ruff/ruff format/mypy/frontend lint/build verdes.
 

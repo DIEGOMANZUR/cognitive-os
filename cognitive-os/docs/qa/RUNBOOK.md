@@ -1,5 +1,18 @@
 # QA · RUNBOOK — cómo correr la app y la suite Playwright
 
+> **Actualización vigente (2026-05-22):** QA oficial del proyecto:
+> `bash scripts/full-qa.sh` con **941 passed, 1 skipped, 28 deselected**,
+> frontend Playwright **22 passed** y `bash scripts/stress-qa.sh` con 3
+> pasadas de **941 passed**. El build frontend dentro de `full-qa.sh` usa
+> `NEXT_DIST_DIR=.next-qa` para no invalidar un frontend vivo. Carril
+> opt-in `bash scripts/full-qa-live.sh` (`LIVE_TESTS_ENABLED=1`) para
+> smokes read-only contra proveedores reales.
+>
+> El objetivo del QA actual no es seguridad SaaS; es operación local de
+> baja fricción sin fallos silenciosos: arranque reproducible, UI que no
+> engaña, jobs trazables, workers vivos, mail read-only/digest y errores
+> visibles.
+
 Auditoría Fase 76. Todo verificado en este host (Linux 6.17,
 `/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/`).
 
@@ -52,18 +65,20 @@ curl -fsSI http://localhost:3001/                                       # fronte
 ```
 
 Esperado: `/health` → `200 {"status":"ok",...}`; `/health/dashboard`
-overall=ok, 17 componentes; `localhost:3001/` HTTP 200.
+con 18 componentes y overall `ok` o `configured` (este último si algún
+componente está cableado pero sin probe en vivo — usar `POST /health/verify`
+para verificarlo); `localhost:3001/` HTTP 200.
 
-## 4. Instalar Playwright
+## 4. Preparar Playwright
 
 ```bash
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/frontend"
-npm i -D @playwright/test
+npm ci
 npx playwright install --with-deps chromium
 ```
 
-(El proyecto NO necesita los otros browsers; `chromium` es suficiente
-para auditar la SPA Next.js).
+(No usar `npm install` o `npm update` como parte de QA normal. Si falta
+una dependencia, tratarlo como incidente de entorno/lockfile.)
 
 ## 5. Correr la suite E2E
 
@@ -100,7 +115,7 @@ npm run build   # next build
 
 ```bash
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/backend"
-uv run pytest -q          # 800 passed esperado
+uv run pytest -q          # 941 passed esperado en el snapshot vigente
 uv run ruff check src tests
 uv run ruff format --check src tests
 uv run mypy src

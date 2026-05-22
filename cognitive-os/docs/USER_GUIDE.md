@@ -1,50 +1,49 @@
 # Cognitive OS — Guía de Usuario (comercial)
 
-> Estado: **Fase 82 cerrada (2026-05-20)** — Glass Cockpit. Frontend
-> reescrito a un *command center glassmorphism dark-only de alto
-> contraste, instalable como PWA*. Tokens nuevos en `app/globals.css`,
-> tipografía self-hosted (Inter + JetBrains Mono via `next/font/google`),
-> set SVG curado de ~55 íconos, **charts SVG nativos** (sparklines,
-> donut, área), **centro de notificaciones** lateral, **command palette**
-> con fuzzy match y recientes, **PWA endurecida** con manifest 4
-> shortcuts + íconos PNG/SVG/maskable + service worker
-> `cogos-v2026-05-20-glass-2` + página `/offline.html` branded + handlers
-> de push del SO. **Defensive array guards** (`asArray<T>`) en las 13
-> vistas que consumen colecciones — la SPA ya no cae al `ErrorBoundary`
-> si el backend devuelve forma incorrecta. `playwright.config.ts`
-> blindado contra service-workers persistentes y cache HTTP. QA verde:
-> lint 0 warnings, build, tsc, E2E headless (1440×900 + mobile 393×851)
-> sobre las 20 tabs + palette + notification center = 0 errores 5xx / 0
-> page errors / 0 console errors.
+> **Estado canonico actual (2026-05-22):** Cognitive OS se opera en este host
+> como **sistema personal mono-operador para un PC dedicado**. La prioridad de
+> producto es **friccion casi nula por sobre seguridad estricta**: Edge real,
+> Kimi WebBridge, acceso amplio al PC y menos aprobaciones cuando
+> `OPERATOR_PROFILE=dedicated_local` + `LOCAL_AUTONOMY_MODE=full`. Lo que no se
+> sacrifica es trazabilidad: jobs, eventos, audit, idempotencia, health,
+> readiness y tests deben seguir diciendo exactamente que paso. Mail es la
+> excepcion: el flujo normal solo lee, clasifica, resume y propone respuestas;
+> no crea drafts ni envia correos. Ver `CURRENT_STATE.md` y
+> `ZERO_FRICTION_OPERATING_MODEL.md`.
 >
-> **Estado anterior: Fases 78-81 cerradas** — plan de aprendizaje
-> autónomo completo (Fases A-E) + aislamiento de DB de test. Cadena LLM
-> del operador verificada en vivo:
-> **primary + agent = `gpt-5.5`** (gateway OpenAI-compatible, **Responses
-> API + prompt caching 24h**), **secondary + fallback =
-> `gemini-3.1-pro-low`** (mismo gateway), **visión = `glm-4.6v`** (z.ai).
-> `kimi-k2.6` vía HTTP da 403 (solo el adapter CLI del Code Director).
-> Las 21 tools built-in del DeepAgent usan `args_schema` Pydantic tipado;
-> bajo `ENABLE_MCP_CLIENT=true` se suman tools dinámicas de servidores MCP
-> externos (Supermemory, GitHub, filesystem, Claude Code, Gemini CLI).
-> Snapshot QA: **800 pytest passed, 1 skipped, 20 deselected** ·
-> ruff/format/mypy (135 source files) · frontend lint/build · Alembic
-> head `202605200003` · pre-commit · detect-secrets (0 findings) —
-> **todo verde**, **suite hermética** y **corriendo contra una DB de test
-> aislada** (`cognitive_os_test`, recreada por corrida; producción nunca
-> se toca). **143 endpoints REST**, **22 tareas Celery** en 5 colas (10
-> jobs beat), **20 migraciones Alembic**, **20 vistas frontend**, **37
-> slash commands de Telegram**, **17 componentes en `/health/dashboard`**.
+> **Snapshot actual** (conteos por `scripts/sync_doc_counts.py`): **147
+> decoradores REST**, **23 tareas Celery** en **5 colas**, hasta **13 jobs
+> beat**, **20 migraciones Alembic** head `202605200003`, **20 vistas
+> frontend**, **37 comandos Telegram**, **18 componentes** en
+> `/health/dashboard` + `POST /health/verify`. QA: `full-qa` **941 passed,
+> 1 skipped, 28 deselected**, Playwright **22 passed**, `stress-qa` 3
+> pasadas verdes, carril opt-in `tests/live/`. `full-qa.sh` construye Next
+> en `.next-qa` para no deshidratar el frontend vivo servido desde `.next`.
+> La suite es hermética y corre contra una DB de test aislada
+> (`cognitive_os_test`); producción nunca se toca.
 >
-> **Novedades Fases 78-81 — plan de aprendizaje autónomo (lo más reciente):**
-> El agente acumula capacidad útil con cada interacción **sin** modificar
-> su "alma" (`AGENT_SELF.md`) y **sin** desplegar cambios no aprobados.
-> Todo pasa por **proposals → approval del operador → records activos**.
-> Las 5 fases (detalle en `AGENT_LEARNING_PLAN.md`):
+> **Frontend:** *command center glassmorphism dark-only*, instalable como
+> PWA — tokens en `app/globals.css`, tipografía self-hosted, charts SVG
+> nativos, centro de notificaciones, command palette, `asArray<T>` en las
+> vistas que consumen colecciones. Detalle: `FRONTEND_ARCHITECTURE.md`.
+>
+> **Remediación del audit comercial (AUDIT-2026-A..H, 2026-05-22):** se
+> cerraron las 8 fallas accionables — Telegram fail-closed, health honesto
+> (`configured` vs `verified` + `/health/verify`), kill switch del
+> auto-promote, matriz de tests Telegram, carril live, componente
+> `operational_backlog`, `sync_doc_counts.py` y `dev_up.sh` endurecido.
+>
+> **Plan de aprendizaje autónomo (Fases A-E):** el agente acumula capacidad
+> útil con cada interacción **sin** modificar su "alma" (`AGENT_SELF.md`).
+> Todo pasa por **proposals → approval del operador → records activos**,
+> con una única excepción acotada (auto-promote de *warnings* de Fase D,
+> con kill switch `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED`). Las 5 fases
+> (detalle en `AGENT_LEARNING_PLAN.md`):
 > - **Fase A — Recetas:** jobs exitosos con ≥5 tool calls se distilan en
 >   recetas reutilizables `kind=procedure`.
 > - **Fase D — Warnings:** patrones fallo→recuperación detectados en el
->   histórico; se auto-promueven tras 3 repeticiones sin rechazo.
+>   histórico; se auto-promueven tras N repeticiones sin rechazo si el kill
+>   switch `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED` está en `true`.
 > - **Fase C — Scorecard de tools:** confiabilidad por (agente, tool),
 >   inyectada al system prompt para sesgar decisiones futuras.
 > - **Fase B — Promoción a skill:** un procedure usado con ≥3 éxitos y
@@ -91,28 +90,26 @@
 > (sin crash) y el DeepAgent cae a RAG. Trazas LangSmith usan el *personal
 > access token* (la API key scoped no puede ingestar).
 >
-> **Estado de integraciones (operador de este host, Fase 74):**
+> **Estado de integraciones (operador de este host):**
 > 1. **Telegram:** ✅ operativo — bot `@Socio_dimn_bot`,
 >    `TELEGRAM_ENABLED=true`, user autorizado configurado. Acepta slash
->    commands + mensajes conversacionales sin slash.
-> 2. **Google Calendar/Drive/Gmail:** ✅ autorizados — el OAuth
->    interactivo (`scripts/auth_google.py` + `scripts/auth_gmail.py`) ya
->    se corrió; los componentes están `ready`. Si cambiás
->    `GOOGLE_*_SCOPES` el script detecta el drift y pide re-consent.
+>    commands + mensajes conversacionales sin slash. Dispatch fail-closed.
+> 2. **Google Calendar/Drive/Gmail:** ✅ autorizados y verificados en vivo
+>    — el OAuth interactivo (`scripts/auth_google.py` + `scripts/auth_gmail.py`)
+>    está corrido; `GOOGLE_CALENDAR_SCOPES` usa el scope completo
+>    `https://www.googleapis.com/auth/calendar` (cubre `freeBusy`). Si
+>    cambiás `GOOGLE_*_SCOPES` el script detecta el drift y pide re-consent.
 > 3. **GoDaddy DNS:** operativo en modo seguro (dry-run + aprobación).
 >    Para escrituras DNS reales: `GODADDY_DNS_DRY_RUN_ONLY=false` +
 >    `GODADDY_ALLOW_PRODUCTION_WRITES=true` + `GODADDY_ALLOWED_DOMAINS`.
 > 4. **MCP:** ✅ 3 servidores conectados (Supermemory, GitHub,
 >    filesystem). Estado en vivo en `/system/mcp`.
 >
-> **Verificado en vivo** (con el stack levantado y credenciales reales):
-> LLMs (chat real `gpt-5.5` + tool_choice forzado), DeepAgent real sin
-> fallback RAG, router LLM decidiendo, RAG, Google Maps (ruta con
-> tráfico), CORS panel→API. **Implementado y `ready` con flags/credenciales
-> activas (no probado en vivo en este host):** voice (ElevenLabs), captcha
-> (CapSolver), Kimi WebBridge, mail multicuenta, Code Director (adapters
-> CLI necesitan los binarios instalados). Calendar/Drive/Gmail quedan
-> `blocked` hasta el OAuth interactivo (`scripts/auth_google.py`).
+> **Carril de verificación en vivo (`tests/live/`, opt-in):**
+> `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` corre 7 smokes
+> read-only contra los proveedores reales (LLM ping, GoDaddy GET domains,
+> IMAP/SMTP handshake, Telegram `getMe`, Kimi status, MCP `list_tools`,
+> Google OAuth + freeBusy). No envía ni escribe nada.
 
 Este documento es **la** guía operativa de punta a punta. Si nunca viste
 el proyecto, leelo en orden: el capítulo 0 te lleva de cero a un sistema
@@ -213,19 +210,21 @@ no se edita a mano) y explicada en
 ### 0.4 Levantar la infraestructura de datos
 
 ```bash
-cd infra
-docker compose --env-file ../.env up -d
+bash scripts/dev_up.sh   # comando único correcto: valida variables + levanta + espera health
 # Postgres 16+pgvector, Redis 7, Weaviate 1.29.0, Neo4j 5
 # TODOS publicados solo en 127.0.0.1 (no expuestos a la LAN)
-docker compose ps      # esperá a que estén healthy
 ```
+
+`dev_up.sh` valida que las variables que `docker compose` interpola sin
+default no estén vacías antes de arrancar (AUDIT-2026-H). El equivalente
+manual es `cd infra && docker compose --env-file ../.env up -d`.
 
 ### 0.5 Migraciones y backend
 
 ```bash
 cd ../backend
 uv sync                                  # instala dependencias del backend
-uv run alembic upgrade head              # aplica las 17 migraciones
+uv run alembic upgrade head              # aplica las 20 migraciones (head 202605200003)
 uv run uvicorn cognitive_os.api.app:app --host 127.0.0.1 --port 8000
 ```
 
@@ -312,8 +311,8 @@ la allow-list, te responde con los 37 comandos.
 
 ```bash
 cd cognitive-os
-bash scripts/full-qa.sh                  # pytest + ruff + mypy + frontend build
-# Esperado: 800 passed, 1 skipped, 20 deselected; todo verde
+bash scripts/full-qa.sh                  # pytest + ruff + mypy + frontend build + sync_doc_counts + git diff
+# Esperado vigente: 941 passed, 1 skipped, 28 deselected; todo verde
 # (corre contra cognitive_os_test — la DB de producción nunca se toca)
 ```
 
@@ -333,12 +332,14 @@ guía explica todo lo que podés hacer con él.
 cognitivo local-first para vos, el operador: un cerebro de agentes
 LangGraph + DeepAgents conectado a tu mail, tu navegador, tu
 computador, tus documentos legales, Google Workspace, GoDaddy y a
-coding agents externos — todo bajo aprobación humana, con auditoría y
-budget caps, ejecutándose en `127.0.0.1`.
+coding agents externos. En este PC dedicado prioriza baja fricción sobre
+seguridad estricta: muchas acciones pueden auto-resolverse según perfil,
+pero siempre deben dejar auditoría, jobs/eventos y diagnóstico. Mail es la
+excepción: no drafts ni envío automático.
 
 **De qué se compone, de arriba abajo:**
 
-- **Backend FastAPI 0.115+** (Python 3.12, `uv`): **143 endpoints REST**
+- **Backend FastAPI 0.115+** (Python 3.12, `uv`): **147 decoradores REST**
   bajo JWT, rate-limited en los endpoints calientes. Es el cerebro y la
   sala de máquinas.
 - **Orquestación LangGraph 1.1.10** con grafo principal
@@ -503,6 +504,11 @@ comandos (buscás cualquier vista o acción por nombre).
 - **Qué hace:** digest personal read-only. Lee Gmail `TODOS`/`SPAM` y
   GoDaddy `Spam`, clasifica con el agente (no confía en carpetas del
   proveedor), resume los últimos 50 y propone respuestas como texto.
+- **Click "Sync por worker":** llama `POST /mail/sync/dispatch`; la lectura
+  IMAP/Gmail queda en la cola Celery `mail`, no bloquea el proceso API.
+- **Click "Generar resumen 50":** llama `POST /mail/digest/preview` con
+  `sync_first=false`; usa mensajes locales ya sincronizados y devuelve dos
+  campos separados: resumen y respuestas propuestas.
 - **Qué NO hace:** no crea borradores en Gmail/GoDaddy y no envía SMTP en
   el flujo normal. Diego copia la propuesta y la envía manualmente, salvo
   una petición explícita futura de envío. Tampoco hace polling continuo
@@ -607,9 +613,17 @@ comandos (buscás cualquier vista o acción por nombre).
   de panel o de Telegram (`actor="telegram:<chat_id>"`).
 
 #### Health (♡, hotkey 9)
-- **Qué hace:** salud por componente con latencia y `write_enabled`
+- **Qué hace:** salud de los 18 componentes con latencia y `write_enabled`
   donde aplica. Si algo está `degraded`, te dice el comando exacto para
-  arreglarlo.
+  arreglarlo. Un componente sólo `configured` (cableado pero sin llamada
+  real) se pinta en amarillo, no en verde — el overall del dashboard
+  refleja esa honestidad.
+- **Botón "Verificar en vivo"** (`POST /health/verify`): hace un probe
+  real — completion LLM mínima, embedding real, login IMAP — y convierte
+  los `configured` en `ok` verificados. Consume tokens, por eso es manual.
+- **Tile "Backlog operacional":** approvals pendientes, jobs y
+  action-requests atascados, lag del beat. Se pone en rojo si un reaper
+  dejó de hacer su trabajo.
 
 ### Configuración
 
@@ -771,6 +785,7 @@ interrupción.
 | `/reject <id>` | rechaza con cascada a Job/ActionRequest | Aprobaciones |
 | `/threads` | threads LangGraph recientes | Chat |
 | `/chat <mensaje>` | habla con el orquestador (mismo grafo que la vista Chat) | Chat |
+| `/reset` | inicia un thread de conversación nuevo (rota el salt) | Chat |
 | `/ingest <ruta>` | encola ingesta de un PDF absoluto | Documentos |
 | `/documents [max]` | documentos ingestados (estado/páginas/chunks) | Documentos |
 | `/research [max]` | research runs recientes con estado y query | Research |
@@ -1130,7 +1145,7 @@ muchos de estos son configurables; la matriz de §9 lo dice por capacidad.)
 - **Auth:** todo endpoint sensible exige JWT HS256 firmado con
   `JWT_SECRET`. Endpoints admin (credentials-status, LangSmith opcional,
   los disparadores `/deepagents/learning/*/…-now`) exigen rol admin.
-  Dependencia de auth sobre los 143 endpoints (sólo `/health` es público).
+  Dependencia de auth sobre los endpoints sensibles; sólo `/health` es público.
 - **Secretos:** nunca versionados. `pre-commit` corre `gitleaks` +
   `detect-secrets` (baseline `.secrets.baseline`, 0 findings). Los
   `SecretStr` nunca salen en respuestas. `payload_executable` se cifra
@@ -1365,9 +1380,11 @@ equivalente en Telegram, se indica.
 
 - **Querés:** ordenar la bandeja y responder sin redactar de cero.
 - **Hacés:** vista **Mail** → `Generar resumen 50` → revisás resumen y
-  propuestas en campos separados. Telegram: `/mail [max]` lista mensajes.
+  propuestas en campos separados. Si querés refrescar antes, usás
+  `Sync por worker`. Telegram: `/mail [max]` lista mensajes.
 - **Pasa:** no hay draft ni envío. El agente clasifica y propone texto;
-  Diego copia la respuesta y la manda manualmente si corresponde.
+  Diego copia la respuesta y la manda manualmente si corresponde. El digest
+  manual no lee IMAP/Gmail en el request; el sync externo va por Celery.
 - **Ejemplo:** ver §6.8 (receta completa de triage).
 - **Queda registro:** mensajes persistidos y digest/job events. `mail_send_logs`
   solo aparece si Diego pide explícitamente un envío real.

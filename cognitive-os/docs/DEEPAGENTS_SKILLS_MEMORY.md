@@ -1,6 +1,14 @@
 # DeepAgents Skills y Memory (referencia técnica)
 
-> **Estado (2026-05-20, Fases 78-81 — plan de aprendizaje autónomo completo):**
+> **Estado actual (2026-05-22):** skills y memoria siguen activos como
+> capa de aprendizaje operativo. Aunque el producto prioriza baja fricción
+> en este PC dedicado, las promociones de memoria/skills se mantienen por
+> proposal para preservar calidad y rollback: no son un mecanismo de
+> seguridad perimetral, sino de control de comportamiento del agente. Mail
+> personal no se convierte en tool de envío ni en memoria activa por
+> defecto.
+>
+> **Histórico (2026-05-20, Fases 78-81 — plan de aprendizaje autónomo completo):**
 > skills core en `backend/src/cognitive_os/deepagents/skills/core/`
 > (**13 SKILL.md**: 8 originales + **legal pack de 5** —`legal-hold`,
 > `privilege-log-review`, `oss-license-review`, `worker-classification`,
@@ -37,13 +45,16 @@
 El agente acumula capacidad útil con cada interacción **sin** modificar
 su "alma" (`AGENT_SELF.md`) y **sin** desplegar cambios no aprobados.
 **Principio rector:** todo aprendizaje pasa por *proposals* →
-*aprobación del operador* → *records activos*. Plan canónico completo:
+*aprobación del operador* → *records activos*. La **única excepción
+acotada** es el auto-promote de *warnings* de Fase D (texto de contexto,
+nunca una acción ejecutable), con kill switch
+`FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED`. Plan canónico completo:
 [`AGENT_LEARNING_PLAN.md`](./AGENT_LEARNING_PLAN.md).
 
 | Fase | Módulo | Qué produce | Disparo |
 |---|---|---|---|
 | **A** Recetas | `deepagents/recipe_extractor.py` | `DeepAgentMemoryProposal(kind=procedure)` desde jobs exitosos con ≥5 tool calls | beat `*/30 * * * *` |
-| **D** Warnings | `deepagents/failure_postmortem.py` | `kind=warning` desde patrones `tool_failed → tool_succeeded`; auto-promueve tras 3 repeticiones | beat 03:35 UTC |
+| **D** Warnings | `deepagents/failure_postmortem.py` | `kind=warning` desde patrones `tool_failed → tool_succeeded`; auto-promueve tras `FAILURE_POSTMORTEM_AUTOPROMOTE_THRESHOLD` repeticiones (default 3) si `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED=true` | beat 03:35 UTC |
 | **C** Scorecard | `deepagents/tool_scorecard.py` | `tool_invocation_metrics` (rollup diario) + sección de confiabilidad en el system prompt | beat 04:15 UTC |
 | **B** Skill promotion | `deepagents/skill_promoter.py` | skill YAML en `skills/user/_auto/` desde un procedure usado ≥3× con <30% fallos | beat 04:45 UTC |
 | **E** Reflexión nocturna | `deepagents/nightly_reflection.py` | `kind=preference\|lesson` con evidencia literal del transcript | beat 03:00 UTC |
@@ -70,8 +81,12 @@ su "alma" (`AGENT_SELF.md`) y **sin** desplegar cambios no aprobados.
 4. `disable_underperforming_auto_skills` (beat) archiva el skill y
    renombra su `SKILL.md` a `.md.disabled` si el `failure_rate`
    post-promoción supera 50% en la ventana de 30 días.
-- **Nunca hay auto-promoción**: la promoción de comportamiento ejecutable
-  siempre requiere approval explícito del operador (§7 del plan).
+- **Nunca hay auto-promoción de comportamiento ejecutable**: skills y
+  código siempre requieren approval explícito del operador (§7 del plan).
+  La única ruta de auto-deploy del plan es Fase D, acotada a memoria
+  `kind=warning` (texto de contexto, nunca una acción) y desactivable con
+  `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED=false` — ver
+  `AGENT_LEARNING_PLAN.md` §3.4.
 
 **Fase E — validación de evidencia:** cada proposal de reflexión debe
 citar `evidence_message_ids` que existan en el transcript y

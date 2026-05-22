@@ -1,7 +1,15 @@
 # QA · MAP — inventario funcional de la app
 
-Auditoría Fase 76 (2026-05-20). Mapa de lo que existe para probar con
-Playwright. Datos extraídos del código real, no del README.
+> **Actualización vigente (2026-05-22):** mapa QA para el cockpit actual.
+> La suite oficial Playwright está verde con **22 passed** y se ejecuta
+> contra la SPA Next.js de 20 tabs. Backend verificado por `full-qa.sh`:
+> **941 passed, 1 skipped, 28 deselected**. El producto corre en un PC
+> dedicado con prioridad de fricción casi nula; los tests deben validar que
+> esa fricción baja no esconda errores, pantallas muertas ni operaciones
+> silenciosas. Mail sigue siendo read-only/digest por defecto.
+>
+> La auditoría Fase 76 (2026-05-20) queda como base histórica. Datos
+> extraídos del código real, no del README.
 
 ## Framework y arquitectura
 
@@ -10,8 +18,8 @@ Playwright. Datos extraídos del código real, no del README.
   son **20 tabs** intercambiables sin cambio de URL, controladas por el
   state local `tab: Tab` con persistencia en `localStorage`
   (`cogos.tab`).
-- **Backend:** FastAPI 0.115+ en `http://127.0.0.1:8000` — 143 endpoints
-  REST con JWT bearer. CORS abierto a `:3000` y `:3001`.
+- **Backend:** FastAPI 0.115+ en `http://127.0.0.1:8000` — 147
+  decoradores REST con JWT bearer. CORS abierto a `:3000` y `:3001`.
 - **Datos:** Postgres 16+pgvector + Redis 7 + Weaviate 1.29 + Neo4j 5.
   Los 4 ligados a `127.0.0.1`.
 - **Bot:** Telegram long-poll (no afecta E2E web).
@@ -43,12 +51,13 @@ sidebar abre/cierra con un `aria-label="Abrir menú"`/"Cerrar".
    estado "no auth" sin romper.
 2. **Pegado de JWT** (Settings o TopBar) → polling de `/health/dashboard`,
    `/config/public`, `/knowledge/stats` debe empezar y producir datos
-   reales (overall=ok, 17 componentes).
+   reales (overall `ok` o `configured`, 18 componentes).
 3. **Navegación entre tabs** — cambiar a cada una de las 20 sin
    pantalla blanca ni `console.error`.
-4. **Refresh de página** — el JWT debe persistir (Fase 71-H usa
-   `useLocalState("cogos.token")`).
-5. **Health dashboard** — 17 componentes con badges ok/configured/ready.
+4. **Refresh de página** — el JWT debe persistir (`useLocalState("cogos.token")`).
+5. **Health dashboard** — 18 componentes con badges ok/configured/ready;
+   botón "Verificar en vivo" (`POST /health/verify`) y tile "Backlog
+   operacional".
 6. **Settings tiles nuevos** — "Capacidades bloqueadas"
    (`/system/readiness`) y "MCP servers" (`/system/mcp`).
 7. **ConfigurationView** — tabla de flags, marca danger por perfil
@@ -79,7 +88,7 @@ sidebar abre/cierra con un `aria-label="Abrir menú"`/"Cerrar".
 | `POST /chat`, `GET /threads`, `GET /threads/{id}/messages` | ChatView |
 | `GET /code-director/{id}` + SSE `/events` | CodeDirectorView |
 | `GET /research/runs/{id}` + SSE `/events` | ResearchView |
-| `GET /mail/messages`, `POST /mail/messages/{id}/approve-send` | MailInboxView |
+| `GET /mail/messages`, `POST /mail/sync/dispatch`, `POST /mail/digest/preview`, `POST /mail/digest/dispatch` | MailInboxView |
 | `GET /assist/tasks`, `/assist/notes` | AssistView |
 | `GET /sandbox/openshell/status`, `POST /sandbox/openshell/run` | SandboxView |
 | `GET /deepagents/memory/proposals` | MemoryView · propuestas |

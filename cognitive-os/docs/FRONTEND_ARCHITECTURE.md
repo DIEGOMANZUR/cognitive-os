@@ -1,8 +1,20 @@
 # Frontend Architecture — Cognitive OS Cockpit
 
-> Documento técnico estable. Estado: **Fase 82 (Glass Cockpit)**.
+> Documento técnico estable. Estado: **2026-05-22, Glass Cockpit vigente**.
 > Acompaña a `cognitive-os/frontend/README.md` (orientación rápida) y a
 > `cognitive-os/progress.md` (bitácora viva).
+>
+> El cockpit está optimizado para el perfil de instalación actual:
+> `dedicated_local/full` en un PC dedicado, con prioridad de fricción casi
+> nula por sobre seguridad estricta. La UI debe facilitar operación rápida,
+> mostrar degradaciones de forma explícita y respetar la excepción de mail:
+> no drafts, no envíos automáticos, solo propuestas de texto salvo solicitud
+> explícita de Diego.
+>
+> Gates vigentes: `npm run lint` limpio, `npm run build` limpio,
+> `npx playwright test --reporter=list` con **22 passed** y
+> `bash scripts/full-qa.sh` desde la raíz usando build aislado
+> `NEXT_DIST_DIR=.next-qa`.
 
 Este documento describe **cómo está construido el cockpit** y **qué
 reglas firmes hay que respetar** para mantenerlo en grado comercial. Si
@@ -292,8 +304,9 @@ considerarlo antes de marcarla client.
 
 ## 12. Referencias rápidas
 
-- `cognitive-os/frontend/README.md` — orientación rápida para devs.
-- `cognitive-os/progress.md` — bitácora viva del proyecto.
-- `cognitive-os/AGENTS.md` §"Reglas firmes" — política para futuros agentes.
-- `cognitive-os/docs/USER_GUIDE.md` — guía pública del producto.
-- `cognitive-os/docs/SECURITY.md` — postura de seguridad.
+- `frontend/README.md` — orientación rápida para devs.
+- `progress.md` — bitácora viva del proyecto.
+- `AGENTS.md` (raíz del workspace) §"Reglas firmes para futuras
+  intervenciones en el frontend" — política para futuros agentes.
+- `docs/USER_GUIDE.md` — guía pública del producto.
+- `docs/SECURITY.md` — postura de seguridad.

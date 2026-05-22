@@ -1,5 +1,10 @@
 # OpenShell DeepAgent Experiment
 
+> **Estado actual (2026-05-22):** experimento opcional. Aunque la postura
+> global de Cognitive OS en este PC es baja fricción, OpenShell sigue siendo
+> un sandbox separado: debe reportar disponibilidad real, registrar eventos y
+> fallar explícitamente si vendor/Docker/gateway no están listos.
+
 Integracion opcional de OpenShell DeepAgent para Cognitive OS.
 
 No confundir con **OpenHarness** (HKUDS): la fusión de investigación con QueryEngine

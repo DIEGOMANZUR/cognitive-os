@@ -1,6 +1,15 @@
 # Checklist operador: variables de entorno ↔ `Settings`
 
-> **Estado actual (2026-05-20, Fase 74):** vigente. La tabla canónica
+> **Estado actual (2026-05-22):** vigente para una instalación local
+> dedicada. La postura preferida es `OPERATOR_PROFILE=dedicated_local`
+> con fricción casi nula por sobre seguridad estricta; `strict` queda
+> como perfil conservador. Al revisar `.env`, no hay que bloquear el uso
+> de Edge real, Kimi WebBridge, filesystem local o auto-resolución si son
+> decisiones explícitas del operador en este PC. Sí hay que exigir que los
+> fallos sean visibles, que haya logs/eventos y que mail no envíe ni cree
+> drafts en el flujo normal.
+>
+> **Histórico (2026-05-20, Fase 74):** vigente. La tabla canónica
 > `SETTINGS_REGISTRY_TABLE.md` (autogenerada por
 > `scripts/dump_settings_registry.py`, **no editar a mano**) es la fuente
 > de verdad de TODAS las variables. Cubre: OpenHarness
@@ -9,7 +18,7 @@
 > LangSmith, RBAC local (`AUTH_*`), cifrado de payload (`ACTION_PAYLOAD_*`)
 > y research durable (`RESEARCH_PERSISTENCE_BACKEND`).
 >
-> **Variables agregadas en Fase 68b-74:**
+> **Variables relevantes agregadas en ciclos recientes:**
 > - `OPERATOR_PROFILE` (`strict`|`dedicated_local`) — postura de
 >   fricción/seguridad.
 > - `AUTO_APPROVE_REVERSIBLE_ACTIONS` — auto-approve de acciones
@@ -19,24 +28,34 @@
 > - `STALE_JOB_MAX_HOURS` — umbral del reaper de jobs zombie.
 > - `ENABLE_MCP_CLIENT`, `MCP_SERVERS`, `MCP_CALL_TIMEOUT_SECONDS`,
 >   `MCP_ALLOWED_FOR_RESEARCH`, `MCP_ALLOWED_FOR_DOCUMENT_ANALYSIS` —
->   cliente MCP (Fase 73).
+>   cliente MCP.
 > - `AGENT_LLM_*` — carril de modelo tool-capable del agente.
+> - **`FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED`** (default `true`,
+>   AUDIT-2026-C) — kill switch del único auto-deploy del plan de
+>   aprendizaje (auto-promote de warnings de Fase D). En `false`, toda
+>   warning aprendida pasa por la puerta de aprobación del operador.
 >
-> `core/config.py` define **100+ variables** activas. Para fusión:
-> `OPENHARNESS_FUSION.md`; para mail: `ACTION_PLANE.md` y
-> `COGNITIVE_OS_GUIDE.md`; para MCP: `ARCHITECTURE.md` §8.
+> `core/config.py` define **100+ variables** activas. La tabla canónica
+> `SETTINGS_REGISTRY_TABLE.md` (autogenerada por
+> `scripts/dump_settings_registry.py`, **no editar a mano**) es la fuente
+> de verdad de TODAS las variables. Para fusión: `OPENHARNESS_FUSION.md`;
+> para mail: `ACTION_PLANE.md` y `COGNITIVE_OS_GUIDE.md`; para MCP:
+> `ARCHITECTURE.md` §8.
 
 ## Visión del producto (no negociable al revisar `.env`)
 
 Cognitive OS es un **sistema cognitivo local-first, auditable**, con LangGraph
 orquestando flujos, DeepAgents para trabajo profundo, y Postgres / Weaviate /
-Redis (y servicios opcionales) como sustrato. Toda acción sensible pasa por
-**puertas human-in-the-loop** y trazabilidad (ver `ARCHITECTURE.md`,
-`ACTION_PLANE.md`, `SECURITY.md`).
+Redis (y servicios opcionales) como sustrato. En `strict`, las acciones
+sensibles pasan por **puertas human-in-the-loop**. En `dedicated_local/full`,
+la prioridad es reducir fricción y permitir auto-resolución cuando el backend
+lo soporte. En ambos perfiles debe haber trazabilidad (ver `ARCHITECTURE.md`,
+`ACTION_PLANE.md`, `SECURITY.md` y `ZERO_FRICTION_OPERATING_MODEL.md`).
 
-Al validar variables, la pregunta no es solo «¿está definida?», sino «¿habilita
-una capacidad peligrosa sin las contrapartidas de aprobación, límites y
-allow-lists que el producto exige?».
+Al validar variables, la pregunta no es solo «¿está definida?», sino «¿el
+operador entiende qué fricción elimina y qué riesgo acepta?». Para este host,
+se permite sacrificar seguridad estricta; no se permite sacrificar diagnóstico,
+recuperación ni la regla de no envío automático de correo.
 
 ## Fuente de verdad (1:1 código ↔ entorno)
 

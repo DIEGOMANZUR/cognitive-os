@@ -1,38 +1,39 @@
 # RUNBOOK Cognitive OS
 
-> **Estado actual (2026-05-20, Fases 78-81 — plan de aprendizaje autónomo completo + aislamiento de DB de test):**
-> la ruta `research` está fusionada con OpenHarness opcional; el runtime
-> local usa **gpt-5.5** (gateway openai-compatible, Responses API);
-> el stack incluye mail
-> personal GoDaddy/Gmail-label con queue Celery `mail` integrada en
-> `scripts/dev_worker.sh`. Para uso diario existen ejecutables en
-> `/home/jgonz/Escritorio` (versión endurecida) que
-> levantan/reinician/detienen todo (Docker stack, migraciones, API,
-> Celery worker multi-queue `default,ingestion,agent_longrun,maintenance,mail`,
-> Celery beat, frontend Next.js y Kimi WebBridge). Telegram queda omitido
-> si `TELEGRAM_ENABLED=false`. Endpoints operacionales nuevos:
-> `/system/info` (versión + git commit + alembic head + policy flags) y
-> `/system/credentials-status` (admin; inventario vivo de las 21
-> credenciales operador, nunca devuelve valores). Wizard CLI:
-> `bash scripts/init_credentials.sh` para checklist REQ/OPT/OK con
-> instrucciones específicas. Snapshot QA reproducible vía
-> `bash scripts/full-qa.sh` y `bash scripts/stress-qa.sh` (3 pasadas
-> pytest por defecto). Fases 50-58 cerraron Telegram approvals con dispatch
-> de `ActionRequest` y smoke versionado de launchers. Fases 59-63 agregaron
-> dispatch durable con JobEvents submit/fail y fallo de broker controlado.
-> Fase 64 añadió reserva atómica de dispatch para impedir submits duplicados.
-> Fase 65 cerró paridad Telegram↔UI (**36 slash commands**: +`/maps`,
-> `/calendar`, `/freebusy`, `/drive`, `/documents`, `/audit`, `/mail`,
-> `/research`, `/codebuild`, `/sandbox`, `/capabilities`) y corrigió el
-> CHECK `ck_ar_action_type` que rompía Drive folder/organize en Postgres
-> (migración `202605170001`).
-> QA actual: **800 passed, 1 skipped, 20 deselected**, head Alembic
-> `202605200003`. La suite corre contra una **DB de test aislada**
-> (`cognitive_os_test`, recreada por corrida) — `pytest` nunca toca la
-> base de producción. **Plan de aprendizaje autónomo F78-81** cerrado
-> (Fases A-E del `AGENT_LEARNING_PLAN.md`): recipe extractor, failure
-> post-mortem, tool scorecard, skill promotion y nightly reflection,
-> con 10 jobs Celery beat y endpoints `/deepagents/learning/*`.
+> **Estado canonico actual (2026-05-22):** operar este host como PC dedicado
+> `dedicated_local/full`: **friccion casi nula por sobre seguridad estricta**.
+> Para estado, gates y contrato de mail ver `CURRENT_STATE.md`; para la postura
+> operativa ver `ZERO_FRICTION_OPERATING_MODEL.md`.
+>
+> **Snapshot vigente** (conteos por `scripts/sync_doc_counts.py`): backend
+> FastAPI con 147 endpoints REST, **23 tareas Celery** en **5 colas**
+> (`default`, `ingestion`, `agent_longrun`, `maintenance`, `mail`) con hasta
+> **13 jobs beat**, **20 migraciones Alembic** head `202605200003`, **37 slash
+> commands Telegram**, `/health/dashboard` con 18 componentes +
+> `POST /health/verify`. QA: `full-qa.sh` **941 passed, 1 skipped, 28
+> deselected**, Playwright **22 passed**, `stress-qa.sh` 3 pasadas verdes.
+> `full-qa.sh` construye Next en `.next-qa` para no invalidar el `.next` que
+> usa un `next start` vivo.
+>
+> **Runtime:** la ruta `research` está fusionada con OpenHarness opcional; el
+> LLM es **gpt-5.5** (gateway openai-compatible, Responses API) como
+> primary+agent, `gemini-3.1-pro-low` secondary/fallback, `glm-4.6v` visión.
+> El stack incluye mail personal GoDaddy/Gmail-label con queue Celery `mail`.
+> Para uso diario existen ejecutables endurecidos en `/home/jgonz/Escritorio`
+> que levantan/reinician/detienen todo (Docker, migraciones, API, Celery
+> worker multi-queue, beat, frontend y Kimi WebBridge); Telegram se omite si
+> `TELEGRAM_ENABLED=false`. Endpoints operacionales: `/system/info`,
+> `/system/credentials-status` (admin), `/system/mcp`. Wizard CLI:
+> `bash scripts/init_credentials.sh`.
+>
+> **Plan de aprendizaje autónomo (Fases A-E del `AGENT_LEARNING_PLAN.md`):**
+> en producción — recipe extractor, failure post-mortem, tool scorecard,
+> skill promotion y nightly reflection, detrás de feature flags en el beat.
+> El auto-promote de warnings de Fase D tiene kill switch
+> `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED`.
+>
+> **Aislamiento de DB de test:** la suite corre contra `cognitive_os_test`,
+> recreada por corrida — `pytest` nunca toca la base de producción.
 
 ## Ejecutables de escritorio
 
@@ -77,8 +78,12 @@ Acepta overrides `COGOS_DESKTOP_DIR`, `COGOS_MASTER`, `COGOS_OPEN_TERMINAL` y
 1. `bash scripts/init_env.sh` — copia `.env.example` a `.env` y genera secretos
    locales (`JWT_SECRET`, `POSTGRES_PASSWORD`, `NEO4J_PASSWORD`,
    `WEAVIATE_API_KEY`).
-2. `bash scripts/dev_up.sh` — levanta Postgres, Redis, Weaviate y Neo4j vía
-   Docker Compose y espera health checks.
+2. `bash scripts/dev_up.sh` — **comando único correcto** para levantar
+   Postgres, Redis, Weaviate y Neo4j. Llama `init_env.sh`, valida que las
+   variables que `docker compose` interpola sin default no estén vacías
+   (AUDIT-2026-H — `docker compose` no falla por sí solo ante variables
+   vacías), arranca con `--env-file .env` y espera health checks. No invocar
+   `docker compose` a mano sin `--env-file .env`.
 3. En `backend`: `uv run alembic upgrade head` para aplicar migraciones.
 4. API: `uv run uvicorn cognitive_os.api.app:app --host 127.0.0.1 --port 8000`.
    El lifespan abre un `PostgresSaver` para los hilos de LangGraph; si falla,
@@ -166,15 +171,27 @@ Pestaña `Chat`:
 
 Pestaña `Mail`:
 
-1. `Sync ahora` llama `POST /mail/sync` y lee GoDaddy IMAP + Gmail label `TODOS`
-   si Gmail OAuth está habilitado.
-2. Los mensajes se guardan en Postgres y quedan filtrables por estado:
+1. `Sync por worker` llama `POST /mail/sync/dispatch` y encola
+   `cognitive_os.sync_personal_mail` en la queue `mail`.
+2. El worker lee Gmail `TODOS`/`SPAM` y GoDaddy `Spam` si las credenciales
+   estan listas. No se confia en la clasificacion del proveedor: el agente
+   reclasifica por contenido.
+3. `Generar resumen 50` llama `POST /mail/digest/preview` con
+   `sync_first=false`; usa mensajes locales persistidos y no bloquea el API
+   leyendo IMAP/Gmail.
+4. El digest programado `personal-mail-digest` corre 10:00 y 20:00
+   `America/Santiago` y persiste artefactos bajo
+   `LOCAL_STORAGE_DIR/mail_digests`.
+5. Los mensajes se guardan en Postgres y quedan filtrables por estado:
    `new`, `reply_proposed`, `pending_send`, `ignored`, `sent`, `failed`.
-3. Los importantes reciben `proposed_reply_text`; edítalo en pantalla.
-4. `Guardar texto` llama `PATCH /mail/messages/{id}/reply`.
-5. `Aprobar y enviar` llama `POST /mail/messages/{id}/approve-send`; el envío
-   sale por SMTP GoDaddy y queda en `mail_send_logs`.
-6. Nunca hay auto-send ni drafts automáticos.
+6. Los importantes reciben `proposed_reply_text`; edítalo en pantalla.
+7. `Guardar texto` llama `PATCH /mail/messages/{id}/reply`.
+8. No hay boton normal de envio. El operador copia el texto y lo envia desde
+   su cliente de correo.
+9. El endpoint SMTP `/mail/messages/{id}/approve-send` queda como escape hatch:
+   solo funciona con `ENABLE_EMAIL_SEND=true`, `MAIL_ALLOW_EXPLICIT_SEND=true`
+   y `explicit_send_confirmation=SEND_THIS_EMAIL_EXPLICITLY`.
+10. Nunca hay auto-send ni drafts automáticos.
 
 ## Ruta research: OpenHarness + DeepAgents
 

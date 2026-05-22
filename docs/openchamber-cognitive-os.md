@@ -1,6 +1,12 @@
 # OpenChamber Cognitive OS
 
-> **Estado actual (2026-05-15, 04:47 hora Chile):** acceso LAN para operar
+> **Estado actual (2026-05-22):** OpenChamber sigue siendo acceso al cockpit
+> de desarrollo, no al runtime productivo principal. Cognitive OS operativo
+> corre en `cognitive-os/` y se documenta en `cognitive-os/docs/CURRENT_STATE.md`.
+> La postura actual del proyecto es PC dedicado con baja fricción; este
+> documento solo cubre el acceso web a OpenCode/OpenChamber.
+>
+> **Histórico (2026-05-15, 04:47 hora Chile):** acceso LAN para operar
 > OpenCode sobre el workspace Cognitive OS. Sigue activo en
 > `0.0.0.0:3000` por systemd de usuario (`openchamber-cognitive-os.service`)
 > con OpenCode managed en `127.0.0.1:4095`. La contraseña de UI vive solo en

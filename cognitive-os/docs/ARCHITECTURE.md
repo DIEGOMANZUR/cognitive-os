@@ -1,26 +1,30 @@
 # Cognitive OS — Arquitectura (referencia técnica completa)
 
-> **Estado (2026-05-20, Fases 78-81 — plan de aprendizaje autónomo completo):**
-> stack operativo en grado comercial, verificado funcionando con
-> credenciales reales. Conteos verificados contra el código (sin inflar):
-> **143 endpoints REST**, **22 tareas Celery** en **5 colas** (`default`,
-> `ingestion`, `agent_longrun`, `maintenance`, `mail`) con **10 jobs
-> beat**, **20 migraciones Alembic** (head `202605200003`), **20 vistas
-> Next.js** bajo `frontend/app/views/*.tsx`, **17 componentes** en
-> `/health/dashboard`, **37 slash commands** de Telegram, **21 tools
-> built-in del DeepAgent** más las **tools dinámicas MCP** (cuando
-> `ENABLE_MCP_CLIENT=true`). Cadena LLM: **primary+agent `gpt-5.5`**
-> (gateway openai-compatible del operador, **Responses API + prompt
-> caching 24h**), **secondary/fallback `gemini-3.1-pro-low`**, **visión
-> `glm-4.6v`** (z.ai). Kimi-k2.6 sólo vía el adapter CLI del Code Director
-> (su endpoint HTTP devuelve 403). El **plan de aprendizaje autónomo**
-> (Fases A-E, `AGENT_LEARNING_PLAN.md`) está cerrado: el agente extrae
-> recetas, detecta patrones de falla, puntúa tools, promueve procedures
-> a skills y reflexiona de noche — todo bajo el approval gate del
-> operador. Suite QA: **800 pytest passed, 1 skipped, 20 deselected**
-> contra una **DB de test aislada** (`cognitive_os_test`); ruff/format/
-> mypy, frontend lint/build, Alembic sin drift, `git diff --check` —
-> todo verde.
+> **Estado canónico actual (2026-05-22):** arquitectura local-first para
+> un PC dedicado del operador, con prioridad explícita de fricción casi
+> nula por sobre seguridad estricta. `strict` sigue existiendo como perfil
+> conservador, pero el perfil operativo preferido es `dedicated_local/full`:
+> usa Edge real/Kimi WebBridge, filesystem local y auto-resolución de
+> aprobaciones cuando está configurado. La seguridad de perímetro no es el
+> eje de esta instalación; sí lo son trazabilidad, idempotencia,
+> observabilidad, recuperación y fallos explícitos.
+>
+> **Conteos verificados contra código** (generados por
+> `scripts/sync_doc_counts.py`): **147 decoradores REST**, **23 tareas
+> Celery** en **5 colas** (`default`, `ingestion`, `agent_longrun`,
+> `maintenance`, `mail`) con hasta **13 jobs beat**, **20 migraciones
+> Alembic** (head `202605200003`), **20 vistas Next.js** bajo
+> `frontend/app/views/*.tsx`, **18 componentes** en `/health/dashboard`
+> (17 checks + `checkpointer`), **37 slash commands** de Telegram, el set
+> de tools built-in tipadas del DeepAgent más tools dinámicas MCP cuando
+> `ENABLE_MCP_CLIENT=true`.
+>
+> **QA más reciente:** `bash scripts/full-qa.sh` verde con **941 passed, 1
+> skipped, 28 deselected**; ruff/format/mypy/Alembic/lint/build/`sync_doc_counts
+> --check`/`git diff --check` OK; build frontend aislado con
+> `NEXT_DIST_DIR=.next-qa`; Playwright **22 passed**; stress QA verde con 3
+> pasadas de **941 passed**; carril opt-in `tests/live/` para smokes
+> read-only contra proveedores reales.
 
 ---
 
@@ -40,8 +44,11 @@ pedido y lo enruta a un subgrafo especializado. (2) **DeepAgents** hace el
 trabajo profundo: subagentes controlados con un set de herramientas
 tipadas, políticas por rol y memoria persistente. (3) **El Action Plane**
 ejecuta acciones sobre el mundo real (Google, mail, browser, DNS,
-filesystem, code builds) siempre a través de `ActionRequest` persistentes
-con preview-first y aprobación humana donde corresponde. (4) **La capa de
+filesystem, code builds) a través de `ActionRequest` persistentes,
+preview-first cuando aplica y políticas de aprobación dependientes del
+perfil: conservadoras en `strict`, de mínima fricción en
+`dedicated_local/full`. Mail es la excepción: el flujo normal solo lee y
+propone respuestas. (4) **La capa de
 persistencia y retrieval** — PostgreSQL+pgvector (fuente de verdad
 operacional), Weaviate (búsqueda híbrida BM25+vector sobre los chunks de
 documentos), Neo4j (grafo de entidades, read-only) y Redis (broker de
@@ -153,6 +160,15 @@ El backend activo se reporta en `GET /health/dashboard` como el
 componente `checkpointer` (`status=ok` para postgres, `configured` para
 memory).
 
+> **Honestidad de `/health/dashboard` (AUDIT-2026-B).** Cada componente
+> reporta `ok`/`ready` (verificado en vivo o apagado), `configured`
+> (cableado pero sin llamada real) o `degraded` (fallo). El overall es
+> `ok` solo si **todo** está verificado; si algo está `configured` el
+> overall es `configured`, no `ok`. `POST /health/verify` fuerza el probe
+> real (completion LLM mínima, embedding real, login IMAP) bajo demanda.
+> El componente `operational_backlog` vigila approvals/jobs/action-requests
+> atascados y el lag del beat.
+
 ---
 
 ## 4. Nodos del orquestador (`agents/graph.py`)
@@ -213,7 +229,7 @@ de modo que el agente siempre sabe quién es y qué puede hacer.
   Cada tool call pasa por la capa de políticas (`tools/policy.py`) y se
   audita.
 * **DeepAgents → MCP:** cuando `ENABLE_MCP_CLIENT=true`,
-  `build_deepagent_tools` suma las tools de los servidores MCP a las 21
+  `build_deepagent_tools` suma las tools de los servidores MCP a las
   built-in (ver §8).
 * **DeepAgents → RAG:** `search_within_allowed_docs` filtra los hits de
   Weaviate al `allowed_doc_ids` del agente y a `allowed_page_ranges`.
@@ -228,8 +244,9 @@ de modo que el agente siempre sabe quién es y qué puede hacer.
 
 ## 6. Beat schedule — reapers, consolidación y aprendizaje
 
-El beat de Celery agenda **10 jobs** (todos detrás de feature flags). Los
-4 reapers cubren clases de falla del Action Plane; las 5 tareas de
+El beat de Celery agenda hasta **13 jobs** (todos detrás de feature
+flags; el número exacto depende de qué flags estén activos). Los 3
+reapers cubren clases de falla del Action Plane; las 5 tareas de
 aprendizaje implementan las Fases A-E del `AGENT_LEARNING_PLAN.md`:
 
 | Job beat | Cron | Qué hace |
@@ -272,7 +289,7 @@ worker corta circuito si el job ya está `running`.
 ## 8. Cliente MCP (Model Context Protocol) — Fase 73
 
 Bajo `ENABLE_MCP_CLIENT=true`, el DeepAgent carga **tools dinámicas** de
-servidores MCP externos, además de sus 21 tools built-in.
+servidores MCP externos, además de su set de tools built-in tipadas.
 
 * **Declaración:** `MCP_SERVERS` en `.env`, CSV con sintaxis
   `name:transport:target[::extra=v,...]`. Transportes soportados: `sse`,
@@ -318,7 +335,7 @@ Detalle completo: `docs/COGNITIVE_OS_GUIDE.md` §MCP.
 
 ## 10. Dónde mirar después
 
-* `backend/src/cognitive_os/api/app.py` — wiring, lifespan, 143 endpoints.
+* `backend/src/cognitive_os/api/app.py` — wiring, lifespan, 147 decoradores REST.
 * `backend/src/cognitive_os/agents/graph.py` — nodos del orquestador y routing.
 * `backend/src/cognitive_os/deepagents/` — factory de DeepAgents controlados, subagentes de research y document analysis.
 * `backend/src/cognitive_os/integrations/mcp_client.py` — cliente MCP.
@@ -327,7 +344,7 @@ Detalle completo: `docs/COGNITIVE_OS_GUIDE.md` §MCP.
 * `backend/src/cognitive_os/workers/tasks.py` — definiciones de tasks Celery + reapers.
 * `backend/src/cognitive_os/actions/` — Action Plane.
 * `backend/src/cognitive_os/mail/` — correo personal IMAP/SMTP/Gmail.
-* `backend/src/cognitive_os/core/health.py` — los 17 checks de `/health/dashboard`.
+* `backend/src/cognitive_os/core/health.py` — los 17 checks de `/health/dashboard` (+ `checkpointer` = 18 componentes) y `check_health_dashboard(verify_live=...)`.
 * `docs/AGENT_SELF.md` — identidad del agente (lo carga como contexto).
 * `docs/USER_GUIDE.md` — guía operativa de punta a punta.
 * `docs/ACTION_PLANE.md`, `docs/SECURITY.md`, `docs/DEEPAGENTS_INTEGRATION.md`, `docs/DOCUMENT_ANALYSIS_AGENT.md`, `docs/OPENSHELL_SANDBOX.md`, `docs/OPENHARNESS_FUSION.md` — deep dives por dominio.

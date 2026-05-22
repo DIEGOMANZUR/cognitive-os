@@ -1,7 +1,22 @@
 # Scripts
 
-> **Estado actual (2026-05-20, Fase 74):** scripts shell verificados.
-> `dev_worker.sh` escucha **5 queues**:
+> **Estado actual (2026-05-22):** scripts shell verificados para la
+> instalación local dedicada. La operación normal prioriza fricción casi
+> nula: los launchers de escritorio levantan Docker, API, worker, beat,
+> frontend, Telegram cuando aplica y Kimi WebBridge sin exigir pasos
+> manuales extra. La seguridad estricta queda en perfiles/flags
+> conservadores; el objetivo diario es arranque reproducible, diagnóstico
+> visible y recuperación rápida.
+>
+> `full-qa.sh` está actualizado al ciclo vigente: backend con
+> **941 passed, 1 skipped, 28 deselected**, ruff/format/mypy/Alembic
+> verdes, frontend lint/build verde, `sync_doc_counts --check` y
+> `git diff --check` finales. El build frontend de QA usa
+> `NEXT_DIST_DIR=.next-qa` para no invalidar un `next start` vivo.
+> Carril opt-in `full-qa-live.sh` para smokes read-only contra
+> proveedores reales.
+>
+> **Detalle de scripts:** `dev_worker.sh` escucha **5 queues**:
 > `default,ingestion,agent_longrun,maintenance,mail`. `full-qa.sh` y
 > `stress-qa.sh` instalan el extra OpenHarness; `full-qa.sh` además
 > ejecuta `alembic check` (tolerante a Postgres apagado) y
@@ -20,7 +35,11 @@
 ## Bootstrap y operación
 
 - `init_env.sh`: crea `.env` local y genera secretos si están en `CHANGEME`.
-- `dev_up.sh`: levanta infraestructura local y espera health checks.
+- `dev_up.sh`: levanta infraestructura local y espera health checks. Antes de
+  invocar `docker compose` valida que las variables que el compose interpola
+  **sin default** (`POSTGRES_USER/PASSWORD/DB`, `WEAVIATE_API_KEY`,
+  `NEO4J_USER/PASSWORD`) no estén vacías ni en `CHANGEME` — `docker compose`
+  las trataría como string vacío sin fallar (AUDIT-2026-H).
 - `dev_down.sh`: apaga infraestructura local.
 - `dev_logs.sh SERVICE_NAME`: muestra logs de un servicio Docker.
 - `dev_worker.sh`: levanta worker Celery para `default`, `ingestion`, `agent_longrun`, `maintenance` y `mail`.
@@ -39,8 +58,10 @@
 
 ## Calidad reproducible
 
-- `full-qa.sh`: `cd backend && uv sync --extra openharness && pytest -q && ruff check . && ruff format --check . && mypy src && cd ../frontend && npm ci && npm run lint && NEXT_DIST_DIR=.next-qa npm run build`. Usa `.next-qa` para no invalidar un `next start` vivo que esté sirviendo `frontend/.next`.
+- `full-qa.sh`: `cd backend && uv sync --extra openharness && pytest -q && ruff check . && ruff format --check . && mypy src && cd ../frontend && npm ci && npm run lint && NEXT_DIST_DIR=.next-qa npm run build`, más `sync_doc_counts.py --check` y `git diff --check` como guards finales. Usa `.next-qa` para no invalidar un `next start` vivo que esté sirviendo `frontend/.next`.
 - `stress-qa.sh [N]`: ejecuta `pytest -q --tb=no` N veces (default 3) con el mismo extra OpenHarness para detectar flakiness.
+- `full-qa-live.sh`: carril **opt-in** de smokes read-only contra los proveedores reales (LLM ping, GoDaddy GET domains, IMAP/SMTP handshake, Telegram `getMe`, Kimi status, MCP `list_tools`). Exige `LIVE_TESTS_ENABLED=1` (lo setea el script); excluido de `full-qa.sh`. Cada test se auto-saltea si su credencial no está configurada. Coste ≈ US$0.001.
+- `sync_doc_counts.py`: recalcula los conteos canónicos (endpoints, tareas Celery, migraciones, head Alembic, vistas frontend) desde el código y reescribe el bloque `<!-- AUTO:counts -->` de `docs/CURRENT_STATE.md`. `--check` falla si están desincronizados (lo usa `full-qa.sh`); `--print` solo los imprime.
 
 ## Otros
 

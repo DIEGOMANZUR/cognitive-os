@@ -1,6 +1,12 @@
 # Document Analysis Agent (referencia técnica)
 
-> **Estado (2026-05-20, Fase 74):** subagente legal estable, ruta `legal`
+> **Estado actual (2026-05-22):** subagente legal estable dentro del
+> modelo local dedicado. La prioridad general del producto es baja
+> fricción, pero esta ruta sigue siendo evidence-first: citas, scope de
+> `doc_ids`, quality score y revisión humana cuando el modo produce apoyo
+> legal. No usa mail ni envía comunicaciones.
+>
+> **Histórico (2026-05-20, Fase 74):** subagente legal estable, ruta `legal`
 > del grafo. Modos verificados en
 > `backend/src/cognitive_os/deepagents/document_analysis/schemas.py::DocumentAnalysisMode`
 > (`evidence_matrix`, `timeline`, `contradictions`, `full_report`,

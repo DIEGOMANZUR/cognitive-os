@@ -1,58 +1,59 @@
 # Documentacion De Cognitive OS
 
-> **Estado actual (2026-05-20, Fases 78-81 — plan de aprendizaje autónomo
-> completo; suite hermética 800 passed con DB de test aislada):**
-> producto en grado comercial operativo con backend FastAPI 0.115+
-> (**143 endpoints REST**, **22 tareas Celery** en **5 queues** con
-> **10 jobs beat**, **20 migraciones Alembic** head `202605200003`,
-> **37 slash commands Telegram**, **17 componentes `/health`**) +
-> LangGraph 1.1.10 + DeepAgents 0.6.x + cliente MCP + Action Plane,
-> correo personal multicuenta read-only con digest 10:00/20:00 y propuestas de texto
-> (`MAIL_ALLOW_EXPLICIT_SEND=false`, `MAIL_BACKGROUND_SYNC_ENABLED=false`),
-> Google Maps/Calendar/Drive
-> operables sin writes directos, infra de datos ligada a `127.0.0.1`, y
-> consola Next.js 16.2.6 (**20 vistas**). La ruta `research` está
-> fusionada con **OpenHarness** opcional (extra
-> `openharness-ai>=0.1.9,<0.2`), pipeline por defecto `prelude_merge`,
-> workspace `deepagent_mirror`. Documento canónico de la fusión:
-> `OPENHARNESS_FUSION.md`. LLM: **primary+agent `gpt-5.5`** (Responses
-> API + prompt caching 24h), **secondary/fallback `gemini-3.1-pro-low`**,
-> **visión `glm-4.6v`**.
+> **Estado canonico actual (2026-05-22):** leer primero
+> [`CURRENT_STATE.md`](CURRENT_STATE.md) y
+> [`ZERO_FRICTION_OPERATING_MODEL.md`](ZERO_FRICTION_OPERATING_MODEL.md).
+> Esos dos archivos mandan: si algo aca discrepa, ellos ganan.
 >
-> **Plan de aprendizaje autónomo (Fases A-E, `AGENT_LEARNING_PLAN.md`):**
-> cerrado en producción. F78 Fase A (recipe extractor), F79.3 Fase D
-> (failure post-mortem), F79.4 Fase C (tool scorecard), F80 Fase B
-> (skill promotion: procedure → skill YAML con rollback automático), F81
-> Fase E (nightly reflection con evidencia literal obligatoria). 2 tablas
-> nuevas (`procedure_invocation_log`, `tool_invocation_metrics`),
-> endpoints `/deepagents/learning/*`, panel completo en `MemoryView`.
-> Todo pasa por el approval gate del operador.
+> Cognitive OS es un sistema cognitivo **local mono-operador** para un PC
+> dedicado. Prioridad de producto: **friccion casi nula por sobre seguridad
+> estricta**, con una excepcion dura en mail (lectura + propuesta, sin envio
+> ni drafts en el flujo normal).
 >
-> **Aislamiento de DB de test:** `pytest` nunca toca producción —
-> `tests/conftest.py` redirige a `cognitive_os_test`, recreada + migrada
-> a head por corrida, con red de seguridad anti-producción.
+> **Snapshot tecnico vigente** (conteos derivados del codigo por
+> `scripts/sync_doc_counts.py`):
 >
-> Fase 40 (2026-05-17) añadió el **Code Director**: meta-agente que
-> delega builds a coding agents externos (Claude Code / Codex / Kimi CLI
-> o DeepAgents in-process) bajo aprobación humana + budget caps + audit.
-> Fase 41 lo llevó a "máximo nivel F9": **planner LLM-driven** que
-> descompone objetivos en subtareas reales con fallback heurístico
-> determinista, y **prompts con contexto vivo** del workspace +
-> reintentos dirigidos por el error previo. Fase 39 cerró los residual
-> risks técnicos: rate limiter pluggable memory/Redis,
-> `/system/credentials-status` (admin) con inventario vivo de las 21
-> credenciales operador, `workflow.v1` export/import, OAuth Google
-> self-healing, wizard `init_credentials.sh`, correlation IDs
-> `X-Request-ID`, approval reaper, four-eyes, AuditEvent simétrico
-> REST↔Telegram. Fases 44-49 consolidaron Google Ops avanzado; Fases
-> 50-58 cerraron Telegram approvals con dispatch real de `ActionRequest`
-> y agregaron smoke reproducible de launchers de escritorio. Fases 59-63
-> endurecieron dispatch con broker failure controlado y JobEvents submit/fail.
-> Fase 64 agregó reserva atómica para impedir submits duplicados a Celery.
-> Fase 65 cerró paridad Telegram↔UI (36 slash commands) y corrigió el
-> CHECK `ck_ar_action_type` que rompía Drive folder/organize en Postgres.
-> QA: **685 pytest passed, 1 skipped, 20 deselected**; ruff/format/mypy,
-> frontend lint/build, Alembic head `202605170001` y `git diff --check` verdes.
+> - Backend FastAPI 0.115+ — **147 endpoints REST**, **23 tareas Celery** en
+>   **5 colas** (`default`, `ingestion`, `agent_longrun`, `maintenance`,
+>   `mail`), hasta **13 jobs beat** segun flags.
+> - **20 migraciones Alembic**, head `202605200003`, `alembic check` sin drift.
+> - **37 slash commands Telegram** (dispatch fail-closed) + modo conversacional
+>   sin slash en `dedicated_local`.
+> - **18 componentes** en `/health/dashboard`; `POST /health/verify` para probe
+>   real bajo demanda; componente `operational_backlog` para el backlog de
+>   reapers.
+> - Consola Next.js 16.2.6 + React 19 — **20 vistas**, PWA dark-only.
+> - Orquestacion LangGraph 1.1.10 + DeepAgents 0.6.x + cliente MCP + Action
+>   Plane. Ruta `research` fusionada con **OpenHarness** opcional (extra
+>   `openharness-ai>=0.1.9,<0.2`, pipeline por defecto `prelude_merge`).
+> - LLM: **primary+agent `gpt-5.5`** (Responses API + prompt caching 24h),
+>   **secondary/fallback `gemini-3.1-pro-low`**, **vision `glm-4.6v`**.
+> - QA: `full-qa.sh` **941 passed, 1 skipped, 28 deselected** + ruff/format/
+>   mypy/Alembic/lint/build/`sync_doc_counts`/`git diff --check`; `stress-qa.sh`
+>   3 pasadas verdes; Playwright **22 passed**; carril opt-in `tests/live/`.
+>
+> **Plan de aprendizaje autonomo (Fases A-E, `AGENT_LEARNING_PLAN.md`):** en
+> produccion. Fase A recipe extractor, Fase B skill promotion (procedure →
+> skill YAML con rollback automatico), Fase C tool scorecard, Fase D failure
+> post-mortem, Fase E nightly reflection con evidencia literal obligatoria.
+> Todo pasa por el approval gate del operador; la unica excepcion acotada es
+> el auto-promote de warnings de Fase D, con kill switch
+> `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED`.
+>
+> **Code Director:** meta-agente que delega builds a coding agents externos
+> (Claude Code / Codex / Kimi CLI o DeepAgents in-process) bajo aprobacion
+> humana + budget caps + audit, con planner LLM-driven y fallback heuristico.
+>
+> **Aislamiento de DB de test:** `pytest` nunca toca produccion —
+> `tests/conftest.py` redirige a `cognitive_os_test`, recreada + migrada a head
+> por corrida, con red de seguridad anti-produccion.
+>
+> **Remediacion del audit comercial (2026-05-22):** se cerraron las 8 fallas
+> accionables (AUDIT-2026-A..H) — Telegram fail-closed, health honesto
+> (`configured` vs `verified` + `/health/verify`), kill switch del auto-promote,
+> matriz de tests Telegram, carril live, componente `operational_backlog`,
+> `sync_doc_counts.py` y `dev_up.sh` endurecido. Detalle en
+> `docs/audits/CODEX_COMMERCIAL_READINESS_AUDIT.md` §0.1.
 
 Este directorio contiene la documentacion estable del proyecto. Los archivos
 `task_plan.md`, `findings.md` y `progress.md` en la raiz no son documentacion de
@@ -60,24 +61,28 @@ producto: son bitacora de trabajo de la sesion actual.
 
 ## Leer Primero
 
-1. **`USER_GUIDE.md` — Guía de Usuario comercial: qué es Cognitive OS de principio a fin, frontend vista por vista (qué cambia cada acción), pipelines internos, uso desde Telegram, ejemplos impresionantes, "qué hace / qué no hace", "cómo NO usar el sistema". Empieza aquí.**
-2. `COGNITIVE_OS_GUIDE.md` — guía maestra técnica "desde cero" con arquitectura detallada, mail multicuenta, ejecutables de escritorio y troubleshooting profundo. Complementa la `USER_GUIDE.md`.
-3. `../README.md` - entrada principal, comandos basicos y mapa rapido.
-4. `PROJECT_GUIDE.md` - explicacion simple y tecnica del producto completo.
-5. `ARCHITECTURE.md` - arquitectura interna y flujo entre componentes.
-6. **`FRONTEND_ARCHITECTURE.md` — arquitectura del cockpit Next.js (Fase 82 Glass Cockpit): stack, tokens, patterns (`asArray`, `usePolledFetch` resiliente, `StatePrimitives`, focus trap), PWA, anti-patrones, checklist pre-PR.**
-7. `OPENHARNESS_FUSION.md` - fusión actual OpenHarness + LangGraph + DeepAgents en la ruta **research**.
-8. `RUNBOOK.md` - como operar, levantar, apagar, respaldar y restaurar.
-9. `SECURITY.md` - reglas de seguridad y controles obligatorios.
-10. `OPERATOR_VARIABLE_CHECKLIST.md` — variables de entorno ↔ `Settings` (auditoría operador).
-11. `SETTINGS_REGISTRY_TABLE.md` — tabla generada 1:1 desde `config.py` (no editar a mano).
-12. `guia_credenciales.md` — **paso a paso para obtener cada credencial**: a qué web entrar, qué botón apretar (nombre/ubicación/color), hasta pegar el valor en `.env`.
-13. `AGENT_LEARNING_PLAN.md` — plan de aprendizaje autónomo del agente (Fases A-E, todas cerradas).
+1. **`CURRENT_STATE.md` — fuente corta de verdad del estado actual, gates verdes, conteos y contrato de mail.**
+2. **`ZERO_FRICTION_OPERATING_MODEL.md` — postura de producto: PC dedicado, friccion casi nula por sobre seguridad estricta.**
+3. **`USER_GUIDE.md` — Guía de Usuario comercial: qué es Cognitive OS de principio a fin, frontend vista por vista (qué cambia cada acción), pipelines internos, uso desde Telegram, ejemplos impresionantes, "qué hace / qué no hace", "cómo NO usar el sistema".**
+4. `COGNITIVE_OS_GUIDE.md` — guía maestra técnica "desde cero" con arquitectura detallada, mail multicuenta, ejecutables de escritorio y troubleshooting profundo. Complementa la `USER_GUIDE.md`.
+5. `../README.md` - entrada principal, comandos basicos y mapa rapido.
+6. `PROJECT_GUIDE.md` - explicacion simple y tecnica del producto completo.
+7. `ARCHITECTURE.md` - arquitectura interna y flujo entre componentes.
+8. **`FRONTEND_ARCHITECTURE.md` — arquitectura del cockpit Next.js (Fase 82 Glass Cockpit): stack, tokens, patterns (`asArray`, `usePolledFetch` resiliente, `StatePrimitives`, focus trap), PWA, anti-patrones, checklist pre-PR.**
+9. `OPENHARNESS_FUSION.md` - fusión actual OpenHarness + LangGraph + DeepAgents en la ruta **research**.
+10. `RUNBOOK.md` - como operar, levantar, apagar, respaldar y restaurar.
+11. `SECURITY.md` - referencia de seguridad/safety; no es la prioridad principal en el PC dedicado.
+12. `OPERATOR_VARIABLE_CHECKLIST.md` — variables de entorno ↔ `Settings` (auditoría operador).
+13. `SETTINGS_REGISTRY_TABLE.md` — tabla generada 1:1 desde `config.py` (no editar a mano).
+14. `guia_credenciales.md` — **paso a paso para obtener cada credencial**: a qué web entrar, qué botón apretar (nombre/ubicación/color), hasta pegar el valor en `.env`.
+15. `AGENT_LEARNING_PLAN.md` — plan de aprendizaje autónomo del agente (Fases A-E, todas cerradas).
 
 ## Documentacion Por Area
 
 | Archivo | Para que sirve |
 |---|---|
+| `CURRENT_STATE.md` | Estado canonico actual: conteos, gates verdes, runtime, mail, frontend, advertencias de no afirmar sin revalidar |
+| `ZERO_FRICTION_OPERATING_MODEL.md` | Modelo operativo del PC dedicado: friccion casi nula primero, seguridad estricta relegada, excepcion dura de mail |
 | `USER_GUIDE.md` | Guía de Usuario comercial: estado actual, principio a fin, frontend vista por vista, pipelines, Telegram, ejemplos impresionantes, qué hace / qué no, cómo NO usar |
 | `COGNITIVE_OS_GUIDE.md` | Guía maestra técnica "desde cero": arquitectura detallada, mail multicuenta, escritorio, credenciales, troubleshooting profundo |
 | `FRONTEND_ARCHITECTURE.md` | Arquitectura del cockpit Next.js (Fase 82 Glass Cockpit): tokens, patterns (`asArray`, `usePolledFetch` resiliente, `StatePrimitives`, focus trap), PWA, anti-patrones, checklist pre-PR |

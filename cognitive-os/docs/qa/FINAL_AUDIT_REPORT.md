@@ -1,4 +1,26 @@
-# QA · FINAL_AUDIT_REPORT — Fase 76 (auditoría E2E full-stack)
+# QA · FINAL_AUDIT_REPORT — estado vigente y auditoría histórica
+
+> **Actualización vigente (2026-05-22):** este reporte conserva abajo la
+> auditoría Fase 76 como histórico, pero el gate actual del proyecto es más
+> amplio:
+>
+> - `bash scripts/full-qa.sh` → **941 passed, 1 skipped, 28 deselected**,
+>   ruff/format/mypy/Alembic/frontend lint/frontend build/`sync_doc_counts
+>   --check`/`git diff --check` OK.
+> - `npx playwright test --reporter=list` → **22 passed**.
+> - `bash scripts/stress-qa.sh` → 3 pasadas de **941 passed**.
+> - Carril opt-in `tests/live/` (`LIVE_TESTS_ENABLED=1`) → smokes read-only
+>   contra proveedores reales.
+> - Build frontend de QA aislado con `NEXT_DIST_DIR=.next-qa`, sin romper
+>   un `next start` vivo servido desde `.next`.
+>
+> La auditoría comercial más reciente (`docs/audits/CODEX_COMMERCIAL_READINESS_AUDIT.md`)
+> cerró 8 hallazgos accionables (AUDIT-2026-A..H). La prioridad operacional
+> actual es fricción casi nula en PC dedicado, no hardening SaaS. Aun así,
+> los gates QA deben seguir probando arranque, UI honesta, workers, mail
+> read-only/digest, errores visibles e idempotencia.
+
+# QA · FINAL_AUDIT_REPORT — Fase 76 (auditoría E2E full-stack histórica)
 
 Fecha: 2026-05-20. Auditor: agente senior. Alcance: panel web Next.js
 + API FastAPI + integraciones del Action Plane. Foco: **funcionamiento
@@ -133,7 +155,7 @@ frontend/
 ```bash
 # Backend pytest (referencia):
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/backend"
-uv run pytest -q                                   # 712 passed esperado
+uv run pytest -q                                   # 941 passed esperado en snapshot vigente
 
 # Frontend lint + build:
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/frontend"
@@ -142,7 +164,7 @@ npm run build                                      # static prerender OK
 
 # E2E Playwright (stack levantado en :3001 + :8000):
 JWT=$(cd ../backend && uv run python -c "from cognitive_os.core.auth import create_access_token; print(create_access_token(user_id='auditor', roles=['admin']))" 2>/dev/null | tail -1)
-COGOS_JWT="$JWT" npx playwright test               # 16/16 esperado
+COGOS_JWT="$JWT" npx playwright test               # 22 passed esperado en snapshot vigente
 COGOS_JWT="$JWT" npx playwright test --ui          # modo interactivo
 npx playwright show-report                          # HTML report
 ```

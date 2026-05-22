@@ -1,52 +1,39 @@
 # Cognitive OS - Guia Simple Y Tecnica
 
-> **Estado actual (2026-05-20, Fases 78-81 — plan de aprendizaje autónomo
-> completo; LLM primary/agent gpt-5.5 con Responses API, fallbacks
-> gemini-3.1-pro-low, visión glm-4.6v; suite hermética 800 passed con DB
-> de test aislada):**
-> producto en grado comercial operativo. Backend FastAPI 0.115+ con **143
-> endpoints REST**, **22 tareas Celery** distribuidas en **5 queues**
-> (`default`, `ingestion`, `agent_longrun`, `maintenance`, `mail`) con
-> **10 jobs beat**, **20 migraciones Alembic** (head `202605200003`).
-> Frontend Next.js 16.2.6 con **20 vistas** (incluidas `AssistView`,
-> `GoogleOpsView`, `ResearchView` con plan animado sobre SSE, y
-> `CodeDirectorView`). La ruta `research` está fusionada con
-> **OpenHarness** opcional (extra `openharness-ai>=0.1.9,<0.2`,
-> `prelude_merge` por defecto). Runtime local (cadena verificada Fase
-> 67/68): primary+agent **gpt-5.5**, secondary/fallback
-> **gemini-3.1-pro-low**, visión **glm-4.6v**; Kimi solo Code Director CLI.
-> El **plan de aprendizaje autónomo** (Fases A-E, `AGENT_LEARNING_PLAN.md`)
-> está cerrado: el agente extrae recetas, detecta patrones de falla,
-> puntúa tools, promueve procedures a skills y reflexiona de noche — todo
-> bajo el approval gate del operador. `pytest` corre contra una DB de
-> test aislada (`cognitive_os_test`); producción nunca se toca.
+> **Estado actual (2026-05-22):** producto local-first para un PC dedicado
+> del operador. La prioridad explícita es fricción casi nula por sobre
+> seguridad estricta: usar Edge real, Kimi WebBridge, filesystem local y
+> auto-resolución de aprobaciones en `dedicated_local/full` es una decisión
+> de producto, no una excepción accidental. `strict` queda disponible como
+> perfil conservador.
 >
-> Fase 41 (F9) llevó al **Code Director** a "máximo nivel": planner
-> LLM-driven que descompone objetivos en subtareas reales con fallback
-> heurístico determinista, y prompts con contexto vivo del workspace +
-> reintentos dirigidos por el error previo. Fase 40 introdujo el Code
-> Director (delegación a Claude Code / Codex / Kimi CLI o DeepAgents
-> bajo HumanApproval + budget caps). Fase 39 cerró los residual risks
-> técnicos: rate limiter pluggable memory/Redis,
-> `/system/credentials-status` con inventario vivo, `workflow.v1`
-> export/import, OAuth Google self-healing, `init_credentials.sh`
-> wizard, correlation IDs, approval reaper, four-eyes, AuditEvent
-> simétrico REST↔Telegram. Fases 50-58 cerraron approvals Telegram con
-> dispatch real de `ActionRequest` y smoke de launchers. Fases 59-63
-> agregaron dispatch durable con fallo de broker controlado y JobEvents
-> submit/fail. Fase 64 añadió reserva atómica anti-submit duplicado.
-> Fase 65 cerró paridad Telegram↔UI (36 slash commands) y corrigió el
-> CHECK `ck_ar_action_type` que rompía Drive folder/organize en Postgres.
-> QA snapshot: **800 pytest passed, 1 skipped, 20 deselected**; ruff/format/mypy,
-> frontend lint/build, Alembic head `202605200003` y `git diff --check` verdes.
+> **Snapshot vivo:** backend FastAPI con **147 decoradores REST**, **23
+> tareas Celery** en **5 queues**, **20 migraciones Alembic** (head
+> `202605200003`), frontend Next.js 16.2.6 con **20 vistas**, Telegram con
+> **37 slash commands**, health dashboard con **18 componentes** y
+> `POST /health/verify` para probe en vivo. Mail personal: Gmail `TODOS` +
+> `SPAM` de `diegomanzurn@gmail.com`, GoDaddy `Spam` de
+> `diego@doctormanzur.com`, clasificación de spam por agente, digest
+> 10:00/20:00 Chile, máximo 50 correos, propuestas de respuesta como texto
+> separado; no drafts y no envío automático.
 >
-> **Guía de usuario completa:** `docs/USER_GUIDE.md`.
+> **QA más reciente:** `bash scripts/full-qa.sh` verde con **941 passed, 1
+> skipped, 28 deselected**; ruff/format/mypy/Alembic/lint/build/`sync_doc_counts
+> --check`/`git diff --check` OK; Playwright **22 passed**; `bash
+> scripts/stress-qa.sh` verde con 3 pasadas de **941 passed**. El build de
+> QA usa `NEXT_DIST_DIR=.next-qa` para no invalidar un frontend vivo
+> servido desde `.next`.
+>
+> **Guía de usuario completa:** `docs/USER_GUIDE.md`. Estado canónico:
+> `docs/CURRENT_STATE.md`. Modelo operativo: `docs/ZERO_FRICTION_OPERATING_MODEL.md`.
 
 ## En Una Frase
 
 Cognitive OS es una central local de inteligencia artificial para investigar,
-analizar documentos, producir evidencia trazable y preparar acciones externas
-seguras con aprobacion humana.
+analizar documentos, producir evidencia trazable y ejecutar o preparar acciones
+externas con trazabilidad. En este PC dedicado se privilegia la mínima fricción
+operativa; la aprobación humana queda como política configurable por perfil y
+como excepción obligatoria para envíos de correo no solicitados explícitamente.
 
 ## En Palabras Simples
 
@@ -58,7 +45,8 @@ No es solo un chatbot. Es una mesa de trabajo con varias piezas coordinadas:
 - Un grafo para entender relaciones entre personas, fechas, documentos y hechos.
 - Trabajadores de fondo para tareas largas.
 - Agentes especializados que investigan o analizan documentos.
-- Un sistema de aprobaciones para impedir acciones sensibles sin supervision.
+- Un sistema de aprobaciones configurable: estricto cuando se necesita control,
+  y de mínima fricción en el perfil local dedicado.
 - Una capa de accion para navegador, carpetas, Gmail, Google Maps/Calendar/Drive,
   mail personal, GoDaddy y documentos,
   con solicitudes persistentes o aprobaciones explícitas para acciones sensibles.
@@ -71,8 +59,9 @@ y prepara una matriz hecho/evidencia/cita.
 ```
 
 El sistema debe recuperar evidencia, citar paginas, separar hechos de inferencias
-y guardar los resultados. Si algo puede afectar el mundo real, por ejemplo enviar
-un email o cambiar DNS, debe pedir aprobacion.
+y guardar los resultados. Si algo puede afectar el mundo real, la política exacta
+depende del perfil operativo; el correo es la excepción dura y nunca se envía en
+el flujo normal.
 
 ## Mapa Mental
 
@@ -222,9 +211,16 @@ secretos, no monta home y requiere aprobacion para tareas riesgosas.
 
 ### Navegar Internet
 
-Usara Playwright o Camoufox con perfiles aislados, nunca el navegador personal
-del usuario. Solo podra abrir dominios en `BROWSER_ALLOWED_DOMAINS`. Headed y
-vision requieren flags separados.
+Hay dos carriles:
+
+- **`browser_preview` / `browser_interactive`** (Playwright headless con
+  visión multimodal): perfiles aislados, dominios limitados por
+  `BROWSER_ALLOWED_DOMAINS`. Headed y visión requieren flags separados.
+- **Kimi WebBridge / Edge real:** en el perfil `dedicated_local`, y como
+  decisión de producto explícita de este PC, el agente puede operar el
+  navegador Edge real del operador vía el daemon Kimi WebBridge
+  (`ENABLE_KIMI_WEBBRIDGE` / `ENABLE_EDGE_DEVTOOLS_WEBBRIDGE`). Ver
+  `docs/ACTION_PLANE.md` y `docs/ZERO_FRICTION_OPERATING_MODEL.md`.
 
 ### Ordenar Carpetas
 
@@ -253,12 +249,20 @@ aprobacion y auditoria coincidan.
 
 ## Reglas De Seguridad
 
-- Nada externo se ejecuta sin flag de entorno.
-- Nada sensible se ejecuta sin aprobacion humana.
-- Nada se registra con secretos sin redaccion.
-- Nada toca rutas fuera de allow-lists.
-- Nada usa perfiles reales del navegador.
-- Nada de DNS/email se ejecuta sin preview o aprobación explícita.
+En este PC dedicado la postura es fricción casi nula (ver
+`docs/ZERO_FRICTION_OPERATING_MODEL.md`); las reglas vigentes son:
+
+- Nada externo se ejecuta sin su flag de entorno.
+- En `strict`, las acciones sensibles pasan por aprobación humana; en
+  `dedicated_local/full` se auto-resuelven las reversibles, pero siempre
+  quedan `ActionRequest`, `JobEvent` y `AuditEvent`.
+- Nada se registra con secretos sin redacción.
+- Nada toca rutas fuera de las allow-lists configuradas.
+- El navegador Edge real del operador **sí** se usa, vía Kimi WebBridge,
+  como decisión de producto del perfil `dedicated_local`; los carriles
+  `browser_preview`/`browser_interactive` siguen usando perfiles aislados.
+- Mail es la excepción dura: nada de DNS/email se ejecuta sin preview o
+  aprobación explícita, y el flujo normal de correo no envía ni crea drafts.
 
 ## Donde Mirar Si Algo Falla
 

@@ -1,5 +1,13 @@
 # Guía de Credenciales — paso a paso, con detalle de cada botón
 
+> **Estado actual (2026-05-22):** esta guía sigue siendo la referencia de
+> credenciales, pero el modelo operativo cambió: Cognitive OS corre en un
+> PC dedicado y prioriza fricción casi nula por sobre seguridad estricta.
+> Eso significa que se permite usar el perfil real del operador, Edge real
+> y credenciales locales persistidas cuando Diego lo decida. La excepción
+> dura es mail: las credenciales de Gmail/GoDaddy habilitan lectura y
+> digest; no habilitan envío automático en el flujo normal.
+>
 > Guía operativa para obtener **cada credencial** que Cognitive OS puede
 > usar. Pensada para que la sigas sin saber nada previo: te digo a qué
 > web entrar, qué botón apretar, cómo se llama, dónde está y de qué
@@ -21,7 +29,7 @@
   línea exacta de `.env` (archivo `cognitive-os/.env`). Nunca subas ese
   archivo a git.
 
-## Estado actual en esta máquina (2026-05-20, Fase 74)
+## Estado actual en esta máquina (2026-05-22)
 
 Verificá en cualquier momento con:
 
@@ -35,9 +43,13 @@ bash scripts/init_credentials.sh
 - ✅ Telegram — bot `@Socio_dimn_bot`, `TELEGRAM_ENABLED=true`, user
   autorizado. Acepta slash commands + mensajes conversacionales.
 - ✅ Google Calendar/Drive — OAuth corrido (`scripts/auth_google.py`),
-  componentes `ready`.
-- ✅ Gmail — OAuth corrido (`scripts/auth_gmail.py`), read-only label
-  `TODOS`.
+  componentes `ready`. `GOOGLE_CALENDAR_SCOPES` usa el scope completo
+  `https://www.googleapis.com/auth/calendar` (cubre eventos **y** free/busy;
+  el scope `calendar.events` por sí solo daba `403` en `freeBusy`).
+- ✅ Gmail — OAuth corrido (`scripts/auth_gmail.py`), lectura de
+  `TODOS` + `SPAM` para `diegomanzurn@gmail.com`.
+- ✅ GoDaddy mail — lectura de carpeta `Spam` para
+  `diego@doctormanzur.com`; SMTP solo como escape hatch explícito.
 - ✅ GoDaddy DNS producción — auth HTTP 200, modo seguro dry-run.
 - ✅ MCP — 3 servidores conectados (Supermemory, GitHub, filesystem).
   Verificable en `/system/mcp`.
@@ -514,7 +526,7 @@ querés trazas activas).
 
 ## B.10 · TELEGRAM_BOT_TOKEN (bot de Telegram)
 
-**Qué habilita:** los 36 slash commands del bot.
+**Qué habilita:** los 37 slash commands del bot.
 
 ### Pasos (dentro de la app de Telegram, no en una web)
 

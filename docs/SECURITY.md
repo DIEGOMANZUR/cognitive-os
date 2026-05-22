@@ -1,6 +1,14 @@
 # Seguridad
 
-> **Estado actual (2026-05-15, Fase 33):** reglas raíz del workspace
+> **Estado actual (2026-05-22):** estas reglas raíz siguen protegiendo
+> secretos y repositorio, pero no describen el objetivo operativo principal
+> de Cognitive OS en este PC dedicado. Diego priorizó fricción casi nula por
+> sobre seguridad estricta: Edge real/Kimi WebBridge, filesystem local y
+> auto-resolución en `dedicated_local/full` son decisiones aceptadas. Lo que
+> no se relaja: no guardar secretos en Markdown, no romper trazabilidad, no
+> ocultar fallos y no enviar correos/drafts en el flujo normal.
+>
+> **Histórico (2026-05-15, Fase 33):** reglas raíz del workspace
 > OpenCode/Cognitive OS. Los secretos viven exclusivamente en `.env`,
 > `.env.local`, gestores de secretos o servicios locales con permisos
 > restrictivos; nunca en Markdown ni `opencode.json`. Auditoría más reciente
@@ -17,7 +25,11 @@
 - Jamas commitear `.env` ni archivos derivados con credenciales reales.
 - Rotar claves si aparecen en logs, prompts, reportes, tickets o cualquier otro registro.
 - No enviar payloads sensibles a servicios externos sin redaccion previa.
-- Las acciones externas requieren aprobacion humana explicita.
+- Las acciones externas requieren aprobacion humana explicita en `strict`;
+  en `dedicated_local/full` pueden auto-resolverse si el backend lo permite
+  y el operador acepta ese riesgo.
+- Mail es excepción: lectura/digest/propuestas por defecto; no drafts ni
+  envío automático.
 - Producción exige `ACTION_PAYLOAD_ENCRYPTION_REQUIRED=true` y una
   `ACTION_PAYLOAD_ENCRYPTION_KEY` real.
 - Admin se concede por roles/IDs explícitos; nunca por `ADMIN_USER_IDS` vacío.

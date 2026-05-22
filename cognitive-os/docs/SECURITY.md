@@ -1,6 +1,20 @@
-# Seguridad (referencia técnica)
+# Seguridad Y Safety Operativa (referencia técnica)
 
-> **Estado (2026-05-20, Fases 78-81 — plan de aprendizaje completo, cliente MCP, perfil dedicated_local):**
+> **Estado canonico actual (2026-05-22):** este documento ya no debe leerse como
+> promesa de hardening SaaS. En el PC dedicado de Diego la decision de producto
+> es **friccion casi nula por sobre seguridad estricta**. `strict` sigue
+> documentado para auditorias, maquinas compartidas o un futuro despliegue
+> multiusuario; el modo real recomendado para este host es
+> `OPERATOR_PROFILE=dedicated_local` + `LOCAL_AUTONOMY_MODE=full`.
+>
+> En ese modo se acepta usar el perfil real de Edge, credenciales locales,
+> Kimi WebBridge, MCP filesystem y acceso amplio al PC. Los controles que
+> importan son trazabilidad, idempotencia, timeouts, reapers, health/readiness,
+> tests y diagnostico visible. La excepcion explicita es mail: el flujo normal
+> **no envia mails, no crea drafts y solo propone texto**. Ver
+> `CURRENT_STATE.md` y `ZERO_FRICTION_OPERATING_MODEL.md`.
+>
+> **Estado historico (2026-05-20, Fases 78-81 — plan de aprendizaje completo, cliente MCP, perfil dedicated_local):**
 > GoDaddy habilitado pero `GODADDY_DNS_DRY_RUN_ONLY=true` +
 > `GODADDY_ALLOW_PRODUCTION_WRITES=false` (cero escrituras DNS reales sin
 > opt-in explícito + aprobación humana). `.env` gitignoreado/no-trackeado;
@@ -15,20 +29,21 @@
 > clave, `ACTION_PAYLOAD_ENCRYPTION_REQUIRED=true` +
 > `RESEARCH_PERSISTENCE_BACKEND=postgres` obligatorios en producción.
 > `pre-commit` (gitleaks + detect-secrets, baseline limpio, 0 findings).
-> Auth dependency sobre los **143 endpoints** (sólo `/health` público).
+> Auth dependency sobre los endpoints sensibles (sólo `/health` público).
 > La suite `pytest` corre contra una DB de test aislada
 > (`cognitive_os_test`); nunca lee ni escribe la base de producción.
 >
-> **Modelo de seguridad por perfil (`OPERATOR_PROFILE`):** el sistema
-> tiene dos posturas. `strict` (default de install) — todas las compuertas
-> activas, four-eyes, allow-lists angostas: para máquinas compartidas /
-> multi-cliente. `dedicated_local` — el PC pertenece al agente; se afloja
-> la fricción donde NO causa daño irreversible (auto-approve de acciones
-> reversibles, four-eyes off, acceso al `/home`). Lo irreversible —mail
-> send, browser mutations, openshell, code_build, drive_organize de datos
-> de terceros, GoDaddy DNS write— sigue requiriendo aprobación en AMBOS
-> perfiles. El install nunca arranca en `dedicated_local`: es una decisión
-> consciente del operador.
+> **Modelo por perfil (`OPERATOR_PROFILE`):** `strict` mantiene compuertas,
+> four-eyes y allow-lists angostas. `dedicated_local/full` sacrifica seguridad
+> para bajar friccion: puede auto-aprobar acciones que antes exigian OK y puede
+> operar con Edge real y acceso local amplio. No describir `dedicated_local/full`
+> como seguro para internet, multiusuario o multi-cliente.
+>
+> **Remediacion del audit (AUDIT-2026-A..H, 2026-05-22):** la unica falla de
+> seguridad real del audit fue el dispatch de Telegram fail-open con allowlist
+> vacia — corregida (ahora fail-closed). El resto de hallazgos accionables son
+> de honestidad operativa (health `configured` vs `verified`, kill switch del
+> auto-promote, visibilidad de backlog) y no de hardening de perimetro.
 
 ## Reglas obligatorias
 
@@ -39,18 +54,25 @@
   `ACTION_PAYLOAD_ENCRYPTION_REQUIRED=true`.
 - No asumir admin cuando `ADMIN_USER_IDS` está vacío: usar `AUTH_ADMIN_ROLES` o
   IDs explícitos.
-- Las acciones externas requieren aprobacion humana explicita.
+- En `strict`, las acciones externas requieren aprobacion humana explicita. En
+  `dedicated_local/full`, la aprobacion puede auto-resolverse para reducir
+  friccion; la proteccion pasa a logs, audit, idempotencia y reapers.
 - Browser, computador local, Gmail, mail personal y GoDaddy arrancan desactivados
   o en modo preview-first/read-only. No promover a escritura real sin flags,
   allow-lists, auditoria, aprobaciones y pruebas.
-- No usar perfiles reales del navegador del usuario para automatizacion.
+- En `strict`, no usar perfiles reales del navegador del usuario para
+  automatizacion. En este host `dedicated_local`, **si se permite** Edge real via
+  Kimi WebBridge porque es parte del objetivo de friccion casi nula.
 - No mover archivos locales fuera de `COMPUTER_ALLOWED_ROOTS`.
 - No despachar una `ActionRequest` si no esta en `queued` despues de aprobacion.
 - No ocultar fallos del broker Celery: registrar
   `action_request_dispatch_failed` y dejar la solicitud `queued` para retry.
 - No hacer `apply_async` sin reserva previa de dispatch; la metadata
   `dispatch_state` debe impedir submits duplicados.
-- No enviar emails ni modificar DNS sin aprobacion humana trazable.
+- No enviar emails desde el flujo normal. Mail solo propone texto. El envio real
+  requiere peticion explicita de Diego y los flags de escape hatch. DNS real
+  debe conservar flags de dry-run/production-writes y allow-list; si se aflojan,
+  documentarlo como decision consciente de operador.
 - No crear eventos Calendar ni subir/crear/organizar en Drive por endpoints
   directos: usar `/actions/calendar/events/request`,
   `/actions/drive/files/upload/request`, `/actions/drive/folders/ensure/request`
@@ -64,6 +86,11 @@
   sale por SMTP GoDaddy tras `POST /mail/messages/{id}/approve-send`.
 - No guardar usuarios, contraseñas IMAP/SMTP ni tokens OAuth en documentación,
   memoria, logs o prompts. Solo `.env` local ignorado y gestores de secretos.
+- El dispatch del bot de Telegram es **fail-closed**: una allowlist
+  `TELEGRAM_AUTHORIZED_USER_IDS` vacía rechaza a todos (no acepta a nadie) y
+  `main()` se niega a arrancar el bot en ese estado. No revertir a la guardia
+  `if self.allowed_user_ids and ...` (un set vacío evaluaba a `False` y
+  saltaba el rechazo).
 
 ## RBAC local y payload ejecutable
 
@@ -107,7 +134,12 @@ interfaces de red:
 - Neo4j HTTP/Bolt: `127.0.0.1:${NEO4J_HTTP_PORT:-7475}:7474` y
   `127.0.0.1:${NEO4J_BOLT_PORT:-7688}:7687`.
 
-Validación recomendada: `docker compose --env-file .env.example -f infra/docker-compose.yml config --quiet`.
+Validación recomendada: `bash scripts/dev_up.sh` valida — antes de invocar
+`docker compose` — que las variables que el compose interpola **sin default**
+(`POSTGRES_USER/PASSWORD/DB`, `WEAVIATE_API_KEY`, `NEO4J_USER/PASSWORD`) no
+estén vacías ni en `CHANGEME`; `docker compose` por sí solo las trataría como
+string vacío sin fallar (AUDIT-2026-H). Para una verificación pura del compose:
+`docker compose --env-file .env -f infra/docker-compose.yml config --quiet`.
 
 ## Pre-commit
 
