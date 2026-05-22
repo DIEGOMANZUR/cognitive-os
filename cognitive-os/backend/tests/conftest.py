@@ -213,7 +213,11 @@ def _disable_real_llm_factories(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[None]:
     """Force every LLM model factory to raise so unit tests stay hermetic."""
-    if request.node.get_closest_marker("integration") or request.node.get_closest_marker("slow"):
+    if (
+        request.node.get_closest_marker("integration")
+        or request.node.get_closest_marker("slow")
+        or request.node.get_closest_marker("live_readonly")
+    ):
         yield
         return
 

@@ -192,7 +192,12 @@ class TelegramBot:
         user_id = int(from_user.get("id", 0))
         if not chat_id:
             return
-        if self.allowed_user_ids and user_id not in self.allowed_user_ids:
+        # Fail-closed: una allowlist vacía rechaza a todos. El log de arranque
+        # (`main`) ya promete este comportamiento y `main` se niega a arrancar
+        # con la allowlist vacía, así que aquí nunca llega un set vacío — pero
+        # la guardia se mantiene explícita para que el dispatcher sea correcto
+        # por sí mismo aunque se construya el bot directo en un test/script.
+        if user_id not in self.allowed_user_ids:
             self.send(
                 chat_id,
                 "🚫 *Forbidden*. Tu user_id no está en TELEGRAM_AUTHORIZED_USER_IDS.",
@@ -1612,10 +1617,15 @@ def main() -> int:
         return 1
     allowed = set(settings.telegram_authorized_user_ids)
     if not allowed:
-        logger.warning(
-            "TELEGRAM_AUTHORIZED_USER_IDS vacío — el bot rechazará todos los mensajes. "
-            "Pegale tu user_id (entero, separado por coma)."
+        # Fail-closed: con la allowlist vacía el dispatcher rechaza a todos,
+        # así que el bot quedaría "vivo" pero inútil. Mejor no arrancar y
+        # decirle al operador exactamente qué falta, en vez de un bot mudo.
+        logger.error(
+            "TELEGRAM_AUTHORIZED_USER_IDS vacío — el bot rechazaría todos los "
+            "mensajes. No arranco. Pegá tu user_id (entero, separado por coma) "
+            "en .env y reiniciá."
         )
+        return 1
     bot = TelegramBot(token=token, allowed_user_ids=allowed)
     bot.run_forever()
     return 0

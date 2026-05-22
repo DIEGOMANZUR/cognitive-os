@@ -1276,13 +1276,26 @@ class Settings(BaseSettings):
         default=200,
         alias="FAILURE_POSTMORTEM_MAX_PER_CYCLE",
     )
+    failure_postmortem_auto_promote_enabled: bool = Field(
+        default=True,
+        alias="FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED",
+        description=(
+            "Kill switch for the only auto-deploy path in the learning plan "
+            "(Fase D). When true (default, zero-friction) a failure-recovery "
+            "warning seen >= AUTOPROMOTE_THRESHOLD times with no prior "
+            "rejections becomes an active memory without operator approval. "
+            "Set false to force EVERY learned warning through the approval "
+            "gate, restoring a literal 'cero auto-deploy' posture."
+        ),
+    )
     failure_postmortem_autopromote_threshold: int = Field(
         default=3,
         alias="FAILURE_POSTMORTEM_AUTOPROMOTE_THRESHOLD",
         description=(
             "Number of times the same (agent_role, tool_name) failure-recovery "
             "pattern must be observed before the scanner auto-promotes the "
-            "warning without operator approval."
+            "warning without operator approval. Only applies when "
+            "FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED is true."
         ),
     )
     failure_postmortem_max_rejections: int = Field(

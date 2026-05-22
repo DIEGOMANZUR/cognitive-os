@@ -6,7 +6,7 @@ import type { ApiClient } from "../lib/api";
 import { asArray, errorMessage, statusClass } from "../lib/api";
 import { usePolledFetch } from "../lib/hooks";
 import { useToast } from "../lib/toasts";
-import type { DeepAgentMemoryProposal } from "../lib/types";
+import type { DeepAgentMemoryProposal, PublicConfig } from "../lib/types";
 
 type MemoryScope = "user" | "global" | "case" | "thread" | "agent";
 
@@ -70,6 +70,8 @@ export function MemoryView({ client }: { client: ApiClient }) {
     "/deepagents/memory/warnings",
     15000
   );
+  const publicConfig = usePolledFetch<PublicConfig>(client, "/config/public", 60000);
+  const autoPromoteEnabled = publicConfig.data?.failure_postmortem_auto_promote_enabled;
   type ScorecardRow = {
     id: string;
     agent_role: string;
@@ -526,8 +528,24 @@ export function MemoryView({ client }: { client: ApiClient }) {
         </div>
         <p className="muted small">
           Patrones <code>tool_failed → tool_succeeded</code> detectados en jobs recientes.
-          El scanner auto-promueve después de 3 observaciones sin rechazos.
         </p>
+        {autoPromoteEnabled !== undefined && (
+          <p className="muted small">
+            {autoPromoteEnabled ? (
+              <>
+                <span className="badge warn">auto-promote ON</span> El scanner promueve un
+                warning a memoria activa sin aprobación tras N observaciones sin rechazos.
+                Es la única ruta de auto-deploy del plan; apagala con{" "}
+                <code>FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED=false</code>.
+              </>
+            ) : (
+              <>
+                <span className="badge ok">auto-promote OFF</span> Toda warning aprendida
+                requiere tu aprobación explícita — cero auto-deploy.
+              </>
+            )}
+          </p>
+        )}
         {warnings.data === undefined && <p className="muted">Cargando…</p>}
         {pendingWarnings.length === 0 && warnings.data !== undefined && (
           <p className="muted small">Sin warnings pendientes.</p>

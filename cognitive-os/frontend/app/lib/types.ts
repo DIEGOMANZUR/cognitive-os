@@ -402,6 +402,7 @@ export type PublicConfig = {
   deepagents_enable_subagents: boolean;
   deepagents_enable_memory: boolean;
   deepagents_memory_require_approval: boolean;
+  failure_postmortem_auto_promote_enabled: boolean;
   embeddings_provider: string;
   embeddings_model: string;
   embeddings_dimension: number;

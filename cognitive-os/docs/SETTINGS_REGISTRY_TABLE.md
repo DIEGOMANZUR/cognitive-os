@@ -105,6 +105,7 @@
 | `enable_social_posting` | `ENABLE_SOCIAL_POSTING` | bool |
 | `environment` | `ENVIRONMENT` | Literal[development, test, production] |
 | `exa_api_key` | `EXA_API_KEY` | SecretStr |
+| `failure_postmortem_auto_promote_enabled` | `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED` | bool |
 | `failure_postmortem_autopromote_threshold` | `FAILURE_POSTMORTEM_AUTOPROMOTE_THRESHOLD` | int |
 | `failure_postmortem_cron` | `FAILURE_POSTMORTEM_CRON` | str |
 | `failure_postmortem_enabled` | `FAILURE_POSTMORTEM_ENABLED` | bool |

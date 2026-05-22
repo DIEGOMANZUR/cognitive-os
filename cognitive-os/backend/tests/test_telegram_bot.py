@@ -528,3 +528,180 @@ def test_initial_state_omits_system_message_when_doc_missing(
     state = initial_state("hola", thread_id="t-test", user_id="telegram:42")
     messages = state["messages"]
     assert [m for m in messages if isinstance(m, SystemMessage)] == []
+
+
+# -- AUDIT-2026-A — dispatch fail-closed on empty/unknown allowlist -----------
+
+
+def test_dispatch_rejects_with_empty_allowed_user_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An empty allowlist must reject EVERY message. The old guard
+    `if self.allowed_user_ids and user_id not in ...` short-circuited on the
+    empty set (`if set() and ...` is False), so the bot accepted everyone.
+    The dispatcher must be correct on its own even if built directly."""
+    bot = telegram_bot.TelegramBot(token="fake", allowed_user_ids=set())
+    sent: list[str] = []
+    monkeypatch.setattr(bot, "send", lambda chat_id, text, markdown=True: sent.append(text))
+    handled: list[object] = []
+    monkeypatch.setattr(telegram_bot, "cmd_chat", lambda *_a, **_kw: handled.append(True))
+
+    bot._dispatch({"message": {"text": "/health", "chat": {"id": 7}, "from": {"id": 7}}})
+
+    assert handled == []
+    assert sent and "Forbidden" in sent[-1]
+
+
+def test_dispatch_rejects_unknown_user_with_populated_allowlist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A user not in a non-empty allowlist must be rejected too."""
+    bot = telegram_bot.TelegramBot(token="fake", allowed_user_ids={42})
+    sent: list[str] = []
+    monkeypatch.setattr(bot, "send", lambda chat_id, text, markdown=True: sent.append(text))
+
+    bot._dispatch({"message": {"text": "/health", "chat": {"id": 99}, "from": {"id": 99}}})
+
+    assert sent and "Forbidden" in sent[-1]
+
+
+# -- AUDIT-2026-D — parametrized command matrix --------------------------------
+
+# The canonical 37-command set. If a command is added or removed, this list and
+# `COMMAND_HANDLERS` must move together — the registry test below enforces it.
+ALL_TELEGRAM_COMMANDS: tuple[str, ...] = (
+    "agents",
+    "approvals",
+    "approve",
+    "audit",
+    "calendar",
+    "cancel",
+    "capabilities",
+    "chat",
+    "codebuild",
+    "config",
+    "consolidate",
+    "documents",
+    "done",
+    "drive",
+    "freebusy",
+    "gmaildigest",
+    "health",
+    "help",
+    "ingest",
+    "job",
+    "jobs",
+    "mail",
+    "maps",
+    "memory",
+    "note",
+    "notes",
+    "reject",
+    "research",
+    "reset",
+    "runs",
+    "sandbox",
+    "skills",
+    "start",
+    "stats",
+    "task",
+    "tasks",
+    "threads",
+)
+
+
+def test_command_registry_matches_canonical_set() -> None:
+    """The registry and the test matrix must stay in lockstep. If this fails,
+    a command was added/removed — update ALL_TELEGRAM_COMMANDS and add its
+    auth/flag cases so the matrix never silently loses coverage."""
+    assert set(telegram_bot.COMMAND_HANDLERS.keys()) == set(ALL_TELEGRAM_COMMANDS)
+
+
+@pytest.mark.parametrize("cmd", ALL_TELEGRAM_COMMANDS)
+def test_command_rejects_unauthorized_user(cmd: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """EVERY slash command must be auth-gated. `_dispatch` checks the allowlist
+    before routing, so an unauthorized user gets exactly one Forbidden reply
+    and the handler never runs — for all 37 commands, no exceptions."""
+    bot = telegram_bot.TelegramBot(token="fake", allowed_user_ids={42})
+    sent: list[str] = []
+    monkeypatch.setattr(bot, "send", lambda chat_id, text, markdown=True: sent.append(text))
+
+    bot._dispatch(
+        {"message": {"text": f"/{cmd} whatever", "chat": {"id": 999}, "from": {"id": 999}}}
+    )
+
+    assert len(sent) == 1
+    assert "Forbidden" in sent[0]
+
+
+@pytest.mark.parametrize("cmd", ALL_TELEGRAM_COMMANDS)
+def test_authorized_command_never_emits_unhandled_exception_dump(
+    cmd: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An authorized command may answer with a usage hint, a `blocked`/`disabled`
+    status, or real data — but it must never surface the raw
+    `❌ Error en /cmd: <ExceptionType>` dump that `_dispatch` emits on an
+    UNHANDLED handler exception. That dump is the regression AUDIT-2026-D
+    targets: a backend change silently breaking a Telegram surface."""
+    bot = telegram_bot.TelegramBot(token="fake", allowed_user_ids={42})
+    sent: list[str] = []
+    monkeypatch.setattr(bot, "send", lambda chat_id, text, markdown=True: sent.append(text))
+
+    bot._dispatch({"message": {"text": f"/{cmd}", "chat": {"id": 42}, "from": {"id": 42}}})
+
+    assert sent, f"/{cmd} produced no reply at all"
+    for message in sent:
+        assert not message.startswith(f"❌ Error en /{cmd}:"), (
+            f"/{cmd} surfaced an unhandled exception dump: {message}"
+        )
+
+
+@pytest.mark.parametrize(
+    ("cmd", "flag", "marker"),
+    [
+        ("mail", "mail_enabled", "MAIL_ENABLED=false"),
+        ("sandbox", "enable_openshell_sandbox", "ENABLE_OPENSHELL_SANDBOX=false"),
+    ],
+)
+def test_flag_gated_command_reports_disabled(
+    cmd: str,
+    flag: str,
+    marker: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A flag-gated command, with its flag off, must tell the operator exactly
+    which env var to flip — not fail silently or crash."""
+    monkeypatch.setattr(telegram_bot.settings, flag, False)
+    bot = telegram_bot.TelegramBot(token="fake", allowed_user_ids={42})
+    sent: list[str] = []
+    monkeypatch.setattr(bot, "send", lambda chat_id, text, markdown=True: sent.append(text))
+
+    bot._dispatch({"message": {"text": f"/{cmd}", "chat": {"id": 42}, "from": {"id": 42}}})
+
+    assert sent and marker in sent[-1]
+
+
+def test_main_refuses_to_start_with_empty_allowlist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`main()` must return 1 (not arrancar) when the allowlist is empty even
+    if the token is present — a bot that rejects everyone is worse than a
+    clear startup error telling the operator what to fix."""
+    monkeypatch.setattr(telegram_bot.settings, "telegram_enabled", True)
+    monkeypatch.setattr(
+        telegram_bot.settings,
+        "telegram_bot_token",
+        SimpleNamespace(get_secret_value=lambda: "real-looking-token"),
+    )
+    monkeypatch.setattr(telegram_bot.settings, "telegram_authorized_user_ids", [])
+    started: list[object] = []
+    monkeypatch.setattr(
+        telegram_bot.TelegramBot,
+        "run_forever",
+        lambda self: started.append(True),
+    )
+
+    rc = telegram_bot.main()
+
+    assert rc == 1
+    assert started == []

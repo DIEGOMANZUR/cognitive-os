@@ -35,6 +35,14 @@ rm -rf "$QA_NEXT_DIST"
 NEXT_DIST_DIR="$QA_NEXT_DIST" npm run build
 rm -rf "$QA_NEXT_DIST"
 cd "$ROOT"
+# Conteos canónicos de docs sincronizados con el código (AUDIT-2026-G).
+if python3 scripts/sync_doc_counts.py --check; then
+  echo "OK: sync_doc_counts --check"
+else
+  echo "FAIL: docs/CURRENT_STATE.md tiene conteos desincronizados." >&2
+  echo "      Corré: python3 scripts/sync_doc_counts.py" >&2
+  exit 1
+fi
 if command -v git >/dev/null && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   if git diff --check >/dev/null; then
     echo "OK: git diff --check (sin whitespace/conflicto pendiente)"

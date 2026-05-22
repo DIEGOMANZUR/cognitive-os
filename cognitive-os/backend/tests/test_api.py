@@ -160,6 +160,40 @@ async def test_health_dashboard_requires_auth_and_returns_components(
 
 
 @pytest.mark.asyncio
+async def test_health_verify_runs_live_probe_and_requires_auth(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """POST /health/verify must require auth and pass verify_live=True so the
+    operator gets a real probe, not the passive `configured` snapshot."""
+    captured: dict[str, bool] = {}
+
+    async def fake_dashboard(*, verify_live: bool = False) -> HealthDashboard:
+        captured["verify_live"] = verify_live
+        return HealthDashboard(
+            status="ok" if verify_live else "configured",
+            checked_at=datetime.now(UTC),
+            components=[ComponentHealth(name="primary_llm", status="ok")],
+        )
+
+    monkeypatch.setattr(api_app, "check_health_dashboard", fake_dashboard)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        unauthorized = await client.post("/health/verify", json={})
+        authorized = await client.post("/health/verify", json={}, headers=_headers())
+
+    assert unauthorized.status_code == 401
+    assert authorized.status_code == 200
+    assert captured["verify_live"] is True
+    body = authorized.json()
+    primary = next(c for c in body["components"] if c["name"] == "primary_llm")
+    assert primary["status"] == "ok"
+    # The endpoint also appends the checkpointer component and recomputes the
+    # overall verdict — `ok` when verified, `configured` if the checkpointer
+    # is in-memory in this test env. Either is honest; a degraded is not.
+    assert body["status"] in {"ok", "configured"}
+
+
+@pytest.mark.asyncio
 async def test_public_config_requires_auth_and_exposes_operator_flags() -> None:
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -178,6 +212,9 @@ async def test_public_config_requires_auth_and_exposes_operator_flags() -> None:
     assert "enable_maps_routing" in payload
     assert "enable_google_calendar" in payload
     assert "enable_google_drive" in payload
+    assert payload["failure_postmortem_auto_promote_enabled"] == (
+        api_app.settings.failure_postmortem_auto_promote_enabled
+    )
     assert "google_drive_deliverables_folder_name" in payload
 
 

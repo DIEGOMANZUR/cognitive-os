@@ -277,7 +277,16 @@ async def record_failure_pattern(
             return PostMortemResult(pattern.job_id, "duplicate", pattern_count=len(prior_proposals))
 
         occurrence_index = len(prior_proposals) + 1
-        auto_promote = occurrence_index >= threshold and rejected_count == 0
+        # Auto-promotion is the ONLY auto-deploy path in the learning plan
+        # (AGENT_LEARNING_PLAN.md Fase D). `failure_postmortem_auto_promote_enabled`
+        # is its kill switch: with it false, every learned warning is forced
+        # through the operator approval gate — a literal "cero auto-deploy"
+        # posture. See AUDIT-2026-C.
+        auto_promote = (
+            cfg.failure_postmortem_auto_promote_enabled
+            and occurrence_index >= threshold
+            and rejected_count == 0
+        )
 
         proposal_id = str(uuid4())
         proposed_content = (
@@ -292,8 +301,12 @@ async def record_failure_pattern(
             scope="agent",
             reason=(
                 f"Patrón de recuperación tras fallo de `{pattern.tool_name}` "
-                f"(ocurrencia #{occurrence_index}). Auto-promovido si "
-                f"ocurrencia ≥ {threshold} sin rechazos previos."
+                f"(ocurrencia #{occurrence_index}). "
+                + (
+                    f"Auto-promovido si ocurrencia ≥ {threshold} sin rechazos previos."
+                    if cfg.failure_postmortem_auto_promote_enabled
+                    else "Auto-promoción deshabilitada; requiere aprobación del operador."
+                )
             ),
             proposed_content=proposed_content,
             sensitivity="internal",

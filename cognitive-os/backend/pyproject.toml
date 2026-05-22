@@ -68,10 +68,11 @@ packages = ["src/cognitive_os"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_test_loop_scope = "session"
-addopts = "-m 'not integration and not slow'"
+addopts = "-m 'not integration and not slow and not live_readonly'"
 markers = [
     "integration: tests that require local Docker infrastructure",
     "slow: slow tests that may require optional local models",
+    "live_readonly: opt-in read-only smokes against real external APIs; run with `pytest -m live_readonly` and LIVE_TESTS_ENABLED=1",
 ]
 
 [tool.ruff]

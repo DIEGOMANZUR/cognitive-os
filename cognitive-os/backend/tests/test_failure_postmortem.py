@@ -277,3 +277,47 @@ async def test_auto_promotion_after_threshold_occurrences() -> None:
         )
         assert actives
         assert any((r.metadata_json or {}).get("approved_by") == "auto_promotion" for r in actives)
+
+
+@pytest.mark.asyncio
+async def test_kill_switch_forces_every_warning_through_approval(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AUDIT-2026-C: with FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED=false the
+    scanner must NEVER auto-promote — even past the threshold — restoring a
+    literal 'cero auto-deploy' posture. Every learned warning stays a proposal
+    waiting on the operator's approval gate."""
+    import uuid
+
+    from cognitive_os.deepagents import failure_postmortem as fp_module
+
+    monkeypatch.setattr(fp_module.settings, "failure_postmortem_auto_promote_enabled", False)
+
+    unique_tool = f"killswitch_tool_{uuid.uuid4().hex[:8]}"
+    for i in range(4):
+        await _job_with_failure_recovery(
+            tool_name=unique_tool,
+            args_fail={"args": {"q": f"query{i}", "limit": 100}},
+            args_ok={"args": {"q": f"query{i}", "limit": 10}},
+        )
+
+    summary = await scan_recent_jobs()
+
+    assert summary["patterns_found"] >= 4
+    assert summary["auto_promoted"] == 0
+    assert summary["proposals_created"] >= 1
+    async with session_scope() as session:
+        actives = (
+            (
+                await session.execute(
+                    select(DeepAgentMemoryRecord).where(
+                        DeepAgentMemoryRecord.kind == "warning",
+                        DeepAgentMemoryRecord.status == "active",
+                        DeepAgentMemoryRecord.metadata_json["tool_name"].astext == unique_tool,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert actives == []

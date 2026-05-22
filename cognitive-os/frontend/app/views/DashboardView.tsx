@@ -77,8 +77,10 @@ export function DashboardView({
   const jobsRunningSeries = useSeries(stats.data?.jobs_running);
   const approvalsSeries = useSeries(stats.data?.approvals_pending);
   const docsSeries = useSeries(stats.data?.documents);
+  // `configured` is wired-but-unverified — NOT a verified ok. Counting it as
+  // ok would paint the dashboard green dishonestly (AUDIT-2026-B).
   const okComponents = health.data
-    ? health.data.components.filter((c) => ["ok", "configured", "ready"].includes(c.status)).length
+    ? health.data.components.filter((c) => ["ok", "ready", "active"].includes(c.status)).length
     : null;
   const componentsSeries = useSeries(okComponents);
 

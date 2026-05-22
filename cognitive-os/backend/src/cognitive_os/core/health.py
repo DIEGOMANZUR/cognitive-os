@@ -3,12 +3,12 @@ from __future__ import annotations
 import asyncio
 import re
 from collections.abc import Awaitable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 import httpx
 from pydantic import BaseModel, Field
-from sqlalchemy import text
+from sqlalchemy import func, select, text
 
 from cognitive_os.core.config import settings
 from cognitive_os.core.db import async_session_factory
@@ -29,6 +29,32 @@ class HealthDashboard(BaseModel):
     status: str
     checked_at: datetime
     components: list[ComponentHealth]
+
+
+# A component is "verified" only when its status came from a real probe (a live
+# query against the dependency) or it is honestly off. `configured` means the
+# wiring looks complete but no live call was made — that is NOT the same as
+# healthy, and the dashboard must not paint it green. `degraded`/anything else
+# is a failure. See AUDIT-2026-B: a dashboard that reports "ok" while half its
+# components were never dialled is dishonest.
+_VERIFIED_STATES = frozenset({"ok", "ready", "disabled"})
+_CONFIGURED_STATES = frozenset({"configured"})
+
+
+def _overall_status(components: list[ComponentHealth]) -> str:
+    """Roll component statuses into one honest overall verdict.
+
+    - `degraded` if any component is broken/unknown.
+    - `configured` if every component is verified-or-configured but at least
+      one is merely `configured` (wired, never probed live).
+    - `ok` only when every component was verified by a live probe (or is off).
+    """
+    statuses = {component.status for component in components}
+    if statuses - (_VERIFIED_STATES | _CONFIGURED_STATES):
+        return "degraded"
+    if statuses & _CONFIGURED_STATES:
+        return "configured"
+    return "ok"
 
 
 def _inspect_workers_snapshot() -> dict[str, Any]:
@@ -84,14 +110,22 @@ def _consumed_queue_names(value: Any) -> set[str]:
     return names
 
 
-async def check_health_dashboard() -> HealthDashboard:
+async def check_health_dashboard(*, verify_live: bool = False) -> HealthDashboard:
+    """Build the component dashboard.
+
+    With `verify_live=True` the spend-bearing / latency-bearing components
+    (`primary_llm`, `embeddings`, `mail`) run a real probe instead of just
+    reporting `configured`. That path is operator-triggered only (the
+    `POST /health/verify` endpoint) so a passive `/health/dashboard` poll never
+    burns tokens or opens IMAP sockets. See AUDIT-2026-B.
+    """
     components = await asyncio.gather(
         _safe_check("postgres", _check_postgres()),
         _safe_check("redis", _check_redis()),
         _safe_check("weaviate", _check_weaviate()),
         _safe_check("neo4j", _check_neo4j()),
-        _safe_check("primary_llm", _check_primary_llm()),
-        _safe_check("embeddings", _check_embeddings()),
+        _safe_check("primary_llm", _check_primary_llm(verify_live=verify_live)),
+        _safe_check("embeddings", _check_embeddings(verify_live=verify_live)),
         _safe_check("workers", _check_workers()),
         _safe_check("langsmith", _check_langsmith()),
         _safe_check("voice", _check_voice()),
@@ -100,21 +134,15 @@ async def check_health_dashboard() -> HealthDashboard:
         _safe_check("google_drive", _check_drive()),
         _safe_check("kimi_webbridge", _check_webbridge()),
         _safe_check("captcha_solver", _check_captcha()),
-        _safe_check("mail", _check_mail()),
+        _safe_check("mail", _check_mail(verify_live=verify_live)),
         _safe_check("mcp_client", _check_mcp()),
+        _safe_check("operational_backlog", _check_operational_backlog()),
     )
-    overall = (
-        "ok"
-        if all(
-            component.status in {"ok", "configured", "disabled", "ready"}
-            for component in components
-        )
-        else "degraded"
-    )
+    component_list = list(components)
     return HealthDashboard(
-        status=overall,
+        status=_overall_status(component_list),
         checked_at=datetime.now(UTC),
-        components=list(components),
+        components=component_list,
     )
 
 
@@ -187,8 +215,13 @@ async def _check_neo4j() -> ComponentHealth:
         return _failed("neo4j", exc, started)
 
 
-async def _check_primary_llm() -> ComponentHealth:
+async def _check_primary_llm(*, verify_live: bool = False) -> ComponentHealth:
     configured = settings.primary_llm_api_key.get_secret_value() != "CHANGEME"
+    base_metadata: dict[str, Any] = {
+        "provider": settings.primary_llm_provider,
+        "model": settings.primary_llm_model,
+        "circuit": llm_circuit_breaker.state.value,
+    }
     if not configured:
         return ComponentHealth(
             name="primary_llm",
@@ -196,19 +229,36 @@ async def _check_primary_llm() -> ComponentHealth:
             detail="PRIMARY_LLM_API_KEY is not configured.",
             metadata={"circuit": llm_circuit_breaker.state.value},
         )
-    return ComponentHealth(
-        name="primary_llm",
-        status="configured",
-        detail="Provider is configured; live call skipped to avoid spend.",
-        metadata={
-            "provider": settings.primary_llm_provider,
-            "model": settings.primary_llm_model,
-            "circuit": llm_circuit_breaker.state.value,
-        },
-    )
+    if not verify_live:
+        return ComponentHealth(
+            name="primary_llm",
+            status="configured",
+            detail="Provider is configured; live call skipped to avoid spend.",
+            metadata=base_metadata,
+        )
+    started = _now_ms()
+    try:
+        from cognitive_os.agents.llm_factory import create_primary_chat_model
+
+        model = create_primary_chat_model()
+        result = await model.ainvoke("ping")
+        ok = bool(getattr(result, "content", None) is not None)
+        return ComponentHealth(
+            name="primary_llm",
+            status="ok" if ok else "degraded",
+            detail=(
+                "Live completion succeeded."
+                if ok
+                else "Live completion returned an empty response."
+            ),
+            latency_ms=_elapsed_ms(started),
+            metadata=base_metadata,
+        )
+    except Exception as exc:  # noqa: BLE001 - health degrades, never raises
+        return _failed("primary_llm", exc, started)
 
 
-async def _check_embeddings() -> ComponentHealth:
+async def _check_embeddings(*, verify_live: bool = False) -> ComponentHealth:
     keys_count = len(settings.embeddings_api_keys)
     configured = (
         settings.embeddings_base_url != "CHANGEME"
@@ -222,18 +272,40 @@ async def _check_embeddings() -> ComponentHealth:
             detail="Embeddings provider is not fully configured.",
             metadata={"circuit": embeddings_circuit_breaker.state.value},
         )
-    return ComponentHealth(
-        name="embeddings",
-        status="configured",
-        detail="Provider is configured; live embedding skipped to avoid spend.",
-        metadata={
-            "provider": settings.embeddings_provider,
-            "model": settings.embeddings_model,
-            "dimension": settings.embeddings_dimension,
-            "key_pool_size": keys_count,
-            "circuit": embeddings_circuit_breaker.state.value,
-        },
-    )
+    base_metadata: dict[str, Any] = {
+        "provider": settings.embeddings_provider,
+        "model": settings.embeddings_model,
+        "dimension": settings.embeddings_dimension,
+        "key_pool_size": keys_count,
+        "circuit": embeddings_circuit_breaker.state.value,
+    }
+    if not verify_live:
+        return ComponentHealth(
+            name="embeddings",
+            status="configured",
+            detail="Provider is configured; live embedding skipped to avoid spend.",
+            metadata=base_metadata,
+        )
+    started = _now_ms()
+    try:
+        from cognitive_os.memory.embeddings import build_embedding_provider_from_settings
+
+        provider = build_embedding_provider_from_settings()
+        vector = await asyncio.to_thread(provider.embed_text, "ping", kind="query")
+        ok = isinstance(vector, list) and len(vector) > 0
+        return ComponentHealth(
+            name="embeddings",
+            status="ok" if ok else "degraded",
+            detail=(
+                f"Live embedding returned {len(vector)} dimensions."
+                if ok
+                else "Live embedding returned an empty vector."
+            ),
+            latency_ms=_elapsed_ms(started),
+            metadata={**base_metadata, "live_dimension": len(vector) if ok else 0},
+        )
+    except Exception as exc:  # noqa: BLE001 - health degrades, never raises
+        return _failed("embeddings", exc, started)
 
 
 async def _check_langsmith() -> ComponentHealth:
@@ -352,12 +424,13 @@ async def _check_captcha() -> ComponentHealth:
     )
 
 
-async def _check_mail() -> ComponentHealth:
-    """Report mail wiring without IMAP/SMTP live calls.
+async def _check_mail(*, verify_live: bool = False) -> ComponentHealth:
+    """Report mail wiring; optionally probe IMAP live.
 
-    No live connection: avoids per-/health latency and keeps the GoDaddy/Gmail
-    credentials out of every dashboard hit. Matches the contract used by
-    primary_llm and embeddings ("configured" iff wiring is complete).
+    Passive `/health/dashboard` polls report `configured` (wiring complete, no
+    live call) to avoid per-poll latency and keep credentials off every hit.
+    `verify_live=True` (operator-triggered `/health/verify`) opens a real IMAP
+    login so the operator can confirm the GoDaddy mailbox actually answers.
     """
     if not settings.mail_enabled:
         return ComponentHealth(
@@ -384,16 +457,56 @@ async def _check_mail() -> ComponentHealth:
                 "approval_required": settings.mail_require_approval_for_send,
             },
         )
-    return ComponentHealth(
-        name="mail",
-        status="configured",
-        detail="Mail providers wired; IMAP/SMTP live calls skipped to avoid latency.",
-        metadata={
-            "providers": providers,
-            "approval_required": settings.mail_require_approval_for_send,
-            "gmail_label": settings.mail_gmail_label,
-        },
-    )
+    base_metadata: dict[str, Any] = {
+        "providers": providers,
+        "approval_required": settings.mail_require_approval_for_send,
+        "gmail_label": settings.mail_gmail_label,
+    }
+    if not verify_live:
+        return ComponentHealth(
+            name="mail",
+            status="configured",
+            detail="Mail providers wired; IMAP/SMTP live calls skipped to avoid latency.",
+            metadata=base_metadata,
+        )
+    started = _now_ms()
+    try:
+        ok = await asyncio.to_thread(_probe_godaddy_imap)
+        return ComponentHealth(
+            name="mail",
+            status="ok" if ok else "degraded",
+            detail=(
+                "GoDaddy IMAP login succeeded."
+                if ok
+                else "GoDaddy IMAP login did not authenticate."
+            ),
+            latency_ms=_elapsed_ms(started),
+            metadata=base_metadata,
+        )
+    except Exception as exc:  # noqa: BLE001 - health degrades, never raises
+        return _failed("mail", exc, started)
+
+
+def _probe_godaddy_imap() -> bool:
+    """Open a real IMAP login against the GoDaddy mailbox and log out.
+
+    Synchronous (`imaplib` is blocking) — callers run it via `asyncio.to_thread`.
+    """
+    import contextlib
+    import imaplib
+
+    host = settings.mail_godaddy_imap_host
+    port = settings.mail_godaddy_imap_port
+    client = imaplib.IMAP4_SSL(host, port, timeout=settings.http_timeout_seconds)
+    try:
+        status, _ = client.login(
+            settings.mail_godaddy_username,
+            settings.mail_godaddy_password.get_secret_value(),
+        )
+        return status == "OK"
+    finally:
+        with contextlib.suppress(Exception):
+            client.logout()
 
 
 async def _check_mcp() -> ComponentHealth:
@@ -428,6 +541,107 @@ async def _check_mcp() -> ComponentHealth:
         metadata={
             "declared_servers": len(specs),
             "server_names": [s.name for s in specs],
+        },
+    )
+
+
+# If neither the 10-minute action-request reaper nor the hourly approval
+# reaper has completed in this many minutes, Celery beat is effectively dead
+# and the backlog will grow silently. See AUDIT-2026-F.
+_BEAT_LAG_DEGRADE_MINUTES = 120.0
+
+
+async def _check_operational_backlog() -> ComponentHealth:
+    """Surface the backlog the three reapers are supposed to keep at zero.
+
+    AUDIT-2026-F: the reapers (`reap_stale_approvals`,
+    `reap_stuck_action_requests`, `reap_stale_running_jobs`) exist, but if a
+    reaper stops running (dead worker, stalled beat) the backlog grows with no
+    alarm. This check degrades when a row has been stuck *past its own reaper
+    threshold* — i.e. the reaper should already have cleared it — or when no
+    reaper has completed recently. The operator should not have to guess.
+    """
+    from cognitive_os.db.models import ActionRequest, HumanApproval, Job, JobEvent
+
+    started = _now_ms()
+    now = datetime.now(UTC)
+    approval_cutoff = now - timedelta(hours=settings.approval_pending_max_hours)
+    job_cutoff = now - timedelta(hours=settings.stale_job_max_hours)
+    action_cutoff = now - timedelta(minutes=settings.action_request_running_max_minutes)
+    active_states = ("queued", "running")
+    try:
+        async with async_session_factory() as session:
+            approvals_pending = (
+                await session.scalar(
+                    select(func.count(HumanApproval.id)).where(HumanApproval.status == "pending")
+                )
+            ) or 0
+            approvals_stale = (
+                await session.scalar(
+                    select(func.count(HumanApproval.id)).where(
+                        HumanApproval.status == "pending",
+                        HumanApproval.created_at < approval_cutoff,
+                    )
+                )
+            ) or 0
+            jobs_stale = (
+                await session.scalar(
+                    select(func.count(Job.id)).where(
+                        Job.status.in_(active_states),
+                        Job.updated_at < job_cutoff,
+                    )
+                )
+            ) or 0
+            action_requests_stuck = (
+                await session.scalar(
+                    select(func.count(ActionRequest.id)).where(
+                        ActionRequest.status.in_(active_states),
+                        ActionRequest.updated_at < action_cutoff,
+                    )
+                )
+            ) or 0
+            last_reap = await session.scalar(
+                select(func.max(JobEvent.created_at)).where(JobEvent.event_type == "reap_completed")
+            )
+    except Exception as exc:
+        return _failed("operational_backlog", exc, started)
+
+    beat_lag_minutes: float | None = None
+    if last_reap is not None:
+        if last_reap.tzinfo is None:
+            last_reap = last_reap.replace(tzinfo=UTC)
+        beat_lag_minutes = round((now - last_reap).total_seconds() / 60.0, 1)
+
+    breaches: list[str] = []
+    if approvals_stale:
+        breaches.append(
+            f"{approvals_stale} approval(s) pendiente(s) más de "
+            f"{settings.approval_pending_max_hours}h"
+        )
+    if jobs_stale:
+        breaches.append(f"{jobs_stale} job(s) atascado(s) más de {settings.stale_job_max_hours}h")
+    if action_requests_stuck:
+        breaches.append(
+            f"{action_requests_stuck} action request(s) atascada(s) más de "
+            f"{settings.action_request_running_max_minutes}min"
+        )
+    if beat_lag_minutes is not None and beat_lag_minutes > _BEAT_LAG_DEGRADE_MINUTES:
+        breaches.append(
+            f"ningún reaper completó en {beat_lag_minutes:g}min (Celery beat podría estar caído)"
+        )
+
+    return ComponentHealth(
+        name="operational_backlog",
+        status="degraded" if breaches else "ok",
+        detail=("; ".join(breaches) if breaches else "Backlog dentro de umbrales."),
+        latency_ms=_elapsed_ms(started),
+        metadata={
+            "approvals_pending": approvals_pending,
+            "approvals_stale": approvals_stale,
+            "jobs_stale": jobs_stale,
+            "action_requests_stuck": action_requests_stuck,
+            "beat_lag_minutes": beat_lag_minutes,
+            "beat_lag_degrade_minutes": _BEAT_LAG_DEGRADE_MINUTES,
         },
     )
 

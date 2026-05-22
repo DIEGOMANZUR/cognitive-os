@@ -698,6 +698,7 @@ class PublicConfigResponse(BaseModel):
     deepagents_enable_subagents: bool
     deepagents_enable_memory: bool
     deepagents_memory_require_approval: bool
+    failure_postmortem_auto_promote_enabled: bool
     embeddings_provider: str
     embeddings_model: str
     embeddings_dimension: int
@@ -1070,20 +1071,42 @@ async def system_credentials_status(
     return build_credentials_status()
 
 
+def _with_checkpointer(dashboard: HealthDashboard) -> HealthDashboard:
+    """Append the checkpointer component and recompute the overall status.
+
+    The checkpointer is an API-layer concern, so `check_health_dashboard` does
+    not know about it. It can be `configured` (in-memory mode) — recomputing
+    keeps the overall verdict honest once it joins the component list.
+    """
+    from cognitive_os.core.health import _overall_status  # local import avoids cycles
+
+    components = [*dashboard.components, _checkpointer_component()]
+    return dashboard.model_copy(
+        update={"components": components, "status": _overall_status(components)}
+    )
+
+
 @app.get("/health/dashboard", response_model=HealthDashboard)
 async def health_dashboard(
     user: AuthenticatedUser = _auth_dependency,
 ) -> HealthDashboard:
     del user
-    dashboard = await check_health_dashboard()
-    return dashboard.model_copy(
-        update={
-            "components": [
-                *dashboard.components,
-                _checkpointer_component(),
-            ]
-        }
-    )
+    return _with_checkpointer(await check_health_dashboard())
+
+
+@app.post("/health/verify", response_model=HealthDashboard)
+async def health_verify(
+    user: AuthenticatedUser = _auth_dependency,
+) -> HealthDashboard:
+    """Operator-triggered LIVE health check.
+
+    Unlike `/health/dashboard` (passive, never spends), this runs real probes
+    against the spend/latency-bearing components — a tiny LLM completion, a real
+    embedding, and an IMAP login. It exists so the operator can turn the honest
+    `configured` overall status into a verified `ok` on demand. See AUDIT-2026-B.
+    """
+    del user
+    return _with_checkpointer(await check_health_dashboard(verify_live=True))
 
 
 def _checkpointer_component() -> Any:
@@ -2325,6 +2348,7 @@ async def public_config(
         deepagents_enable_subagents=settings.deepagents_enable_subagents,
         deepagents_enable_memory=settings.deepagents_enable_memory,
         deepagents_memory_require_approval=settings.deepagents_memory_require_approval,
+        failure_postmortem_auto_promote_enabled=(settings.failure_postmortem_auto_promote_enabled),
         embeddings_provider=settings.embeddings_provider,
         embeddings_model=settings.embeddings_model,
         embeddings_dimension=settings.embeddings_dimension,
