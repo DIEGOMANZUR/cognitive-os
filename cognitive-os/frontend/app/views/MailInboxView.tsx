@@ -54,7 +54,7 @@ export function MailInboxView({ client }: { client: ApiClient }) {
     try {
       const result = await client.post<MailDigestResult>("/mail/digest/preview", {
         limit: mailStatus.data?.digest_max_messages ?? 50,
-        sync_first: true,
+        sync_first: false,
         persist_artifact: false
       });
       setDigest(result);
@@ -128,8 +128,8 @@ export function MailInboxView({ client }: { client: ApiClient }) {
           <div>
             <h2>Digest de correo</h2>
             <p className="muted small">
-              Lee Gmail Todos/Spam y GoDaddy Spam; el agente clasifica el spam y solo propone
-              respuestas como texto.
+              Resume mensajes locales sincronizados desde Gmail Todos/Spam y GoDaddy Spam; el
+              agente clasifica el spam y solo propone respuestas como texto.
             </p>
           </div>
           <button disabled={busy || !mailStatus.data?.enabled} onClick={buildDigest} type="button">

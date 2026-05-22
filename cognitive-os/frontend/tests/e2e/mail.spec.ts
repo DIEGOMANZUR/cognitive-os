@@ -15,6 +15,7 @@ test.describe("mail: digest y sync manual", () => {
     const jwt = readJwt();
     let dispatchCalls = 0;
     let directSyncCalls = 0;
+    const digestPreviewPayloads: unknown[] = [];
 
     await page.route("**/mail/status", async (route) => {
       await route.fulfill({
@@ -59,6 +60,27 @@ test.describe("mail: digest y sync manual", () => {
         body: JSON.stringify({ detail: "direct mail sync must not be called from UI" }),
       });
     });
+    await page.route("**/mail/digest/preview", async (route) => {
+      digestPreviewPayloads.push(route.request().postDataJSON());
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          generated_at: "2026-05-21T20:00:00Z",
+          total_considered: 1,
+          included_count: 1,
+          excluded_spam_count: 0,
+          important_count: 1,
+          summary_text: "Resumen local de prueba.",
+          proposed_replies_text: "Respuesta propuesta de prueba.",
+          messages: [],
+          important_messages: [],
+          artifact_markdown_path: null,
+          artifact_json_path: null,
+          warnings: [],
+        }),
+      });
+    });
 
     await seedAuth(page, jwt);
     const health = watchPageHealth(page);
@@ -71,6 +93,11 @@ test.describe("mail: digest y sync manual", () => {
     await expect(page.getByText(/Sync encolado en mail/)).toBeVisible();
     expect(dispatchCalls).toBe(1);
     expect(directSyncCalls).toBe(0);
+    await page.getByRole("button", { name: "Generar resumen 50" }).click();
+    await expect(page.locator("textarea").first()).toHaveValue("Resumen local de prueba.");
+    expect(digestPreviewPayloads).toEqual([
+      { limit: 50, sync_first: false, persist_artifact: false },
+    ]);
     expect(health.serverErrors).toEqual([]);
     expect(filterUnexpectedErrors(health.errors)).toEqual([]);
     health.dispose();

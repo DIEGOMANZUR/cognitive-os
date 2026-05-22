@@ -53,6 +53,7 @@ def test_mail_view_uses_worker_dispatch_for_manual_sync() -> None:
     assert '"/mail/sync/dispatch"' in mail_view
     assert 'client.post<MailSyncResult>("/mail/sync"' not in mail_view
     assert "MailSyncDispatchResponse" in mail_view
+    assert "sync_first: false" in mail_view
 
 
 def test_full_qa_builds_next_in_isolated_dist_dir() -> None:

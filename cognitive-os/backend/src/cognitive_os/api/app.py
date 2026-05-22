@@ -205,6 +205,7 @@ from cognitive_os.voice.service import VoiceError, VoiceService
 from cognitive_os.workers.celery_app import celery_app
 from cognitive_os.workers.tasks import (
     aggregate_tool_scorecard_task,
+    build_personal_mail_digest_task,
     consolidate_all_deepagent_memory_task,
     evaluate_skill_promotions_task,
     extract_pending_recipes_task,
@@ -3179,6 +3180,15 @@ async def dispatch_personal_mail_sync(
 ) -> dict[str, Any]:
     del user
     async_result = sync_personal_mail_task.apply_async(queue="mail")
+    return {"task_id": str(async_result.id), "status": "dispatched"}
+
+
+@app.post("/mail/digest/dispatch", response_model=dict[str, Any])
+async def dispatch_personal_mail_digest(
+    user: AuthenticatedUser = _auth_dependency,
+) -> dict[str, Any]:
+    del user
+    async_result = build_personal_mail_digest_task.apply_async(queue="mail")
     return {"task_id": str(async_result.id), "status": "dispatched"}
 
 

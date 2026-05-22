@@ -279,6 +279,8 @@ async def test_mail_endpoints_require_auth() -> None:
         assert sync_resp.status_code == 401
         dispatch_resp = await client.post("/mail/sync/dispatch")
         assert dispatch_resp.status_code == 401
+        digest_dispatch_resp = await client.post("/mail/digest/dispatch")
+        assert digest_dispatch_resp.status_code == 401
         digest_resp = await client.post("/mail/digest/preview", json={})
         assert digest_resp.status_code == 401
 
@@ -324,6 +326,28 @@ async def test_mail_sync_dispatches_to_mail_queue(monkeypatch: pytest.MonkeyPatc
 
     assert response.status_code == 200
     assert response.json() == {"task_id": "mail-task-123", "status": "dispatched"}
+    assert calls == [{"queue": "mail"}]
+
+
+@pytest.mark.asyncio
+async def test_mail_digest_dispatches_to_mail_queue(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[dict[str, str]] = []
+
+    class _Result:
+        id = "mail-digest-task-123"
+
+    def _apply_async(*, queue: str) -> _Result:
+        calls.append({"queue": queue})
+        return _Result()
+
+    monkeypatch.setattr(api_app.build_personal_mail_digest_task, "apply_async", _apply_async)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/mail/digest/dispatch", headers=_headers())
+
+    assert response.status_code == 200
+    assert response.json() == {"task_id": "mail-digest-task-123", "status": "dispatched"}
     assert calls == [{"queue": "mail"}]
 
 
