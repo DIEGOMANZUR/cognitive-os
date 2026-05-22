@@ -39,7 +39,7 @@
 
 ## Calidad reproducible
 
-- `full-qa.sh`: `cd backend && uv sync --extra openharness && pytest -q && ruff check . && ruff format --check . && mypy src && cd ../frontend && npm ci && npm run lint && npm run build`.
+- `full-qa.sh`: `cd backend && uv sync --extra openharness && pytest -q && ruff check . && ruff format --check . && mypy src && cd ../frontend && npm ci && npm run lint && NEXT_DIST_DIR=.next-qa npm run build`. Usa `.next-qa` para no invalidar un `next start` vivo que esté sirviendo `frontend/.next`.
 - `stress-qa.sh [N]`: ejecuta `pytest -q --tb=no` N veces (default 3) con el mismo extra OpenHarness para detectar flakiness.
 
 ## Otros
