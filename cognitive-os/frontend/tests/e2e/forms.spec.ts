@@ -29,13 +29,14 @@ test.describe("forms: persistencia local desde Settings", () => {
     // SettingsView muestra dos inputs: API base y JWT. Cambiamos la API
     // base, hacemos Guardar y verificamos el localStorage.
     const apiBaseInput = page.getByLabel("API base");
-    await apiBaseInput.fill("http://127.0.0.1:8000");
+    const apiBase = process.env.COGOS_API_BASE ?? "http://127.0.0.1:8000";
+    await apiBaseInput.fill(apiBase);
     await page.getByRole("button", { name: "Guardar", exact: true }).click();
 
     const stored = await page.evaluate(() =>
       window.localStorage.getItem("cogos.api"),
     );
-    expect(stored).toContain("http://127.0.0.1:8000");
+    expect(stored).toContain(apiBase);
 
     expect(health.serverErrors).toEqual([]);
     expect(filterUnexpectedErrors(health.errors)).toEqual([]);

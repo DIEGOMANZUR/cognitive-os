@@ -31,10 +31,11 @@ falla si quedan desincronizados):
   PWA dark-only glassmorphism, sin Tailwind/shadcn.
 - **LLM** — primary+agent `gpt-5.5` (Responses API + prompt caching 24h),
   secondary/fallback `gemini-3.1-pro-low`, vision `glm-4.6v`.
-- **QA** — `full-qa.sh` **941 passed, 1 skipped, 28 deselected** +
+- **QA** — `full-qa.sh` **943 passed, 1 skipped, 28 deselected** +
   ruff/format/mypy/Alembic/lint/build/`sync_doc_counts`/`git diff --check`;
-  `stress-qa.sh` 3 pasadas verdes; Playwright **22 passed**; carril opt-in
-  `tests/live/` para smokes read-only contra proveedores reales.
+  `stress-qa.sh` 3 pasadas verdes; Playwright **31 passed**; carril opt-in
+  `tests/live/` verificado con **8 passed** contra proveedores reales.
+  TestSprite MCP/CLI corrio como smoke advisory acotado: **3/3 passed**.
 - Infra de datos (Postgres / Redis 7 / Weaviate 1.29.0 / Neo4j 5) ligada a
   `127.0.0.1`, sin exposicion a internet.
 
@@ -114,7 +115,7 @@ rsync -a --exclude node_modules --exclude .next --exclude .venv --exclude '__pyc
 - Python ≥ 3.12 y [uv](https://docs.astral.sh/uv/)
 - Node.js ≥ 22 y npm
 - Verificación reproducible: `bash scripts/full-qa.sh` (`uv sync --extra openharness` + `pytest` + `ruff check` + `ruff format --check` + `mypy` + `npm ci` + `npm run lint` + `npm run build` + `sync_doc_counts.py --check` + `git diff --check`). Estrés: `bash scripts/stress-qa.sh` (3 pasadas de pytest por defecto). Smokes en vivo opt-in: `bash scripts/full-qa-live.sh`.
-- Snapshot QA vigente (2026-05-22): `bash scripts/full-qa.sh` **941 passed, 1 skipped, 28 deselected**; ruff/ruff format/mypy, frontend lint/build aislado con `.next-qa`, Alembic head `202605200003` y `git diff --check` verdes. Playwright frontend: **22 passed**. Stress QA: 3 pasadas de **941 passed**.
+- Snapshot QA vigente (2026-05-22): `bash scripts/full-qa.sh` **943 passed, 1 skipped, 28 deselected**; ruff/ruff format/mypy, frontend lint/build aislado con `.next-qa`, Alembic head `202605200003` y `git diff --check` verdes. Playwright frontend: **31 passed**. Stress QA: 3 pasadas de **943 passed**. Live read-only: `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**. TestSprite: **3/3 passed** como smoke advisory acotado.
 
 ## Backend
 
@@ -203,7 +204,7 @@ En desarrollo el panel puede apuntar al API desde ajustes en la UI; si defines
 - `npm run build` → Next 16.2.6 + Turbopack OK.
 - `npx tsc --noEmit` → 0 errores.
 - Playwright headless full-walk (1440×900 + 393×851 mobile) sobre las 20
-  tabs, palette y notification center: **22 passed**, 0 errores 5xx, 0 page
+  tabs, palette y notification center: **31 passed**, 0 errores 5xx, 0 page
   errors, 0 console errors. `playwright.config.ts` bloquea el service worker
   durante los tests y deshabilita el cache HTTP.
 

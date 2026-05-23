@@ -4,13 +4,16 @@
 > auditoría Fase 76 como histórico, pero el gate actual del proyecto es más
 > amplio:
 >
-> - `bash scripts/full-qa.sh` → **941 passed, 1 skipped, 28 deselected**,
+> - `bash scripts/full-qa.sh` → **943 passed, 1 skipped, 28 deselected**,
 >   ruff/format/mypy/Alembic/frontend lint/frontend build/`sync_doc_counts
 >   --check`/`git diff --check` OK.
-> - `npx playwright test --reporter=list` → **22 passed**.
-> - `bash scripts/stress-qa.sh` → 3 pasadas de **941 passed**.
-> - Carril opt-in `tests/live/` (`LIVE_TESTS_ENABLED=1`) → smokes read-only
->   contra proveedores reales.
+> - `bash scripts/full-e2e.sh` / `npx playwright test --reporter=list` →
+>   **31 passed**.
+> - `bash scripts/stress-qa.sh` → 3 pasadas de **943 passed**.
+> - `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` → **8 passed**,
+>   smokes read-only contra proveedores reales.
+> - TestSprite MCP/CLI → **3/3 passed** en smoke advisory acotado; sus asserts
+>   generados no sustituyen la suite Playwright comercial.
 > - Build frontend de QA aislado con `NEXT_DIST_DIR=.next-qa`, sin romper
 >   un `next start` vivo servido desde `.next`.
 >
@@ -155,7 +158,7 @@ frontend/
 ```bash
 # Backend pytest (referencia):
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/backend"
-uv run pytest -q                                   # 941 passed esperado en snapshot vigente
+uv run pytest -q                                   # 943 passed esperado en snapshot vigente
 
 # Frontend lint + build:
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/frontend"
@@ -164,7 +167,7 @@ npm run build                                      # static prerender OK
 
 # E2E Playwright (stack levantado en :3001 + :8000):
 JWT=$(cd ../backend && uv run python -c "from cognitive_os.core.auth import create_access_token; print(create_access_token(user_id='auditor', roles=['admin']))" 2>/dev/null | tail -1)
-COGOS_JWT="$JWT" npx playwright test               # 22 passed esperado en snapshot vigente
+COGOS_JWT="$JWT" npx playwright test               # 31 passed esperado en snapshot vigente
 COGOS_JWT="$JWT" npx playwright test --ui          # modo interactivo
 npx playwright show-report                          # HTML report
 ```

@@ -1,7 +1,7 @@
 # Estado Actual Canonico — Cognitive OS
 
 Fecha de sincronizacion documental: **2026-05-22**
-Branch: `main`
+Branch auditada: `codex/commercial-zero-friction-hardening`
 
 Este archivo es la **fuente corta de verdad** del estado operativo actual. Si
 otro Markdown discrepa, este archivo manda y el otro debe corregirse. Los
@@ -9,6 +9,28 @@ conteos estructurales del "Snapshot Tecnico" se generan con
 `scripts/sync_doc_counts.py` y `full-qa.sh` falla si quedan desincronizados.
 
 ## Cambios Mas Recientes
+
+**Hardening comercial zero-friction (2026-05-22).** Se reforzo el gate
+oficial y la cobertura E2E sin cambiar la postura de producto:
+
+- `full-qa.sh` ya no tolera un `alembic check` fallido cuando hay DB
+  configurada; solo se salta Alembic en clones sin `.env`, `.env.local` ni
+  `DATABASE_URL`.
+- El build frontend de QA limpia `.next-qa` antes de lint/build y evita romper
+  un `next start` vivo.
+- Nuevo `scripts/full-e2e.sh`: gate Playwright separado con JWT local,
+  preflight CORS, instalacion de Chromium omitible y `npm ci` opt-in.
+- Defaults CORS incluyen `localhost/127.0.0.1:3101` para fallback local sin
+  abrir wildcard.
+- UI: `configured` en health se pinta como warning, no danger; el centro de
+  notificaciones usa `asArray` para no crashear con payloads malformados.
+- Playwright comercial sube a **31 passed** y cubre 20 vistas, console/page
+  errors, health configured-vs-verified, mail read-only, jobs/approvals/action
+  lifecycle, mobile y zero-friction dedicated_local/full.
+- `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` ejecutado: **8 passed**.
+- TestSprite MCP/CLI ejecutado como smoke advisory acotado: **3/3 passed**.
+  Sus tests generados son evidencia adicional; la suite Playwright sigue siendo
+  el gate E2E fuerte.
 
 **Remediacion del audit comercial (2026-05-22).** Tras
 `docs/audits/CODEX_COMMERCIAL_READINESS_AUDIT.md` se cerraron **todos** los
@@ -30,7 +52,7 @@ de repo (AUDIT-2026-I..K). Resumen de las funcionales:
 - **D (P2)** — matriz parametrizada de los 37 comandos Telegram (auth-deny +
   no-crash) y comandos flag-gated.
 - **E (P2)** — carril `tests/live/` (marker `live_readonly`, opt-in
-  `LIVE_TESTS_ENABLED=1`): 7 smokes read-only contra proveedores reales +
+  `LIVE_TESTS_ENABLED=1`): 8 smokes read-only contra proveedores reales +
   `scripts/full-qa-live.sh`.
 - **F (P2)** — componente `operational_backlog` en health: approvals/jobs/
   action-requests atascados + lag del beat, con tile dedicado en el frontend.
@@ -97,25 +119,28 @@ Conteos estructurales derivados del codigo (generados por
 | Browser | Kimi WebBridge + Edge real disponibles para el perfil dedicado |
 | LLM | primary+agent `gpt-5.5` (Responses API + prompt caching 24h), secondary/fallback `gemini-3.1-pro-low`, vision `glm-4.6v` |
 | QA backend | `pytest` hermetico con DB de test aislada (`cognitive_os_test`) |
-| QA frontend | Playwright oficial: 22 tests en desktop/mobile |
+| QA frontend | Playwright oficial: 31 tests en desktop/mobile |
 | QA oficial | `scripts/full-qa.sh` (build Next aislado en `.next-qa`); `stress-qa.sh` para flakiness; `full-qa-live.sh` opt-in para smokes reales |
 
 ## Ultimo Gate Verde Conocido
 
 Gate ejecutado al cierre de la remediacion del audit (AUDIT-2026-A..K):
 
-- `bash scripts/full-qa.sh` -> **941 passed, 1 skipped, 28 deselected**,
+- `bash scripts/full-qa.sh` -> **943 passed, 1 skipped, 28 deselected**,
   ruff OK, ruff format OK, mypy OK (`135 source files`), Alembic check OK,
   `npm ci`, frontend lint OK, frontend build OK, `sync_doc_counts --check` OK,
   `git diff --check` OK.
-- `bash scripts/stress-qa.sh 3` -> 3 pasadas verdes, **941 passed** en cada una.
-- Carril live opt-in (`LIVE_TESTS_ENABLED=1 pytest -m live_readonly`):
-  **8/8 smokes verdes** tras corregir el scope OAuth de Google Calendar (ver
-  abajo).
+- `COGOS_API_BASE=http://127.0.0.1:8001 COGOS_BASE_URL=http://localhost:3101 COGOS_SKIP_PLAYWRIGHT_INSTALL=1 bash scripts/full-e2e.sh`
+  -> **31 passed**.
+- `bash scripts/stress-qa.sh 3` -> 3 pasadas verdes, **943 passed** en cada una.
+- `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` -> **8 passed**.
+- TestSprite MCP/CLI -> **3/3 passed** en smoke advisory acotado
+  (`TC001`, `TC002`, `TC005`); no sustituye Playwright porque los asserts
+  generados son mas superficiales.
 
 Paso de release estándar (no es un defecto): el build de frontend
 (`npm run lint` + `tsc` + `npm run build`) ya está verde dentro de
-`full-qa.sh`; la suite Playwright E2E (**22 tests**) necesita el stack
+`full-qa.sh`; la suite Playwright E2E (**31 tests**) necesita el stack
 levantado, así que se re-corre `npx playwright test` después de reiniciar el
 runtime con el código nuevo — igual que cualquier verificación E2E post-deploy.
 Tras reiniciar `uvicorn`/`next start` el dashboard pasa a 18 componentes y

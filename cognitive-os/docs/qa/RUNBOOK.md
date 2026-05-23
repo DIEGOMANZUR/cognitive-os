@@ -1,12 +1,12 @@
 # QA · RUNBOOK — cómo correr la app y la suite Playwright
 
 > **Actualización vigente (2026-05-22):** QA oficial del proyecto:
-> `bash scripts/full-qa.sh` con **941 passed, 1 skipped, 28 deselected**,
-> frontend Playwright **22 passed** y `bash scripts/stress-qa.sh` con 3
-> pasadas de **941 passed**. El build frontend dentro de `full-qa.sh` usa
+> `bash scripts/full-qa.sh` con **943 passed, 1 skipped, 28 deselected**,
+> frontend Playwright **31 passed** y `bash scripts/stress-qa.sh` con 3
+> pasadas de **943 passed**. El build frontend dentro de `full-qa.sh` usa
 > `NEXT_DIST_DIR=.next-qa` para no invalidar un frontend vivo. Carril
 > opt-in `bash scripts/full-qa-live.sh` (`LIVE_TESTS_ENABLED=1`) para
-> smokes read-only contra proveedores reales.
+> smokes read-only contra proveedores reales, verificado con **8 passed**.
 >
 > El objetivo del QA actual no es seguridad SaaS; es operación local de
 > baja fricción sin fallos silenciosos: arranque reproducible, UI que no
@@ -115,7 +115,7 @@ npm run build   # next build
 
 ```bash
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/backend"
-uv run pytest -q          # 941 passed esperado en el snapshot vigente
+uv run pytest -q          # 943 passed esperado en el snapshot vigente
 uv run ruff check src tests
 uv run ruff format --check src tests
 uv run mypy src

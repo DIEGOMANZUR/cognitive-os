@@ -91,7 +91,7 @@ export function Sidebar({
   const healthDotClass =
     healthStatus === "ok"
       ? "dot ok live"
-      : healthStatus === "degraded"
+      : healthStatus === "degraded" || healthStatus === "configured"
         ? "dot warn live"
         : healthStatus === "no-auth"
           ? "dot warn"
@@ -100,7 +100,7 @@ export function Sidebar({
   const healthBadgeClass =
     healthStatus === "ok"
       ? "badge ok"
-      : healthStatus === "degraded" || healthStatus === "no-auth"
+      : healthStatus === "degraded" || healthStatus === "configured" || healthStatus === "no-auth"
         ? "badge warn"
         : "badge danger";
 

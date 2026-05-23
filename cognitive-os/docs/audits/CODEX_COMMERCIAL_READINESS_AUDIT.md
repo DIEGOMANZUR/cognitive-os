@@ -36,7 +36,7 @@ accionables: las 8 funcionales (A–H) y las 3 de higiene de repo (I–K).
 | AUDIT-2026-B | P1 | ✅ Resuelto | `health.py` distingue `verified` de `configured`; overall `ok`/`configured`/`degraded` honesto. Nuevo `POST /health/verify` (probe LLM/embeddings/IMAP real). Frontend: `configured`→warn, badges, sección "Verificación en vivo". |
 | AUDIT-2026-C | P1 | ✅ Resuelto | Kill switch `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED` (default `true`); gate en `failure_postmortem.py`; §1/§3.4 del plan, README y `DEEPAGENTS_SKILLS_MEMORY.md` reconocen la excepción; flag en `/config/public` + badge en MemoryView. |
 | AUDIT-2026-D | P2 | ✅ Resuelto | Matriz parametrizada: 37 comandos × {auth-deny, no-crash} + flag-disabled + registro canónico. ~78 tests nuevos. |
-| AUDIT-2026-E | P2 | ✅ Resuelto | Carril `tests/live/` (marker `live_readonly`, opt-in `LIVE_TESTS_ENABLED=1`), 7 smokes read-only + `scripts/full-qa-live.sh`. |
+| AUDIT-2026-E | P2 | ✅ Resuelto | Carril `tests/live/` (marker `live_readonly`, opt-in `LIVE_TESTS_ENABLED=1`), 8 smokes read-only + `scripts/full-qa-live.sh`. |
 | AUDIT-2026-F | P2 | ✅ Resuelto | `_check_operational_backlog` en health: approvals/jobs/action-requests atascados + lag del beat. Tile "Backlog operacional" en HealthView. |
 | AUDIT-2026-G | P3 | ✅ Resuelto | `scripts/sync_doc_counts.py` genera el bloque `AUTO:counts` de `CURRENT_STATE.md`; `--check` corre en `full-qa.sh`. |
 | AUDIT-2026-H | P3 | ✅ Resuelto | `dev_up.sh` valida variables sin default antes de `docker compose`; RUNBOOK documenta el comando único. |
@@ -45,10 +45,13 @@ accionables: las 8 funcionales (A–H) y las 3 de higiene de repo (I–K).
 | AUDIT-2026-K | P3 | ✅ Resuelto | `README.md` reescrito: se eliminó la pila de snapshots históricos por fase; queda un único snapshot vigente + sección "Cambios Recientes". |
 | AUDIT-2026-L/M | — | Informativo | Decisiones conscientes documentadas; no requieren acción. |
 
-**QA post-remediación:** `bash scripts/full-qa.sh` verde — backend **941 passed,
+**QA post-remediación actualizada por hardening zero-friction:** `bash
+scripts/full-qa.sh` verde — backend **943 passed,
 1 skipped, 28 deselected**, ruff/format/mypy/Alembic verdes, frontend
 lint/build verdes, `sync_doc_counts --check` y `git diff --check` verdes.
-`stress-qa.sh 3` → 3 pasadas de 941 passed sin flakiness.
+`bash scripts/full-e2e.sh` -> 31 passed. `stress-qa.sh 3` -> 3 pasadas de
+943 passed sin flakiness. `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh`
+-> 8 passed. TestSprite MCP/CLI -> 3/3 passed como smoke advisory acotado.
 
 **Hallazgo nuevo detectado por el carril live:** `test_live_google_oauth_status`
 falla con `HTTP 403` en `GET /freeBusy` aunque `CalendarService.status()`
@@ -261,10 +264,10 @@ sin probe live) — ver AUDIT-2026-B.
 | `cd frontend && NEXT_DIST_DIR=.next-audit npm run build` | ✅ verde, **pero modificó `tsconfig.json` (incidente §9)** |
 | `git status --short` | ` M cognitive-os/docs/audits/CODEX_COMMERCIAL_READINESS_AUDIT.md` + ` M cognitive-os/frontend/tsconfig.json` |
 
-**No reejecutado esta sesión** (confiando en doc canónico):
-- `npx playwright test --reporter=list` — `CURRENT_STATE.md` afirma 22 passed.
-- `bash scripts/full-qa.sh` end-to-end — los componentes individuales pasan.
-- `bash scripts/stress-qa.sh 3` — 3 pasadas verdes según doc canónico.
+**Nota post-hardening:** esta seccion conserva la evidencia de la sesion de
+auditoria original. El cierre vigente posterior reejecuto los gates completos:
+`full-qa.sh` 943 passed, Playwright 31 passed, stress QA 3 pasadas de 943,
+live-readonly 8 passed y TestSprite 3/3 passed como smoke advisory.
 
 **Conclusión:** el gate oficial está verde. Los componentes que reejecuté
 independientemente confirman. No hay regresión detectable.
@@ -714,7 +717,7 @@ def test_command_reports_useful_message_on_backend_failure(...): ...
 (el doc canónico lo advierte). El gap es real pero documentado.
 
 **Cómo lo resolvería:** carril `pytest -m live_readonly` con opt-in
-`LIVE_TESTS_ENABLED=1`. 7 smokes:
+`LIVE_TESTS_ENABLED=1`. El carril vigente contiene 8 smokes:
 
 | Test | Qué prueba | Coste estimado |
 |---|---|---|
@@ -915,7 +918,7 @@ documenta.
 | Code Director | ✅ Wiring sólido | Adapters CLI no ejercitados con LLM real (AUDIT-2026-E). |
 | **Telegram** | ❌ **AUDIT-2026-A** + ⚠️ AUDIT-2026-D | Auth fail-open con allowlist vacía. |
 | Tests backend | ✅ Hermético sólido | 848 passed, 0 mypy issues. |
-| Tests frontend | ✅ E2E 22 passed (doc) | Lint+build verdes. |
+| Tests frontend | ✅ E2E 31 passed | Lint+build verdes. |
 | **Docs** | ⚠️ **AUDIT-2026-C** + 2026-G/K | Contradicción interna + drift de conteos viejos en README. |
 | Configuración | ✅ Sólida (100+ vars) | `SETTINGS_REGISTRY_TABLE.md` autogenerado. |
 | Seguridad operativa | ✅ Coherente con postura del producto | Excepción Mail bien cementada en docs y código. |
@@ -1032,7 +1035,7 @@ coherencia documental.
    = ~111 tests en `test_telegram_bot.py`.
 
 2. **AUDIT-2026-E** — carril `pytest -m live_readonly`:
-   - `tests/live/` con 7 smokes.
+   - `tests/live/` con 8 smokes.
    - Marker en `pyproject.toml`.
    - `scripts/full-qa-live.sh` opt-in.
    - `RUNBOOK.md` §"Smokes live (opt-in)".
@@ -1274,7 +1277,7 @@ Si hubiera usado `.next-qa` no habría side-effect.
 | OP47-003 Health configured=ok (P1) | **MANTENIDO** → AUDIT-2026-B P1 |
 | OP47-004 Learning auto-promote (P1) | **REDUCIDO a docs drift interno** → AUDIT-2026-C P1 (Opción B recomendada) |
 | OP47-005 Kimi/MCP scope amplio (P1) | **CERRADO** — feature del PC dedicado |
-| OP47-006 E2E no verificado (P1) | **CERRADO** — CURRENT_STATE.md confirma 22 passed |
+| OP47-006 E2E no verificado (P1) | **CERRADO** — CURRENT_STATE.md confirma 31 passed |
 | OP47-007 Integraciones no verified live (P1) | **REDUCIDO** → AUDIT-2026-E P2 |
 | OP47-008 Mail send paralelo (P2) | **CERRADO** — CURRENT_STATE.md formaliza el contrato actual; UI sin botón Enviar |
 | OP47-009 Telegram paridad tests (P2) | **MANTENIDO** → AUDIT-2026-D P2 |

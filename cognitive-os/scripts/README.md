@@ -9,17 +9,17 @@
 > visible y recuperación rápida.
 >
 > `full-qa.sh` está actualizado al ciclo vigente: backend con
-> **941 passed, 1 skipped, 28 deselected**, ruff/format/mypy/Alembic
+> **943 passed, 1 skipped, 28 deselected**, ruff/format/mypy/Alembic
 > verdes, frontend lint/build verde, `sync_doc_counts --check` y
 > `git diff --check` finales. El build frontend de QA usa
 > `NEXT_DIST_DIR=.next-qa` para no invalidar un `next start` vivo.
 > Carril opt-in `full-qa-live.sh` para smokes read-only contra
-> proveedores reales.
+> proveedores reales, verificado con **8 passed**.
 >
 > **Detalle de scripts:** `dev_worker.sh` escucha **5 queues**:
 > `default,ingestion,agent_longrun,maintenance,mail`. `full-qa.sh` y
 > `stress-qa.sh` instalan el extra OpenHarness; `full-qa.sh` además
-> ejecuta `alembic check` (tolerante a Postgres apagado) y
+> ejecuta `alembic check` como gate real cuando hay DB configurada y
 > `git diff --check` como guards finales. Ejecutables de escritorio
 > endurecidos (`Levantar/Reiniciar/Detener/Estado Cognitive OS.{sh,desktop}`)
 > envuelven `cognitive-os.sh` con lock `flock`, preflight de
@@ -58,9 +58,10 @@
 
 ## Calidad reproducible
 
-- `full-qa.sh`: `cd backend && uv sync --extra openharness && pytest -q && ruff check . && ruff format --check . && mypy src && cd ../frontend && npm ci && npm run lint && NEXT_DIST_DIR=.next-qa npm run build`, más `sync_doc_counts.py --check` y `git diff --check` como guards finales. Usa `.next-qa` para no invalidar un `next start` vivo que esté sirviendo `frontend/.next`.
+- `full-qa.sh`: `cd backend && uv sync --extra openharness && pytest -q && ruff check . && ruff format --check . && mypy src && alembic check && cd ../frontend && npm ci && npm run lint && NEXT_DIST_DIR=.next-qa npm run build`, más `sync_doc_counts.py --check` y `git diff --check` como guards finales. Usa `.next-qa` para no invalidar un `next start` vivo que esté sirviendo `frontend/.next`. `alembic check` solo se omite en clones sin `.env`, `.env.local` ni `DATABASE_URL`.
+- `full-e2e.sh`: gate Playwright separado para el cockpit local. Requiere API y frontend ya corriendo, minta `COGOS_JWT` si no existe, instala Chromium salvo `COGOS_SKIP_PLAYWRIGHT_INSTALL=1` y ejecuta `npx playwright test`.
 - `stress-qa.sh [N]`: ejecuta `pytest -q --tb=no` N veces (default 3) con el mismo extra OpenHarness para detectar flakiness.
-- `full-qa-live.sh`: carril **opt-in** de smokes read-only contra los proveedores reales (LLM ping, GoDaddy GET domains, IMAP/SMTP handshake, Telegram `getMe`, Kimi status, MCP `list_tools`). Exige `LIVE_TESTS_ENABLED=1` (lo setea el script); excluido de `full-qa.sh`. Cada test se auto-saltea si su credencial no está configurada. Coste ≈ US$0.001.
+- `full-qa-live.sh`: carril **opt-in** de smokes read-only contra los proveedores reales (LLM ping, GoDaddy GET domains, IMAP/SMTP handshake, Telegram `getMe`, Kimi status, MCP `list_tools`, Google OAuth/freebusy). Verificado con **8 passed**. Excluido de `full-qa.sh`. Cada test se auto-saltea si su credencial no está configurada. Coste ≈ US$0.001.
 - `sync_doc_counts.py`: recalcula los conteos canónicos (endpoints, tareas Celery, migraciones, head Alembic, vistas frontend) desde el código y reescribe el bloque `<!-- AUTO:counts -->` de `docs/CURRENT_STATE.md`. `--check` falla si están desincronizados (lo usa `full-qa.sh`); `--print` solo los imprime.
 
 ## Otros

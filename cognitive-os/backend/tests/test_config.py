@@ -28,6 +28,8 @@ def test_loads_env_example() -> None:
         "http://127.0.0.1:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3001",
+        "http://localhost:3101",
+        "http://127.0.0.1:3101",
     ]
     assert loaded_settings.browser_automation_provider == "playwright"
     assert loaded_settings.browser_headless_default is True
@@ -143,6 +145,8 @@ def test_parse_cors_origins() -> None:
         "http://127.0.0.1:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3001",
+        "http://localhost:3101",
+        "http://127.0.0.1:3101",
     ]
     assert parse_cors_origins("https://app.example.test") == ["https://app.example.test"]
     assert parse_cors_origins(" https://a.test , https://b.test ") == [

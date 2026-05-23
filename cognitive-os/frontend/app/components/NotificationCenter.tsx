@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useFocusTrap } from "../lib/a11y";
-import type { ApiClient } from "../lib/api";
+import { asArray, type ApiClient } from "../lib/api";
 import { useToast } from "../lib/toasts";
 import type {
   ApprovalResponse,
@@ -67,7 +67,7 @@ export function buildNotificationItems(
 ): Item[] {
   const items: Item[] = [];
 
-  for (const approval of approvals ?? []) {
+  for (const approval of asArray(approvals)) {
     if (approval.status !== "pending") continue;
     items.push({
       id: `approval:${approval.id}`,
@@ -80,7 +80,7 @@ export function buildNotificationItems(
     });
   }
 
-  for (const job of jobs ?? []) {
+  for (const job of asArray(jobs)) {
     if (job.status === "failed") {
       items.push({
         id: `job-fail:${job.id}`,
@@ -114,7 +114,7 @@ export function buildNotificationItems(
     }
   }
 
-  for (const event of audit ?? []) {
+  for (const event of asArray(audit)) {
     items.push({
       id: `audit:${event.id}`,
       tone: "info",

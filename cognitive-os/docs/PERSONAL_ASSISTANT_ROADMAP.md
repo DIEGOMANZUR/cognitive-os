@@ -15,10 +15,11 @@
 > El resultado se entrega como documento/campos de texto separados; no se
 > crean borradores y no se envía nada en el flujo normal.
 >
-> **QA vigente:** `bash scripts/full-qa.sh` verde con **941 passed, 1
-> skipped, 28 deselected**; frontend Playwright **22 passed**; stress QA 3
-> pasadas de **941 passed**; carril opt-in `tests/live/` para smokes
-> read-only. Pendiente para "asistente personal absoluto": voz productiva
+> **QA vigente:** `bash scripts/full-qa.sh` verde con **943 passed, 1
+> skipped, 28 deselected**; frontend Playwright **31 passed**; stress QA 3
+> pasadas de **943 passed**; carril opt-in `tests/live/` verificado con
+> **8 passed**; TestSprite MCP/CLI **3/3 passed** como smoke advisory.
+> Pendiente para "asistente personal absoluto": voz productiva
 > en frontend/Telegram, YouTube/video summaries y automatizaciones
 > proactivas avanzadas.
 

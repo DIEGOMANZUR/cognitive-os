@@ -41,15 +41,18 @@ def parse_int_csv(value: object) -> list[int]:
 def parse_cors_origins(value: object) -> list[str]:
     """Parse comma-separated browser origins; empty uses local Next.js dev defaults.
 
-    Default covers both :3000 (legacy) and :3001 (current default since the
-    operator's OpenChamber occupies :3000) so a clean checkout works without
-    editing .env. Operator overrides via CORS_ALLOW_ORIGINS still win.
+    Default covers :3000 (legacy), :3001 (current default since the operator's
+    OpenChamber occupies :3000), and :3101 (QA fallback when :3001 is busy) so
+    local zero-friction E2E works without editing .env. Operator overrides via
+    CORS_ALLOW_ORIGINS still win.
     """
     default = (
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3001",
+        "http://localhost:3101",
+        "http://127.0.0.1:3101",
     )
     if value is None or value == "":
         return list(default)

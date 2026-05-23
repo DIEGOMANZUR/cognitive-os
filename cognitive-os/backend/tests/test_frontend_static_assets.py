@@ -59,7 +59,31 @@ def test_mail_view_uses_worker_dispatch_for_manual_sync() -> None:
 def test_full_qa_builds_next_in_isolated_dist_dir() -> None:
     full_qa = (PROJECT_ROOT / "scripts" / "full-qa.sh").read_text(encoding="utf-8")
     gitignore = (PROJECT_ROOT / ".gitignore").read_text(encoding="utf-8")
+    eslint_config = (FRONTEND_ROOT / "eslint.config.mjs").read_text(encoding="utf-8")
 
     assert 'QA_NEXT_DIST=".next-qa"' in full_qa
     assert 'NEXT_DIST_DIR="$QA_NEXT_DIST" npm run build' in full_qa
+    assert 'cleanup_qa_artifacts\ncd "$ROOT/backend"' in full_qa
+    assert '".next-qa/**"' in eslint_config
     assert "frontend/.next-qa/" in gitignore
+
+
+def test_full_qa_treats_alembic_check_as_hard_gate_when_db_is_configured() -> None:
+    full_qa = (PROJECT_ROOT / "scripts" / "full-qa.sh").read_text(encoding="utf-8")
+
+    assert "uv run alembic check" in full_qa
+    assert "WARN: alembic check" not in full_qa
+    assert "no pasó o no se pudo conectar" not in full_qa
+
+
+def test_full_e2e_script_exists_for_playwright_gate() -> None:
+    full_e2e = (PROJECT_ROOT / "scripts" / "full-e2e.sh").read_text(encoding="utf-8")
+
+    assert "npx playwright test" in full_e2e
+    assert "COGOS_JWT" in full_e2e
+    assert "curl -fsS" in full_e2e
+    assert "Access-Control-Request-Method: GET" in full_e2e
+    assert "API CORS does not allow frontend origin" in full_e2e
+    assert "COGOS_E2E_NPM_CI:-0" in full_e2e
+    assert "skip npm ci; server must stay alive" in full_e2e
+    assert full_e2e.index("COGOS_E2E_NPM_CI") < full_e2e.index('curl -fsS "$API_BASE/health"')

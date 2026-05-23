@@ -19,12 +19,12 @@
 > de tools built-in tipadas del DeepAgent más tools dinámicas MCP cuando
 > `ENABLE_MCP_CLIENT=true`.
 >
-> **QA más reciente:** `bash scripts/full-qa.sh` verde con **941 passed, 1
+> **QA más reciente:** `bash scripts/full-qa.sh` verde con **943 passed, 1
 > skipped, 28 deselected**; ruff/format/mypy/Alembic/lint/build/`sync_doc_counts
 > --check`/`git diff --check` OK; build frontend aislado con
-> `NEXT_DIST_DIR=.next-qa`; Playwright **22 passed**; stress QA verde con 3
-> pasadas de **941 passed**; carril opt-in `tests/live/` para smokes
-> read-only contra proveedores reales.
+> `NEXT_DIST_DIR=.next-qa`; Playwright **31 passed**; stress QA verde con 3
+> pasadas de **943 passed**; carril opt-in `tests/live/` verificado con
+> **8 passed**; TestSprite MCP/CLI **3/3 passed** como smoke advisory.
 
 ---
 

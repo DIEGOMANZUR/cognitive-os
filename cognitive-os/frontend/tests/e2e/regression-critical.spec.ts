@@ -33,7 +33,7 @@ test.describe("regression-critical: contratos clave Fase 72-74", () => {
     const res = await ctx.get(`${API}/health/dashboard`);
     expect(res.status()).toBe(200);
     const body = await res.json();
-    expect(["ok", "degraded"]).toContain(body.status);
+    expect(["ok", "configured", "degraded"]).toContain(body.status);
     expect(body.components.length).toBeGreaterThanOrEqual(16);
     const names: string[] = body.components.map((c: { name: string }) => c.name);
     // Componentes que la Fase 74 garantiza:

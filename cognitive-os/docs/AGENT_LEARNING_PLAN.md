@@ -8,8 +8,8 @@
 > La **única excepción de auto-deploy** es el auto-promote de *warnings* de
 > Fase D, con kill switch `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED` (default
 > `true`, AUDIT-2026-C) — ver §1 y §3.4.
-> QA vigente del repo: `full-qa.sh` **941 passed, 1 skipped, 28
-> deselected**, Playwright **22 passed**, stress QA 3 pasadas de **941
+> QA vigente del repo: `full-qa.sh` **943 passed, 1 skipped, 28
+> deselected**, Playwright **31 passed**, stress QA 3 pasadas de **943
 > passed**. Ver `CURRENT_STATE.md`.
 
 > Documento de handoff. Pensado para que un chat nuevo entienda **(a)** el estado

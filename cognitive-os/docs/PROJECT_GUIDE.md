@@ -17,12 +17,13 @@
 > 10:00/20:00 Chile, máximo 50 correos, propuestas de respuesta como texto
 > separado; no drafts y no envío automático.
 >
-> **QA más reciente:** `bash scripts/full-qa.sh` verde con **941 passed, 1
+> **QA más reciente:** `bash scripts/full-qa.sh` verde con **943 passed, 1
 > skipped, 28 deselected**; ruff/format/mypy/Alembic/lint/build/`sync_doc_counts
-> --check`/`git diff --check` OK; Playwright **22 passed**; `bash
-> scripts/stress-qa.sh` verde con 3 pasadas de **941 passed**. El build de
+> --check`/`git diff --check` OK; Playwright **31 passed**; `bash
+> scripts/stress-qa.sh` verde con 3 pasadas de **943 passed**. El build de
 > QA usa `NEXT_DIST_DIR=.next-qa` para no invalidar un frontend vivo
-> servido desde `.next`.
+> servido desde `.next`. Live read-only: **8 passed**. TestSprite MCP/CLI:
+> **3/3 passed** como smoke advisory.
 >
 > **Guía de usuario completa:** `docs/USER_GUIDE.md`. Estado canónico:
 > `docs/CURRENT_STATE.md`. Modelo operativo: `docs/ZERO_FRICTION_OPERATING_MODEL.md`.

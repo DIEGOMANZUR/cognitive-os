@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # Comprobaciones locales: backend (con extra OpenHarness para prueba de fusión) + frontend.
-# Compuertas opcionales: alembic check (si hay DATABASE_URL operativo) y
-# `git diff --check` (si estamos dentro de un repo git). Nunca bloquean por
-# ausencia de Postgres o git: si la herramienta no está disponible se reporta
-# y se sigue.
+# Alembic es un gate real cuando el repo tiene DB configurada (.env/.env.local
+# o DATABASE_URL). Solo se omite en clones sin ninguna configuracion DB.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 QA_NEXT_DIST=".next-qa"
@@ -11,6 +9,7 @@ cleanup_qa_artifacts() {
   rm -rf "$ROOT/frontend/$QA_NEXT_DIST"
 }
 trap cleanup_qa_artifacts EXIT
+cleanup_qa_artifacts
 cd "$ROOT/backend"
 uv sync --extra openharness
 uv run pytest -q
@@ -18,11 +17,8 @@ uv run ruff check .
 uv run ruff format --check .
 uv run mypy src
 if [[ -n "${DATABASE_URL:-}" ]] || [[ -f "$ROOT/.env.local" ]] || [[ -f "$ROOT/.env" ]]; then
-  if uv run alembic check >/dev/null 2>&1; then
-    echo "OK: alembic check (sin drift)"
-  else
-    echo "WARN: alembic check no pasó o no se pudo conectar (revisa DATABASE_URL)."
-  fi
+  uv run alembic check
+  echo "OK: alembic check (sin drift)"
 else
   echo "SKIP: alembic check (no hay DATABASE_URL ni .env)"
 fi

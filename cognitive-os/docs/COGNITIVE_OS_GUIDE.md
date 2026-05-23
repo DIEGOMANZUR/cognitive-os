@@ -31,12 +31,13 @@
 > agente, digest 10:00/20:00 Chile, máximo 50 correos, respuestas sugeridas
 > como campos de texto separados.
 >
-> **QA más reciente:** `bash scripts/full-qa.sh` verde con **941 passed, 1
+> **QA más reciente:** `bash scripts/full-qa.sh` verde con **943 passed, 1
 > skipped, 28 deselected**, ruff/format/mypy/Alembic/lint/build/`sync_doc_counts
 > --check`/`git diff --check` OK; build frontend aislado con
-> `NEXT_DIST_DIR=.next-qa`; Playwright **22 passed**; `bash
-> scripts/stress-qa.sh` verde con 3 pasadas de **941 passed**; carril
-> opt-in `tests/live/` para smokes read-only contra proveedores reales.
+> `NEXT_DIST_DIR=.next-qa`; Playwright **31 passed**; `bash
+> scripts/stress-qa.sh` verde con 3 pasadas de **943 passed**; carril
+> opt-in `tests/live/` verificado con **8 passed**; TestSprite MCP/CLI
+> **3/3 passed** como smoke advisory acotado.
 > **Para qué es este documento:** la **guía maestra técnica** "desde cero". Complementa la `USER_GUIDE.md` (orientada a operación cotidiana) con arquitectura detallada, mail multicuenta, escritorio, credenciales y troubleshooting profundo. Cada afirmación tiene su archivo o variable de respaldo en el repo.
 
 ---
@@ -694,8 +695,10 @@ bash scripts/stress-qa.sh     # repite pytest N veces (default 3) para detectar 
 bash scripts/full-qa-live.sh  # opt-in: smokes read-only contra proveedores reales (LIVE_TESTS_ENABLED=1)
 ```
 
-Snapshot vigente: `full-qa.sh` → **941 passed, 1 skipped, 28 deselected**;
-`stress-qa.sh 3` → 3 pasadas de 941; Playwright **22 passed**.
+Snapshot vigente: `full-qa.sh` → **943 passed, 1 skipped, 28 deselected**;
+`stress-qa.sh 3` → 3 pasadas de 943; Playwright **31 passed**;
+`full-qa-live.sh` con `LIVE_TESTS_ENABLED=1` → **8 passed**; TestSprite
+MCP/CLI → **3/3 passed** como smoke advisory.
 
 ---
 

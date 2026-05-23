@@ -38,6 +38,8 @@ cognitive-os/findings.md
 cognitive-os/progress.md
 conversacion_recuperada_codex_claude.md
 sesion_14_15_mayo_completa.md
+testsprite_tests/
+cognitive-os/frontend/testsprite_tests/
 
 # Project snapshots/backups are read-only recovery material, never source.
 cognitive-os-backup-*/

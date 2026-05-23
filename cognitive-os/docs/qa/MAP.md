@@ -1,9 +1,9 @@
 # QA · MAP — inventario funcional de la app
 
 > **Actualización vigente (2026-05-22):** mapa QA para el cockpit actual.
-> La suite oficial Playwright está verde con **22 passed** y se ejecuta
+> La suite oficial Playwright está verde con **31 passed** y se ejecuta
 > contra la SPA Next.js de 20 tabs. Backend verificado por `full-qa.sh`:
-> **941 passed, 1 skipped, 28 deselected**. El producto corre en un PC
+> **943 passed, 1 skipped, 28 deselected**. El producto corre en un PC
 > dedicado con prioridad de fricción casi nula; los tests deben validar que
 > esa fricción baja no esconda errores, pantallas muertas ni operaciones
 > silenciosas. Mail sigue siendo read-only/digest por defecto.

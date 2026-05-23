@@ -10,10 +10,12 @@
 > (`default`, `ingestion`, `agent_longrun`, `maintenance`, `mail`) con hasta
 > **13 jobs beat**, **20 migraciones Alembic** head `202605200003`, **37 slash
 > commands Telegram**, `/health/dashboard` con 18 componentes +
-> `POST /health/verify`. QA: `full-qa.sh` **941 passed, 1 skipped, 28
-> deselected**, Playwright **22 passed**, `stress-qa.sh` 3 pasadas verdes.
+> `POST /health/verify`. QA: `full-qa.sh` **943 passed, 1 skipped, 28
+> deselected**, Playwright **31 passed**, `stress-qa.sh` 3 pasadas verdes.
 > `full-qa.sh` construye Next en `.next-qa` para no invalidar el `.next` que
-> usa un `next start` vivo.
+> usa un `next start` vivo. Live read-only: `LIVE_TESTS_ENABLED=1 bash
+> scripts/full-qa-live.sh` **8 passed**. TestSprite MCP/CLI: **3/3 passed**
+> como smoke advisory acotado.
 >
 > **Runtime:** la ruta `research` está fusionada con OpenHarness opcional; el
 > LLM es **gpt-5.5** (gateway openai-compatible, Responses API) como

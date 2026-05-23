@@ -12,7 +12,7 @@
 > explícita de Diego.
 >
 > Gates vigentes: `npm run lint` limpio, `npm run build` limpio,
-> `npx playwright test --reporter=list` con **22 passed** y
+> `npx playwright test --reporter=list` con **31 passed** y
 > `bash scripts/full-qa.sh` desde la raíz usando build aislado
 > `NEXT_DIST_DIR=.next-qa`.
 

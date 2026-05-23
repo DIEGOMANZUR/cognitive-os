@@ -15,8 +15,8 @@
 > decoradores REST**, **23 tareas Celery** en **5 colas**, hasta **13 jobs
 > beat**, **20 migraciones Alembic** head `202605200003`, **20 vistas
 > frontend**, **37 comandos Telegram**, **18 componentes** en
-> `/health/dashboard` + `POST /health/verify`. QA: `full-qa` **941 passed,
-> 1 skipped, 28 deselected**, Playwright **22 passed**, `stress-qa` 3
+> `/health/dashboard` + `POST /health/verify`. QA: `full-qa` **943 passed,
+> 1 skipped, 28 deselected**, Playwright **31 passed**, `stress-qa` 3
 > pasadas verdes, carril opt-in `tests/live/`. `full-qa.sh` construye Next
 > en `.next-qa` para no deshidratar el frontend vivo servido desde `.next`.
 > La suite es hermética y corre contra una DB de test aislada
@@ -106,7 +106,7 @@
 >    filesystem). Estado en vivo en `/system/mcp`.
 >
 > **Carril de verificación en vivo (`tests/live/`, opt-in):**
-> `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` corre 7 smokes
+> `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` corre 8 smokes
 > read-only contra los proveedores reales (LLM ping, GoDaddy GET domains,
 > IMAP/SMTP handshake, Telegram `getMe`, Kimi status, MCP `list_tools`,
 > Google OAuth + freeBusy). No envía ni escribe nada.
@@ -312,7 +312,7 @@ la allow-list, te responde con los 37 comandos.
 ```bash
 cd cognitive-os
 bash scripts/full-qa.sh                  # pytest + ruff + mypy + frontend build + sync_doc_counts + git diff
-# Esperado vigente: 941 passed, 1 skipped, 28 deselected; todo verde
+# Esperado vigente: 943 passed, 1 skipped, 28 deselected; todo verde
 # (corre contra cognitive_os_test — la DB de producción nunca se toca)
 ```
 

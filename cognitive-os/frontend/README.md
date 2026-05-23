@@ -70,7 +70,8 @@
 > - `npm run lint` → 0 warnings (`--max-warnings 0`).
 > - `npm run build` → Next 16.2.6 + Turbopack, 4 páginas estáticas OK.
 > - `npx tsc --noEmit` → 0 errores.
-> - `npx playwright test --reporter=list` → **22 passed**.
+> - `npx playwright test --reporter=list` / `bash scripts/full-e2e.sh` →
+>   **31 passed**.
 > - `bash scripts/full-qa.sh` desde la raíz del repo ejecuta build frontend
 >   aislado con `NEXT_DIST_DIR=.next-qa` y limpia ese directorio para no
 >   romper un `next start` vivo servido desde `.next`.

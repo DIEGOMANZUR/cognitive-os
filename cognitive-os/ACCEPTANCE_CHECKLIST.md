@@ -17,11 +17,13 @@
 > entrega digest 10:00/20:00 Chile y propone respuestas como texto sin
 > drafts ni envíos automáticos.
 >
-> **Gates vigentes:** `bash scripts/full-qa.sh` verde con **941 passed, 1
+> **Gates vigentes:** `bash scripts/full-qa.sh` verde con **943 passed, 1
 > skipped, 28 deselected**; ruff/format/mypy/Alembic/lint/build/`sync_doc_counts
-> --check`/`git diff --check` OK; Playwright **22 passed**; `bash
-> scripts/stress-qa.sh` verde con 3 pasadas de **941 passed**; carril
-> opt-in `tests/live/` para smokes read-only.
+> --check`/`git diff --check` OK; Playwright **31 passed**; `bash
+> scripts/stress-qa.sh` verde con 3 pasadas de **943 passed**; carril
+> opt-in `tests/live/` verificado con **8 passed** en `full-qa-live.sh`.
+> TestSprite MCP fue ejecutado como smoke advisory acotado: **3/3 passed**;
+> no reemplaza la suite Playwright comercial.
 >
 > **Remediación del audit (AUDIT-2026-A..H, 2026-05-22):** las 8 fallas
 > accionables del audit comercial están cerradas — ver
@@ -157,12 +159,16 @@ Plan canónico: `docs/AGENT_LEARNING_PLAN.md`. Las 5 fases cerradas.
   opt-in, componente `operational_backlog` en health.
 - [x] AUDIT-2026-G/H — `scripts/sync_doc_counts.py` (integrado a `full-qa.sh`),
   `scripts/dev_up.sh` valida variables antes de `docker compose`.
-- [x] `bash scripts/full-qa.sh` → **941 passed, 1 skipped, 28 deselected**;
+- [x] `bash scripts/full-qa.sh` → **943 passed, 1 skipped, 28 deselected**;
   ruff/format/mypy (135 files)/Alembic/lint/build/`sync_doc_counts`/`git diff`
   verdes.
-- [x] `bash scripts/stress-qa.sh 3` → 3 pasadas de **941 passed**, sin flakiness.
-- [x] Carril live (`LIVE_TESTS_ENABLED=1 pytest -m live_readonly`) → 8/8
-  smokes verdes tras corregir el scope OAuth de Google Calendar.
+- [x] `bash scripts/full-e2e.sh` → **31 passed** con API/frontend locales.
+- [x] `bash scripts/stress-qa.sh 3` → 3 pasadas de **943 passed**, sin flakiness.
+- [x] `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` → **8 passed**,
+  smokes read-only contra proveedores reales.
+- [x] TestSprite MCP/CLI → **3/3 passed** en smoke advisory acotado
+  (`TC001`, `TC002`, `TC005`); los asserts generados son mas debiles que
+  los Playwright comerciales, por lo que quedan como evidencia adicional.
 
 ## Verificado en vivo - 2026-05-18 (Fase 66, stack real + credenciales reales)
 
