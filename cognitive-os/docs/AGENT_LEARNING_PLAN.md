@@ -8,10 +8,10 @@
 > La **única excepción de auto-deploy** es el auto-promote de *warnings* de
 > Fase D, con kill switch `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED` (default
 > `true`, AUDIT-2026-C) — ver §1 y §3.4.
-> QA vigente del repo (commit `647f103`): `full-qa.sh` **947 passed**,
+> QA vigente del repo (commit `647f103`): `full-qa.sh` **950 passed**,
 > 1 skipped, 28 deselected; Playwright **31 passed** sin exportar
 > `COGOS_JWT` (auto-mint via `_global-setup.ts`); stress QA 3 pasadas
-> de **947 passed**; TestSprite re-audit 10/10 passed. Ver
+> de **950 passed**; TestSprite re-audit 10/10 passed. Ver
 > `CURRENT_STATE.md`.
 
 > Documento de handoff. Pensado para que un chat nuevo entienda **(a)** el estado
@@ -110,7 +110,7 @@ proactivos) — ver §3.
 ### 0.2 Estado funcional del stack
 
 - **Backend FastAPI:** `:8000`, 147 endpoints, suite hermética vigente
-  **947 passed**, 1 skipped, 28 deselected (944 históricos + 3 nuevos
+  **950 passed**, 1 skipped, 28 deselected (944 históricos + 6 nuevos
   por el fix `eager_defaults` del re-audit 2026-05-23).
 - **Frontend Next.js 16 SPA:** `:3001`, 20 vistas, **31/31 Playwright
   passed** sin exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`).

@@ -18,12 +18,12 @@
 > decoradores REST**, **23 tareas Celery** en **5 colas**, hasta **13 jobs
 > beat**, **20 migraciones Alembic** head `202605200003`, **20 vistas
 > frontend**, **37 comandos Telegram**, **18 componentes** en
-> `/health/dashboard` + `POST /health/verify`. QA: `full-qa` **947 passed**,
-> 1 skipped, 28 deselected (944 históricos + 3 nuevos que cubren el fix
+> `/health/dashboard` + `POST /health/verify`. QA: `full-qa` **950 passed**,
+> 1 skipped, 28 deselected (944 históricos + 6 nuevos que cubren el fix
 > `eager_defaults` para el bug P1 `MissingGreenlet` que la re-auditoría
 > 2026-05-23 cazó en `POST /actions/*/preview/request`); Playwright **31
 > passed** sin exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`);
-> `stress-qa` 3 pasadas verdes de **947 passed**; carril opt-in
+> `stress-qa` 3 pasadas verdes de **950 passed**; carril opt-in
 > `tests/live/` verificado **8 passed**; TestSprite re-audit **10/10
 > passed** sobre dos batches. `full-qa.sh` construye Next en `.next-qa`
 > para no deshidratar el frontend vivo servido desde `.next`. La suite
@@ -355,7 +355,7 @@ la allow-list, te responde con los 37 comandos.
 ```bash
 cd cognitive-os
 bash scripts/full-qa.sh                  # pytest + ruff + mypy + frontend build + sync_doc_counts + git diff
-# Esperado vigente: 947 passed, 1 skipped, 28 deselected; todo verde
+# Esperado vigente: 950 passed, 1 skipped, 28 deselected; todo verde
 # (corre contra cognitive_os_test — la DB de producción nunca se toca)
 
 # Frontend E2E sin exportar nada:

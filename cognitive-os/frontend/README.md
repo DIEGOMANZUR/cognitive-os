@@ -79,7 +79,7 @@
 > - `bash scripts/full-qa.sh` desde la raíz del repo ejecuta build
 >   frontend aislado con `NEXT_DIST_DIR=.next-qa` y limpia ese directorio
 >   para no romper un `next start` vivo servido desde `.next`; gate
->   vigente: **947 passed**, 1 skipped, 28 deselected.
+>   vigente: **950 passed**, 1 skipped, 28 deselected.
 > - Anclajes de la suite oficial (`aria-label="JWT local"`, `URL base de la
 >   API`, `Abrir menú`, `Cerrar`, "Estado global", "componentes ok", 20
 >   TAB_LABELS, labels "Guardar"/"API base"/"JWT sin prefijo Bearer" en

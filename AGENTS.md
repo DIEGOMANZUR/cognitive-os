@@ -23,8 +23,8 @@
 > `gemini-3.1-pro-low`, visión `glm-4.6v`.
 >
 > **Gates vigentes (post `647f103`):**
-> `bash cognitive-os/scripts/full-qa.sh` verde con **947 passed**, 1
-> skipped, 28 deselected (944 históricos + 3 nuevos de regresión del
+> `bash cognitive-os/scripts/full-qa.sh` verde con **950 passed**, 1
+> skipped, 28 deselected (944 históricos + 6 nuevos de regresión del
 > bug `eager_defaults`; incluye ruff/format/mypy, Alembic check, frontend
 > lint/build, `sync_doc_counts --check`, `git diff --check`); Playwright
 > frontend **31 passed** sin necesidad de exportar `COGOS_JWT` (auto-mint
@@ -204,7 +204,7 @@ Comandos reales detectados en este repo (úsalos según el área tocada):
 Backend (`cognitive-os/backend/`):
 
 - `uv sync` (con `--extra openharness` si vas a tocar el motor opcional).
-- `uv run pytest` (snapshot vigente: **947 passed, 1 skipped, 28
+- `uv run pytest` (snapshot vigente: **950 passed, 1 skipped, 28
   deselected**; el default deselecciona `integration`, `slow` y
   `live_readonly`).
 - `uv run ruff check .` y `uv run ruff format --check .`.

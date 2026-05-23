@@ -18,7 +18,7 @@
 > drafts ni envíos automáticos.
 >
 > **Gates vigentes (commit `647f103`):** `bash scripts/full-qa.sh` verde
-> con **947 passed**, 1 skipped, 28 deselected (944 históricos + 3
+> con **950 passed**, 1 skipped, 28 deselected (944 históricos + 3
 > nuevos que cubren el fix `eager_defaults` para el bug P1
 > `MissingGreenlet` que la re-auditoría 2026-05-23 cazó en
 > `POST /actions/*/preview/request`);
@@ -26,7 +26,7 @@
 > diff --check` OK; Playwright **31 passed** sin exportar `COGOS_JWT`
 > (auto-mint via `tests/e2e/_global-setup.ts` que llama
 > `POST /auth/local-token`); `bash scripts/stress-qa.sh` verde con 3
-> pasadas de **947 passed**; carril opt-in `tests/live/` verificado
+> pasadas de **950 passed**; carril opt-in `tests/live/` verificado
 > con **8 passed** en `full-qa-live.sh`. TestSprite MCP re-audit:
 > **10/10 passed** sobre dos batches acotados; no reemplaza la suite
 > Playwright comercial.
@@ -173,13 +173,13 @@ Plan canónico: `docs/AGENT_LEARNING_PLAN.md`. Las 5 fases cerradas.
   opt-in, componente `operational_backlog` en health.
 - [x] AUDIT-2026-G/H — `scripts/sync_doc_counts.py` (integrado a `full-qa.sh`),
   `scripts/dev_up.sh` valida variables antes de `docker compose`.
-- [x] `bash scripts/full-qa.sh` → **947 passed**, 1 skipped, 28 deselected
+- [x] `bash scripts/full-qa.sh` → **950 passed**, 1 skipped, 28 deselected
   (commit `647f103`: 944 históricos + 3 regresión `eager_defaults`);
   ruff/format/mypy (135 files)/Alembic/lint/build/`sync_doc_counts`/`git diff`
   verdes.
 - [x] `npx playwright test --reporter=list` → **31 passed** sin exportar
   `COGOS_JWT` (auto-mint via `tests/e2e/_global-setup.ts`).
-- [x] `bash scripts/stress-qa.sh 3` → 3 pasadas de **947 passed**, sin flakiness.
+- [x] `bash scripts/stress-qa.sh 3` → 3 pasadas de **950 passed**, sin flakiness.
 - [x] `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` → **8 passed**,
   smokes read-only contra proveedores reales.
 - [x] TestSprite MCP/CLI → **3/3 passed** en smoke advisory acotado

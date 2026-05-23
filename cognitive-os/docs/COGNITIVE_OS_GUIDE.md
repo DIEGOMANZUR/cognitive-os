@@ -37,13 +37,13 @@
 > como campos de texto separados.
 >
 > **QA más reciente (commit `647f103`):** `bash scripts/full-qa.sh` verde
-> con **947 passed**, 1 skipped, 28 deselected (944 históricos + 3
+> con **950 passed**, 1 skipped, 28 deselected (944 históricos + 3
 > nuevos del fix `eager_defaults`),
 > ruff/format/mypy/Alembic/lint/build/`sync_doc_counts --check`/`git
 > diff --check` OK; build frontend aislado con `NEXT_DIST_DIR=.next-qa`;
 > Playwright **31 passed** sin exportar `COGOS_JWT` (auto-mint via
 > `_global-setup.ts`); `bash scripts/stress-qa.sh` verde con 3 pasadas
-> de **947 passed**; carril opt-in `tests/live/` verificado con **8
+> de **950 passed**; carril opt-in `tests/live/` verificado con **8
 > passed**; TestSprite MCP re-audit **10/10 passed** sobre dos batches.
 >
 > **Ajustes post-gate acumulados:**
@@ -711,8 +711,8 @@ bash scripts/stress-qa.sh     # repite pytest N veces (default 3) para detectar 
 bash scripts/full-qa-live.sh  # opt-in: smokes read-only contra proveedores reales (LIVE_TESTS_ENABLED=1)
 ```
 
-Snapshot vigente (commit `647f103`): `full-qa.sh` → **947 passed**, 1
-skipped, 28 deselected; `stress-qa.sh 3` → 3 pasadas de 947; Playwright
+Snapshot vigente (commit `647f103`): `full-qa.sh` → **950 passed**, 1
+skipped, 28 deselected; `stress-qa.sh 3` → 3 pasadas de 950; Playwright
 **31 passed** sin exportar `COGOS_JWT` (auto-mint via
 `_global-setup.ts`); `full-qa-live.sh` con `LIVE_TESTS_ENABLED=1` →
 **8 passed**; TestSprite MCP re-audit → **10/10 passed** sobre dos

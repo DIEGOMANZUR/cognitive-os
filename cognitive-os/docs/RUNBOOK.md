@@ -12,9 +12,9 @@
 > `mail`) con hasta **13 jobs beat**, **20 migraciones Alembic** head
 > `202605200003`, **37 slash commands Telegram**, `/health/dashboard`
 > con 18 componentes + `POST /health/verify`. QA: `full-qa.sh`
-> **947 passed**, 1 skipped, 28 deselected; Playwright **31 passed** sin
+> **950 passed**, 1 skipped, 28 deselected; Playwright **31 passed** sin
 > exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`); `stress-qa.sh`
-> 3 pasadas verdes de **947 passed**. `full-qa.sh` construye Next en
+> 3 pasadas verdes de **950 passed**. `full-qa.sh` construye Next en
 > `.next-qa` para no invalidar el `.next` que usa un `next start` vivo.
 > Live read-only: `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh`
 > **8 passed**. TestSprite MCP re-audit: **10/10 passed** sobre dos
@@ -70,7 +70,7 @@ Y para los gates QA:
 
 ```bash
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os"
-bash scripts/full-qa.sh                          # 947 passed (≈70s)
+bash scripts/full-qa.sh                          # 950 passed (≈70s)
 cd frontend && unset COGOS_JWT && npx playwright test --reporter=list
 # 31 passed (auto-mint JWT, no necesita exportar nada)
 ```

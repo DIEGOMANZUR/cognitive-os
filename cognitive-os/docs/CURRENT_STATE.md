@@ -87,9 +87,9 @@ la primera pasada no detecto:
   para perfil `strict`.
 
 Gates post-fix:
-- `full-qa.sh` → **947 passed**, 1 skipped, 28 deselected (944 historicos +
+- `full-qa.sh` → **950 passed**, 1 skipped, 28 deselected (944 historicos +
   3 nuevos), lint/format/mypy/Alembic/sync_doc_counts/git diff todos OK.
-- `stress-qa.sh 3` → 3 pasadas verdes de **947 passed**.
+- `stress-qa.sh 3` → 3 pasadas verdes de **950 passed**.
 - `npx playwright test` (sin exportar `COGOS_JWT`) → **31 passed**.
 - `verify_desktop_launchers.sh` → OK.
 - TestSprite MCP/CLI → **10/10 passed** sobre dos batches acotados
@@ -224,7 +224,7 @@ Conteos estructurales derivados del codigo (generados por
 | LLM | primary+agent `gpt-5.5` (Responses API + prompt caching 24h), secondary/fallback `gemini-3.1-pro-low`, vision `glm-4.6v` |
 | QA backend | `pytest` hermetico con DB de test aislada (`cognitive_os_test`) |
 | QA frontend | Playwright oficial: 31 tests en desktop/mobile; runner zero-friction (auto-mintea `COGOS_JWT` via `POST /auth/local-token` en `dedicated_local/full`) |
-| QA oficial | `scripts/full-qa.sh` (build Next aislado en `.next-qa`, 947 passed); `stress-qa.sh` para flakiness; `full-qa-live.sh` opt-in para smokes reales |
+| QA oficial | `scripts/full-qa.sh` (build Next aislado en `.next-qa`, 950 passed); `stress-qa.sh` para flakiness; `full-qa-live.sh` opt-in para smokes reales |
 | Reaudit TestSprite | 2 pasadas independientes 2026-05-23: pasada 1 (PASS, 5 hallazgos P2/P3 cerrados); pasada 2 (PASS, 1 P1 nuevo cazado y corregido — eager_defaults). Reporte en `docs/audits/testsprite/16_FINAL_REAUDIT_REPORT.md` |
 
 ## Ultimo Gate Verde Conocido
@@ -233,7 +233,7 @@ Gate de certificación final (2026-05-23, ver
 [`17_COMMERCIAL_GRADE_CERTIFICATION.md`](audits/testsprite/17_COMMERCIAL_GRADE_CERTIFICATION.md)):
 
 - `bash scripts/full-qa.sh` -> **950 passed, 1 skipped, 28 deselected**
-  (947 históricos + 3 nuevos `test_health_llm_probe_timeout`).
+  (944 históricos + 6 nuevos `test_health_llm_probe_timeout`).
 - `bash scripts/stress-qa.sh 3` -> 3 pasadas verdes de **950 passed**.
 - `npx playwright test` × 3 pasadas seguidas -> **31 passed** cada una,
   sin flakiness (incluye fix anti-race del `useKeyboard` Ctrl+K).
@@ -244,7 +244,7 @@ Gate de certificación final (2026-05-23, ver
 Gate ejecutado al cierre del commit `647f103` (referencia histórica
 anterior a la certificación):
 
-- `bash scripts/full-qa.sh` -> **947 passed, 1 skipped, 28 deselected**,
+- `bash scripts/full-qa.sh` -> **950 passed, 1 skipped, 28 deselected**,
   ruff OK, ruff format OK, mypy OK (`135 source files`), Alembic check OK,
   `npm ci`, frontend lint OK, frontend build OK, `sync_doc_counts --check` OK,
   `git diff --check` OK. Los 3 tests nuevos cubren el bug
@@ -253,7 +253,7 @@ anterior a la certificación):
   -> **31 passed**. La env var `COGOS_JWT` ya **no** es obligatoria: el
   `tests/e2e/_global-setup.ts` la mintea via `POST /auth/local-token`
   cuando el perfil es `dedicated_local/full`.
-- `bash scripts/stress-qa.sh 3` -> 3 pasadas verdes, **947 passed** en cada una.
+- `bash scripts/stress-qa.sh 3` -> 3 pasadas verdes, **950 passed** en cada una.
 - `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` -> **8 passed** (último
   carril live verificado; 2 warnings de deprecacion del adaptador MCP upstream,
   no bloqueantes). En este audit no se re-ejecutó (opt-in, no presente en

@@ -19,7 +19,7 @@ Diego. Es intencionalmente distinta de una postura SaaS/multiusuario.
 > **Ajustes runtime acumulados:**
 > - `647f103` (re-audit): `eager_defaults=True` en ORM Base; Playwright
 >   auto-mintea JWT en `dedicated_local/full` via `_global-setup.ts`.
->   Gates: `full-qa.sh` 947 passed, Playwright 31/31 sin exportar
+>   Gates: `full-qa.sh` 950 passed, Playwright 31/31 sin exportar
 >   `COGOS_JWT`, TestSprite re-audit 10/10.
 > - `5953b40`: MCP inventario paralelo, timeout default 30s, runtime
 >   verificado 5/5 servers / 67 tools; atajo `Ctrl/Cmd+K` del cockpit

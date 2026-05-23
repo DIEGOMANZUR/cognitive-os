@@ -4,8 +4,8 @@
 > el cockpit actual. La suite oficial Playwright está verde con **31
 > passed** y se ejecuta contra la SPA Next.js de 20 tabs sin necesidad
 > de exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`). Backend
-> verificado por `full-qa.sh`: **947 passed**, 1 skipped, 28 deselected
-> (944 históricos + 3 nuevos para regresión del bug `eager_defaults`).
+> verificado por `full-qa.sh`: **950 passed**, 1 skipped, 28 deselected
+> (944 históricos + 6 nuevos para regresión del bug `eager_defaults`).
 > El producto corre en un PC dedicado con prioridad de fricción casi
 > nula; los tests deben validar que esa fricción baja no esconda
 > errores, pantallas muertas ni operaciones silenciosas. Mail sigue

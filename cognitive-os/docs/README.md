@@ -28,9 +28,9 @@
 >   `openharness-ai>=0.1.9,<0.2`, pipeline por defecto `prelude_merge`).
 > - LLM: **primary+agent `gpt-5.5`** (Responses API + prompt caching 24h),
 >   **secondary/fallback `gemini-3.1-pro-low`**, **vision `glm-4.6v`**.
-> - QA: `full-qa.sh` **947 passed, 1 skipped, 28 deselected** + ruff/format/
+> - QA: `full-qa.sh` **950 passed, 1 skipped, 28 deselected** + ruff/format/
 >   mypy/Alembic/lint/build/`sync_doc_counts`/`git diff --check`; `stress-qa.sh`
->   3 pasadas verdes de **947 passed**; Playwright **31 passed** sin
+>   3 pasadas verdes de **950 passed**; Playwright **31 passed** sin
 >   exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`); carril opt-in
 >   `tests/live/` verificado con **8 passed**; TestSprite MCP re-audit
 >   **10/10 passed** sobre dos batches acotados.

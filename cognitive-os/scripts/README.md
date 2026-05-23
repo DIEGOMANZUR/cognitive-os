@@ -9,7 +9,7 @@
 > visible y recuperación rápida.
 >
 > `full-qa.sh` está actualizado al ciclo vigente (commit `647f103`):
-> backend con **947 passed**, 1 skipped, 28 deselected (944 históricos
+> backend con **950 passed**, 1 skipped, 28 deselected (944 históricos
 > + 3 nuevos por el fix `eager_defaults`); ruff/format/mypy/Alembic
 > verdes, frontend lint/build verde, `sync_doc_counts --check` y
 > `git diff --check` finales. El build frontend de QA usa

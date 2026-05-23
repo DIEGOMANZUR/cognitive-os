@@ -19,12 +19,12 @@
 > separado; no drafts y no envío automático.
 >
 > **QA más reciente (commit `647f103`):** `bash scripts/full-qa.sh` verde
-> con **947 passed, 1 skipped, 28 deselected** (944 históricos + 3 nuevos
+> con **950 passed, 1 skipped, 28 deselected** (944 históricos + 6 nuevos
 > que cubren el fix `eager_defaults`); ruff/format/mypy/Alembic/lint/
 > build/`sync_doc_counts --check`/`git diff --check` OK; Playwright
 > **31 passed** sin exportar `COGOS_JWT` (auto-mint via
 > `_global-setup.ts`); `bash scripts/stress-qa.sh` verde con 3 pasadas
-> de **947 passed**. El build de QA usa `NEXT_DIST_DIR=.next-qa` para no
+> de **950 passed**. El build de QA usa `NEXT_DIST_DIR=.next-qa` para no
 > invalidar un frontend vivo servido desde `.next`. Live read-only:
 > **8 passed**. TestSprite MCP re-audit: **10/10 passed** sobre dos
 > batches acotados.

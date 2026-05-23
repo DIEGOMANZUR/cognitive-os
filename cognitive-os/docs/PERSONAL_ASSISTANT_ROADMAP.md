@@ -16,10 +16,10 @@
 > crean borradores y no se envía nada en el flujo normal.
 >
 > **QA vigente (commit `647f103`):** `bash scripts/full-qa.sh` verde con
-> **947 passed**, 1 skipped, 28 deselected (944 históricos + 3 nuevos
+> **950 passed**, 1 skipped, 28 deselected (944 históricos + 6 nuevos
 > del fix `eager_defaults`); frontend Playwright **31 passed** sin
 > exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`); stress QA 3
-> pasadas de **947 passed**; carril opt-in `tests/live/` verificado con
+> pasadas de **950 passed**; carril opt-in `tests/live/` verificado con
 > **8 passed**; TestSprite MCP re-audit **10/10 passed** sobre dos
 > batches acotados. MCP queda verificado 5/5 servers y 67 tools tras el
 > ajuste de inventario paralelo (`5953b40`).
