@@ -731,18 +731,22 @@ def _failed(name: str, exc: Exception, started: float) -> ComponentHealth:
 
 async def _safe_check(name: str, check: Awaitable[ComponentHealth]) -> ComponentHealth:
     started = _now_ms()
+    # Components that hit an LLM gateway get a more generous wait_for budget.
+    # A 3s ceiling produced false `degraded` reports on cold start (the
+    # TestSprite re-audit captured this on `primary_llm`). LLM probes are
+    # operator-triggered (`POST /health/verify`), so the wider window does not
+    # affect passive polling.
+    if name in {"primary_llm", "embeddings"}:
+        component_timeout = settings.health_llm_probe_timeout_seconds
+    else:
+        component_timeout = settings.health_component_timeout_seconds
     try:
-        return await asyncio.wait_for(
-            check,
-            timeout=settings.health_component_timeout_seconds,
-        )
+        return await asyncio.wait_for(check, timeout=component_timeout)
     except TimeoutError:
         return ComponentHealth(
             name=name,
             status="degraded",
-            detail=(
-                f"Health check timed out after {settings.health_component_timeout_seconds:g}s."
-            ),
+            detail=f"Health check timed out after {component_timeout:g}s.",
             latency_ms=_elapsed_ms(started),
         )
     except Exception as exc:

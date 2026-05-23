@@ -23,6 +23,24 @@ else
   echo "SKIP: alembic check (no hay DATABASE_URL ni .env)"
 fi
 cd "$ROOT/frontend"
+# Guard: `npm ci` deletes + rebuilds `node_modules/`. If THIS repo's
+# Playwright is running concurrently it loses
+# `node_modules/playwright/lib/worker/workerProcessEntry.js` mid-flight
+# and every spec crashes with `Cannot find module ...`. The 2026-05-23
+# TestSprite re-audit caught this exact race. Abort with a clear message
+# so the operator picks one or the other.
+#
+# The pattern is narrow on purpose: only Playwright that runs FROM this
+# repo's node_modules (`cognitive-os/frontend/node_modules/...`). Other
+# `playwright`/`ms-playwright-go` processes from unrelated workspaces
+# do not affect this `npm ci` and should not trigger a false abort.
+QA_PW_PATTERN="${ROOT}/frontend/node_modules/.*(@playwright/test|playwright)/.*(cli|worker)"
+if pgrep -u "$USER" -f "$QA_PW_PATTERN" >/dev/null 2>&1; then
+  echo "FAIL: another Playwright run from this repo is in flight." >&2
+  echo "      'npm ci' would wipe its node_modules/ mid-run and crash it." >&2
+  echo "      Wait for Playwright to finish, then re-run scripts/full-qa.sh." >&2
+  exit 1
+fi
 npm ci
 npm run lint
 rm -rf "$QA_NEXT_DIST"

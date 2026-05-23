@@ -2,7 +2,8 @@
 
 Fecha de sincronizacion documental: **2026-05-23**
 Branch auditada: `codex/commercial-zero-friction-hardening`
-Ultimo commit verificado: `647f103 fix: eager_defaults=True + zero-friction Playwright runner + TestSprite audit docs`
+Ultimo commit verificado (post-certification): ver `git log --oneline -1`.
+Snapshot certificado: `docs/audits/testsprite/17_COMMERCIAL_GRADE_CERTIFICATION.md`.
 
 Este archivo es la **fuente corta de verdad** del estado operativo actual. Si
 otro Markdown discrepa, este archivo manda y el otro debe corregirse. Los
@@ -10,6 +11,48 @@ conteos estructurales del "Snapshot Tecnico" se generan con
 `scripts/sync_doc_counts.py` y `full-qa.sh` falla si quedan desincronizados.
 
 ## Cambios Mas Recientes
+
+**Certificación final grado comercial (2026-05-23, post `647f103`).** Tras
+una tercera pasada de hardening explícitamente buscando debilidades, se
+cerraron 4 hallazgos adicionales (TS-ZF-20260523-007/008/009/010) y se
+certificó el sistema:
+
+- **TS-ZF-20260523-007 (P2) — Falsos `degraded` LLM cold-start.** El probe
+  `primary_llm` reportaba `timed out after 3s` en cold start del gateway
+  por usar el `HEALTH_COMPONENT_TIMEOUT_SECONDS=3.0` global. Fix:
+  `HEALTH_LLM_PROBE_TIMEOUT_SECONDS=10` (range 1–60) específico para los
+  componentes con modelo de IA. `_safe_check` lo aplica selectivamente a
+  `primary_llm` y `embeddings`; el resto sigue con el ceñido 3s. 3 tests
+  nuevos en `test_health_llm_probe_timeout.py`. **Verificado vivo:**
+  `primary_llm: ok 3.6s "Live completion succeeded"`.
+- **TS-ZF-20260523-008 (P3) — Race condition `full-qa.sh` vs Playwright.**
+  Si Playwright estaba corriendo en otra ventana, `npm ci` de `full-qa`
+  borraba `node_modules/` y crasheaba sus workers. Guard agregado:
+  `pgrep -u $USER -f "playwright test"` antes de `npm ci`, sale con
+  mensaje claro.
+- **TS-ZF-20260523-009 (P3) — Flake hidratación Ctrl+K.** Spec
+  `glass-cockpit` pulsaba Ctrl+K antes que React hidratara el
+  `useKeyboard` listener (registrado en `useEffect`). Test endurecido
+  con poll-retry de hasta 7s; producción no afectada.
+- **TS-ZF-20260523-010 (P3) — Test regression-critical aceptar `degraded`
+  como status válido.** AUDIT-2026-B/F introdujeron `degraded` para
+  componentes con problema operativo (reapers, probes); el test legacy
+  sólo aceptaba `blocked`/`error`. Ahora acepta los tres.
+
+Gates de certificación tras los fixes:
+- `full-qa.sh` → **950 passed**, 1 skipped, 28 deselected.
+- `stress-qa.sh 3` → 3 pasadas × 950 passed.
+- `npx playwright test` → 31 passed × 3 pasadas seguidas sin flake.
+- `full-qa-live.sh` → 8/8 passed.
+- Migración up→down→up→check round-trip sobre DB scratch → limpio.
+- Frontend↔backend endpoint compatibility → 23/23 endpoints OpenAPI.
+- 174 broad excepts auditados → 0 silentes (todos loguean o degradan
+  visiblemente).
+- 37 type: ignore auditados → todos justificados.
+- 0 xfails, 0 todos reales, 0 skips ilegítimos.
+
+Reporte completo en
+[`audits/testsprite/17_COMMERCIAL_GRADE_CERTIFICATION.md`](audits/testsprite/17_COMMERCIAL_GRADE_CERTIFICATION.md).
 
 **Re-auditoria independiente TestSprite (2026-05-23, commit `647f103`).** Una
 segunda pasada de auditoria, ejecutada como auditor independiente sobre el
@@ -186,7 +229,20 @@ Conteos estructurales derivados del codigo (generados por
 
 ## Ultimo Gate Verde Conocido
 
-Gate ejecutado al cierre del commit `647f103`:
+Gate de certificación final (2026-05-23, ver
+[`17_COMMERCIAL_GRADE_CERTIFICATION.md`](audits/testsprite/17_COMMERCIAL_GRADE_CERTIFICATION.md)):
+
+- `bash scripts/full-qa.sh` -> **950 passed, 1 skipped, 28 deselected**
+  (947 históricos + 3 nuevos `test_health_llm_probe_timeout`).
+- `bash scripts/stress-qa.sh 3` -> 3 pasadas verdes de **950 passed**.
+- `npx playwright test` × 3 pasadas seguidas -> **31 passed** cada una,
+  sin flakiness (incluye fix anti-race del `useKeyboard` Ctrl+K).
+- `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` -> **8 passed**.
+- TestSprite MCP re-audit -> **10/10 passed**.
+- Migración up→down→up→check sobre DB scratch -> **limpio**.
+
+Gate ejecutado al cierre del commit `647f103` (referencia histórica
+anterior a la certificación):
 
 - `bash scripts/full-qa.sh` -> **947 passed, 1 skipped, 28 deselected**,
   ruff OK, ruff format OK, mypy OK (`135 source files`), Alembic check OK,

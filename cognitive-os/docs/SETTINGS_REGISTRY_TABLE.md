@@ -139,6 +139,7 @@
 | `google_maps_base_url` | `GOOGLE_MAPS_BASE_URL` | str |
 | `google_token_dir` | `GOOGLE_TOKEN_DIR` | Path |
 | `health_component_timeout_seconds` | `HEALTH_COMPONENT_TIMEOUT_SECONDS` | float |
+| `health_llm_probe_timeout_seconds` | `HEALTH_LLM_PROBE_TIMEOUT_SECONDS` | float |
 | `http_max_retries` | `HTTP_MAX_RETRIES` | int |
 | `http_timeout_seconds` | `HTTP_TIMEOUT_SECONDS` | float |
 | `jwt_algorithm` | `JWT_ALGORITHM` | str |

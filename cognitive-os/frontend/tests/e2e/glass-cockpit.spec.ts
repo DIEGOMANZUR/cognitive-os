@@ -28,8 +28,23 @@ test.describe("Fase 82 — Glass Cockpit", () => {
     // Sidebar visible primero — confirma el shell montado.
     await expect(page.getByRole("button", { name: /Dashboard/ })).toBeVisible();
 
-    await page.keyboard.press("Control+k");
+    // The `useKeyboard` listener is attached inside a `useEffect`, so it is
+    // only live AFTER React hydrates. If we press Ctrl+K before the effect
+    // runs, the keystroke is dropped on the floor (the listener simply does
+    // not exist yet). To make the test resilient to hydration jitter we
+    // re-press until the palette appears or the budget runs out — the
+    // production behaviour (single press from the operator) is unaffected.
     const palette = page.getByRole("dialog", { name: "Paleta de comandos" });
+    await expect
+      .poll(
+        async () => {
+          if (await palette.isVisible()) return true;
+          await page.keyboard.press("Control+k");
+          return await palette.isVisible();
+        },
+        { timeout: 7_000, intervals: [200, 400, 600] },
+      )
+      .toBe(true);
     await expect(palette).toBeVisible();
 
     const search = page.getByPlaceholder("¿Qué querés hacer? (ESC para cerrar)");

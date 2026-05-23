@@ -365,6 +365,20 @@ class Settings(BaseSettings):
             "stuck integration from hanging the dashboard or frontend polling."
         ),
     )
+    health_llm_probe_timeout_seconds: float = Field(
+        default=10.0,
+        ge=1.0,
+        le=60.0,
+        alias="HEALTH_LLM_PROBE_TIMEOUT_SECONDS",
+        description=(
+            "Specific timeout for the live LLM probe (`POST /health/verify` → "
+            "primary_llm). LLM gateways can take longer than 3s on cold start; "
+            "a generic 3s timeout produced false `degraded` reports in the "
+            "TestSprite re-audit. The wider wait_for around the LLM ainvoke "
+            "uses this value while every other component still uses the "
+            "tighter HEALTH_COMPONENT_TIMEOUT_SECONDS."
+        ),
+    )
     http_max_retries: int = Field(default=2, alias="HTTP_MAX_RETRIES")
     circuit_breaker_failure_threshold: int = Field(
         default=3,
