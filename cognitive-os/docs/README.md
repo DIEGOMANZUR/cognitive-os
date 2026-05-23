@@ -28,11 +28,15 @@
 >   `openharness-ai>=0.1.9,<0.2`, pipeline por defecto `prelude_merge`).
 > - LLM: **primary+agent `gpt-5.5`** (Responses API + prompt caching 24h),
 >   **secondary/fallback `gemini-3.1-pro-low`**, **vision `glm-4.6v`**.
-> - QA: `full-qa.sh` **943 passed, 1 skipped, 28 deselected** + ruff/format/
+> - QA: `full-qa.sh` **944 passed, 1 skipped, 28 deselected** + ruff/format/
 >   mypy/Alembic/lint/build/`sync_doc_counts`/`git diff --check`; `stress-qa.sh`
 >   3 pasadas verdes; Playwright **31 passed**; carril opt-in `tests/live/`
 >   verificado con **8 passed**; TestSprite MCP/CLI **3/3 passed** como
 >   smoke advisory acotado.
+>
+> **Post-gate `5953b40`:** `/system/mcp` carga inventario en paralelo con
+> `MCP_INVENTORY_TIMEOUT_SECONDS=30`; runtime verificado **5/5 MCP servers**
+> y **67 tools**. El frontend estabiliza `Ctrl/Cmd+K` de la command palette.
 >
 > **Plan de aprendizaje autonomo (Fases A-E, `AGENT_LEARNING_PLAN.md`):** en
 > produccion. Fase A recipe extractor, Fase B skill promotion (procedure →

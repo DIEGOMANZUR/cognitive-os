@@ -15,9 +15,9 @@
 > decoradores REST**, **23 tareas Celery** en **5 colas**, hasta **13 jobs
 > beat**, **20 migraciones Alembic** head `202605200003`, **20 vistas
 > frontend**, **37 comandos Telegram**, **18 componentes** en
-> `/health/dashboard` + `POST /health/verify`. QA: `full-qa` **943 passed,
+> `/health/dashboard` + `POST /health/verify`. QA: `full-qa` **944 passed,
 > 1 skipped, 28 deselected**, Playwright **31 passed**, `stress-qa` 3
-> pasadas verdes, carril opt-in `tests/live/`. `full-qa.sh` construye Next
+> pasadas verdes de **944 passed**, carril opt-in `tests/live/`. `full-qa.sh` construye Next
 > en `.next-qa` para no deshidratar el frontend vivo servido desde `.next`.
 > La suite es hermética y corre contra una DB de test aislada
 > (`cognitive_os_test`); producción nunca se toca.
@@ -61,7 +61,8 @@
 > - **Identidad del agente:** `docs/AGENT_SELF.md` es el doc-canon que el
 >   agente carga como contexto.
 > - **Cliente MCP:** herramientas de servidores MCP externos sin tocar
->   código (declarados en `.env`).
+>   código (declarados en `.env`); inventario paralelo con timeout default 30s
+>   y runtime verificado 5/5 servers, 67 tools.
 > - **Acceso total al PC:** en `dedicated_local` el agente lee/escribe en
 >   todo `/home/jgonz` sin aprobación por archivo.
 > - **Diagnóstico de fricción:** `/system/readiness` lista qué flags de
@@ -102,14 +103,16 @@
 > 3. **GoDaddy DNS:** operativo en modo seguro (dry-run + aprobación).
 >    Para escrituras DNS reales: `GODADDY_DNS_DRY_RUN_ONLY=false` +
 >    `GODADDY_ALLOW_PRODUCTION_WRITES=true` + `GODADDY_ALLOWED_DOMAINS`.
-> 4. **MCP:** ✅ 3 servidores conectados (Supermemory, GitHub,
->    filesystem). Estado en vivo en `/system/mcp`.
+> 4. **MCP:** ✅ 5 servidores conectados — Supermemory (`mem`), GitHub
+>    (`gh`), filesystem (`fs`), Claude Code (`cc`) y Gemini CLI (`gem`) —
+>    con **67 tools**. Estado en vivo en `/system/mcp`.
 >
 > **Carril de verificación en vivo (`tests/live/`, opt-in):**
 > `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` corre 8 smokes
 > read-only contra los proveedores reales (LLM ping, GoDaddy GET domains,
 > IMAP/SMTP handshake, Telegram `getMe`, Kimi status, MCP `list_tools`,
-> Google OAuth + freeBusy). No envía ni escribe nada.
+> Google OAuth + freeBusy). No envía ni escribe nada; el último gate paso con
+> 8 passed y dos warnings no bloqueantes de deprecación MCP upstream.
 
 Este documento es **la** guía operativa de punta a punta. Si nunca viste
 el proyecto, leelo en orden: el capítulo 0 te lleva de cero a un sistema
@@ -312,7 +315,7 @@ la allow-list, te responde con los 37 comandos.
 ```bash
 cd cognitive-os
 bash scripts/full-qa.sh                  # pytest + ruff + mypy + frontend build + sync_doc_counts + git diff
-# Esperado vigente: 943 passed, 1 skipped, 28 deselected; todo verde
+# Esperado vigente: 944 passed, 1 skipped, 28 deselected; todo verde
 # (corre contra cognitive_os_test — la DB de producción nunca se toca)
 ```
 
@@ -1183,6 +1186,7 @@ Detalle completo en `docs/SECURITY.md`.
 | Build Code Director `failed` "adapter unavailable" | CLI no instalado/logueado | `claude --version`, `codex --version`, `kimi --version` |
 | `Approval pending` desaparece sola | reaper la marcó expirada (>48 h) | volvé a generarla |
 | Envío explícito de mail falla | SMTP/credenciales incompletas, body vacío, flags de escape hatch apagadas o confirmación faltante | revisá `/mail/status`, `MAIL_GODADDY_*`, `ENABLE_EMAIL_SEND`, `MAIL_ALLOW_EXPLICIT_SEND` y la confirmación explícita |
+| `/system/mcp` tarda o muestra timeouts falsos | servidores MCP `stdio` fríos o `npx` lento | verificá `MCP_INVENTORY_TIMEOUT_SECONDS=30`; desde `5953b40` el inventario carga en paralelo y debe mostrar 5/5 si credenciales/servers están listos |
 | ActionRequest queda `dispatched=false` | Redis/Celery caído | levantá el stack y reintentá el dispatch |
 | Drive folder/organize daba 500 en Postgres | (corregido en Fase 65: migración `202605170001`) | `uv run alembic upgrade head` |
 | `detect-secrets` falso positivo en test | falta pragma | `# pragma: allowlist secret` en esa línea |
@@ -1565,9 +1569,12 @@ viven en la vista **Memoria** y exponen endpoints `/deepagents/learning/*`.
   `ENABLE_MCP_CLIENT=true`. Estado en vivo en `/system/mcp`.
 - **Pasa:** al construir el DeepAgent se cargan las tools dinámicas
   (cacheadas por rol, TTL 5 min) y quedan disponibles como cualquier
-  tool nativa.
+  tool nativa. El inventario externo se carga en paralelo y usa
+  `MCP_INVENTORY_TIMEOUT_SECONDS=30` por defecto para evitar falsos timeouts.
 - **Ejemplo:** con el server `gh` conectado, el agente puede buscar
   código en GitHub dentro de una research.
+- **Estado verificado:** `mem`, `gh`, `fs`, `cc`, `gem` conectados; 67 tools
+  visibles.
 
 ### 13.23 Generar documentos Office
 

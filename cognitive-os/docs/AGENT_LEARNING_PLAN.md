@@ -8,8 +8,8 @@
 > La **única excepción de auto-deploy** es el auto-promote de *warnings* de
 > Fase D, con kill switch `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED` (default
 > `true`, AUDIT-2026-C) — ver §1 y §3.4.
-> QA vigente del repo: `full-qa.sh` **943 passed, 1 skipped, 28
-> deselected**, Playwright **31 passed**, stress QA 3 pasadas de **943
+> QA vigente del repo: `full-qa.sh` **944 passed, 1 skipped, 28
+> deselected**, Playwright **31 passed**, stress QA 3 pasadas de **944
 > passed**. Ver `CURRENT_STATE.md`.
 
 > Documento de handoff. Pensado para que un chat nuevo entienda **(a)** el estado
@@ -17,7 +17,7 @@
 > **(c)** las 5 fases del plan de aprendizaje autónomo, con código, schemas,
 > tests y orden de implementación.
 
-Branch: `main`.
+Branch vigente de hardening: `codex/commercial-zero-friction-hardening`.
 
 ## 🟢 Status — Plan completo: las 5 fases en producción (F78-F81, 2026-05-20)
 
@@ -87,7 +87,8 @@ lo descrito originalmente en §2:
   round-trip). Suite total **735 passed**.
 - Live evidence: endpoint retornó proposal real con `kind="procedure"` y
   payload completo (recipe JSON + tool_call_count + duration); beat task
-  visible en Celery; `/health/dashboard` mantiene 17 componentes.
+  visible en Celery. En el estado actual `/health/dashboard` expone 18
+  componentes (incluye `operational_backlog` y `checkpointer`).
 
 **Siguiente paso del plan:** Fase 79 (failure post-mortem → warnings
 proactivos) — ver §3.
@@ -102,12 +103,13 @@ proactivos) — ver §3.
 |---|---|---|
 | **F76** (QA) | Playwright E2E full-stack audit: `docs/qa/MAP.md`, `docs/qa/RUNBOOK.md`, `docs/qa/FINAL_AUDIT_REPORT.md`, suite `frontend/tests/e2e/` con 16 tests. **16/16 verdes**. Bug QA-1 detectado y corregido (tsconfig excluye `tests/`). | ✅ Cerrada |
 | **F77** (MCP gem + cc) | Cableados `gemini-mcp-tool` y `@steipete/claude-code-mcp` como MCP stdio servers. Total **5 MCP servers conectados**: `mem` (Supermemory, 4 tools), `gh` (GitHub, 42 tools), `fs` (filesystem `/home/jgonz`, 14 tools), `cc` (Claude Code, 1 tool), `gem` (Gemini CLI, 6 tools) → **67 tools inyectables al DeepAgent**. | ✅ Cerrada |
-| **Verificación live** | `/system/mcp` 5/5 connected. `/health/dashboard` 17 componentes (incluye `mcp_client` + `checkpointer`). `gem_ask-gemini` invocado en vivo respondió `PONG` en 8.4s. | ✅ |
+| **Verificación live** | `/system/mcp` 5/5 connected con 67 tools (`mem`, `gh`, `fs`, `cc`, `gem`), inventario paralelo y timeout default 30s. `/health/dashboard` 18 componentes. `gem_ask-gemini` invocado en vivo respondió `PONG` en 8.4s. | ✅ |
 
 ### 0.2 Estado funcional del stack
 
-- **Backend FastAPI:** `:8000`, 130 endpoints, 712 pytest passed.
-- **Frontend Next.js 16 SPA:** `:3001`, 20 tabs, 16/16 Playwright passed.
+- **Backend FastAPI:** `:8000`, 147 endpoints, suite hermética vigente
+  **944 passed, 1 skipped, 28 deselected**.
+- **Frontend Next.js 16 SPA:** `:3001`, 20 vistas, **31/31 Playwright passed**.
 - **Workers Celery:** 5 queues + 3 reapers (approval, stuck_action_requests, stale_running_jobs).
 - **Stores:** Postgres 16+pgvector, Redis 7, Weaviate 1.29, Neo4j 5.
 - **LLM chain:** primary+agent `gpt-5.5` (openai-compatible gateway), secondary/fallback `gemini-3.1-pro-low`, vision `glm-4.6v` (z.ai), Kimi-k2.6 vía CLI.
@@ -1008,7 +1010,7 @@ async def test_reflection_auto_disables_if_rejection_rate_high(): ...
 - [ ] `npm run lint` 0 warnings
 - [ ] `npm run build` OK
 - [ ] `uv run pytest -q` todo verde
-- [ ] `COGOS_JWT=$JWT npx playwright test` 16/16 (+ nuevos)
+- [ ] `COGOS_JWT=$JWT npx playwright test` 31/31 (snapshot vigente)
 - [ ] `curl /health/dashboard` muestra los nuevos tiles
 - [ ] Smoke manual de la fase desde la UI
 
@@ -1039,7 +1041,7 @@ Si estás abriendo este doc desde un chat nuevo:
    JWT=$(cd cognitive-os/backend && uv run python -c "from cognitive_os.core.auth import create_access_token; print(create_access_token(user_id='auditor', roles=['admin']))" | tail -1)
    curl -s -H "Authorization: Bearer $JWT" http://127.0.0.1:8000/health/dashboard | python3 -m json.tool
    curl -s -H "Authorization: Bearer $JWT" http://127.0.0.1:8000/system/mcp | python3 -m json.tool
-   cd cognitive-os/backend && uv run pytest -q  # 712 esperado
+   cd cognitive-os/backend && uv run pytest -q  # 944 esperado en el gate vigente
    cd cognitive-os/frontend && npm run lint && npm run build  # 0 warnings + OK
    ```
 4. **Empezá por Fase A.** Es la base. Las otras 4 se construyen sobre su

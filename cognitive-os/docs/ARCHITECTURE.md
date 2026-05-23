@@ -19,11 +19,11 @@
 > de tools built-in tipadas del DeepAgent más tools dinámicas MCP cuando
 > `ENABLE_MCP_CLIENT=true`.
 >
-> **QA más reciente:** `bash scripts/full-qa.sh` verde con **943 passed, 1
+> **QA más reciente:** `bash scripts/full-qa.sh` verde con **944 passed, 1
 > skipped, 28 deselected**; ruff/format/mypy/Alembic/lint/build/`sync_doc_counts
 > --check`/`git diff --check` OK; build frontend aislado con
 > `NEXT_DIST_DIR=.next-qa`; Playwright **31 passed**; stress QA verde con 3
-> pasadas de **943 passed**; carril opt-in `tests/live/` verificado con
+> pasadas de **944 passed**; carril opt-in `tests/live/` verificado con
 > **8 passed**; TestSprite MCP/CLI **3/3 passed** como smoke advisory.
 
 ---
@@ -282,7 +282,7 @@ worker corta circuito si el job ya está `running`.
 | Proveedor LLM | El router cae a ruteo determinístico por keywords |
 | OpenHarness ausente/off | El research path saltea el QueryEngine; DeepAgents + fallback sin cambios |
 | Mail IMAP/SMTP | `/mail/status` reporta degraded; nada de auto-send |
-| Servidor MCP caído | Ese server se skipea con warning; los otros cargan igual; `/system/mcp` lo muestra |
+| Servidor MCP caído | Ese server se skipea con warning; los otros cargan igual; `/system/mcp` lo muestra. El inventario se carga en paralelo con timeout default 30s para evitar falsos timeouts por servers lentos |
 
 ---
 
@@ -298,6 +298,9 @@ servidores MCP externos, además de su set de tools built-in tipadas.
 * **Módulo:** `integrations/mcp_client.py` — parser + loader async sobre
   `langchain_mcp_adapters.MultiServerMCPClient`. Las tools llegan
   prefijadas `<server>_<tool>` (sin colisiones con las built-in).
+* **Inventario paralelo:** cada server se lista concurrentemente; un `stdio`
+  frio o un `npx` lento no bloquea en serie a los demas. El timeout
+  configurable `MCP_INVENTORY_TIMEOUT_SECONDS` default es 30s.
 * **Fail-open por server:** si un server cae, se loguea warning y se
   skipea; los demás cargan igual.
 * **Allow-list por subgrafo:** `MCP_ALLOWED_FOR_RESEARCH` /
@@ -308,6 +311,8 @@ servidores MCP externos, además de su set de tools built-in tipadas.
 * **Observabilidad:** `GET /system/mcp` dialoga con cada server y reporta
   `connected` + `tools_count`; `health/dashboard` tiene el componente
   `mcp_client` (config sin live RPC).
+* **Runtime verificado:** `mem`, `gh`, `fs`, `cc` y `gem` conectados 5/5,
+  con 67 tools inyectables.
 
 Detalle completo: `docs/COGNITIVE_OS_GUIDE.md` §MCP.
 

@@ -31,13 +31,17 @@
 > agente, digest 10:00/20:00 Chile, máximo 50 correos, respuestas sugeridas
 > como campos de texto separados.
 >
-> **QA más reciente:** `bash scripts/full-qa.sh` verde con **943 passed, 1
+> **QA más reciente:** `bash scripts/full-qa.sh` verde con **944 passed, 1
 > skipped, 28 deselected**, ruff/format/mypy/Alembic/lint/build/`sync_doc_counts
 > --check`/`git diff --check` OK; build frontend aislado con
 > `NEXT_DIST_DIR=.next-qa`; Playwright **31 passed**; `bash
-> scripts/stress-qa.sh` verde con 3 pasadas de **943 passed**; carril
+> scripts/stress-qa.sh` verde con 3 pasadas de **944 passed**; carril
 > opt-in `tests/live/` verificado con **8 passed**; TestSprite MCP/CLI
 > **3/3 passed** como smoke advisory acotado.
+> **Ultimo ajuste post-gate:** `/system/mcp` carga inventario en paralelo con
+> timeout default 30s (`MCP_INVENTORY_TIMEOUT_SECONDS`); runtime verificado
+> 5/5 servers y 67 tools. `Ctrl/Cmd+K` del cockpit quedo estabilizado desde
+> capture phase.
 > **Para qué es este documento:** la **guía maestra técnica** "desde cero". Complementa la `USER_GUIDE.md` (orientada a operación cotidiana) con arquitectura detallada, mail multicuenta, escritorio, credenciales y troubleshooting profundo. Cada afirmación tiene su archivo o variable de respaldo en el repo.
 
 ---
@@ -695,8 +699,8 @@ bash scripts/stress-qa.sh     # repite pytest N veces (default 3) para detectar 
 bash scripts/full-qa-live.sh  # opt-in: smokes read-only contra proveedores reales (LIVE_TESTS_ENABLED=1)
 ```
 
-Snapshot vigente: `full-qa.sh` → **943 passed, 1 skipped, 28 deselected**;
-`stress-qa.sh 3` → 3 pasadas de 943; Playwright **31 passed**;
+Snapshot vigente: `full-qa.sh` → **944 passed, 1 skipped, 28 deselected**;
+`stress-qa.sh 3` → 3 pasadas de 944; Playwright **31 passed**;
 `full-qa-live.sh` con `LIVE_TESTS_ENABLED=1` → **8 passed**; TestSprite
 MCP/CLI → **3/3 passed** como smoke advisory.
 
@@ -989,6 +993,10 @@ colisionar con las 21 built-in.
 **Observabilidad:** `GET /system/mcp` dialoga con cada server y reporta
 `{connected, tools_count, error}`. El panel `Settings` tiene el tile
 "MCP servers". El `/health/dashboard` incluye el componente `mcp_client`.
+Desde `5953b40`, el inventario se carga en paralelo por servidor y el timeout
+default es 30s para evitar falsos timeouts cuando varios MCP `stdio` arrancan
+en frio. Runtime verificado: `mem`, `gh`, `fs`, `cc` y `gem` conectados 5/5,
+**67 tools** visibles.
 
 **Seguridad:** sólo se activa bajo `OPERATOR_PROFILE=dedicated_local`
 (las tools MCP usan credenciales personales del operador); cada server se

@@ -23,15 +23,18 @@
 > `gemini-3.1-pro-low`, visión `glm-4.6v`.
 >
 > **Gates vigentes:** `bash cognitive-os/scripts/full-qa.sh` verde con
-> **943 passed, 1 skipped, 28 deselected** (incluye ruff/format/mypy,
+> **944 passed, 1 skipped, 28 deselected** (incluye ruff/format/mypy,
 > Alembic check, frontend lint/build, `sync_doc_counts --check`,
 > `git diff --check`); Playwright frontend **31 passed**;
-> `bash cognitive-os/scripts/stress-qa.sh` con 3 pasadas de **943 passed**.
+> `bash cognitive-os/scripts/stress-qa.sh` con 3 pasadas de **944 passed**.
 > Frontend QA usa `.next-qa` para no romper un `next start` vivo. Carril
 > opt-in `tests/live/` (`LIVE_TESTS_ENABLED=1`) verificado con **8 smokes
 > read-only passed**. TestSprite MCP fue ejecutado como smoke advisory
 > acotado: 3/3 casos pasaron, con asserts mas debiles que la suite
 > Playwright comercial.
+> Ajuste posterior `5953b40`: `/system/mcp` inventaria en paralelo con timeout
+> 30s; runtime verificado 5/5 MCP servers y 67 tools. `Ctrl/Cmd+K` del
+> cockpit quedó estabilizado.
 >
 > **Regla de mail vigente:** leer Gmail `diegomanzurn@gmail.com`
 > `TODOS`+`SPAM` y GoDaddy `diego@doctormanzur.com` `Spam`; el agente
@@ -192,7 +195,7 @@ Comandos reales detectados en este repo (úsalos según el área tocada):
 Backend (`cognitive-os/backend/`):
 
 - `uv sync` (con `--extra openharness` si vas a tocar el motor opcional).
-- `uv run pytest` (snapshot vigente: **943 passed, 1 skipped, 28
+- `uv run pytest` (snapshot vigente: **944 passed, 1 skipped, 28
   deselected**; el default deselecciona `integration`, `slow` y
   `live_readonly`).
 - `uv run ruff check .` y `uv run ruff format --check .`.

@@ -10,12 +10,13 @@
 > (`default`, `ingestion`, `agent_longrun`, `maintenance`, `mail`) con hasta
 > **13 jobs beat**, **20 migraciones Alembic** head `202605200003`, **37 slash
 > commands Telegram**, `/health/dashboard` con 18 componentes +
-> `POST /health/verify`. QA: `full-qa.sh` **943 passed, 1 skipped, 28
+> `POST /health/verify`. QA: `full-qa.sh` **944 passed, 1 skipped, 28
 > deselected**, Playwright **31 passed**, `stress-qa.sh` 3 pasadas verdes.
 > `full-qa.sh` construye Next en `.next-qa` para no invalidar el `.next` que
 > usa un `next start` vivo. Live read-only: `LIVE_TESTS_ENABLED=1 bash
 > scripts/full-qa-live.sh` **8 passed**. TestSprite MCP/CLI: **3/3 passed**
-> como smoke advisory acotado.
+> como smoke advisory acotado. Ajuste `5953b40`: `/system/mcp` carga en
+> paralelo, timeout default 30s, runtime 5/5 servers y 67 tools.
 >
 > **Runtime:** la ruta `research` está fusionada con OpenHarness opcional; el
 > LLM es **gpt-5.5** (gateway openai-compatible, Responses API) como
@@ -428,6 +429,10 @@ Pestaña `Health` (también disponible vía `GET /health/dashboard`):
 * Primary LLM y embeddings (estado `configured` cuando hay credenciales).
 * Workers (ping a Celery).
 * `checkpointer` con `metadata.backend ∈ {postgres, memory}`.
+* `mcp_client` como estado de configuración; el inventario real se valida en
+  `GET /system/mcp`, que desde `5953b40` lista servidores en paralelo con
+  `MCP_INVENTORY_TIMEOUT_SECONDS=30`.
+* `operational_backlog` para approvals/jobs/action-requests atascados.
 
 ## Backups
 

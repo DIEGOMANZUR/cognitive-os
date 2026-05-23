@@ -20,7 +20,8 @@
 Fecha: **2026-05-22**
 Auditor: Claude Opus 4.7 (responsable técnico entrante / release gatekeeper)
 Modo: lectura → **remediación aplicada** (ver §0.1).
-Branch: `main` · último commit base `bd203a4`.
+Branch vigente: `codex/commercial-zero-friction-hardening` · último commit
+verificado `5953b40`.
 
 ---
 
@@ -46,19 +47,24 @@ accionables: las 8 funcionales (A–H) y las 3 de higiene de repo (I–K).
 | AUDIT-2026-L/M | — | Informativo | Decisiones conscientes documentadas; no requieren acción. |
 
 **QA post-remediación actualizada por hardening zero-friction:** `bash
-scripts/full-qa.sh` verde — backend **943 passed,
+scripts/full-qa.sh` verde — backend **944 passed,
 1 skipped, 28 deselected**, ruff/format/mypy/Alembic verdes, frontend
 lint/build verdes, `sync_doc_counts --check` y `git diff --check` verdes.
-`bash scripts/full-e2e.sh` -> 31 passed. `stress-qa.sh 3` -> 3 pasadas de
-943 passed sin flakiness. `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh`
--> 8 passed. TestSprite MCP/CLI -> 3/3 passed como smoke advisory acotado.
+`npx playwright test --reporter=list` -> 31 passed. `stress-qa.sh 3` ->
+3 pasadas de 944 passed sin flakiness.
+`LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` -> 8 passed
+(2 warnings de deprecacion MCP upstream, no bloqueantes). TestSprite MCP/CLI
+-> 3/3 passed como smoke advisory acotado.
 
-**Hallazgo nuevo detectado por el carril live:** `test_live_google_oauth_status`
-falla con `HTTP 403` en `GET /freeBusy` aunque `CalendarService.status()`
-informa `ready` — el token Google necesita re-consentimiento o falta habilitar
-la Calendar API en el proyecto Cloud. Es exactamente el falso-positivo que
-AUDIT-2026-B/E buscaban exponer. Acción para el operador: re-correr
-`scripts/auth_google.py` y verificar la API en Google Cloud.
+**Hallazgo live de Google Calendar resuelto:** el carril live habia detectado
+`HTTP 403` en `GET /freeBusy` pese a que `CalendarService.status()` informaba
+`ready`. Se corrigio con scope `https://www.googleapis.com/auth/calendar` y
+re-consentimiento OAuth; `full-qa-live.sh` actual pasa el smoke de Google.
+
+**Ajuste post-audit `5953b40`:** `/system/mcp` carga inventario de servidores
+en paralelo, `MCP_INVENTORY_TIMEOUT_SECONDS` default 30s, runtime verificado
+5/5 servers (`mem`, `gh`, `fs`, `cc`, `gem`) y 67 tools. El frontend estabiliza
+`Ctrl/Cmd+K` del command palette con listener en capture phase.
 
 ---
 
@@ -266,8 +272,9 @@ sin probe live) — ver AUDIT-2026-B.
 
 **Nota post-hardening:** esta seccion conserva la evidencia de la sesion de
 auditoria original. El cierre vigente posterior reejecuto los gates completos:
-`full-qa.sh` 943 passed, Playwright 31 passed, stress QA 3 pasadas de 943,
-live-readonly 8 passed y TestSprite 3/3 passed como smoke advisory.
+`full-qa.sh` 944 passed, Playwright 31 passed, stress QA 3 pasadas de 944,
+live-readonly 8 passed, MCP 5/5 con 67 tools y TestSprite 3/3 passed como
+smoke advisory.
 
 **Conclusión:** el gate oficial está verde. Los componentes que reejecuté
 independientemente confirman. No hay regresión detectable.

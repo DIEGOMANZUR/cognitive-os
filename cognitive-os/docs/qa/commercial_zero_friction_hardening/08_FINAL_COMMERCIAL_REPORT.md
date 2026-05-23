@@ -56,7 +56,7 @@ Specs Playwright comerciales: all-views console guard, smoke zero-friction, heal
 
 ## 12. Gates Ejecutados
 
-- `bash scripts/full-qa.sh` -> OK, 943 passed, 1 skipped, 28 deselected.
+- `bash scripts/full-qa.sh` -> OK, 944 passed, 1 skipped, 28 deselected.
 - `bash scripts/full-e2e.sh` con API `:8001` y frontend `:3101` -> OK, 31 passed.
 - `bash scripts/stress-qa.sh` -> OK, 3 pasadas.
 - `bash scripts/verify_desktop_launchers.sh` -> OK.
@@ -84,7 +84,7 @@ PASS: 31 passed. Cubre 20 vistas, console/page errors, mobile, health configured
 
 ## 16. Backend
 
-PASS: pytest 943 passed, 1 skipped, 28 deselected; ruff, format, mypy y Alembic check OK.
+PASS: pytest 944 passed, 1 skipped, 28 deselected; ruff, format, mypy y Alembic check OK.
 
 ## 17. Frontend
 
@@ -159,4 +159,4 @@ como crawling exploratorio, no como sustituto de Playwright.
 - [x] 20 vistas cubiertas.
 - [x] dedicated_local/full sin friccion indebida detectada.
 - [x] Strict no contamina dedicated_local/full.
-- [x] Documentacion vigente alineada al snapshot 943/31.
+- [x] Documentacion vigente alineada al snapshot 944/31 + MCP 5/5.

@@ -119,8 +119,9 @@ vez de inventar.
   operador declara en `MCP_SERVERS`. Cada tool aparece como
   `<server>_<toolname>` junto a mis tools built-in tipadas.
 - Servidores cableados hoy: **Supermemory** (`mem_*`, memoria personal),
-  **GitHub** (`gh_*`, issues/PRs/code search) y **filesystem** (`fs_*`,
-  todo `/home/jgonz`).
+  **GitHub** (`gh_*`, issues/PRs/code search), **filesystem** (`fs_*`,
+  todo `/home/jgonz`), **Claude Code** (`cc_*`) y **Gemini CLI** (`gem_*`).
+  Runtime verificado: 5/5 servers, 67 tools.
 - Solo aplica bajo `dedicated_local`. Estado en vivo: `/system/mcp`.
 
 ### 2.9 DNS GoDaddy producción

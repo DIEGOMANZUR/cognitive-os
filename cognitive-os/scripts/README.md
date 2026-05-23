@@ -9,12 +9,14 @@
 > visible y recuperación rápida.
 >
 > `full-qa.sh` está actualizado al ciclo vigente: backend con
-> **943 passed, 1 skipped, 28 deselected**, ruff/format/mypy/Alembic
+> **944 passed, 1 skipped, 28 deselected**, ruff/format/mypy/Alembic
 > verdes, frontend lint/build verde, `sync_doc_counts --check` y
 > `git diff --check` finales. El build frontend de QA usa
 > `NEXT_DIST_DIR=.next-qa` para no invalidar un `next start` vivo.
 > Carril opt-in `full-qa-live.sh` para smokes read-only contra
 > proveedores reales, verificado con **8 passed**.
+> `full-qa-live.sh` cubre `/system/mcp`; tras `5953b40` el inventario MCP
+> carga en paralelo con timeout 30s y runtime verificado 5/5 servers.
 >
 > **Detalle de scripts:** `dev_worker.sh` escucha **5 queues**:
 > `default,ingestion,agent_longrun,maintenance,mail`. `full-qa.sh` y

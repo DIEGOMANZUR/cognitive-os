@@ -31,7 +31,7 @@ falla si quedan desincronizados):
   PWA dark-only glassmorphism, sin Tailwind/shadcn.
 - **LLM** — primary+agent `gpt-5.5` (Responses API + prompt caching 24h),
   secondary/fallback `gemini-3.1-pro-low`, vision `glm-4.6v`.
-- **QA** — `full-qa.sh` **943 passed, 1 skipped, 28 deselected** +
+- **QA** — `full-qa.sh` **944 passed, 1 skipped, 28 deselected** +
   ruff/format/mypy/Alembic/lint/build/`sync_doc_counts`/`git diff --check`;
   `stress-qa.sh` 3 pasadas verdes; Playwright **31 passed**; carril opt-in
   `tests/live/` verificado con **8 passed** contra proveedores reales.
@@ -40,6 +40,15 @@ falla si quedan desincronizados):
   `127.0.0.1`, sin exposicion a internet.
 
 ## Cambios Recientes
+
+**Post-gate MCP/frontend (`5953b40`, 2026-05-22).** Se corrigio un falso
+timeout real de `/system/mcp`: el inventario de MCP carga servidores en
+paralelo y usa `MCP_INVENTORY_TIMEOUT_SECONDS=30` por defecto. Runtime
+verificado: `mem`, `gh`, `fs`, `cc` y `gem` conectados (**5/5**) con **67
+tools**. Tambien se estabilizo `Ctrl/Cmd+K` del command palette usando capture
+phase en el hook de teclado. Gates posteriores: `full-qa.sh` **944 passed**,
+Playwright **31 passed**, live read-only **8 passed** y stress QA 3 pasadas de
+**944 passed**.
 
 **Remediacion del audit comercial (2026-05-22).** Tras
 `docs/audits/CODEX_COMMERCIAL_READINESS_AUDIT.md` se cerraron las 8 fallas
@@ -115,7 +124,7 @@ rsync -a --exclude node_modules --exclude .next --exclude .venv --exclude '__pyc
 - Python ≥ 3.12 y [uv](https://docs.astral.sh/uv/)
 - Node.js ≥ 22 y npm
 - Verificación reproducible: `bash scripts/full-qa.sh` (`uv sync --extra openharness` + `pytest` + `ruff check` + `ruff format --check` + `mypy` + `npm ci` + `npm run lint` + `npm run build` + `sync_doc_counts.py --check` + `git diff --check`). Estrés: `bash scripts/stress-qa.sh` (3 pasadas de pytest por defecto). Smokes en vivo opt-in: `bash scripts/full-qa-live.sh`.
-- Snapshot QA vigente (2026-05-22): `bash scripts/full-qa.sh` **943 passed, 1 skipped, 28 deselected**; ruff/ruff format/mypy, frontend lint/build aislado con `.next-qa`, Alembic head `202605200003` y `git diff --check` verdes. Playwright frontend: **31 passed**. Stress QA: 3 pasadas de **943 passed**. Live read-only: `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**. TestSprite: **3/3 passed** como smoke advisory acotado.
+- Snapshot QA vigente (2026-05-22): `bash scripts/full-qa.sh` **944 passed, 1 skipped, 28 deselected**; ruff/ruff format/mypy, frontend lint/build aislado con `.next-qa`, Alembic head `202605200003` y `git diff --check` verdes. Playwright frontend: **31 passed**. Stress QA: 3 pasadas de **944 passed**. Live read-only: `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**. TestSprite: **3/3 passed** como smoke advisory acotado.
 
 ## Backend
 
@@ -193,7 +202,7 @@ En desarrollo el panel puede apuntar al API desde ajustes en la UI; si defines
 - **Centro de notificaciones** (`NotificationCenter.tsx`) con feed unificado de
   aprobaciones, jobs y eventos de auditoría.
 - **Command palette** (`CommandPalette.tsx`) con fuzzy match real, atajo
-  `Ctrl/Cmd+K`.
+  `Ctrl/Cmd+K` estabilizado desde capture phase.
 - **Defensive list guards** (`api.ts → asArray<T>(...)`): cada vista que
   consume `usePolledFetch<T[]>` usa `asArray(data)` para no caer al
   `ErrorBoundary` si el backend responde malformado.

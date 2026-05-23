@@ -39,7 +39,9 @@
 >   permisos push del SO (frontend listo; backend POST → SW `push` hook).
 > - **Command palette mejorado** (`CommandPalette.tsx`): fuzzy match con
 >   scoring de subsecuencia + boundary bonus, agrupación, íconos por
->   acción, recientes persistidos, footer con shortcuts.
+>   acción, recientes persistidos, footer con shortcuts. `Ctrl/Cmd+K`
+>   escucha en capture phase desde `hooks.ts` para no perderse cuando el
+>   foco está en campos editables.
 > - **Defensive array guards** (`api.ts → asArray<T>(...)`): todas las
 >   vistas usan `asArray(data).filter|map|...` en lugar de
 >   `(data ?? []).filter(...)`. Si el backend devuelve forma incorrecta,
@@ -74,7 +76,8 @@
 >   **31 passed**.
 > - `bash scripts/full-qa.sh` desde la raíz del repo ejecuta build frontend
 >   aislado con `NEXT_DIST_DIR=.next-qa` y limpia ese directorio para no
->   romper un `next start` vivo servido desde `.next`.
+>   romper un `next start` vivo servido desde `.next`; gate vigente:
+>   **944 passed, 1 skipped, 28 deselected**.
 > - Anclajes de la suite oficial (`aria-label="JWT local"`, `URL base de la
 >   API`, `Abrir menú`, `Cerrar`, "Estado global", "componentes ok", 20
 >   TAB_LABELS, labels "Guardar"/"API base"/"JWT sin prefijo Bearer" en

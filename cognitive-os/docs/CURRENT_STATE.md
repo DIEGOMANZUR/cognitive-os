@@ -2,6 +2,7 @@
 
 Fecha de sincronizacion documental: **2026-05-22**
 Branch auditada: `codex/commercial-zero-friction-hardening`
+Ultimo commit verificado: `5953b40 fix: stabilize mcp inventory and frontend shortcuts`
 
 Este archivo es la **fuente corta de verdad** del estado operativo actual. Si
 otro Markdown discrepa, este archivo manda y el otro debe corregirse. Los
@@ -9,6 +10,20 @@ conteos estructurales del "Snapshot Tecnico" se generan con
 `scripts/sync_doc_counts.py` y `full-qa.sh` falla si quedan desincronizados.
 
 ## Cambios Mas Recientes
+
+**Post-gate MCP/frontend (2026-05-22, commit `5953b40`).** Despues del
+hardening comercial se detectaron dos puntos reales en runtime y E2E; ambos
+quedaron corregidos y verificados:
+
+- `/system/mcp` ya no depende de una carga secuencial lenta: el inventario de
+  servidores MCP se carga en paralelo y el timeout default
+  `MCP_INVENTORY_TIMEOUT_SECONDS` subio a 30s. Verificacion runtime:
+  **5/5 servidores conectados** (`mem`, `gh`, `fs`, `cc`, `gem`) y **67 tools**
+  expuestas; Playwright consulta `/system/mcp` dentro de su timeout.
+- `Ctrl/Cmd+K` de la command palette se registra en capture phase para que el
+  atajo no quede consumido por inputs/foco de la pagina.
+- QA posterior al commit: `full-qa.sh` **944 passed**, Playwright **31 passed**,
+  `full-qa-live.sh` **8 passed** y `stress-qa.sh` 3 pasadas de **944 passed**.
 
 **Hardening comercial zero-friction (2026-05-22).** Se reforzo el gate
 oficial y la cobertura E2E sin cambiar la postura de producto:
@@ -114,6 +129,7 @@ Conteos estructurales derivados del codigo (generados por
 | Telegram | 37 slash commands; modo conversacional sin slash en `dedicated_local`; dispatch fail-closed |
 | Mail | Gmail `TODOS`/`SPAM` + GoDaddy `Spam`; clasificacion propia del agente; digest 10:00 y 20:00 Chile; respuestas propuestas como texto |
 | Health | `/health/dashboard` expone 18 componentes (17 checks + checkpointer); `/health/verify` hace probe en vivo |
+| MCP | Cliente habilitable en `dedicated_local`; `/system/mcp` carga inventario en paralelo con timeout default 30s; runtime verificado 5/5 servers y 67 tools |
 | Learning | Fases A-E en produccion: recipes, failure postmortem, tool scorecard, skill promotion, nightly reflection; auto-promote con kill switch |
 | Code Director | Planner LLM-driven + adapters Claude Code/Codex/Kimi/DeepAgents bajo budget/audit |
 | Browser | Kimi WebBridge + Edge real disponibles para el perfil dedicado |
@@ -124,16 +140,18 @@ Conteos estructurales derivados del codigo (generados por
 
 ## Ultimo Gate Verde Conocido
 
-Gate ejecutado al cierre de la remediacion del audit (AUDIT-2026-A..K):
+Gate ejecutado al cierre del commit `5953b40`:
 
-- `bash scripts/full-qa.sh` -> **943 passed, 1 skipped, 28 deselected**,
+- `bash scripts/full-qa.sh` -> **944 passed, 1 skipped, 28 deselected**,
   ruff OK, ruff format OK, mypy OK (`135 source files`), Alembic check OK,
   `npm ci`, frontend lint OK, frontend build OK, `sync_doc_counts --check` OK,
   `git diff --check` OK.
 - `COGOS_API_BASE=http://127.0.0.1:8001 COGOS_BASE_URL=http://localhost:3101 COGOS_SKIP_PLAYWRIGHT_INSTALL=1 bash scripts/full-e2e.sh`
   -> **31 passed**.
-- `bash scripts/stress-qa.sh 3` -> 3 pasadas verdes, **943 passed** en cada una.
-- `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` -> **8 passed**.
+- `bash scripts/stress-qa.sh 3` -> 3 pasadas verdes, **944 passed** en cada una.
+- `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` -> **8 passed** (2 warnings
+  de deprecacion del adaptador MCP upstream, no bloqueantes).
+- `/system/mcp` con JWT local -> **5/5 connected**, **67 tools**.
 - TestSprite MCP/CLI -> **3/3 passed** en smoke advisory acotado
   (`TC001`, `TC002`, `TC005`); no sustituye Playwright porque los asserts
   generados son mas superficiales.
@@ -214,6 +232,8 @@ Tailwind/shadcn/MUI. Reglas vigentes:
 - `playwright.config.ts` bloquea service workers/cache para E2E determinista.
 - `full-qa.sh` construye Next en `.next-qa`; no tocar `.next` si el panel vivo
   esta sirviendo desde `next start`.
+- `Ctrl/Cmd+K` abre la command palette desde cualquier foco normal porque
+  `useKeyboard` escucha en capture phase.
 
 ## Que No Debe Afirmarse Sin Re-Validar
 

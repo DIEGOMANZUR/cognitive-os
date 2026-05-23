@@ -3,10 +3,11 @@
 > **Actualización vigente (2026-05-22):** mapa QA para el cockpit actual.
 > La suite oficial Playwright está verde con **31 passed** y se ejecuta
 > contra la SPA Next.js de 20 tabs. Backend verificado por `full-qa.sh`:
-> **943 passed, 1 skipped, 28 deselected**. El producto corre en un PC
+> **944 passed, 1 skipped, 28 deselected**. El producto corre en un PC
 > dedicado con prioridad de fricción casi nula; los tests deben validar que
 > esa fricción baja no esconda errores, pantallas muertas ni operaciones
 > silenciosas. Mail sigue siendo read-only/digest por defecto.
+> MCP actual: `/system/mcp` runtime 5/5 servers y 67 tools.
 >
 > La auditoría Fase 76 (2026-05-20) queda como base histórica. Datos
 > extraídos del código real, no del README.
@@ -137,7 +138,7 @@ sidebar abre/cierra con un `aria-label="Abrir menú"`/"Cerrar".
 | Google APIs | Maps/Calendar/Drive/Gmail | componentes `blocked` |
 | Kimi WebBridge daemon | KimiWebBridgeService | componente `degraded` |
 | GoDaddy API | DNS preview | endpoint reporta `blocked` |
-| MCP servers (mem/gh/fs) | DeepAgent dynamic tools | cada server falla aislado |
+| MCP servers (mem/gh/fs/cc/gem) | DeepAgent dynamic tools | cada server falla aislado; inventario paralelo con timeout 30s |
 
 ## Riesgos funcionales identificados
 

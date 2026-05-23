@@ -9,6 +9,9 @@ Diego. Es intencionalmente distinta de una postura SaaS/multiusuario.
 > fallas accionables (AUDIT-2026-A..H). Los 9 criterios se cumplen. Para el
 > snapshot vigente de conteos y gates ver
 > [`CURRENT_STATE.md`](CURRENT_STATE.md).
+> Ajuste posterior `5953b40`: MCP quedo con inventario paralelo, timeout
+> default 30s y runtime verificado 5/5 servers / 67 tools; el atajo
+> `Ctrl/Cmd+K` del cockpit quedo estabilizado.
 
 ## Decision De Producto
 
@@ -58,6 +61,10 @@ negociables porque reducen fallos reales sin meter friccion innecesaria:
 - Health/readiness honesto: `/health/dashboard` distingue `verified` de
   `configured` (cableado pero sin llamada real) y no pinta `ok` lo que nunca
   se probo; `POST /health/verify` fuerza el probe real bajo demanda.
+- MCP diagnosticable: `/system/mcp` habla con cada server, reporta
+  `connected/tools_count/error`, carga inventario en paralelo y usa
+  `MCP_INVENTORY_TIMEOUT_SECONDS=30` por defecto para evitar falsos timeouts
+  al arrancar varios servidores `stdio`.
 - Tests hermeticos que no toquen produccion + carril opt-in `tests/live/`
   (`LIVE_TESTS_ENABLED=1`) para smokes read-only contra proveedores reales.
 - Auth fail-closed donde la falla es silenciosa: el dispatch de Telegram

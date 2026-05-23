@@ -48,7 +48,8 @@ Telegram fail-closed, mail read-only y DB test aislada ya tienen tests.
 ### ZF-P2-004 - Docs secundarios pueden reintroducir friccion
 
 - Evidencia: `USER_GUIDE.md` y `ACTION_PLANE.md` conservan frases antiguas.
-- Reparacion: docs vigentes actualizados al snapshot `943/31`; frases historicas quedan en audit docs como historico.
+- Reparacion: docs vigentes actualizados al snapshot `944/31`, MCP 5/5 y
+  67 tools; frases historicas quedan en audit docs como historico.
 
 ## P3
 

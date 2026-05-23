@@ -17,13 +17,18 @@
 > 10:00/20:00 Chile, máximo 50 correos, propuestas de respuesta como texto
 > separado; no drafts y no envío automático.
 >
-> **QA más reciente:** `bash scripts/full-qa.sh` verde con **943 passed, 1
+> **QA más reciente:** `bash scripts/full-qa.sh` verde con **944 passed, 1
 > skipped, 28 deselected**; ruff/format/mypy/Alembic/lint/build/`sync_doc_counts
 > --check`/`git diff --check` OK; Playwright **31 passed**; `bash
-> scripts/stress-qa.sh` verde con 3 pasadas de **943 passed**. El build de
+> scripts/stress-qa.sh` verde con 3 pasadas de **944 passed**. El build de
 > QA usa `NEXT_DIST_DIR=.next-qa` para no invalidar un frontend vivo
 > servido desde `.next`. Live read-only: **8 passed**. TestSprite MCP/CLI:
 > **3/3 passed** como smoke advisory.
+>
+> **Ultimo ajuste post-gate (`5953b40`):** `/system/mcp` ahora inventaria los
+> servidores en paralelo con timeout default 30s; runtime verificado **5/5 MCP
+> servers** y **67 tools**. El command palette del frontend abre con
+> `Ctrl/Cmd+K` de forma estable incluso con foco en inputs.
 >
 > **Guía de usuario completa:** `docs/USER_GUIDE.md`. Estado canónico:
 > `docs/CURRENT_STATE.md`. Modelo operativo: `docs/ZERO_FRICTION_OPERATING_MODEL.md`.

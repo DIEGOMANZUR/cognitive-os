@@ -15,10 +15,12 @@
 > El resultado se entrega como documento/campos de texto separados; no se
 > crean borradores y no se envía nada en el flujo normal.
 >
-> **QA vigente:** `bash scripts/full-qa.sh` verde con **943 passed, 1
+> **QA vigente:** `bash scripts/full-qa.sh` verde con **944 passed, 1
 > skipped, 28 deselected**; frontend Playwright **31 passed**; stress QA 3
-> pasadas de **943 passed**; carril opt-in `tests/live/` verificado con
+> pasadas de **944 passed**; carril opt-in `tests/live/` verificado con
 > **8 passed**; TestSprite MCP/CLI **3/3 passed** como smoke advisory.
+> MCP quedo verificado 5/5 servers y 67 tools tras el ajuste de inventario
+> paralelo (`5953b40`).
 > Pendiente para "asistente personal absoluto": voz productiva
 > en frontend/Telegram, YouTube/video summaries y automatizaciones
 > proactivas avanzadas.
@@ -44,7 +46,7 @@ que falta para que Cognitive OS sea un asistente personal operativo.
 | YouTube/video | Pendiente | `YOUTUBE_API_KEY`; falta transcript/resumen/video vision |
 | Agenda/tareas | Parcial fuerte | `PersonalTask` CRUD + reminders básicos; Google Calendar list/create operativo bajo OAuth y aprobación; falta scheduling/push proactivo completo |
 | Notas personales | Parcial fuerte | `PersonalNote` CRUD + búsqueda semántica Weaviate; falta Notion sync/export/import |
-| MCP/skills externos | Parcial | Skills DeepAgents core/user; falta import/adaptador de MCP/tools externos |
+| MCP/skills externos | Funcional fuerte | Skills DeepAgents core/user; cliente MCP externo habilitable, runtime 5/5 servers (`mem`, `gh`, `fs`, `cc`, `gem`) y 67 tools; falta governance fina por tool remota |
 | IDE/programacion | Parcial | OpenShell sandbox + code-analysis skill; falta flujo IDE/repo agent end-to-end |
 
 ## Gaps principales

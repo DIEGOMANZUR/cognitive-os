@@ -4,18 +4,20 @@
 > auditoría Fase 76 como histórico, pero el gate actual del proyecto es más
 > amplio:
 >
-> - `bash scripts/full-qa.sh` → **943 passed, 1 skipped, 28 deselected**,
+> - `bash scripts/full-qa.sh` → **944 passed, 1 skipped, 28 deselected**,
 >   ruff/format/mypy/Alembic/frontend lint/frontend build/`sync_doc_counts
 >   --check`/`git diff --check` OK.
 > - `bash scripts/full-e2e.sh` / `npx playwright test --reporter=list` →
 >   **31 passed**.
-> - `bash scripts/stress-qa.sh` → 3 pasadas de **943 passed**.
+> - `bash scripts/stress-qa.sh` → 3 pasadas de **944 passed**.
 > - `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` → **8 passed**,
 >   smokes read-only contra proveedores reales.
 > - TestSprite MCP/CLI → **3/3 passed** en smoke advisory acotado; sus asserts
 >   generados no sustituyen la suite Playwright comercial.
 > - Build frontend de QA aislado con `NEXT_DIST_DIR=.next-qa`, sin romper
 >   un `next start` vivo servido desde `.next`.
+> - `/system/mcp` post-gate → **5/5 servers connected**, **67 tools**,
+>   inventario paralelo con timeout default 30s (`5953b40`).
 >
 > La auditoría comercial más reciente (`docs/audits/CODEX_COMMERCIAL_READINESS_AUDIT.md`)
 > cerró 8 hallazgos accionables (AUDIT-2026-A..H). La prioridad operacional
@@ -113,8 +115,9 @@ versión mobile colapsa el sidebar correctamente.
 - **CRUD de Personal Assistant:** funciona en este host (test pasó); en
   hosts sin `TELEGRAM_ASSIST_USER_MAP` la spec se autoskippea con un
   `test.skip` explícito en lugar de fallar (decisión consciente).
-- **Cliente MCP:** los 3 servers declarados (Supermemory, GitHub,
-  filesystem) están `connected=true`. El test verifica la forma de la
+- **Cliente MCP:** en la Fase 76 los 3 servers declarados (Supermemory,
+  GitHub, filesystem) estaban `connected=true`; el estado actual es 5/5
+  servers (`mem`, `gh`, `fs`, `cc`, `gem`) y 67 tools. El test verifica la forma de la
   respuesta y la presencia del componente `mcp_client` en
   `/health/dashboard`.
 
@@ -158,7 +161,7 @@ frontend/
 ```bash
 # Backend pytest (referencia):
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/backend"
-uv run pytest -q                                   # 943 passed esperado en snapshot vigente
+uv run pytest -q                                   # 944 passed esperado en snapshot vigente
 
 # Frontend lint + build:
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/frontend"
@@ -223,7 +226,7 @@ npx playwright show-report                          # HTML report
 | Build pasa | ✅ `npm run build` |
 | Lint pasa | ✅ `npm run lint` (0 warnings) |
 | Typecheck pasa | ✅ implícito en `npm run build` (Next.js typechek) |
-| Playwright E2E pasa completo | ✅ 16/16 |
+| Playwright E2E pasa completo | ✅ 31/31 en snapshot vigente; 16/16 fue la Fase 76 histórica |
 | No hay console.error inesperado en flujos críticos | ✅ verificado |
 | No hay requests 500 en flujos críticos | ✅ verificado |
 | Existe reporte final reproducible | ✅ este documento |

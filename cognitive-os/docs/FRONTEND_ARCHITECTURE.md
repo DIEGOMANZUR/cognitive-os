@@ -14,7 +14,10 @@
 > Gates vigentes: `npm run lint` limpio, `npm run build` limpio,
 > `npx playwright test --reporter=list` con **31 passed** y
 > `bash scripts/full-qa.sh` desde la raíz usando build aislado
-> `NEXT_DIST_DIR=.next-qa`.
+> `NEXT_DIST_DIR=.next-qa` (**944 passed, 1 skipped, 28 deselected**).
+> Ajuste post-gate `5953b40`: `Ctrl/Cmd+K` de la command palette escucha
+> en capture phase para abrir de forma estable incluso cuando el foco está
+> dentro de un input.
 
 Este documento describe **cómo está construido el cockpit** y **qué
 reglas firmes hay que respetar** para mantenerlo en grado comercial. Si

@@ -18,6 +18,9 @@
 > agente es `gpt-5.5` vía `create_agent_chat_model()` — un modelo
 > *tool-capable* (soporta `tool_choice` forzado para structured output);
 > los modelos *reasoner* rompen este carril en silencio.
+> Ajuste vigente `5953b40`: el cliente MCP inventaria servidores en paralelo
+> con timeout default 30s; runtime verificado 5/5 servers (`mem`, `gh`, `fs`,
+> `cc`, `gem`) y 67 tools.
 
 ---
 
@@ -96,6 +99,8 @@ colisionar con las 21 built-in. La carga es:
 
 - `research_deepagent.py` y `document_deepagent.py` llaman
   `load_mcp_tools_for_role_sync(role)` antes de crear el agente.
+- La capa de inventario en `integrations/mcp_client.py` carga servidores en
+  paralelo; un server lento/caído no serializa ni bloquea los demás.
 - La allow-list `MCP_ALLOWED_FOR_RESEARCH` /
   `MCP_ALLOWED_FOR_DOCUMENT_ANALYSIS` restringe qué servers ve qué carril.
 - Sólo se activa bajo `OPERATOR_PROFILE=dedicated_local`.
