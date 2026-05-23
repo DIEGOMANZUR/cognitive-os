@@ -1,18 +1,24 @@
 import type { ConsoleMessage, Locator, Page, Request, Response } from "@playwright/test";
 
 /**
- * Read the JWT from `COGOS_JWT` (preferred) or skip with a clear message.
+ * Read the JWT from `COGOS_JWT`.
  *
- * We deliberately do NOT mint the token from the test process: the mint
- * endpoint is admin-only and depends on the backend's `core.auth` Python
- * helper. The runner mints it once (see RUNBOOK.md §2) and injects it via
- * env, so the test bag stays hermetic.
+ * In `dedicated_local/full` the runner's global setup auto-mints the token
+ * via `POST /auth/local-token` (see `_global-setup.ts`); callers do NOT
+ * need to export it manually. In `strict`/`guarded` the mint endpoint
+ * 403s and the env var must be supplied by the caller — RUNBOOK §2 has
+ * the exact command. We keep this helper synchronous so existing specs
+ * don't need to be rewritten as `async`.
  */
 export function readJwt(): string {
   const token = process.env.COGOS_JWT?.trim();
   if (!token) {
     throw new Error(
-      "COGOS_JWT env var is missing. See docs/qa/RUNBOOK.md §2.",
+      "COGOS_JWT env var is missing and auto-mint failed. " +
+        "If you are in strict/guarded mode, mint it manually — see " +
+        "docs/qa/RUNBOOK.md §2. If you are in dedicated_local/full, the " +
+        "backend at COGOS_API_BASE (default http://127.0.0.1:8000) must " +
+        "be reachable so global-setup can call POST /auth/local-token.",
     );
   }
   return token;

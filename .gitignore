@@ -45,6 +45,13 @@ cognitive-os/frontend/testsprite_tests/
 cognitive-os-backup-*/
 cognitive-os-snapshot-*/
 
+# Audit/QA evidence is a local artifact tree: full-qa logs, playwright
+# traces/screenshots/videos, TestSprite raw reports, stress-qa runs.
+# The audit docs in docs/audits/testsprite/ reference these paths as
+# evidence-at-commit-time; the artifacts themselves are reproduced by
+# re-running the gates and stay out of version control.
+cognitive-os/test-results/
+
 # Local tool settings can include machine-specific permissions or paths.
 **/.claude/settings.local.json
 

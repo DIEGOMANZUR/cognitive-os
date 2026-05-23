@@ -20,9 +20,19 @@ NAMING_CONVENTION = {
 
 
 class Base(DeclarativeBase):
-    """Declarative base for operational PostgreSQL models."""
+    """Declarative base for operational PostgreSQL models.
+
+    `eager_defaults=True` makes INSERT/UPDATE emit a RETURNING clause for
+    server-side defaults (e.g. `created_at`, `updated_at` on `TimestampMixin`).
+    Without it, reading those attributes after `await session.flush()` in an
+    async session triggers a lazy refresh outside the greenlet boundary and
+    raises `sqlalchemy.exc.MissingGreenlet`. This is the canonical async-safe
+    setting per SQLAlchemy 2.x docs and is the surgical fix for the
+    `_view(action_request)` call sites in `actions/service.py`.
+    """
 
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
+    __mapper_args__ = {"eager_defaults": True}
 
 
 engine = create_async_engine(settings.database_url, pool_pre_ping=True, poolclass=NullPool)

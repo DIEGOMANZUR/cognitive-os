@@ -1,18 +1,26 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * Cognitive OS — E2E config (Fase 76 QA audit).
+ * Cognitive OS — E2E config.
  *
  * The app is a Next.js SPA at http://localhost:3001 backed by a FastAPI
  * at http://127.0.0.1:8000. Both must be running BEFORE invoking the
  * suite — see docs/qa/RUNBOOK.md §1.
  *
- * The token is minted out-of-band and injected via the COGOS_JWT env var
- * so the suite never hardcodes secrets nor depends on the live mint
- * endpoint (which is admin-only).
+ * Token strategy (zero-friction for `dedicated_local/full`):
+ *
+ *   1. If `COGOS_JWT` is exported by the caller, the suite uses it as-is
+ *      (CI, strict profile, custom tokens).
+ *   2. Otherwise `_global-setup.ts` auto-mints one via
+ *      `POST /auth/local-token` against `COGOS_API_BASE` (defaulting to
+ *      `http://127.0.0.1:8000`). That endpoint only accepts the call in
+ *      `dedicated_local/full`; in any other profile it 403s and the
+ *      individual tests still emit a clear "set COGOS_JWT manually"
+ *      message via `_helpers.ts::readJwt()`.
  */
 export default defineConfig({
   testDir: "./tests/e2e",
+  globalSetup: require.resolve("./tests/e2e/_global-setup"),
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,

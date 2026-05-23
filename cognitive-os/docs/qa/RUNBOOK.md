@@ -45,19 +45,34 @@ kimi       : running  http://127.0.0.1:10086
 
 ## 2. Mintar un JWT de admin para el panel/Playwright
 
+**Forma corta (zero-friction, perfil `dedicated_local/full`).** El backend
+expone `POST /auth/local-token` sin auth (sólo bajo ese perfil; otros
+perfiles devuelven `403`). Para Playwright esto es **automático**:
+`tests/e2e/_global-setup.ts` mintea el JWT y lo expone como `COGOS_JWT`
+al worker antes de que arranquen los specs. Para uso manual:
+
+```bash
+JWT=$(curl -sX POST http://127.0.0.1:8000/auth/local-token | \
+  python3 -c "import json,sys; print(json.load(sys.stdin)['access_token'])")
+echo "$JWT"
+```
+
+Pegar el output en el campo JWT del panel (`http://localhost:3001` →
+TopBar) o exportarlo como `COGOS_JWT` si se quiere fijar manualmente.
+
+**Forma larga (`strict`/`guarded` o entornos sin endpoint de mint).**
+Sólo cuando el perfil bloquea `/auth/local-token`:
+
 ```bash
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/backend"
 uv run python -c "from cognitive_os.core.auth import create_access_token; print(create_access_token(user_id='auditor', roles=['admin']))"
 ```
 
-Pegar el output en el campo JWT del panel (`http://localhost:3001` →
-TopBar) o exportarlo como `COGOS_JWT` para Playwright.
-
 ## 3. Verificación rápida (sin Playwright)
 
 ```bash
-JWT=$(cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/backend" && \
-  uv run python -c "from cognitive_os.core.auth import create_access_token; print(create_access_token(user_id='auditor', roles=['admin']))" 2>/dev/null | tail -1)
+JWT=$(curl -sX POST http://127.0.0.1:8000/auth/local-token | \
+  python3 -c "import json,sys; print(json.load(sys.stdin)['access_token'])")
 
 curl -fsS http://127.0.0.1:8000/health                                 # public
 curl -fsS -H "Authorization: Bearer $JWT" http://127.0.0.1:8000/health/dashboard
