@@ -1,6 +1,6 @@
 # ACCEPTANCE CHECKLIST
 
-> **Estado canónico actual (2026-05-22):** aceptación vigente para el
+> **Estado canónico actual (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** aceptación vigente para el
 > proyecto como instalación local dedicada. La prioridad de producto es
 > fricción casi nula por sobre seguridad estricta, por lo que `strict`
 > documenta el modo conservador y `dedicated_local/full` documenta el modo

@@ -1,6 +1,6 @@
 # Cognitive OS Frontend
 
-> **Estado actual (2026-05-22):** cockpit definitivo Next.js 16.2.6 +
+> **Estado actual (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** cockpit definitivo Next.js 16.2.6 +
 > React 19 + TypeScript estricto, dark-only glass cockpit, 20 vistas en
 > `app/views/*.tsx`, PWA instalable y API client con JWT local persistente.
 > La prioridad de producto es fricción casi nula en un PC dedicado:

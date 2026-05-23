@@ -1,6 +1,6 @@
 # Guía de Credenciales — paso a paso, con detalle de cada botón
 
-> **Estado actual (2026-05-22):** esta guía sigue siendo la referencia de
+> **Estado actual (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** esta guía sigue siendo la referencia de
 > credenciales, pero el modelo operativo cambió: Cognitive OS corre en un
 > PC dedicado y prioriza fricción casi nula por sobre seguridad estricta.
 > Eso significa que se permite usar el perfil real del operador, Edge real

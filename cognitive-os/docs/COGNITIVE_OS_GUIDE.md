@@ -1,14 +1,25 @@
 # Cognitive OS — Guía Maestra
 
-> **Estado canónico actual (2026-05-23, commit `647f103`):** esta guía
-> describe el sistema vivo después de los ciclos de hardening de
-> frontend, mail, QA aislado y runtime local, **más la doble auditoría
-> TestSprite del 2026-05-23** que cazó y corrigió un P1 nuevo en
-> `/actions/*/preview/request` (fix `eager_defaults=True` en
-> `db.Base`) y eliminó la fricción del Playwright runner con auto-mint
-> JWT. Fuente corta: `docs/CURRENT_STATE.md`. Modelo operativo:
-> `docs/ZERO_FRICTION_OPERATING_MODEL.md`. Reporte completo:
-> `docs/audits/testsprite/16_FINAL_REAUDIT_REPORT.md`.
+> **Estado canónico actual (2026-05-23, commit `bbaaea8`):**
+> **RELEASE APPROVED** — cuatro pasadas de auditoría independiente
+> cerradas con cero defectos conocidos. Esta guía describe el sistema
+> vivo después de:
+>
+> 1. Ciclos de hardening de frontend, mail, QA aislado y runtime local.
+> 2. Doble auditoría TestSprite del 2026-05-23 que cazó un P1
+>    (`MissingGreenlet` en `/actions/*/preview/request`) y eliminó la
+>    fricción del Playwright runner con auto-mint JWT.
+> 3. Tercera pasada de endurecimiento (LLM probe timeout específico,
+>    race guard `full-qa`, anti-flake Ctrl+K, regression-critical
+>    aceptar `degraded`).
+> 4. Cuarta pasada de cierre absoluto: validación de 30 puntos
+>    cero-fricción, 25 escenarios de degradación, 25 de idempotencia, 30
+>    de UX comercial, drift sweep + bulk-fix, 17 documentos nuevos de
+>    evidencia (18-34).
+>
+> Fuente corta: `docs/CURRENT_STATE.md`. Modelo operativo:
+> `docs/ZERO_FRICTION_OPERATING_MODEL.md`. Cierre formal:
+> [`audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md`](audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md).
 >
 > **Prioridad del producto en este PC dedicado:** fricción casi nula por
 > sobre seguridad estricta. Cognitive OS está diseñado para usar el perfil

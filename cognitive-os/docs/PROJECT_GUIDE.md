@@ -1,12 +1,15 @@
 # Cognitive OS - Guia Simple Y Tecnica
 
-> **Estado actual (2026-05-23, commit `647f103`):** producto local-first
-> para un PC dedicado del operador. La prioridad explícita es fricción
-> casi nula por sobre seguridad estricta: usar Edge real, Kimi WebBridge,
+> **Estado actual (2026-05-23, commit `bbaaea8`):**
+> **RELEASE APPROVED** — cuatro pasadas de auditoría independiente
+> cerradas con cero defectos conocidos. Producto local-first para un
+> PC dedicado del operador. La prioridad explícita es fricción casi
+> nula por sobre seguridad estricta: usar Edge real, Kimi WebBridge,
 > filesystem local y auto-resolución de aprobaciones en
 > `dedicated_local/full` es una decisión de producto, no una excepción
-> accidental. `strict` queda disponible como perfil conservador. Doble
-> auditoría TestSprite cerrada en `docs/audits/testsprite/16_FINAL_REAUDIT_REPORT.md`.
+> accidental. `strict` queda disponible como perfil conservador.
+> Cierre formal en
+> [`audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md`](audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md).
 >
 > **Snapshot vivo:** backend FastAPI con **147 decoradores REST**, **23
 > tareas Celery** en **5 queues**, **20 migraciones Alembic** (head

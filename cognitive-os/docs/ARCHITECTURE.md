@@ -1,24 +1,32 @@
 # Cognitive OS — Arquitectura (referencia técnica completa)
 
-> **Estado canónico actual (2026-05-23, commit `647f103`):** arquitectura
-> local-first para un PC dedicado del operador, con prioridad explícita
-> de fricción casi nula por sobre seguridad estricta. `strict` sigue
-> existiendo como perfil conservador, pero el perfil operativo preferido
-> es `dedicated_local/full`: usa Edge real/Kimi WebBridge, filesystem
+> **Estado canónico actual (2026-05-23, commit `bbaaea8`):**
+> **RELEASE APPROVED**. Arquitectura local-first para un PC dedicado
+> del operador, con prioridad explícita de fricción casi nula por sobre
+> seguridad estricta. `strict` sigue existiendo como perfil
+> conservador, pero el perfil operativo preferido es
+> `dedicated_local/full`: usa Edge real/Kimi WebBridge, filesystem
 > local y auto-resolución de aprobaciones cuando está configurado. La
 > seguridad de perímetro no es el eje de esta instalación; sí lo son
 > trazabilidad, idempotencia, observabilidad, recuperación y fallos
 > explícitos.
 >
-> **Cambio reciente que afecta arquitectura (`647f103`):** la ORM `Base`
-> (`backend/src/cognitive_os/core/db.py`) define
+> **Cambio reciente clave que afecta arquitectura (`647f103`):** la ORM
+> `Base` (`backend/src/cognitive_os/core/db.py`) define
 > `__mapper_args__ = {"eager_defaults": True}` para que SQLAlchemy 2.x
 > emita `INSERT/UPDATE ... RETURNING` para las columnas con
-> server-default (`created_at`, `updated_at`, etc.). Esto es **obligatorio
-> en async sessions** porque sin `eager_defaults` un attribute lazy-load
-> tras `await session.flush()` dispara SQL síncrono fuera del greenlet y
-> rompe con `sqlalchemy.exc.MissingGreenlet`. Era la causa raíz de un P1
-> en `/actions/browser/preview/request` y endpoints análogos.
+> server-default (`created_at`, `updated_at`, etc.). Esto es
+> **obligatorio en async sessions** porque sin `eager_defaults` un
+> attribute lazy-load tras `await session.flush()` dispara SQL síncrono
+> fuera del greenlet y rompe con `sqlalchemy.exc.MissingGreenlet`. Era
+> la causa raíz de un P1 en `/actions/browser/preview/request` y
+> endpoints análogos.
+>
+> **Cambio reciente clave (`9ab77a4`):** nueva variable
+> `HEALTH_LLM_PROBE_TIMEOUT_SECONDS=10` específica para LLM/embeddings
+> probes; `_safe_check` la usa selectivamente, evitando falsos
+> `degraded` en cold-start del gateway. El resto de componentes sigue
+> con el ceñido `HEALTH_COMPONENT_TIMEOUT_SECONDS=3.0`.
 >
 > **Conteos verificados contra código** (generados por
 > `scripts/sync_doc_counts.py`): **147 decoradores REST**, **23 tareas

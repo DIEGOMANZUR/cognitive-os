@@ -2,8 +2,11 @@
 
 Fecha de sincronizacion documental: **2026-05-23**
 Branch auditada: `codex/commercial-zero-friction-hardening`
-Ultimo commit verificado (post-certification): ver `git log --oneline -1`.
-Snapshot certificado: `docs/audits/testsprite/17_COMMERCIAL_GRADE_CERTIFICATION.md`.
+Ultimo commit certificado: **`bbaaea8`** — `docs: cierre absoluto release
+audit — RELEASE APPROVED, no known defects`.
+Estado del producto: **RELEASE APPROVED** (grado comercial local-first).
+Snapshot de cierre formal:
+[`docs/audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md`](audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md).
 
 Este archivo es la **fuente corta de verdad** del estado operativo actual. Si
 otro Markdown discrepa, este archivo manda y el otro debe corregirse. Los
@@ -12,7 +15,40 @@ conteos estructurales del "Snapshot Tecnico" se generan con
 
 ## Cambios Mas Recientes
 
-**Certificación final grado comercial (2026-05-23, post `647f103`).** Tras
+**Cierre absoluto / Release Approved (2026-05-23, commit `bbaaea8`).**
+Cuarta pasada de auditoría — "cierre absoluto" — completada con
+RELEASE APPROVED. Cero defectos conocidos en el alcance auditado.
+Evidencia consolidada en
+[`audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md`](audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md).
+
+Lo que aportó esta pasada:
+
+- **17 documentos nuevos** (`18_FINAL_CONTEXT_RECONSTRUCTION` →
+  `34_COMMERCIAL_QUALITY_CERTIFICATION`) con evidencia completa de:
+  snapshot del repo, reboot limpio, mapa del sistema regenerado, gates
+  oficiales finales, TestSprite release audit (batch 3 — TC011/013/015/017/020),
+  24 flujos críticos E2E, 30 asserciones cero-fricción, 25 escenarios
+  de degradación, 25 escenarios de idempotencia, sweep de drift, 30 puntos
+  de UX comercial, closure matrix de los 20 hallazgos, fix loop log y
+  release candidate package.
+- **DRIFT-947→950 corregido** en 19 docs canónicos: el conteo `947 passed`
+  declarado en pass 3 quedó atrás cuando se sumaron los 3 tests de
+  `test_health_llm_probe_timeout`. Bulk sed alineó todos los docs al
+  conteo real **950**.
+- **Verificación live con Chrome DevTools MCP**: navegación de las 20
+  tabs sin un solo `console.error` crítico; Dashboard renderiza datos
+  vivos reales (14/18 componentes ok, 309 approvals pendientes, audit
+  log con timeline real, configuración con LLM `gpt-5.5` activo).
+- **Validación TOTAL** acumulada:
+  - 30/30 cero-fricción
+  - 25/25 degradación/recuperación
+  - 25/25 idempotencia/estados-colgados
+  - 30/30 UX comercial
+  - 20/20 flujos E2E críticos
+  - 14/15 TestSprite (1 BLOCKED platform-side, no defecto del producto)
+  - 19/20 hallazgos cerrados como VERIFIED_FIXED + 1 OBSOLETE_WITH_REASON.
+
+**Certificación tercera pasada (2026-05-23, commit `9ab77a4`).** Tras
 una tercera pasada de hardening explícitamente buscando debilidades, se
 cerraron 4 hallazgos adicionales (TS-ZF-20260523-007/008/009/010) y se
 certificó el sistema:

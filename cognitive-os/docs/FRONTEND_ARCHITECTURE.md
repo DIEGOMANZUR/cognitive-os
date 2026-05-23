@@ -1,8 +1,9 @@
 # Frontend Architecture — Cognitive OS Cockpit
 
-> Documento técnico estable. Estado: **2026-05-22, Glass Cockpit vigente**.
-> Acompaña a `cognitive-os/frontend/README.md` (orientación rápida) y a
-> `cognitive-os/progress.md` (bitácora viva).
+> Documento técnico estable. Estado: **2026-05-23, commit `bbaaea8`,
+> RELEASE APPROVED**. Acompaña a `cognitive-os/frontend/README.md`
+> (orientación rápida). Cuatro pasadas de auditoría independiente
+> cerradas con cero defectos conocidos.
 >
 > El cockpit está optimizado para el perfil de instalación actual:
 > `dedicated_local/full` en un PC dedicado, con prioridad de fricción casi
@@ -11,22 +12,29 @@
 > no drafts, no envíos automáticos, solo propuestas de texto salvo solicitud
 > explícita de Diego.
 >
-> Gates vigentes (commit `647f103`): `npm run lint` limpio,
+> Gates vigentes (commit `bbaaea8`): `npm run lint` limpio,
 > `npm run build` limpio, `npx playwright test --reporter=list` con
 > **31 passed** sin necesidad de exportar `COGOS_JWT` (auto-mint via
 > `tests/e2e/_global-setup.ts` que llama `POST /auth/local-token` en
 > `dedicated_local/full`), `bash scripts/full-qa.sh` desde la raíz
 > usando build aislado `NEXT_DIST_DIR=.next-qa` (**950 passed**, 1
-> skipped, 28 deselected: 944 históricos + 6 nuevos que cubren el fix
-> del bug `MissingGreenlet`/`eager_defaults` que cazó la re-auditoría
-> 2026-05-23).
+> skipped, 28 deselected: 944 históricos + 6 nuevos: 3 `eager_defaults` + 3 `health_llm_probe_timeout`).
+>
+> Verificación live con Chrome DevTools MCP (cierre absoluto): las 20
+> tabs de la SPA montan sin un solo `console.error` crítico; Dashboard
+> renderiza datos vivos reales (14/18 ok, 309 approvals, audit log con
+> timeline real, configuración con LLM gpt-5.5 activo).
 >
 > Ajustes acumulados:
-> - `647f103` (re-audit): Playwright runner zero-friction (auto-mint
->   JWT); fix `eager_defaults=True` en `db.Base` para action plane.
-> - `5953b40`: `Ctrl/Cmd+K` de la command palette escucha en capture
->   phase para abrir de forma estable incluso cuando el foco está
->   dentro de un input.
+> - `bbaaea8` (cierre absoluto): docs frontend alineados al estado
+>   final; 4 pasadas de auditoría sin defectos abiertos.
+> - `9ab77a4` (cert pass 3): anti-flake `Ctrl+K` con poll-retry hasta
+>   7s en `glass-cockpit.spec.ts`; `regression-critical.spec.ts`
+>   acepta `degraded` además de `blocked/error`.
+> - `647f103`: Playwright runner zero-friction (auto-mint JWT); fix
+>   `eager_defaults=True` en `db.Base` para action plane.
+> - `5953b40`: `Ctrl/Cmd+K` capture phase para abrir de forma estable
+>   incluso cuando el foco está dentro de un input.
 
 Este documento describe **cómo está construido el cockpit** y **qué
 reglas firmes hay que respetar** para mantenerlo en grado comercial. Si

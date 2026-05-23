@@ -1,6 +1,6 @@
 # Document Analysis Agent (referencia técnica)
 
-> **Estado actual (2026-05-22):** subagente legal estable dentro del
+> **Estado actual (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** subagente legal estable dentro del
 > modelo local dedicado. La prioridad general del producto es baja
 > fricción, pero esta ruta sigue siendo evidence-first: citas, scope de
 > `doc_ids`, quality score y revisión humana cuando el modo produce apoyo

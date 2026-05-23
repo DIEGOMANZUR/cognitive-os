@@ -3,27 +3,30 @@
 Este documento define la postura actual del proyecto para el PC dedicado de
 Diego. Es intencionalmente distinta de una postura SaaS/multiusuario.
 
-> **Estado (2026-05-23, commit `647f103`):** la auditoria comercial
+> **Estado (2026-05-23, commit `bbaaea8`):** **RELEASE APPROVED**.
+> Cuatro pasadas de auditoría independiente cerradas con cero defectos
+> conocidos en el alcance auditado. La auditoria comercial
 > (`docs/audits/CODEX_COMMERCIAL_READINESS_AUDIT.md`) evaluo el sistema
 > contra los 9 criterios de "grado comercial" definidos aqui abajo y
-> cerro las 8 fallas accionables (AUDIT-2026-A..H). Los 9 criterios se
-> cumplen. Una **doble re-auditoria TestSprite del 2026-05-23** valido
-> los 16 hallazgos previos (15 VERIFIED_FIXED + 1 OBSOLETE_WITH_REASON)
-> y cazo un P1 nuevo (`MissingGreenlet` en
-> `POST /actions/*/preview/request`) que ya quedo corregido con
-> `eager_defaults=True` en `db.Base` + 3 tests de regresion. Detalle
-> completo en `docs/audits/testsprite/16_FINAL_REAUDIT_REPORT.md`. Para
-> el snapshot vigente de conteos y gates ver
-> [`CURRENT_STATE.md`](CURRENT_STATE.md).
+> cerro las 8 fallas accionables (AUDIT-2026-A..H). Cierre formal en
+> [`audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md`](audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md).
 >
-> **Ajustes runtime acumulados:**
-> - `647f103` (re-audit): `eager_defaults=True` en ORM Base; Playwright
->   auto-mintea JWT en `dedicated_local/full` via `_global-setup.ts`.
->   Gates: `full-qa.sh` 950 passed, Playwright 31/31 sin exportar
->   `COGOS_JWT`, TestSprite re-audit 10/10.
+> **Validación cero-fricción en pasada de cierre:** 30/30 PASS
+> (`audits/testsprite/25_ZERO_FRICTION_RELEASE_VALIDATION.md`). El
+> sistema no introdujo ninguna restricción SaaS innecesaria; ningún
+> control fue debilitado en mail/Telegram/Action Plane/idempotencia.
+>
+> **Ajustes runtime acumulados (resumen, ver CURRENT_STATE para detalle):**
+> - `bbaaea8`: cierre absoluto release audit; docs alineados a 950 tests
+>   backend, 31 Playwright sin exportar JWT, 8 live read-only, TestSprite
+>   acumulado 15 TC ejecutados.
+> - `9ab77a4`: `HEALTH_LLM_PROBE_TIMEOUT_SECONDS=10` específico para LLM
+>   probes (elimina falsos `degraded` cold-start); race guard en
+>   `full-qa.sh` vs Playwright concurrente; anti-flake Ctrl+K.
+> - `647f103`: `eager_defaults=True` en ORM Base; Playwright auto-mintea
+>   JWT en `dedicated_local/full` via `_global-setup.ts`.
 > - `5953b40`: MCP inventario paralelo, timeout default 30s, runtime
->   verificado 5/5 servers / 67 tools; atajo `Ctrl/Cmd+K` del cockpit
->   estabilizado.
+>   verificado 5/5 servers / 67 tools; atajo `Ctrl/Cmd+K` capture phase.
 
 ## Decision De Producto
 

@@ -1,6 +1,6 @@
 # Checklist operador: variables de entorno ↔ `Settings`
 
-> **Estado actual (2026-05-22):** vigente para una instalación local
+> **Estado actual (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** vigente para una instalación local
 > dedicada. La postura preferida es `OPERATOR_PROFILE=dedicated_local`
 > con fricción casi nula por sobre seguridad estricta; `strict` queda
 > como perfil conservador. Al revisar `.env`, no hay que bloquear el uso

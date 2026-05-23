@@ -1,17 +1,24 @@
 # Cognitive OS
 
-> **Estado canonico (2026-05-23, commit `647f103`):** Cognitive OS corre
-> como **sistema cognitivo local mono-operador** para el PC dedicado de
-> Diego. Prioridad de producto: **friccion operativa casi nula por sobre
-> seguridad estricta** — perfil real de Edge, operacion amplia en el PC y
-> approvals reducidos cuando el perfil es `dedicated_local/full`. Los
-> controles principales son trazabilidad, idempotencia, logs,
-> health/readiness honesto, reapers y tests. Excepcion dura: **mail** — el
-> flujo normal solo lee, clasifica, resume y propone respuestas como
-> texto; no crea drafts ni envia correos salvo peticion explicita + flags
-> de escape hatch. Fuente de verdad corta: `docs/CURRENT_STATE.md` y
-> `docs/ZERO_FRICTION_OPERATING_MODEL.md`. Doble auditoria TestSprite
-> 2026-05-23 cerrada: `docs/audits/testsprite/16_FINAL_REAUDIT_REPORT.md`.
+> **Estado canonico (2026-05-23, commit `bbaaea8`):**
+> **RELEASE APPROVED** — cuatro pasadas de auditoría independiente
+> cerradas con cero defectos conocidos. Cognitive OS corre como
+> **sistema cognitivo local mono-operador** para el PC dedicado de
+> Diego. Prioridad de producto: **friccion operativa casi nula por
+> sobre seguridad estricta** — perfil real de Edge, operacion amplia
+> en el PC y approvals reducidos cuando el perfil es
+> `dedicated_local/full`. Los controles principales son trazabilidad,
+> idempotencia, logs, health/readiness honesto, reapers y tests.
+> Excepcion dura: **mail** — el flujo normal solo lee, clasifica,
+> resume y propone respuestas como texto; no crea drafts ni envia
+> correos salvo peticion explicita + flags de escape hatch.
+>
+> **Documentos de referencia:**
+> - `docs/CURRENT_STATE.md` — fuente corta de verdad.
+> - `docs/ZERO_FRICTION_OPERATING_MODEL.md` — modelo operativo.
+> - `docs/USER_GUIDE.md` — guía didáctica para empezar desde cero.
+> - `docs/audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md` —
+>   cierre formal del release.
 
 ## Snapshot Tecnico
 

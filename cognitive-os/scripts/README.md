@@ -1,6 +1,6 @@
 # Scripts
 
-> **Estado actual (2026-05-22):** scripts shell verificados para la
+> **Estado actual (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** scripts shell verificados para la
 > instalación local dedicada. La operación normal prioriza fricción casi
 > nula: los launchers de escritorio levantan Docker, API, worker, beat,
 > frontend, Telegram cuando aplica y Kimi WebBridge sin exigir pasos

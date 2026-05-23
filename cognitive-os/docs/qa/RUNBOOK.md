@@ -1,6 +1,6 @@
 # QA · RUNBOOK — cómo correr la app y la suite Playwright
 
-> **Actualización vigente (2026-05-23, commit `647f103`):** QA oficial del
+> **Actualización vigente (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** QA oficial del
 > proyecto:
 >
 > - `bash scripts/full-qa.sh` con **950 passed**, 1 skipped, 28 deselected

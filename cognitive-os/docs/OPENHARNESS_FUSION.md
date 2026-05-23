@@ -1,6 +1,6 @@
 # Fusión OpenHarness ↔ Cognitive OS (LangGraph + DeepAgents)
 
-> **Estado actual (2026-05-22):** integración estable, **opcional**,
+> **Estado actual (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** integración estable, **opcional**,
 > dentro del modelo local de baja fricción. OpenHarness solo participa en
 > la ruta `research`; no cambia el contrato de mail, no envía correos, no
 > crea drafts y no sustituye al Action Plane. En `dedicated_local/full`,

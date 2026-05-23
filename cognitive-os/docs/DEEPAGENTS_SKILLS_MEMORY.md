@@ -1,6 +1,6 @@
 # DeepAgents Skills y Memory (referencia técnica)
 
-> **Estado actual (2026-05-22):** skills y memoria siguen activos como
+> **Estado actual (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** skills y memoria siguen activos como
 > capa de aprendizaje operativo. Aunque el producto prioriza baja fricción
 > en este PC dedicado, las promociones de memoria/skills se mantienen por
 > proposal para preservar calidad y rollback: no son un mecanismo de

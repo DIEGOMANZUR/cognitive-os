@@ -1,8 +1,10 @@
 # AGENTS.md
 
-> **Estado canónico actual (2026-05-23, commit `647f103`):** Cognitive OS
-> corre como instalación local dedicada. La prioridad definida por Diego es
-> fricción casi nula por sobre seguridad estricta: puede usar Edge
+> **Estado canónico actual (2026-05-23, commit `bbaaea8`):**
+> **RELEASE APPROVED** — cuatro pasadas de auditoría independiente
+> cerradas, cero defectos conocidos en el alcance auditado. Cognitive OS
+> corre como instalación local dedicada. La prioridad definida por Diego
+> es fricción casi nula por sobre seguridad estricta: puede usar Edge
 > real/Kimi WebBridge, filesystem local y auto-resolución de aprobaciones
 > en `dedicated_local/full` cuando el backend lo permita. `strict` queda
 > como perfil conservador, no como objetivo principal de esta máquina.
@@ -10,6 +12,9 @@
 > **Fuente de verdad:** `cognitive-os/docs/CURRENT_STATE.md` (estado
 > canónico) y `cognitive-os/docs/ZERO_FRICTION_OPERATING_MODEL.md` (modelo
 > operativo). Si algo aquí discrepa, esos archivos mandan.
+>
+> **Cierre formal:**
+> `cognitive-os/docs/audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md`.
 >
 > **Snapshot técnico vigente** (conteos derivados del código por
 > `scripts/sync_doc_counts.py`): backend FastAPI 0.115+ con **147 endpoints

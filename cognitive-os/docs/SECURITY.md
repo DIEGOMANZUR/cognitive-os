@@ -1,6 +1,6 @@
 # Seguridad Y Safety Operativa (referencia técnica)
 
-> **Estado canonico actual (2026-05-22):** este documento ya no debe leerse como
+> **Estado canonico actual (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** este documento ya no debe leerse como
 > promesa de hardening SaaS. En el PC dedicado de Diego la decision de producto
 > es **friccion casi nula por sobre seguridad estricta**. `strict` sigue
 > documentado para auditorias, maquinas compartidas o un futuro despliegue

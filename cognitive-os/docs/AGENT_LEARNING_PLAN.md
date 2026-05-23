@@ -1,17 +1,20 @@
 # AGENT_LEARNING_PLAN — Cómo el agente aprende solo
 
-> **Actualización vigente (2026-05-22):** el plan de aprendizaje autónomo
-> está implementado y convive con el modelo operativo de baja fricción.
-> La prioridad del sistema en este PC dedicado es reducir fricción por
-> sobre seguridad estricta, pero las promociones de memoria/skills siguen
-> pasando por proposals porque afectan el comportamiento futuro del agente.
-> La **única excepción de auto-deploy** es el auto-promote de *warnings* de
-> Fase D, con kill switch `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED` (default
-> `true`, AUDIT-2026-C) — ver §1 y §3.4.
-> QA vigente del repo (commit `647f103`): `full-qa.sh` **950 passed**,
-> 1 skipped, 28 deselected; Playwright **31 passed** sin exportar
-> `COGOS_JWT` (auto-mint via `_global-setup.ts`); stress QA 3 pasadas
-> de **950 passed**; TestSprite re-audit 10/10 passed. Ver
+> **Actualización vigente (2026-05-23, commit `bbaaea8` — RELEASE
+> APPROVED):** el plan de aprendizaje autónomo está implementado y
+> convive con el modelo operativo de baja fricción. La prioridad del
+> sistema en este PC dedicado es reducir fricción por sobre seguridad
+> estricta, pero las promociones de memoria/skills siguen pasando por
+> proposals porque afectan el comportamiento futuro del agente.
+> La **única excepción de auto-deploy** es el auto-promote de
+> *warnings* de Fase D, con kill switch
+> `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED` (default `true`,
+> AUDIT-2026-C) — ver §1 y §3.4.
+> QA vigente del repo (commit `bbaaea8`): `full-qa.sh`
+> **950 passed**, 1 skipped, 28 deselected; Playwright **31 passed**
+> sin exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`); stress
+> QA 3 pasadas de **950 passed**; TestSprite acumulado **15/15** TC
+> ejecutados (14 PASS + 1 BLOCKED platform-side). Ver
 > `CURRENT_STATE.md`.
 
 > Documento de handoff. Pensado para que un chat nuevo entienda **(a)** el estado

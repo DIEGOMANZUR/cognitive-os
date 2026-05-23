@@ -1,6 +1,6 @@
 # QA · MAP — inventario funcional de la app
 
-> **Actualización vigente (2026-05-23, commit `647f103`):** mapa QA para
+> **Actualización vigente (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** mapa QA para
 > el cockpit actual. La suite oficial Playwright está verde con **31
 > passed** y se ejecuta contra la SPA Next.js de 20 tabs sin necesidad
 > de exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`). Backend

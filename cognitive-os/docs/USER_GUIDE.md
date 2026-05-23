@@ -1,18 +1,19 @@
 # Cognitive OS — Guía de Usuario (comercial)
 
-> **Estado canonico actual (2026-05-23, commit `647f103`):** Cognitive OS
-> se opera en este host como **sistema personal mono-operador para un PC
-> dedicado**. La prioridad de producto es **friccion casi nula por sobre
-> seguridad estricta**: Edge real, Kimi WebBridge, acceso amplio al PC y
-> menos aprobaciones cuando `OPERATOR_PROFILE=dedicated_local` +
+> **Estado canonico actual (2026-05-23, commit `bbaaea8`):**
+> **RELEASE APPROVED**. Cuatro pasadas de auditoría independiente
+> cerradas con cero defectos conocidos. Cognitive OS se opera en este
+> host como **sistema personal mono-operador para un PC dedicado**. La
+> prioridad de producto es **friccion casi nula por sobre seguridad
+> estricta**: Edge real, Kimi WebBridge, acceso amplio al PC y menos
+> aprobaciones cuando `OPERATOR_PROFILE=dedicated_local` +
 > `LOCAL_AUTONOMY_MODE=full`. Lo que no se sacrifica es trazabilidad:
 > jobs, eventos, audit, idempotencia, health, readiness y tests deben
 > seguir diciendo exactamente que paso. Mail es la excepcion: el flujo
 > normal solo lee, clasifica, resume y propone respuestas; no crea
 > drafts ni envia correos. Ver `CURRENT_STATE.md` y
-> `ZERO_FRICTION_OPERATING_MODEL.md`. Doble re-auditoría TestSprite
-> 2026-05-23 cerrada con **PASS**: ver
-> `docs/audits/testsprite/16_FINAL_REAUDIT_REPORT.md`.
+> `ZERO_FRICTION_OPERATING_MODEL.md`. Cierre formal en
+> [`audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md`](audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md).
 >
 > **Snapshot actual** (conteos por `scripts/sync_doc_counts.py`): **147
 > decoradores REST**, **23 tareas Celery** en **5 colas**, hasta **13 jobs
@@ -123,11 +124,13 @@
 > 8 passed y dos warnings no bloqueantes de deprecación MCP upstream.
 
 Este documento es **la** guía operativa de punta a punta. Si nunca viste
-el proyecto, leelo en orden: el capítulo 0 te lleva de cero a un sistema
-funcionando. Si ya lo conocés, andá directo al capítulo que necesites.
+el proyecto, leé primero la sección **A** ("Empezar desde cero sin saber
+nada"). Si querés instalar el sistema, salta al §0. Si ya lo conocés,
+andá directo al capítulo que necesites.
 
 **Índice**
 
+A. [Empezar desde cero — sin saber nada técnico](#a-empezar-desde-cero--sin-saber-nada-técnico)
 0. [Arranque desde cero (primera vez)](#0-arranque-desde-cero-primera-vez)
 1. [Qué es Cognitive OS, de principio a fin](#1-qué-es-cognitive-os-de-principio-a-fin)
 2. [Cómo arranca y cómo se apaga](#2-cómo-arranca-y-cómo-se-apaga)
@@ -146,12 +149,233 @@ funcionando. Si ya lo conocés, andá directo al capítulo que necesites.
 14. [Cómo NO usar Cognitive OS (anti-ejemplos)](#14-cómo-no-usar-cognitive-os-anti-ejemplos)
 
 > **¿Por dónde empiezo a leer?**
-> - **Nunca lo viste:** §0 (arranque) → §1 (qué es) → §12 (glosario) → §13
->   (recetario con ejemplos). Con eso ya operás.
+> - **Nunca usé un agente / nunca toqué nada técnico:** §A (lectura
+>   guiada con cero supuestos) → §1 (qué es) → §6 (ejemplos
+>   impresionantes que vas a poder hacer).
+> - **Sé instalar cosas en mi PC:** §0 (arranque) → §3 (vistas) → §13
+>   (recetario).
 > - **Ya lo conocés y querés hacer algo puntual:** andá directo a §13
 >   (recetario por capacidad) o a §3 (referencia de cada vista).
 > - **Querés evitar errores:** §14 (cómo NO usarlo) y §9 (qué pide
 >   aprobación).
+
+---
+
+## A. Empezar desde cero — sin saber nada técnico
+
+Esta sección te explica el sistema sin asumir que sos programador. Si
+ya sabés lo que es Cognitive OS, podés saltarla y empezar en §0.
+
+### A.1. ¿Qué es Cognitive OS, en una frase sencilla?
+
+**Cognitive OS es tu asistente personal de inteligencia artificial que
+vive dentro de tu PC.** Funciona como un equipo de agentes que pueden
+investigar, leer y resumir documentos, ordenar tus carpetas, generar
+archivos Word/Excel/PowerPoint, hacer click en webs, leer tu correo y
+proponerte respuestas, manejar tu calendario y tu Drive de Google,
+todo desde una sola interfaz visual.
+
+Pensalo así: en lugar de tener veinte programas distintos (uno para
+investigación, otro para Gmail, otro para escribir documentos, otro
+para anotar tareas), tenés **una sola pantalla** desde donde le pedís
+cosas en lenguaje natural y el agente decide qué hacer y cómo
+hacerlo.
+
+### A.2. ¿Para qué te sirve a vos, día a día?
+
+Ejemplos reales que ya funcionan en este sistema:
+
+1. **Investigar un tema profundo y obtener un reporte con citas.**
+   Le decís "investigá X" y te entrega un documento con todas las
+   fuentes, cada afirmación con su cita literal, listo para usar
+   profesionalmente.
+
+2. **Analizar varios PDFs juntos.** Cargás contratos, sentencias o
+   informes y el agente arma matrices de evidencia, líneas de tiempo,
+   detección de contradicciones y resúmenes con páginas exactas
+   citadas.
+
+3. **Revisar tu correo sin perder tiempo.** Dos veces por día (10:00 y
+   20:00 hora Chile) el sistema te entrega un digest de hasta 50
+   correos clasificados, separa el spam aunque el proveedor no lo
+   haya marcado, y para los importantes te propone una respuesta
+   escrita lista para copiar. **NO envía correos por vos**, vos
+   decidís qué mandar.
+
+4. **Ordenar carpetas del PC.** Le pedís "organizá `/home/jgonz/Descargas`
+   por tipo" y te muestra primero qué movería; si te gusta el plan,
+   aprobás y lo hace.
+
+5. **Generar documentos Office.** Le decís "armá un Word con índice,
+   secciones tal y tal" o "generá un Excel con esta tabla de datos" y
+   te entrega el archivo listo.
+
+6. **Operar Google Calendar y Drive.** Crear eventos, listar agenda,
+   subir archivos, organizar carpetas en Drive, todo desde el panel.
+
+7. **Pedir ayuda con código.** Le decís "implementá esta función en
+   este archivo" y delega la tarea a Claude Code, Codex o Kimi como
+   subagentes, te muestra el plan, lo ejecuta y vos revisás.
+
+8. **Conversar por Telegram.** Toda la potencia del agente accesible
+   por chat de Telegram, en lenguaje natural o con `/comandos`.
+
+### A.3. ¿Es seguro? ¿Va a hacer algo sin tu permiso?
+
+**Sí, es seguro y diseñado para no hacer cosas sin tu permiso en lo
+que importa.** Reglas duras que el sistema NO puede saltarse:
+
+- **No envía correos por vos** en flujo normal. Lo único que hace es
+  leer, clasificar y **proponer** respuestas como texto. Vos las
+  copiás, las modificás si querés, y las mandás desde tu correo
+  normal.
+- **No modifica DNS reales.** Por defecto cualquier cambio de DNS
+  queda en modo "vista previa" (dry-run); para hacer un cambio real
+  hay que activar varios flags explícitamente.
+- **No toca archivos fuera de las carpetas autorizadas.** Por defecto
+  sólo `/home/jgonz`, `/tmp` y `/mnt`. Si le pedís que organice
+  `/etc/shadow` (un archivo del sistema), te dice "esa ruta está
+  bloqueada" y no toca nada.
+- **No usa una base de datos de producción para tests.** Tiene una DB
+  de test aislada.
+- **No imprime contraseñas ni tokens en logs ni en la pantalla.**
+- **Cada acción importante queda registrada** en un timeline auditable
+  (qué hizo, cuándo, con qué resultado).
+
+### A.4. ¿Qué necesito para usarlo?
+
+En este PC ya está todo instalado y certificado. Lo que necesitás como
+usuario es:
+
+1. **Saber abrir el ícono del escritorio** "Levantar Cognitive OS" (es
+   un archivo `.desktop` en `~/Escritorio` que arranca todo con un
+   click).
+2. **Saber abrir un navegador** (Edge, Chrome, Firefox) y entrar a
+   `http://localhost:3001`.
+3. **Opcionalmente, tener Telegram instalado** para usar el bot.
+
+Eso es todo. No hace falta escribir comandos en la terminal para usar
+el sistema día a día. La terminal sirve para instalar, actualizar o
+diagnosticar; el uso cotidiano es por el panel web.
+
+### A.5. ¿Cómo arranco el sistema?
+
+**Opción más fácil (recomendada):**
+
+Hacé doble-click en el ícono del escritorio:
+
+```
+~/Escritorio/Levantar Cognitive OS.desktop
+```
+
+Un terminal se abre, hace todo el trabajo, y cuando ves esto al
+final:
+
+```
+docker     : running
+api        : running · http://127.0.0.1:8000/health
+worker     : running
+beat       : running
+frontend   : running · http://localhost:3001
+telegram   : running
+kimi       : running
+```
+
+todo está listo. Abrí el navegador en `http://localhost:3001` y ya
+podés usar el panel.
+
+**Para apagar todo limpio:** doble-click en `Detener Cognitive OS.desktop`.
+
+**Para reiniciar:** `Reiniciar Cognitive OS.desktop`.
+
+**Para ver el estado actual:** `Estado Cognitive OS.desktop`.
+
+### A.6. ¿Cómo uso el panel?
+
+Cuando abrís `http://localhost:3001` por primera vez, el sistema se
+auto-configura: el JWT (la "llave" de autenticación) lo crea solo, no
+tenés que pegar nada en ninguna parte.
+
+Vas a ver:
+
+- **Sidebar izquierda con 20 tabs** (Dashboard, Chat, DeepAgents,
+  Skills, Memoria, Asistente, Mail, Documentos, Document Analysis,
+  Jobs, Aprobaciones, Google Ops, Research, Code Director, Sandbox,
+  LangSmith, Audit log, Health, Sistema, Conexión). Cada una es una
+  capacidad distinta del agente.
+- **Top bar** con el JWT auto-provisionado, un buscador de comandos
+  (atajo `Ctrl/Cmd + K`) y un centro de notificaciones.
+- **Dashboard principal** con métricas vivas: cuántos documentos
+  tenés, cuántos jobs activos, cuántas aprobaciones pendientes,
+  cuántos componentes están sanos.
+
+Para hacer lo más simple — **chatear con el agente** — andá al tab
+**Chat**, escribí lo que querés, y conversá. Por ejemplo:
+
+```
+Necesito un resumen de los principales cambios en la jurisprudencia
+laboral chilena durante 2025. Busca fuentes recientes, citá cada
+afirmación, y entregalo como Word.
+```
+
+El agente decide qué hacer (investigación con citas → generar Word),
+te muestra el progreso, y cuando termina te entrega el archivo.
+
+### A.7. ¿Y si me trabo o no entiendo algo?
+
+- **El sistema te dice qué pasa.** Si una funcionalidad está
+  apagada, te muestra exactamente qué variable falta y cómo
+  habilitarla (`Settings → Readiness`).
+- **Hay un botón "Verificar en vivo"** en el tab Health que prueba el
+  LLM, los embeddings y el correo en tiempo real para mostrarte si
+  algo realmente está funcionando o sólo está "configurado".
+- **Cada error es accionable.** Por ejemplo, si intentás enviar un
+  correo, te dice literalmente: "Mail sending is disabled by policy.
+  Normal flow is read-only: generate a summary/proposed reply and
+  Diego sends manually." (que es lo correcto, por contrato).
+
+### A.8. ¿Qué leer ahora?
+
+Una vez que ya tenés el panel abierto y entendiste qué hace el sistema,
+estos son tus siguientes pasos:
+
+1. **§6 — Ejemplos impresionantes:** ejemplos largos y elaborados
+   para ver qué cosas tipo "wow" podés pedirle.
+2. **§13 — Recetario:** ejemplos cortos, uno por cada capacidad,
+   para usarlo como referencia rápida.
+3. **§12 — Glosario:** definiciones de los conceptos que aparecen
+   en el panel (qué es un job, una aprobación, un ActionRequest,
+   etc.).
+4. **§3 — Frontend vista por vista:** referencia exhaustiva de qué
+   hace cada uno de los 20 tabs.
+5. **§5 — Telegram:** si querés operar el sistema desde el
+   celular.
+6. **§14 — Cómo NO usarlo:** errores comunes a evitar.
+
+### A.9. Si te quedaste atascado: 4 comandos que arreglan el 90% de los problemas
+
+Estos 4 comandos resuelven los problemas más comunes. Los corrés
+abriendo una terminal:
+
+```bash
+# 1. ¿El sistema está vivo? Si no, lo levantás:
+~/Escritorio/Levantar\ Cognitive\ OS.sh
+
+# 2. ¿Algo se trabó? Reiniciás:
+~/Escritorio/Reiniciar\ Cognitive\ OS.sh
+
+# 3. ¿Cómo está cada componente?:
+~/Escritorio/Estado\ Cognitive\ OS.sh
+
+# 4. ¿Apagar todo para reiniciar el PC?:
+~/Escritorio/Detener\ Cognitive\ OS.sh
+```
+
+Si después de eso algo sigue sin funcionar, la sección §11
+(Troubleshooting express) tiene una tabla "síntoma → fix" con casi
+todos los problemas conocidos.
+
+---
 
 ---
 

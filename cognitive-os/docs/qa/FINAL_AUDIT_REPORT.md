@@ -1,6 +1,6 @@
 # QA · FINAL_AUDIT_REPORT — estado vigente y auditoría histórica
 
-> **Actualización vigente (2026-05-23, commit `647f103`):** este reporte
+> **Actualización vigente (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** este reporte
 > conserva abajo la auditoría Fase 76 como histórico, pero el gate actual
 > del proyecto es más amplio:
 >

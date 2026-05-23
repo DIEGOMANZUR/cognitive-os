@@ -1,10 +1,13 @@
 # Roadmap: Cognitive OS como asistente personal
 
-> **Estado actual (2026-05-22):** roadmap vivo, mayormente ejecutado para
-> una instalación local dedicada. La prioridad de producto es fricción casi
-> nula por sobre seguridad estricta: acceso real al PC, Edge real/Kimi
-> WebBridge, filesystem local y auto-resolución en `dedicated_local/full`
-> cuando la capacidad lo soporte. `strict` queda como modo conservador.
+> **Estado actual (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):**
+> roadmap vivo, mayormente ejecutado para una instalación local
+> dedicada. Producto certificado para uso comercial local-first tras
+> cuatro pasadas de auditoría independiente sin defectos conocidos. La
+> prioridad de producto es fricción casi nula por sobre seguridad
+> estricta: acceso real al PC, Edge real/Kimi WebBridge, filesystem
+> local y auto-resolución en `dedicated_local/full` cuando la capacidad
+> lo soporte. `strict` queda como modo conservador.
 >
 > **Correo personal actual:** dos veces al día, 10:00 y 20:00 hora Chile,
 > el sistema prepara un digest de hasta 50 correos desde Gmail

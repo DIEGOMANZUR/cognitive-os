@@ -1,13 +1,24 @@
 # Action Plane
 
-> **Estado canonico actual (2026-05-22):** en el PC dedicado el Action Plane se
-> interpreta bajo `dedicated_local/full`: **friccion casi nula primero**,
-> seguridad estricta despues. En `strict`, preview/request/approval sigue siendo
-> la postura conservadora. En `dedicated_local/full`, algunas approvals pueden
-> auto-resolverse y la defensa pasa a audit, idempotencia, reapers y
-> observabilidad. Mail se mantiene fuera del auto-send: solo lectura, digest y
-> propuestas de texto. Ver `CURRENT_STATE.md` y
+> **Estado canonico actual (2026-05-23, commit `bbaaea8`):**
+> **RELEASE APPROVED**. En el PC dedicado el Action Plane se
+> interpreta bajo `dedicated_local/full`: **friccion casi nula
+> primero**, seguridad estricta despues. En `strict`,
+> preview/request/approval sigue siendo la postura conservadora. En
+> `dedicated_local/full`, las approvals reversibles auto-resuelven
+> (browser_preview, computer_organize, document_generate,
+> drive_ensure_folder, etc.) y la defensa pasa a audit, idempotencia,
+> reapers y observabilidad. Mail se mantiene fuera del auto-send: solo
+> lectura, digest y propuestas de texto. Ver `CURRENT_STATE.md` y
 > `ZERO_FRICTION_OPERATING_MODEL.md`.
+>
+> **Fix `647f103` que afecta directamente el Action Plane:**
+> `eager_defaults=True` en `db.Base` corrige el bug P1
+> `MissingGreenlet` en todos los `POST /actions/*/preview/request` y
+> `POST /actions/*/request`. Endpoints verificados HTTP 200 vivo con
+> `updated_at` populado e idempotencia preservada (misma url → mismo
+> id). 3 tests de regresión en
+> `backend/tests/test_action_request_eager_defaults.py`.
 >
 > **Estado historico (2026-05-21, Fase 85 — contrato mail read-only):** capa **preview-first con
 > `ActionRequest` persistente** y carril activo de **mail personal read-only por defecto**.

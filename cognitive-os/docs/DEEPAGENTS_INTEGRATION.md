@@ -1,6 +1,6 @@
 # Integración de DeepAgents (referencia técnica)
 
-> **Estado actual (2026-05-22):** DeepAgents sigue siendo el worker
+> **Estado actual (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** DeepAgents sigue siendo el worker
 > cognitivo productivo para `research` y `document_analysis`. En el perfil
 > local dedicado se prioriza baja fricción: las tools permitidas por la
 > policy pueden usar contexto real del operador, Kimi WebBridge y workspace

@@ -1,9 +1,15 @@
 # Documentacion De Cognitive OS
 
-> **Estado canonico actual (2026-05-23, commit `647f103`):** leer primero
-> [`CURRENT_STATE.md`](CURRENT_STATE.md) y
+> **Estado canonico actual (2026-05-23, commit `bbaaea8`):**
+> **RELEASE APPROVED**. Cuatro pasadas de auditoría independiente
+> cerradas con cero defectos conocidos. Para arrancar como usuario
+> nuevo: empezá por **[`USER_GUIDE.md`](USER_GUIDE.md)** (didáctica,
+> paso a paso). Para entender el estado actual del producto: leé
+> primero [`CURRENT_STATE.md`](CURRENT_STATE.md) y
 > [`ZERO_FRICTION_OPERATING_MODEL.md`](ZERO_FRICTION_OPERATING_MODEL.md).
-> Esos dos archivos mandan: si algo aca discrepa, ellos ganan.
+> Esos dos archivos mandan: si algo aca discrepa, ellos ganan. Cierre
+> formal del release:
+> [`audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md`](audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md).
 >
 > Cognitive OS es un sistema cognitivo **local mono-operador** para un PC
 > dedicado. Prioridad de producto: **friccion casi nula por sobre seguridad

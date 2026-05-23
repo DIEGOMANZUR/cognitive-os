@@ -1,10 +1,13 @@
 # RUNBOOK Cognitive OS
 
-> **Estado canonico actual (2026-05-23, commit `647f103`):** operar este
-> host como PC dedicado `dedicated_local/full`: **friccion casi nula por
-> sobre seguridad estricta**. Para estado, gates y contrato de mail ver
+> **Estado canonico actual (2026-05-23, commit `bbaaea8`):**
+> **RELEASE APPROVED**. Operar este host como PC dedicado
+> `dedicated_local/full`: **friccion casi nula por sobre seguridad
+> estricta**. Para estado, gates y contrato de mail ver
 > `CURRENT_STATE.md`; para la postura operativa ver
-> `ZERO_FRICTION_OPERATING_MODEL.md`.
+> `ZERO_FRICTION_OPERATING_MODEL.md`; para checklists diarias de
+> operación, actualización y rollback ver
+> [`audits/testsprite/33_RELEASE_CANDIDATE_PACKAGE.md`](audits/testsprite/33_RELEASE_CANDIDATE_PACKAGE.md).
 >
 > **Snapshot vigente** (conteos por `scripts/sync_doc_counts.py`):
 > backend FastAPI con 147 endpoints REST, **23 tareas Celery** en

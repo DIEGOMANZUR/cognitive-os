@@ -1,6 +1,6 @@
 # OpenShell Sandbox (referencia técnica)
 
-> **Estado actual (2026-05-22):** integración separada e independiente,
+> **Estado actual (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** integración separada e independiente,
 > documentada para el modelo local dedicado. Aunque el producto prioriza
 > fricción casi nula por sobre seguridad estricta, OpenShell sigue siendo
 > un sandbox opcional: si se enciende, debe fallar de forma explícita,
