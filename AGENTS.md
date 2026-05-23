@@ -1,11 +1,11 @@
 # AGENTS.md
 
-> **Estado canónico actual (2026-05-22):** Cognitive OS corre como
-> instalación local dedicada. La prioridad definida por Diego es fricción
-> casi nula por sobre seguridad estricta: puede usar Edge real/Kimi
-> WebBridge, filesystem local y auto-resolución de aprobaciones en
-> `dedicated_local/full` cuando el backend lo permita. `strict` queda como
-> perfil conservador, no como objetivo principal de esta máquina.
+> **Estado canónico actual (2026-05-23, commit `647f103`):** Cognitive OS
+> corre como instalación local dedicada. La prioridad definida por Diego es
+> fricción casi nula por sobre seguridad estricta: puede usar Edge
+> real/Kimi WebBridge, filesystem local y auto-resolución de aprobaciones
+> en `dedicated_local/full` cuando el backend lo permita. `strict` queda
+> como perfil conservador, no como objetivo principal de esta máquina.
 >
 > **Fuente de verdad:** `cognitive-os/docs/CURRENT_STATE.md` (estado
 > canónico) y `cognitive-os/docs/ZERO_FRICTION_OPERATING_MODEL.md` (modelo
@@ -22,19 +22,28 @@
 > Plane. LLM: primary+agent `gpt-5.5`, secondary/fallback
 > `gemini-3.1-pro-low`, visión `glm-4.6v`.
 >
-> **Gates vigentes:** `bash cognitive-os/scripts/full-qa.sh` verde con
-> **944 passed, 1 skipped, 28 deselected** (incluye ruff/format/mypy,
-> Alembic check, frontend lint/build, `sync_doc_counts --check`,
-> `git diff --check`); Playwright frontend **31 passed**;
-> `bash cognitive-os/scripts/stress-qa.sh` con 3 pasadas de **944 passed**.
-> Frontend QA usa `.next-qa` para no romper un `next start` vivo. Carril
-> opt-in `tests/live/` (`LIVE_TESTS_ENABLED=1`) verificado con **8 smokes
-> read-only passed**. TestSprite MCP fue ejecutado como smoke advisory
-> acotado: 3/3 casos pasaron, con asserts mas debiles que la suite
-> Playwright comercial.
-> Ajuste posterior `5953b40`: `/system/mcp` inventaria en paralelo con timeout
-> 30s; runtime verificado 5/5 MCP servers y 67 tools. `Ctrl/Cmd+K` del
-> cockpit quedó estabilizado.
+> **Gates vigentes (post `647f103`):**
+> `bash cognitive-os/scripts/full-qa.sh` verde con **947 passed**, 1
+> skipped, 28 deselected (944 históricos + 3 nuevos de regresión del
+> bug `eager_defaults`; incluye ruff/format/mypy, Alembic check, frontend
+> lint/build, `sync_doc_counts --check`, `git diff --check`); Playwright
+> frontend **31 passed** sin necesidad de exportar `COGOS_JWT` (auto-mint
+> via `POST /auth/local-token` en `dedicated_local/full`);
+> `bash cognitive-os/scripts/stress-qa.sh` con 3 pasadas de **947
+> passed**. Frontend QA usa `.next-qa` para no romper un `next start`
+> vivo. Carril opt-in `tests/live/` (`LIVE_TESTS_ENABLED=1`) verificado
+> con **8 smokes read-only passed**. TestSprite MCP re-auditoría dos
+> batches **10/10 passed** (TC001/002/003/004/006/007/008/009/010/014).
+>
+> **Ajuste re-audit `647f103`:** `eager_defaults=True` en `db.Base`
+> resuelve `MissingGreenlet` en endpoints `POST
+> /actions/*/preview/request` y análogos; Playwright runner ahora
+> zero-friction (auto-mint JWT). Detalles en
+> `cognitive-os/docs/audits/testsprite/16_FINAL_REAUDIT_REPORT.md`.
+>
+> **Ajuste previo `5953b40`:** `/system/mcp` inventaria en paralelo con
+> timeout 30s; runtime verificado 5/5 MCP servers y 67 tools. `Ctrl/Cmd+K`
+> del cockpit quedó estabilizado.
 >
 > **Regla de mail vigente:** leer Gmail `diegomanzurn@gmail.com`
 > `TODOS`+`SPAM` y GoDaddy `diego@doctormanzur.com` `Spam`; el agente
@@ -195,7 +204,7 @@ Comandos reales detectados en este repo (úsalos según el área tocada):
 Backend (`cognitive-os/backend/`):
 
 - `uv sync` (con `--extra openharness` si vas a tocar el motor opcional).
-- `uv run pytest` (snapshot vigente: **944 passed, 1 skipped, 28
+- `uv run pytest` (snapshot vigente: **947 passed, 1 skipped, 28
   deselected**; el default deselecciona `integration`, `slow` y
   `live_readonly`).
 - `uv run ruff check .` y `uv run ruff format --check .`.

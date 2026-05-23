@@ -3,15 +3,27 @@
 Este documento define la postura actual del proyecto para el PC dedicado de
 Diego. Es intencionalmente distinta de una postura SaaS/multiusuario.
 
-> **Estado (2026-05-22):** la auditoria comercial
-> (`docs/audits/CODEX_COMMERCIAL_READINESS_AUDIT.md`) evaluo el sistema contra
-> los 9 criterios de "grado comercial" definidos aqui abajo y cerro las 8
-> fallas accionables (AUDIT-2026-A..H). Los 9 criterios se cumplen. Para el
-> snapshot vigente de conteos y gates ver
+> **Estado (2026-05-23, commit `647f103`):** la auditoria comercial
+> (`docs/audits/CODEX_COMMERCIAL_READINESS_AUDIT.md`) evaluo el sistema
+> contra los 9 criterios de "grado comercial" definidos aqui abajo y
+> cerro las 8 fallas accionables (AUDIT-2026-A..H). Los 9 criterios se
+> cumplen. Una **doble re-auditoria TestSprite del 2026-05-23** valido
+> los 16 hallazgos previos (15 VERIFIED_FIXED + 1 OBSOLETE_WITH_REASON)
+> y cazo un P1 nuevo (`MissingGreenlet` en
+> `POST /actions/*/preview/request`) que ya quedo corregido con
+> `eager_defaults=True` en `db.Base` + 3 tests de regresion. Detalle
+> completo en `docs/audits/testsprite/16_FINAL_REAUDIT_REPORT.md`. Para
+> el snapshot vigente de conteos y gates ver
 > [`CURRENT_STATE.md`](CURRENT_STATE.md).
-> Ajuste posterior `5953b40`: MCP quedo con inventario paralelo, timeout
-> default 30s y runtime verificado 5/5 servers / 67 tools; el atajo
-> `Ctrl/Cmd+K` del cockpit quedo estabilizado.
+>
+> **Ajustes runtime acumulados:**
+> - `647f103` (re-audit): `eager_defaults=True` en ORM Base; Playwright
+>   auto-mintea JWT en `dedicated_local/full` via `_global-setup.ts`.
+>   Gates: `full-qa.sh` 947 passed, Playwright 31/31 sin exportar
+>   `COGOS_JWT`, TestSprite re-audit 10/10.
+> - `5953b40`: MCP inventario paralelo, timeout default 30s, runtime
+>   verificado 5/5 servers / 67 tools; atajo `Ctrl/Cmd+K` del cockpit
+>   estabilizado.
 
 ## Decision De Producto
 

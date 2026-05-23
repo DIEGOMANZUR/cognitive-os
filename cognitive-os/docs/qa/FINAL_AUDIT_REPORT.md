@@ -1,29 +1,41 @@
 # QA · FINAL_AUDIT_REPORT — estado vigente y auditoría histórica
 
-> **Actualización vigente (2026-05-22):** este reporte conserva abajo la
-> auditoría Fase 76 como histórico, pero el gate actual del proyecto es más
-> amplio:
+> **Actualización vigente (2026-05-23, commit `647f103`):** este reporte
+> conserva abajo la auditoría Fase 76 como histórico, pero el gate actual
+> del proyecto es más amplio:
 >
-> - `bash scripts/full-qa.sh` → **944 passed, 1 skipped, 28 deselected**,
->   ruff/format/mypy/Alembic/frontend lint/frontend build/`sync_doc_counts
->   --check`/`git diff --check` OK.
-> - `bash scripts/full-e2e.sh` / `npx playwright test --reporter=list` →
->   **31 passed**.
-> - `bash scripts/stress-qa.sh` → 3 pasadas de **944 passed**.
+> - `bash scripts/full-qa.sh` → **947 passed**, 1 skipped, 28 deselected
+>   (944 históricos + 3 nuevos en
+>   `tests/test_action_request_eager_defaults.py` que cubren el fix
+>   `eager_defaults` para el bug P1 `MissingGreenlet` que cazó la
+>   re-auditoría 2026-05-23). Ruff/format/mypy/Alembic/frontend
+>   lint/build/`sync_doc_counts --check`/`git diff --check` OK.
+> - `npx playwright test --reporter=list` → **31 passed** sin exportar
+>   `COGOS_JWT` (auto-mint via `tests/e2e/_global-setup.ts` que llama
+>   `POST /auth/local-token` cuando el perfil es `dedicated_local/full`).
+> - `bash scripts/stress-qa.sh` → 3 pasadas de **947 passed**.
 > - `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` → **8 passed**,
->   smokes read-only contra proveedores reales.
-> - TestSprite MCP/CLI → **3/3 passed** en smoke advisory acotado; sus asserts
->   generados no sustituyen la suite Playwright comercial.
+>   smokes read-only contra proveedores reales (último gate
+>   documentado; en re-audit del 2026-05-23 no se re-ejecutó por ser
+>   opt-in y no estar `LIVE_TESTS_ENABLED` en `.env`).
+> - TestSprite MCP re-audit → **10/10 passed** sobre dos batches acotados
+>   (TC001/002/003/004/006/007/008/009/010/014).
 > - Build frontend de QA aislado con `NEXT_DIST_DIR=.next-qa`, sin romper
 >   un `next start` vivo servido desde `.next`.
 > - `/system/mcp` post-gate → **5/5 servers connected**, **67 tools**,
 >   inventario paralelo con timeout default 30s (`5953b40`).
 >
+> Doble re-auditoría TestSprite 2026-05-23 cerrada con **PASS**: 1 P1
+> nuevo cazado y corregido (eager_defaults), 16/16 hallazgos previos
+> verificados, 12/12 asserciones cero-fricción validadas. Reporte
+> completo: [`../audits/testsprite/16_FINAL_REAUDIT_REPORT.md`](../audits/testsprite/16_FINAL_REAUDIT_REPORT.md).
+>
 > La auditoría comercial más reciente (`docs/audits/CODEX_COMMERCIAL_READINESS_AUDIT.md`)
-> cerró 8 hallazgos accionables (AUDIT-2026-A..H). La prioridad operacional
-> actual es fricción casi nula en PC dedicado, no hardening SaaS. Aun así,
-> los gates QA deben seguir probando arranque, UI honesta, workers, mail
-> read-only/digest, errores visibles e idempotencia.
+> cerró 8 hallazgos accionables (AUDIT-2026-A..H). La prioridad
+> operacional actual es fricción casi nula en PC dedicado, no hardening
+> SaaS. Aun así, los gates QA deben seguir probando arranque, UI
+> honesta, workers, mail read-only/digest, errores visibles e
+> idempotencia.
 
 # QA · FINAL_AUDIT_REPORT — Fase 76 (auditoría E2E full-stack histórica)
 
@@ -161,7 +173,7 @@ frontend/
 ```bash
 # Backend pytest (referencia):
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/backend"
-uv run pytest -q                                   # 944 passed esperado en snapshot vigente
+uv run pytest -q                                   # 947 passed esperado (commit 647f103: 944 históricos + 3 regresión eager_defaults)
 
 # Frontend lint + build:
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/frontend"

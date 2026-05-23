@@ -1,13 +1,24 @@
 # Cognitive OS — Arquitectura (referencia técnica completa)
 
-> **Estado canónico actual (2026-05-22):** arquitectura local-first para
-> un PC dedicado del operador, con prioridad explícita de fricción casi
-> nula por sobre seguridad estricta. `strict` sigue existiendo como perfil
-> conservador, pero el perfil operativo preferido es `dedicated_local/full`:
-> usa Edge real/Kimi WebBridge, filesystem local y auto-resolución de
-> aprobaciones cuando está configurado. La seguridad de perímetro no es el
-> eje de esta instalación; sí lo son trazabilidad, idempotencia,
-> observabilidad, recuperación y fallos explícitos.
+> **Estado canónico actual (2026-05-23, commit `647f103`):** arquitectura
+> local-first para un PC dedicado del operador, con prioridad explícita
+> de fricción casi nula por sobre seguridad estricta. `strict` sigue
+> existiendo como perfil conservador, pero el perfil operativo preferido
+> es `dedicated_local/full`: usa Edge real/Kimi WebBridge, filesystem
+> local y auto-resolución de aprobaciones cuando está configurado. La
+> seguridad de perímetro no es el eje de esta instalación; sí lo son
+> trazabilidad, idempotencia, observabilidad, recuperación y fallos
+> explícitos.
+>
+> **Cambio reciente que afecta arquitectura (`647f103`):** la ORM `Base`
+> (`backend/src/cognitive_os/core/db.py`) define
+> `__mapper_args__ = {"eager_defaults": True}` para que SQLAlchemy 2.x
+> emita `INSERT/UPDATE ... RETURNING` para las columnas con
+> server-default (`created_at`, `updated_at`, etc.). Esto es **obligatorio
+> en async sessions** porque sin `eager_defaults` un attribute lazy-load
+> tras `await session.flush()` dispara SQL síncrono fuera del greenlet y
+> rompe con `sqlalchemy.exc.MissingGreenlet`. Era la causa raíz de un P1
+> en `/actions/browser/preview/request` y endpoints análogos.
 >
 > **Conteos verificados contra código** (generados por
 > `scripts/sync_doc_counts.py`): **147 decoradores REST**, **23 tareas
@@ -19,12 +30,14 @@
 > de tools built-in tipadas del DeepAgent más tools dinámicas MCP cuando
 > `ENABLE_MCP_CLIENT=true`.
 >
-> **QA más reciente:** `bash scripts/full-qa.sh` verde con **944 passed, 1
-> skipped, 28 deselected**; ruff/format/mypy/Alembic/lint/build/`sync_doc_counts
-> --check`/`git diff --check` OK; build frontend aislado con
-> `NEXT_DIST_DIR=.next-qa`; Playwright **31 passed**; stress QA verde con 3
-> pasadas de **944 passed**; carril opt-in `tests/live/` verificado con
-> **8 passed**; TestSprite MCP/CLI **3/3 passed** como smoke advisory.
+> **QA más reciente (commit `647f103`):** `bash scripts/full-qa.sh` verde
+> con **947 passed**, 1 skipped, 28 deselected;
+> ruff/format/mypy/Alembic/lint/build/`sync_doc_counts --check`/`git diff
+> --check` OK; build frontend aislado con `NEXT_DIST_DIR=.next-qa`;
+> Playwright **31 passed** sin exportar `COGOS_JWT` (auto-mint via
+> `_global-setup.ts`); stress QA verde con 3 pasadas de **947 passed**;
+> carril opt-in `tests/live/` verificado con **8 passed**; TestSprite MCP
+> re-audit **10/10 passed** sobre dos batches.
 
 ---
 

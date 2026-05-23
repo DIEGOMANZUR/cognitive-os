@@ -1,6 +1,6 @@
 # Documentacion De Cognitive OS
 
-> **Estado canonico actual (2026-05-22):** leer primero
+> **Estado canonico actual (2026-05-23, commit `647f103`):** leer primero
 > [`CURRENT_STATE.md`](CURRENT_STATE.md) y
 > [`ZERO_FRICTION_OPERATING_MODEL.md`](ZERO_FRICTION_OPERATING_MODEL.md).
 > Esos dos archivos mandan: si algo aca discrepa, ellos ganan.
@@ -28,11 +28,19 @@
 >   `openharness-ai>=0.1.9,<0.2`, pipeline por defecto `prelude_merge`).
 > - LLM: **primary+agent `gpt-5.5`** (Responses API + prompt caching 24h),
 >   **secondary/fallback `gemini-3.1-pro-low`**, **vision `glm-4.6v`**.
-> - QA: `full-qa.sh` **944 passed, 1 skipped, 28 deselected** + ruff/format/
+> - QA: `full-qa.sh` **947 passed, 1 skipped, 28 deselected** + ruff/format/
 >   mypy/Alembic/lint/build/`sync_doc_counts`/`git diff --check`; `stress-qa.sh`
->   3 pasadas verdes; Playwright **31 passed**; carril opt-in `tests/live/`
->   verificado con **8 passed**; TestSprite MCP/CLI **3/3 passed** como
->   smoke advisory acotado.
+>   3 pasadas verdes de **947 passed**; Playwright **31 passed** sin
+>   exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`); carril opt-in
+>   `tests/live/` verificado con **8 passed**; TestSprite MCP re-audit
+>   **10/10 passed** sobre dos batches acotados.
+>
+> **Re-audit `647f103` (2026-05-23):** fix `eager_defaults=True` en
+> `db.Base` resuelve `MissingGreenlet` 500 en endpoints
+> `POST /actions/*/preview/request` y análogos. Playwright runner ahora
+> zero-friction (auto-mintea JWT via `POST /auth/local-token` en
+> `dedicated_local/full`). Reporte completo:
+> [`audits/testsprite/16_FINAL_REAUDIT_REPORT.md`](audits/testsprite/16_FINAL_REAUDIT_REPORT.md).
 >
 > **Post-gate `5953b40`:** `/system/mcp` carga inventario en paralelo con
 > `MCP_INVENTORY_TIMEOUT_SECONDS=30`; runtime verificado **5/5 MCP servers**

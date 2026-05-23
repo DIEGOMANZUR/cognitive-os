@@ -41,11 +41,23 @@ test.describe("regression-critical: contratos clave Fase 72-74", () => {
     expect(names).toContain("mail");
     expect(names).toContain("checkpointer");
     if (body.status === "degraded") {
-      const degraded = body.components.filter(
-        (c: { status: string }) => c.status === "blocked" || c.status === "error",
+      // El modelo de health distingue:
+      //   - "degraded" → componente con problema operativo (e.g. probe en vivo
+      //     falló o backlog operacional pasó umbral). Ej.: AUDIT-2026-B/F
+      //     introdujeron `operational_backlog` y `POST /health/verify`, ambos
+      //     reportan `degraded` con `detail` legible cuando aplica.
+      //   - "blocked"/"error" → status heredados del action_request, no del
+      //     dashboard de health; se mantienen aceptados por compatibilidad.
+      const problematic = body.components.filter(
+        (c: { status: string }) =>
+          c.status === "degraded" ||
+          c.status === "blocked" ||
+          c.status === "error",
       );
-      expect(degraded.length).toBeGreaterThan(0);
-      expect(degraded.every((c: { detail?: string }) => Boolean(c.detail))).toBe(true);
+      expect(problematic.length).toBeGreaterThan(0);
+      expect(problematic.every((c: { detail?: string }) => Boolean(c.detail))).toBe(
+        true,
+      );
     }
     await ctx.dispose();
   });

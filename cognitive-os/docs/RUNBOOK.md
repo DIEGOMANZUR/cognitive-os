@@ -1,22 +1,27 @@
 # RUNBOOK Cognitive OS
 
-> **Estado canonico actual (2026-05-22):** operar este host como PC dedicado
-> `dedicated_local/full`: **friccion casi nula por sobre seguridad estricta**.
-> Para estado, gates y contrato de mail ver `CURRENT_STATE.md`; para la postura
-> operativa ver `ZERO_FRICTION_OPERATING_MODEL.md`.
+> **Estado canonico actual (2026-05-23, commit `647f103`):** operar este
+> host como PC dedicado `dedicated_local/full`: **friccion casi nula por
+> sobre seguridad estricta**. Para estado, gates y contrato de mail ver
+> `CURRENT_STATE.md`; para la postura operativa ver
+> `ZERO_FRICTION_OPERATING_MODEL.md`.
 >
-> **Snapshot vigente** (conteos por `scripts/sync_doc_counts.py`): backend
-> FastAPI con 147 endpoints REST, **23 tareas Celery** en **5 colas**
-> (`default`, `ingestion`, `agent_longrun`, `maintenance`, `mail`) con hasta
-> **13 jobs beat**, **20 migraciones Alembic** head `202605200003`, **37 slash
-> commands Telegram**, `/health/dashboard` con 18 componentes +
-> `POST /health/verify`. QA: `full-qa.sh` **944 passed, 1 skipped, 28
-> deselected**, Playwright **31 passed**, `stress-qa.sh` 3 pasadas verdes.
-> `full-qa.sh` construye Next en `.next-qa` para no invalidar el `.next` que
-> usa un `next start` vivo. Live read-only: `LIVE_TESTS_ENABLED=1 bash
-> scripts/full-qa-live.sh` **8 passed**. TestSprite MCP/CLI: **3/3 passed**
-> como smoke advisory acotado. Ajuste `5953b40`: `/system/mcp` carga en
-> paralelo, timeout default 30s, runtime 5/5 servers y 67 tools.
+> **Snapshot vigente** (conteos por `scripts/sync_doc_counts.py`):
+> backend FastAPI con 147 endpoints REST, **23 tareas Celery** en
+> **5 colas** (`default`, `ingestion`, `agent_longrun`, `maintenance`,
+> `mail`) con hasta **13 jobs beat**, **20 migraciones Alembic** head
+> `202605200003`, **37 slash commands Telegram**, `/health/dashboard`
+> con 18 componentes + `POST /health/verify`. QA: `full-qa.sh`
+> **947 passed**, 1 skipped, 28 deselected; Playwright **31 passed** sin
+> exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`); `stress-qa.sh`
+> 3 pasadas verdes de **947 passed**. `full-qa.sh` construye Next en
+> `.next-qa` para no invalidar el `.next` que usa un `next start` vivo.
+> Live read-only: `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh`
+> **8 passed**. TestSprite MCP re-audit: **10/10 passed** sobre dos
+> batches acotados. Fix `647f103`: `eager_defaults=True` en `db.Base`
+> elimina `MissingGreenlet` 500 en `POST /actions/*/preview/request`.
+> Ajuste previo `5953b40`: `/system/mcp` carga en paralelo, timeout
+> default 30s, runtime 5/5 servers y 67 tools.
 >
 > **Runtime:** la ruta `research` está fusionada con OpenHarness opcional; el
 > LLM es **gpt-5.5** (gateway openai-compatible, Responses API) como
@@ -37,6 +42,38 @@
 >
 > **Aislamiento de DB de test:** la suite corre contra `cognitive_os_test`,
 > recreada por corrida — `pytest` nunca toca la base de producción.
+
+## TL;DR Quick-Start
+
+Para usuarios que ya conocen el repo y solo necesitan los 4 comandos que
+levantan, validan, observan y apagan el stack:
+
+```bash
+# 1. Levantar todo (Docker + API + worker + beat + frontend + telegram + Kimi)
+~/Escritorio/Reiniciar\ Cognitive\ OS.sh     # reset limpio
+# (o `Levantar Cognitive OS.sh` si nada está corriendo)
+
+# 2. Mint JWT operador (10 años, sin auth en dedicated_local/full)
+JWT=$(curl -sX POST http://127.0.0.1:8000/auth/local-token | \
+  python3 -c "import json,sys; print(json.load(sys.stdin)['access_token'])")
+
+# 3. Sanity check (debe ser todo verde)
+curl -s http://127.0.0.1:8000/system/readiness -H "Authorization: Bearer $JWT" | \
+  python3 -m json.tool
+# → target_capabilities_unlocked: 14/14, gaps: []
+
+# 4. Apagar todo limpio
+~/Escritorio/Detener\ Cognitive\ OS.sh
+```
+
+Y para los gates QA:
+
+```bash
+cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os"
+bash scripts/full-qa.sh                          # 947 passed (≈70s)
+cd frontend && unset COGOS_JWT && npx playwright test --reporter=list
+# 31 passed (auto-mint JWT, no necesita exportar nada)
+```
 
 ## Ejecutables de escritorio
 

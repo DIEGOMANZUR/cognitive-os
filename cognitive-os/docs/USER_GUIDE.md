@@ -1,25 +1,33 @@
 # Cognitive OS — Guía de Usuario (comercial)
 
-> **Estado canonico actual (2026-05-22):** Cognitive OS se opera en este host
-> como **sistema personal mono-operador para un PC dedicado**. La prioridad de
-> producto es **friccion casi nula por sobre seguridad estricta**: Edge real,
-> Kimi WebBridge, acceso amplio al PC y menos aprobaciones cuando
-> `OPERATOR_PROFILE=dedicated_local` + `LOCAL_AUTONOMY_MODE=full`. Lo que no se
-> sacrifica es trazabilidad: jobs, eventos, audit, idempotencia, health,
-> readiness y tests deben seguir diciendo exactamente que paso. Mail es la
-> excepcion: el flujo normal solo lee, clasifica, resume y propone respuestas;
-> no crea drafts ni envia correos. Ver `CURRENT_STATE.md` y
-> `ZERO_FRICTION_OPERATING_MODEL.md`.
+> **Estado canonico actual (2026-05-23, commit `647f103`):** Cognitive OS
+> se opera en este host como **sistema personal mono-operador para un PC
+> dedicado**. La prioridad de producto es **friccion casi nula por sobre
+> seguridad estricta**: Edge real, Kimi WebBridge, acceso amplio al PC y
+> menos aprobaciones cuando `OPERATOR_PROFILE=dedicated_local` +
+> `LOCAL_AUTONOMY_MODE=full`. Lo que no se sacrifica es trazabilidad:
+> jobs, eventos, audit, idempotencia, health, readiness y tests deben
+> seguir diciendo exactamente que paso. Mail es la excepcion: el flujo
+> normal solo lee, clasifica, resume y propone respuestas; no crea
+> drafts ni envia correos. Ver `CURRENT_STATE.md` y
+> `ZERO_FRICTION_OPERATING_MODEL.md`. Doble re-auditoría TestSprite
+> 2026-05-23 cerrada con **PASS**: ver
+> `docs/audits/testsprite/16_FINAL_REAUDIT_REPORT.md`.
 >
 > **Snapshot actual** (conteos por `scripts/sync_doc_counts.py`): **147
 > decoradores REST**, **23 tareas Celery** en **5 colas**, hasta **13 jobs
 > beat**, **20 migraciones Alembic** head `202605200003`, **20 vistas
 > frontend**, **37 comandos Telegram**, **18 componentes** en
-> `/health/dashboard` + `POST /health/verify`. QA: `full-qa` **944 passed,
-> 1 skipped, 28 deselected**, Playwright **31 passed**, `stress-qa` 3
-> pasadas verdes de **944 passed**, carril opt-in `tests/live/`. `full-qa.sh` construye Next
-> en `.next-qa` para no deshidratar el frontend vivo servido desde `.next`.
-> La suite es hermética y corre contra una DB de test aislada
+> `/health/dashboard` + `POST /health/verify`. QA: `full-qa` **947 passed**,
+> 1 skipped, 28 deselected (944 históricos + 3 nuevos que cubren el fix
+> `eager_defaults` para el bug P1 `MissingGreenlet` que la re-auditoría
+> 2026-05-23 cazó en `POST /actions/*/preview/request`); Playwright **31
+> passed** sin exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`);
+> `stress-qa` 3 pasadas verdes de **947 passed**; carril opt-in
+> `tests/live/` verificado **8 passed**; TestSprite re-audit **10/10
+> passed** sobre dos batches. `full-qa.sh` construye Next en `.next-qa`
+> para no deshidratar el frontend vivo servido desde `.next`. La suite
+> es hermética y corre contra una DB de test aislada
 > (`cognitive_os_test`); producción nunca se toca.
 >
 > **Frontend:** *command center glassmorphism dark-only*, instalable como
@@ -131,6 +139,7 @@ funcionando. Si ya lo conocés, andá directo al capítulo que necesites.
 8. [Perfiles de operación: estricto vs PC dedicado](#8-perfiles-de-operación-estricto-vs-pc-dedicado)
 9. [Matriz de acciones (qué pide aprobación, cómo aflojarla)](#9-matriz-de-acciones-qué-pide-aprobación-cómo-aflojarla)
 10. [Seguridad operativa en una página](#10-seguridad-operativa-en-una-página)
+10.5. [Qué cambió en el release 2026-05-23 (commit `647f103`)](#105-qué-cambió-en-el-release-2026-05-23-commit-647f103)
 11. [Troubleshooting express](#11-troubleshooting-express)
 12. [Glosario operativo (los conceptos que tenés que entender)](#12-glosario-operativo)
 13. [Recetario: un ejemplo de uso para cada capacidad](#13-recetario-un-ejemplo-de-uso-para-cada-capacidad)
@@ -267,8 +276,35 @@ funciona offline para el shell (las APIs requieren conexión).
 
 ### 0.7 Conseguir un JWT y entrar
 
-El frontend pide un **token JWT local** (sin prefijo `Bearer`) en el
-TopBar. Generá uno:
+Para `OPERATOR_PROFILE=dedicated_local` + `LOCAL_AUTONOMY_MODE=full` el
+sistema **autoprovisiona el JWT por vos**. Tenés tres caminos según el
+caso de uso:
+
+#### 0.7.A — Camino más fácil (panel web)
+
+Simplemente abrí `http://localhost:3001/` en el navegador. La SPA
+detecta que no hay token en `localStorage`, llama a `POST
+/auth/local-token` por su cuenta, lo guarda como
+`localStorage["cogos.token"]` con `cogos.token.source="auto"` y
+empieza a pedir datos en vivo. **No tenés que copiar ni pegar nada**.
+
+#### 0.7.B — Camino curl (terminal)
+
+Para Telegram, scripts CLI o testing manual:
+
+```bash
+JWT=$(curl -sX POST http://127.0.0.1:8000/auth/local-token | \
+  python3 -c "import json,sys; print(json.load(sys.stdin)['access_token'])")
+echo "$JWT"
+```
+
+Token vivo 10 años (TTL larga es contrato del PC dedicado, no un bug).
+
+#### 0.7.C — Camino estricto / scripts CI
+
+Si tu host usa `OPERATOR_PROFILE=strict` o `LOCAL_AUTONOMY_MODE=guarded`
+(p.ej. un staging multi-tenant), `POST /auth/local-token` devuelve `403`
+adrede. El método "viejo" sigue disponible:
 
 ```bash
 cd cognitive-os/backend
@@ -279,6 +315,10 @@ print(create_access_token(user_id='operator', roles=['admin']))"
 Pegá ese token en el TopBar del panel (o en la pestaña *Conexión*).
 Listo: las consultas autenticadas se activan y el Dashboard empieza a
 mostrar datos en vivo.
+
+> **Para Playwright el JWT es totalmente transparente:** el
+> `tests/e2e/_global-setup.ts` mintea uno antes de cada corrida sin que
+> tengas que exportar `COGOS_JWT`. Ver `docs/qa/RUNBOOK.md §2`.
 
 ### 0.8 (Opcional) Google Calendar/Drive/Maps
 
@@ -315,8 +355,13 @@ la allow-list, te responde con los 37 comandos.
 ```bash
 cd cognitive-os
 bash scripts/full-qa.sh                  # pytest + ruff + mypy + frontend build + sync_doc_counts + git diff
-# Esperado vigente: 944 passed, 1 skipped, 28 deselected; todo verde
+# Esperado vigente: 947 passed, 1 skipped, 28 deselected; todo verde
 # (corre contra cognitive_os_test — la DB de producción nunca se toca)
+
+# Frontend E2E sin exportar nada:
+cd frontend
+unset COGOS_JWT
+npx playwright test --reporter=list      # 31 passed; el global-setup auto-mintea el JWT
 ```
 
 En el panel, andá a **Health**: cada componente (db, redis, weaviate,
@@ -1175,22 +1220,191 @@ Detalle completo en `docs/SECURITY.md`.
 
 ---
 
+## 10.5. Qué cambió en el release 2026-05-23 (commit `647f103`)
+
+Esta sección es un cambio reciente que afecta tu experiencia diaria. Si
+ya conocías el sistema antes, leelo entero — las cosas que antes
+"tenías que hacer" ahora se hacen solas.
+
+### 10.5.1 El frontend ya no te pide pegar el JWT
+
+Antes: abrir `http://localhost:3001` mostraba el panel pidiendo "pegá
+tu JWT en el TopBar". Tenías que ir a la terminal, generarlo con
+`uv run python -c "from cognitive_os.core.auth..."`, copiar la salida y
+pegarla.
+
+Ahora (`dedicated_local/full`): el frontend detecta que no hay token,
+llama `POST /auth/local-token` y se autoprovisiona. Verás
+`localStorage["cogos.token.source"]="auto"` y los polls empiezan
+inmediatamente. **El TopBar sigue ahí por si querés cambiar el token
+manualmente o usar uno distinto** (p.ej. para testing).
+
+### 10.5.2 Playwright corre sin exportar nada
+
+Antes:
+
+```bash
+COGOS_JWT=$(uv run python -c "from cognitive_os.core.auth...")  # paso manual
+npx playwright test
+```
+
+Ahora:
+
+```bash
+npx playwright test    # listo
+```
+
+El `tests/e2e/_global-setup.ts` mintea el JWT antes que cualquier
+worker. Si `dedicated_local/full` no está activo (p.ej. corrés contra
+un staging strict), el global-setup falla silenciosamente y el helper
+te muestra el error claro con el comando de mint manual.
+
+### 10.5.3 El bug de los `/actions/*/preview/request` quedó resuelto
+
+Si alguna vez (antes del `647f103`) pediste `POST
+/actions/browser/preview/request` y recibiste un `HTTP 500 Internal
+Server Error`, era el `MissingGreenlet` de SQLAlchemy async. Causa
+técnica: `ActionRequest.updated_at` tenía server-default y SQLAlchemy
+intentaba refrescarlo lazy fuera del greenlet.
+
+Fix idiomático: `__mapper_args__ = {"eager_defaults": True}` en
+`db.Base`. Ahora todos los `INSERT/UPDATE` emiten `RETURNING` para
+columnas server-default y el shape `ActionRequestView` siempre llega
+poblado en una sola llamada. Cobertura nueva en
+`backend/tests/test_action_request_eager_defaults.py` (3 tests contra
+DB real).
+
+Endpoints que se beneficiaron sin tocar más nada:
+
+- `/actions/browser/preview/request`
+- `/actions/browser/interactive/request`
+- `/actions/computer/organize/request`
+- `/actions/drive/folders/ensure/request`
+- `/actions/drive/files/upload/request`
+- `/actions/drive/organize/request`
+- `/actions/calendar/events/request`
+- `/actions/documents/request`
+- `/actions/godaddy/dns/request`
+
+Todos verificados HTTP 200 vivo en el re-audit.
+
+### 10.5.4 RUNBOOK QA promovió el método curl
+
+Antes el método primario documentado para mintear JWT en operaciones
+manuales era:
+
+```bash
+uv run python -c "from cognitive_os.core.auth import create_access_token; \
+print(create_access_token(user_id='auditor', roles=['admin']))"
+```
+
+Ahora la forma corta es:
+
+```bash
+JWT=$(curl -sX POST http://127.0.0.1:8000/auth/local-token | \
+  python3 -c "import json,sys; print(json.load(sys.stdin)['access_token'])")
+```
+
+El método largo queda como fallback para perfiles `strict`/`guarded`
+donde `/auth/local-token` devuelve 403.
+
+### 10.5.5 Re-auditoría TestSprite completa
+
+Dos pasadas independientes de TestSprite MCP cerraron con **PASS**:
+
+- **Pasada 1 (mañana 2026-05-23):** 5 hallazgos P2/P3 cazados y
+  cerrados (auto-mint runner, RUNBOOK, doc drift, runtime behind HEAD).
+- **Pasada 2 (tarde 2026-05-23):** 1 P1 cazado y corregido (el
+  `MissingGreenlet`), 16/16 hallazgos previos verificados, 12/12
+  asserciones cero-fricción validadas.
+
+Reportes detallados en `docs/audits/testsprite/`:
+
+| Archivo | Para qué |
+|---|---|
+| `09_FINAL_REMEDIATION_REPORT.md` | Veredicto y evidencia de la pasada 1 |
+| `13_CLOSURE_MATRIX.md` | Matriz de cierre con cada hallazgo de la primera pasada re-validado independientemente |
+| `14_NEW_FINDINGS.md` | Detalle del P1 `MissingGreenlet`, root cause y fix |
+| `15_ZERO_FRICTION_VALIDATION.md` | 12/12 asserciones cero-fricción PASS |
+| `16_FINAL_REAUDIT_REPORT.md` | Veredicto consolidado de las dos pasadas |
+
+---
+
 ## 11. Troubleshooting express
+
+> **Filosofía:** si algo se rompe, primero `/system/readiness` y
+> `/health/dashboard` para que el sistema te diga **qué** está roto;
+> después `~/.cognitive-os/logs/` para que te diga **por qué**.
+
+### 11.1 Tabla rápida (síntoma → fix)
 
 | Síntoma | Causa probable | Comando que arregla |
 |---|---|---|
-| Frontend dice `no-auth` | falta/venció el JWT | regenerá el token (§0.7) y pegalo en *Conexión* |
+| Frontend dice `no-auth` | falta/venció el JWT | en `dedicated_local/full` la SPA autoprovisiona — recargá la página. Si querés forzar: borrá `localStorage["cogos.token"]` o regenerá el token (§0.7) |
+| Playwright corre y dice `COGOS_JWT env var is missing` | global-setup no pudo llamar `POST /auth/local-token` (¿API caída? ¿perfil strict?) | verificá `curl http://127.0.0.1:8000/health`; si el perfil es strict, exportá `COGOS_JWT=$(...)` manualmente |
+| `/actions/browser/preview/request` → HTTP 500 `MissingGreenlet` | **bug histórico, ya corregido en `647f103`** con `eager_defaults=True` en `db.Base` | reiniciá runtime (`~/Escritorio/Reiniciar Cognitive OS.sh`) — el binario antiguo no tenía el fix; el HEAD sí |
 | `Health: degraded · google` | token Google caducado | `uv run python scripts/auth_google.py` (self-healing) |
+| `Health: degraded · primary_llm` con `timeout 3s` | cold start del gateway `gpt-5.5` | reintentá `POST /health/verify` cuando el LLM ya esté warm, o subí `HEALTH_LLM_PROBE_TIMEOUT_SECONDS` |
 | `/maps` dice "no está disponible" | falta `GOOGLE_MAPS_API_KEY` | seteala en `.env` |
 | `/mail` dice `MAIL_ENABLED=false` | mail multicuenta apagado | configurá `MAIL_*` y `ENABLE` |
 | Build Code Director `failed` "adapter unavailable" | CLI no instalado/logueado | `claude --version`, `codex --version`, `kimi --version` |
 | `Approval pending` desaparece sola | reaper la marcó expirada (>48 h) | volvé a generarla |
-| Envío explícito de mail falla | SMTP/credenciales incompletas, body vacío, flags de escape hatch apagadas o confirmación faltante | revisá `/mail/status`, `MAIL_GODADDY_*`, `ENABLE_EMAIL_SEND`, `MAIL_ALLOW_EXPLICIT_SEND` y la confirmación explícita |
+| Intento de mail send → 409 `"Mail sending is disabled by policy..."` | **contrato del PC dedicado**, no un bug | si querés enviar realmente: `ENABLE_EMAIL_SEND=true` + `MAIL_ALLOW_EXPLICIT_SEND=true` + frase exacta `explicit_send_confirmation="SEND_THIS_EMAIL_EXPLICITLY"` |
+| Envío explícito de mail falla aún con las flags | SMTP/credenciales incompletas, body vacío, confirmación faltante | revisá `/mail/status`, `MAIL_GODADDY_*` |
 | `/system/mcp` tarda o muestra timeouts falsos | servidores MCP `stdio` fríos o `npx` lento | verificá `MCP_INVENTORY_TIMEOUT_SECONDS=30`; desde `5953b40` el inventario carga en paralelo y debe mostrar 5/5 si credenciales/servers están listos |
 | ActionRequest queda `dispatched=false` | Redis/Celery caído | levantá el stack y reintentá el dispatch |
 | Drive folder/organize daba 500 en Postgres | (corregido en Fase 65: migración `202605170001`) | `uv run alembic upgrade head` |
 | `detect-secrets` falso positivo en test | falta pragma | `# pragma: allowlist secret` en esa línea |
 | Rate limit deja pasar todo | Redis caído (fail-open intencional) | levantá Redis; nunca bloquea legit traffic |
+| `/system/info.git_commit` no matchea `git rev-parse HEAD` | binario uvicorn arrancado antes del último commit | `~/Escritorio/Reiniciar Cognitive OS.sh` |
+| TestSprite saturó la API (CLOSE-WAIT > 4000) | TestSprite genera muchas conexiones en run completo | ejecutalo en batches de 5–10 TCs; ver `docs/audits/testsprite/14_NEW_FINDINGS.md` |
+
+### 11.2 Decisión: cuándo reiniciar el stack
+
+| Cambio | Reiniciar runtime? | Comando |
+|---|---|---|
+| Edit en `frontend/app/views/*.tsx` (HMR Dev) | No (Next dev recarga) | nada |
+| Edit en `frontend/.next-qa` (build QA) | No (no afecta `.next` vivo) | nada |
+| Edit en `backend/src/cognitive_os/**.py` | **Sí**, uvicorn no recarga | `~/Escritorio/Reiniciar Cognitive OS.sh` |
+| Cambio en `core/config.py` o `.env` | **Sí**, settings se leen al boot | `~/Escritorio/Reiniciar Cognitive OS.sh` |
+| Nueva migración Alembic | **Sí**, además `uv run alembic upgrade head` antes | aplicar migración → restart |
+| Nueva tarea Celery o queue | **Sí**, worker debe reescanear | restart (worker incluido) |
+| Cambio en `MCP_SERVERS` (.env) | **Sí**, cliente MCP carga al boot | restart |
+
+### 11.3 Healthcheck guiado (en 30 segundos)
+
+```bash
+# 1. JWT vivo
+JWT=$(curl -sX POST http://127.0.0.1:8000/auth/local-token | \
+  python3 -c "import json,sys; print(json.load(sys.stdin)['access_token'])")
+[ -n "$JWT" ] && echo "✓ JWT mint OK" || echo "✗ JWT mint FAIL (¿API caída?)"
+
+# 2. Readiness
+curl -s http://127.0.0.1:8000/system/readiness \
+  -H "Authorization: Bearer $JWT" | python3 -c "
+import json,sys; d=json.load(sys.stdin)
+ok = d['target_capabilities_unlocked'] == d['target_capabilities_total']
+print(f\"{'✓' if ok else '✗'} readiness {d['target_capabilities_unlocked']}/{d['target_capabilities_total']}\")"
+
+# 3. Health dashboard
+curl -s http://127.0.0.1:8000/health/dashboard \
+  -H "Authorization: Bearer $JWT" | python3 -c "
+import json,sys; d=json.load(sys.stdin)
+degraded=[c['name'] for c in d['components'] if c['status']=='degraded']
+print(f\"{'✓' if not degraded else '✗'} health overall={d['status']} degraded={degraded}\")"
+
+# 4. MCP
+curl -s http://127.0.0.1:8000/system/mcp \
+  -H "Authorization: Bearer $JWT" | python3 -c "
+import json,sys; d=json.load(sys.stdin)
+total_tools = sum(s['tools_count'] for s in d['servers'])
+print(f\"✓ MCP {len(d['servers'])}/5 servers, {total_tools} tools\")"
+
+# 5. Stack vivo
+~/Escritorio/Estado\ Cognitive\ OS.sh | grep -E "(api|worker|beat|frontend|telegram|kimi)"
+```
+
+Si los 5 vienen verdes → sistema está 100% operativo.
 
 Cualquier otra cosa rara: `bash scripts/full-qa.sh` debería volver
 verde. Si no, es una regresión real, no una rareza ambiental.

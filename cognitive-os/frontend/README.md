@@ -68,16 +68,18 @@
 >   `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED` en la sección de warnings.
 > - `ChatView` muestra `tg…<sufijo>` para threads de Telegram.
 >
-> **QA verde vigente:**
+> **QA verde vigente (commit `647f103`):**
 > - `npm run lint` → 0 warnings (`--max-warnings 0`).
 > - `npm run build` → Next 16.2.6 + Turbopack, 4 páginas estáticas OK.
 > - `npx tsc --noEmit` → 0 errores.
-> - `npx playwright test --reporter=list` / `bash scripts/full-e2e.sh` →
->   **31 passed**.
-> - `bash scripts/full-qa.sh` desde la raíz del repo ejecuta build frontend
->   aislado con `NEXT_DIST_DIR=.next-qa` y limpia ese directorio para no
->   romper un `next start` vivo servido desde `.next`; gate vigente:
->   **944 passed, 1 skipped, 28 deselected**.
+> - `npx playwright test --reporter=list` → **31 passed** sin exportar
+>   `COGOS_JWT` (auto-mint via `tests/e2e/_global-setup.ts` que llama
+>   `POST /auth/local-token` en `dedicated_local/full`; en `strict` el
+>   helper sigue exigiendo la env var manualmente con mensaje claro).
+> - `bash scripts/full-qa.sh` desde la raíz del repo ejecuta build
+>   frontend aislado con `NEXT_DIST_DIR=.next-qa` y limpia ese directorio
+>   para no romper un `next start` vivo servido desde `.next`; gate
+>   vigente: **947 passed**, 1 skipped, 28 deselected.
 > - Anclajes de la suite oficial (`aria-label="JWT local"`, `URL base de la
 >   API`, `Abrir menú`, `Cerrar`, "Estado global", "componentes ok", 20
 >   TAB_LABELS, labels "Guardar"/"API base"/"JWT sin prefijo Bearer" en

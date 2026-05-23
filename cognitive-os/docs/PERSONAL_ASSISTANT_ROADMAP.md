@@ -15,12 +15,14 @@
 > El resultado se entrega como documento/campos de texto separados; no se
 > crean borradores y no se envía nada en el flujo normal.
 >
-> **QA vigente:** `bash scripts/full-qa.sh` verde con **944 passed, 1
-> skipped, 28 deselected**; frontend Playwright **31 passed**; stress QA 3
-> pasadas de **944 passed**; carril opt-in `tests/live/` verificado con
-> **8 passed**; TestSprite MCP/CLI **3/3 passed** como smoke advisory.
-> MCP quedo verificado 5/5 servers y 67 tools tras el ajuste de inventario
-> paralelo (`5953b40`).
+> **QA vigente (commit `647f103`):** `bash scripts/full-qa.sh` verde con
+> **947 passed**, 1 skipped, 28 deselected (944 históricos + 3 nuevos
+> del fix `eager_defaults`); frontend Playwright **31 passed** sin
+> exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`); stress QA 3
+> pasadas de **947 passed**; carril opt-in `tests/live/` verificado con
+> **8 passed**; TestSprite MCP re-audit **10/10 passed** sobre dos
+> batches acotados. MCP queda verificado 5/5 servers y 67 tools tras el
+> ajuste de inventario paralelo (`5953b40`).
 > Pendiente para "asistente personal absoluto": voz productiva
 > en frontend/Telegram, YouTube/video summaries y automatizaciones
 > proactivas avanzadas.

@@ -8,13 +8,16 @@
 > conservadores; el objetivo diario es arranque reproducible, diagnóstico
 > visible y recuperación rápida.
 >
-> `full-qa.sh` está actualizado al ciclo vigente: backend con
-> **944 passed, 1 skipped, 28 deselected**, ruff/format/mypy/Alembic
+> `full-qa.sh` está actualizado al ciclo vigente (commit `647f103`):
+> backend con **947 passed**, 1 skipped, 28 deselected (944 históricos
+> + 3 nuevos por el fix `eager_defaults`); ruff/format/mypy/Alembic
 > verdes, frontend lint/build verde, `sync_doc_counts --check` y
 > `git diff --check` finales. El build frontend de QA usa
 > `NEXT_DIST_DIR=.next-qa` para no invalidar un `next start` vivo.
 > Carril opt-in `full-qa-live.sh` para smokes read-only contra
-> proveedores reales, verificado con **8 passed**.
+> proveedores reales, verificado con **8 passed**. Playwright runner
+> zero-friction: `npx playwright test` mintea el JWT automáticamente
+> via `POST /auth/local-token` en `dedicated_local/full`.
 > `full-qa-live.sh` cubre `/system/mcp`; tras `5953b40` el inventario MCP
 > carga en paralelo con timeout 30s y runtime verificado 5/5 servers.
 >

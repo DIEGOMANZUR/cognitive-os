@@ -1,9 +1,14 @@
 # Cognitive OS — Guía Maestra
 
-> **Estado canónico actual (2026-05-22):** esta guía describe el sistema
-> vivo después de los ciclos de hardening de frontend, mail, QA aislado y
-> runtime local. Fuente corta: `docs/CURRENT_STATE.md`. Modelo operativo:
-> `docs/ZERO_FRICTION_OPERATING_MODEL.md`.
+> **Estado canónico actual (2026-05-23, commit `647f103`):** esta guía
+> describe el sistema vivo después de los ciclos de hardening de
+> frontend, mail, QA aislado y runtime local, **más la doble auditoría
+> TestSprite del 2026-05-23** que cazó y corrigió un P1 nuevo en
+> `/actions/*/preview/request` (fix `eager_defaults=True` en
+> `db.Base`) y eliminó la fricción del Playwright runner con auto-mint
+> JWT. Fuente corta: `docs/CURRENT_STATE.md`. Modelo operativo:
+> `docs/ZERO_FRICTION_OPERATING_MODEL.md`. Reporte completo:
+> `docs/audits/testsprite/16_FINAL_REAUDIT_REPORT.md`.
 >
 > **Prioridad del producto en este PC dedicado:** fricción casi nula por
 > sobre seguridad estricta. Cognitive OS está diseñado para usar el perfil
@@ -31,17 +36,24 @@
 > agente, digest 10:00/20:00 Chile, máximo 50 correos, respuestas sugeridas
 > como campos de texto separados.
 >
-> **QA más reciente:** `bash scripts/full-qa.sh` verde con **944 passed, 1
-> skipped, 28 deselected**, ruff/format/mypy/Alembic/lint/build/`sync_doc_counts
-> --check`/`git diff --check` OK; build frontend aislado con
-> `NEXT_DIST_DIR=.next-qa`; Playwright **31 passed**; `bash
-> scripts/stress-qa.sh` verde con 3 pasadas de **944 passed**; carril
-> opt-in `tests/live/` verificado con **8 passed**; TestSprite MCP/CLI
-> **3/3 passed** como smoke advisory acotado.
-> **Ultimo ajuste post-gate:** `/system/mcp` carga inventario en paralelo con
-> timeout default 30s (`MCP_INVENTORY_TIMEOUT_SECONDS`); runtime verificado
-> 5/5 servers y 67 tools. `Ctrl/Cmd+K` del cockpit quedo estabilizado desde
-> capture phase.
+> **QA más reciente (commit `647f103`):** `bash scripts/full-qa.sh` verde
+> con **947 passed**, 1 skipped, 28 deselected (944 históricos + 3
+> nuevos del fix `eager_defaults`),
+> ruff/format/mypy/Alembic/lint/build/`sync_doc_counts --check`/`git
+> diff --check` OK; build frontend aislado con `NEXT_DIST_DIR=.next-qa`;
+> Playwright **31 passed** sin exportar `COGOS_JWT` (auto-mint via
+> `_global-setup.ts`); `bash scripts/stress-qa.sh` verde con 3 pasadas
+> de **947 passed**; carril opt-in `tests/live/` verificado con **8
+> passed**; TestSprite MCP re-audit **10/10 passed** sobre dos batches.
+>
+> **Ajustes post-gate acumulados:**
+> - `647f103` (re-audit): `eager_defaults=True` en `db.Base` corrige
+>   `MissingGreenlet` 500 en endpoints `POST /actions/*/preview/request`;
+>   Playwright runner zero-friction.
+> - `5953b40`: `/system/mcp` carga inventario en paralelo con timeout
+>   default 30s (`MCP_INVENTORY_TIMEOUT_SECONDS`); runtime verificado
+>   5/5 servers y 67 tools. `Ctrl/Cmd+K` del cockpit estabilizado
+>   desde capture phase.
 > **Para qué es este documento:** la **guía maestra técnica** "desde cero". Complementa la `USER_GUIDE.md` (orientada a operación cotidiana) con arquitectura detallada, mail multicuenta, escritorio, credenciales y troubleshooting profundo. Cada afirmación tiene su archivo o variable de respaldo en el repo.
 
 ---
@@ -699,10 +711,12 @@ bash scripts/stress-qa.sh     # repite pytest N veces (default 3) para detectar 
 bash scripts/full-qa-live.sh  # opt-in: smokes read-only contra proveedores reales (LIVE_TESTS_ENABLED=1)
 ```
 
-Snapshot vigente: `full-qa.sh` → **944 passed, 1 skipped, 28 deselected**;
-`stress-qa.sh 3` → 3 pasadas de 944; Playwright **31 passed**;
-`full-qa-live.sh` con `LIVE_TESTS_ENABLED=1` → **8 passed**; TestSprite
-MCP/CLI → **3/3 passed** como smoke advisory.
+Snapshot vigente (commit `647f103`): `full-qa.sh` → **947 passed**, 1
+skipped, 28 deselected; `stress-qa.sh 3` → 3 pasadas de 947; Playwright
+**31 passed** sin exportar `COGOS_JWT` (auto-mint via
+`_global-setup.ts`); `full-qa-live.sh` con `LIVE_TESTS_ENABLED=1` →
+**8 passed**; TestSprite MCP re-audit → **10/10 passed** sobre dos
+batches acotados.
 
 ---
 

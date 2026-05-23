@@ -1,11 +1,12 @@
 # Cognitive OS - Guia Simple Y Tecnica
 
-> **Estado actual (2026-05-22):** producto local-first para un PC dedicado
-> del operador. La prioridad explícita es fricción casi nula por sobre
-> seguridad estricta: usar Edge real, Kimi WebBridge, filesystem local y
-> auto-resolución de aprobaciones en `dedicated_local/full` es una decisión
-> de producto, no una excepción accidental. `strict` queda disponible como
-> perfil conservador.
+> **Estado actual (2026-05-23, commit `647f103`):** producto local-first
+> para un PC dedicado del operador. La prioridad explícita es fricción
+> casi nula por sobre seguridad estricta: usar Edge real, Kimi WebBridge,
+> filesystem local y auto-resolución de aprobaciones en
+> `dedicated_local/full` es una decisión de producto, no una excepción
+> accidental. `strict` queda disponible como perfil conservador. Doble
+> auditoría TestSprite cerrada en `docs/audits/testsprite/16_FINAL_REAUDIT_REPORT.md`.
 >
 > **Snapshot vivo:** backend FastAPI con **147 decoradores REST**, **23
 > tareas Celery** en **5 queues**, **20 migraciones Alembic** (head
@@ -17,18 +18,25 @@
 > 10:00/20:00 Chile, máximo 50 correos, propuestas de respuesta como texto
 > separado; no drafts y no envío automático.
 >
-> **QA más reciente:** `bash scripts/full-qa.sh` verde con **944 passed, 1
-> skipped, 28 deselected**; ruff/format/mypy/Alembic/lint/build/`sync_doc_counts
-> --check`/`git diff --check` OK; Playwright **31 passed**; `bash
-> scripts/stress-qa.sh` verde con 3 pasadas de **944 passed**. El build de
-> QA usa `NEXT_DIST_DIR=.next-qa` para no invalidar un frontend vivo
-> servido desde `.next`. Live read-only: **8 passed**. TestSprite MCP/CLI:
-> **3/3 passed** como smoke advisory.
+> **QA más reciente (commit `647f103`):** `bash scripts/full-qa.sh` verde
+> con **947 passed, 1 skipped, 28 deselected** (944 históricos + 3 nuevos
+> que cubren el fix `eager_defaults`); ruff/format/mypy/Alembic/lint/
+> build/`sync_doc_counts --check`/`git diff --check` OK; Playwright
+> **31 passed** sin exportar `COGOS_JWT` (auto-mint via
+> `_global-setup.ts`); `bash scripts/stress-qa.sh` verde con 3 pasadas
+> de **947 passed**. El build de QA usa `NEXT_DIST_DIR=.next-qa` para no
+> invalidar un frontend vivo servido desde `.next`. Live read-only:
+> **8 passed**. TestSprite MCP re-audit: **10/10 passed** sobre dos
+> batches acotados.
 >
-> **Ultimo ajuste post-gate (`5953b40`):** `/system/mcp` ahora inventaria los
-> servidores en paralelo con timeout default 30s; runtime verificado **5/5 MCP
-> servers** y **67 tools**. El command palette del frontend abre con
-> `Ctrl/Cmd+K` de forma estable incluso con foco en inputs.
+> **Ultimo ajuste post-gate (`647f103`):** fix `eager_defaults=True` en
+> `db.Base` corrige `MissingGreenlet` en `/actions/*/preview/request` y
+> análogos. Playwright runner zero-friction (auto-mint JWT).
+>
+> **Ajuste previo (`5953b40`):** `/system/mcp` ahora inventaria los
+> servidores en paralelo con timeout default 30s; runtime verificado
+> **5/5 MCP servers** y **67 tools**. El command palette del frontend
+> abre con `Ctrl/Cmd+K` de forma estable incluso con foco en inputs.
 >
 > **Guía de usuario completa:** `docs/USER_GUIDE.md`. Estado canónico:
 > `docs/CURRENT_STATE.md`. Modelo operativo: `docs/ZERO_FRICTION_OPERATING_MODEL.md`.

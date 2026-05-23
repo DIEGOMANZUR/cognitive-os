@@ -1,13 +1,21 @@
 # QA · MAP — inventario funcional de la app
 
-> **Actualización vigente (2026-05-22):** mapa QA para el cockpit actual.
-> La suite oficial Playwright está verde con **31 passed** y se ejecuta
-> contra la SPA Next.js de 20 tabs. Backend verificado por `full-qa.sh`:
-> **944 passed, 1 skipped, 28 deselected**. El producto corre en un PC
-> dedicado con prioridad de fricción casi nula; los tests deben validar que
-> esa fricción baja no esconda errores, pantallas muertas ni operaciones
-> silenciosas. Mail sigue siendo read-only/digest por defecto.
-> MCP actual: `/system/mcp` runtime 5/5 servers y 67 tools.
+> **Actualización vigente (2026-05-23, commit `647f103`):** mapa QA para
+> el cockpit actual. La suite oficial Playwright está verde con **31
+> passed** y se ejecuta contra la SPA Next.js de 20 tabs sin necesidad
+> de exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`). Backend
+> verificado por `full-qa.sh`: **947 passed**, 1 skipped, 28 deselected
+> (944 históricos + 3 nuevos para regresión del bug `eager_defaults`).
+> El producto corre en un PC dedicado con prioridad de fricción casi
+> nula; los tests deben validar que esa fricción baja no esconda
+> errores, pantallas muertas ni operaciones silenciosas. Mail sigue
+> siendo read-only/digest por defecto. MCP actual: `/system/mcp` runtime
+> 5/5 servers y 67 tools.
+>
+> Doble re-auditoría TestSprite 2026-05-23 cerrada: **10/10** passed,
+> 1 P1 nuevo cazado y corregido (eager_defaults), 16/16 hallazgos
+> previos verificados. Reporte:
+> [`../audits/testsprite/16_FINAL_REAUDIT_REPORT.md`](../audits/testsprite/16_FINAL_REAUDIT_REPORT.md).
 >
 > La auditoría Fase 76 (2026-05-20) queda como base histórica. Datos
 > extraídos del código real, no del README.

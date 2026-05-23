@@ -1,8 +1,8 @@
 # Estado Actual Canonico — Cognitive OS
 
-Fecha de sincronizacion documental: **2026-05-22**
+Fecha de sincronizacion documental: **2026-05-23**
 Branch auditada: `codex/commercial-zero-friction-hardening`
-Ultimo commit verificado: `5953b40 fix: stabilize mcp inventory and frontend shortcuts`
+Ultimo commit verificado: `647f103 fix: eager_defaults=True + zero-friction Playwright runner + TestSprite audit docs`
 
 Este archivo es la **fuente corta de verdad** del estado operativo actual. Si
 otro Markdown discrepa, este archivo manda y el otro debe corregirse. Los
@@ -10,6 +10,51 @@ conteos estructurales del "Snapshot Tecnico" se generan con
 `scripts/sync_doc_counts.py` y `full-qa.sh` falla si quedan desincronizados.
 
 ## Cambios Mas Recientes
+
+**Re-auditoria independiente TestSprite (2026-05-23, commit `647f103`).** Una
+segunda pasada de auditoria, ejecutada como auditor independiente sobre el
+estado declarado "PASS" de la primera, valido 16/16 hallazgos previos
+(15 `VERIFIED_FIXED` + 1 `OBSOLETE_WITH_REASON`) y cazo un **P1 nuevo** que
+la primera pasada no detecto:
+
+- **TS-ZF-20260523-006 (P1)** — `/actions/browser/preview/request` (y todos los
+  `create_*_request` que leen `updated_at` despues de `session.flush()` en
+  `AsyncSession`) devolvia HTTP 500 con `sqlalchemy.exc.MissingGreenlet`. El
+  attribute lazy-load disparaba SQL sincronico fuera del greenlet. **Fix:**
+  `__mapper_args__ = {"eager_defaults": True}` en `db.Base`
+  (`backend/src/cognitive_os/core/db.py`) — SQLAlchemy 2.x emite ahora
+  `INSERT ... RETURNING` para columnas con server-default. Endpoint vivo
+  verificado HTTP 200 con `updated_at` poblado; idempotency intacta (misma
+  url → mismo id). **3 tests de regresion** nuevos
+  (`backend/tests/test_action_request_eager_defaults.py`) corriendo contra
+  la DB de test real, no contra mocks.
+
+- **TS-ZF-20260523-001 (P2)** — Playwright runner exigia exportar
+  `COGOS_JWT` manualmente (19/31 fallos al primer intento). **Fix:**
+  `frontend/tests/e2e/_global-setup.ts` (nuevo) llama
+  `POST /auth/local-token` antes de los workers en
+  `dedicated_local/full`, populando `process.env.COGOS_JWT`. En
+  `strict`/`guarded` el endpoint 403 y el helper sigue exigiendo la env
+  var manualmente con mensaje claro. `npx playwright test` ahora pasa
+  **31/31 sin exportar nada**.
+
+- **TS-ZF-20260523-004 (P3)** — `docs/qa/RUNBOOK.md §2/§3` actualizada con
+  `curl POST /auth/local-token` como forma corta; el comando largo
+  `uv run python -c "from cognitive_os.core.auth..."` queda como fallback
+  para perfil `strict`.
+
+Gates post-fix:
+- `full-qa.sh` → **947 passed**, 1 skipped, 28 deselected (944 historicos +
+  3 nuevos), lint/format/mypy/Alembic/sync_doc_counts/git diff todos OK.
+- `stress-qa.sh 3` → 3 pasadas verdes de **947 passed**.
+- `npx playwright test` (sin exportar `COGOS_JWT`) → **31 passed**.
+- `verify_desktop_launchers.sh` → OK.
+- TestSprite MCP/CLI → **10/10 passed** sobre dos batches acotados
+  (`TC001/002/003/004/006/007/008/009/010/014`).
+- 12/12 asserciones cero-friccion validadas explicitamente
+  (`docs/audits/testsprite/15_ZERO_FRICTION_VALIDATION.md`).
+
+Reporte detallado en `docs/audits/testsprite/16_FINAL_REAUDIT_REPORT.md`.
 
 **Post-gate MCP/frontend (2026-05-22, commit `5953b40`).** Despues del
 hardening comercial se detectaron dos puntos reales en runtime y E2E; ambos
@@ -135,26 +180,38 @@ Conteos estructurales derivados del codigo (generados por
 | Browser | Kimi WebBridge + Edge real disponibles para el perfil dedicado |
 | LLM | primary+agent `gpt-5.5` (Responses API + prompt caching 24h), secondary/fallback `gemini-3.1-pro-low`, vision `glm-4.6v` |
 | QA backend | `pytest` hermetico con DB de test aislada (`cognitive_os_test`) |
-| QA frontend | Playwright oficial: 31 tests en desktop/mobile |
-| QA oficial | `scripts/full-qa.sh` (build Next aislado en `.next-qa`); `stress-qa.sh` para flakiness; `full-qa-live.sh` opt-in para smokes reales |
+| QA frontend | Playwright oficial: 31 tests en desktop/mobile; runner zero-friction (auto-mintea `COGOS_JWT` via `POST /auth/local-token` en `dedicated_local/full`) |
+| QA oficial | `scripts/full-qa.sh` (build Next aislado en `.next-qa`, 947 passed); `stress-qa.sh` para flakiness; `full-qa-live.sh` opt-in para smokes reales |
+| Reaudit TestSprite | 2 pasadas independientes 2026-05-23: pasada 1 (PASS, 5 hallazgos P2/P3 cerrados); pasada 2 (PASS, 1 P1 nuevo cazado y corregido — eager_defaults). Reporte en `docs/audits/testsprite/16_FINAL_REAUDIT_REPORT.md` |
 
 ## Ultimo Gate Verde Conocido
 
-Gate ejecutado al cierre del commit `5953b40`:
+Gate ejecutado al cierre del commit `647f103`:
 
-- `bash scripts/full-qa.sh` -> **944 passed, 1 skipped, 28 deselected**,
+- `bash scripts/full-qa.sh` -> **947 passed, 1 skipped, 28 deselected**,
   ruff OK, ruff format OK, mypy OK (`135 source files`), Alembic check OK,
   `npm ci`, frontend lint OK, frontend build OK, `sync_doc_counts --check` OK,
-  `git diff --check` OK.
-- `COGOS_API_BASE=http://127.0.0.1:8001 COGOS_BASE_URL=http://localhost:3101 COGOS_SKIP_PLAYWRIGHT_INSTALL=1 bash scripts/full-e2e.sh`
-  -> **31 passed**.
-- `bash scripts/stress-qa.sh 3` -> 3 pasadas verdes, **944 passed** en cada una.
-- `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` -> **8 passed** (2 warnings
-  de deprecacion del adaptador MCP upstream, no bloqueantes).
+  `git diff --check` OK. Los 3 tests nuevos cubren el bug
+  `MissingGreenlet`/`eager_defaults` con DB real, no mocks.
+- `unset COGOS_JWT && COGOS_API_BASE=http://127.0.0.1:8000 COGOS_BASE_URL=http://localhost:3001 npx playwright test --reporter=list`
+  -> **31 passed**. La env var `COGOS_JWT` ya **no** es obligatoria: el
+  `tests/e2e/_global-setup.ts` la mintea via `POST /auth/local-token`
+  cuando el perfil es `dedicated_local/full`.
+- `bash scripts/stress-qa.sh 3` -> 3 pasadas verdes, **947 passed** en cada una.
+- `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` -> **8 passed** (último
+  carril live verificado; 2 warnings de deprecacion del adaptador MCP upstream,
+  no bloqueantes). En este audit no se re-ejecutó (opt-in, no presente en
+  `.env`).
 - `/system/mcp` con JWT local -> **5/5 connected**, **67 tools**.
-- TestSprite MCP/CLI -> **3/3 passed** en smoke advisory acotado
-  (`TC001`, `TC002`, `TC005`); no sustituye Playwright porque los asserts
-  generados son mas superficiales.
+- `/system/readiness` -> **14/14 capacidades unlocked**, `gaps=[]`,
+  `summary="Sin friccion. Todas las capacidades del perfil estan activas."`.
+- `/health/dashboard` -> 18 componentes, overall `configured`; `POST /health/verify`
+  prueba LLM/embeddings/IMAP en vivo (último probe live: mail GoDaddy IMAP
+  login OK, embeddings 1536-dim OK, primary_llm `degraded` por timeout 3s
+  en cold start — no bloqueante).
+- TestSprite MCP/CLI -> **10/10 passed** en re-audit acotado
+  (`TC001/002/003/004/006/007/008/009/010/014`); no sustituye Playwright
+  porque los asserts generados son mas superficiales.
 
 Paso de release estándar (no es un defecto): el build de frontend
 (`npm run lint` + `tsc` + `npm run build`) ya está verde dentro de

@@ -8,9 +8,11 @@
 > La **única excepción de auto-deploy** es el auto-promote de *warnings* de
 > Fase D, con kill switch `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED` (default
 > `true`, AUDIT-2026-C) — ver §1 y §3.4.
-> QA vigente del repo: `full-qa.sh` **944 passed, 1 skipped, 28
-> deselected**, Playwright **31 passed**, stress QA 3 pasadas de **944
-> passed**. Ver `CURRENT_STATE.md`.
+> QA vigente del repo (commit `647f103`): `full-qa.sh` **947 passed**,
+> 1 skipped, 28 deselected; Playwright **31 passed** sin exportar
+> `COGOS_JWT` (auto-mint via `_global-setup.ts`); stress QA 3 pasadas
+> de **947 passed**; TestSprite re-audit 10/10 passed. Ver
+> `CURRENT_STATE.md`.
 
 > Documento de handoff. Pensado para que un chat nuevo entienda **(a)** el estado
 > actual del proyecto, **(b)** la arquitectura de memoria existente, y
@@ -108,8 +110,10 @@ proactivos) — ver §3.
 ### 0.2 Estado funcional del stack
 
 - **Backend FastAPI:** `:8000`, 147 endpoints, suite hermética vigente
-  **944 passed, 1 skipped, 28 deselected**.
-- **Frontend Next.js 16 SPA:** `:3001`, 20 vistas, **31/31 Playwright passed**.
+  **947 passed**, 1 skipped, 28 deselected (944 históricos + 3 nuevos
+  por el fix `eager_defaults` del re-audit 2026-05-23).
+- **Frontend Next.js 16 SPA:** `:3001`, 20 vistas, **31/31 Playwright
+  passed** sin exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`).
 - **Workers Celery:** 5 queues + 3 reapers (approval, stuck_action_requests, stale_running_jobs).
 - **Stores:** Postgres 16+pgvector, Redis 7, Weaviate 1.29, Neo4j 5.
 - **LLM chain:** primary+agent `gpt-5.5` (openai-compatible gateway), secondary/fallback `gemini-3.1-pro-low`, vision `glm-4.6v` (z.ai), Kimi-k2.6 vía CLI.

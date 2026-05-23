@@ -1,15 +1,17 @@
 # Cognitive OS
 
-> **Estado canonico (2026-05-22):** Cognitive OS corre como **sistema cognitivo
-> local mono-operador** para el PC dedicado de Diego. Prioridad de producto:
-> **friccion operativa casi nula por sobre seguridad estricta** — perfil real de
-> Edge, operacion amplia en el PC y approvals reducidos cuando el perfil es
-> `dedicated_local/full`. Los controles principales son trazabilidad,
-> idempotencia, logs, health/readiness honesto, reapers y tests. Excepcion dura:
-> **mail** — el flujo normal solo lee, clasifica, resume y propone respuestas
-> como texto; no crea drafts ni envia correos salvo peticion explicita + flags
+> **Estado canonico (2026-05-23, commit `647f103`):** Cognitive OS corre
+> como **sistema cognitivo local mono-operador** para el PC dedicado de
+> Diego. Prioridad de producto: **friccion operativa casi nula por sobre
+> seguridad estricta** — perfil real de Edge, operacion amplia en el PC y
+> approvals reducidos cuando el perfil es `dedicated_local/full`. Los
+> controles principales son trazabilidad, idempotencia, logs,
+> health/readiness honesto, reapers y tests. Excepcion dura: **mail** — el
+> flujo normal solo lee, clasifica, resume y propone respuestas como
+> texto; no crea drafts ni envia correos salvo peticion explicita + flags
 > de escape hatch. Fuente de verdad corta: `docs/CURRENT_STATE.md` y
-> `docs/ZERO_FRICTION_OPERATING_MODEL.md`.
+> `docs/ZERO_FRICTION_OPERATING_MODEL.md`. Doble auditoria TestSprite
+> 2026-05-23 cerrada: `docs/audits/testsprite/16_FINAL_REAUDIT_REPORT.md`.
 
 ## Snapshot Tecnico
 
@@ -31,24 +33,50 @@ falla si quedan desincronizados):
   PWA dark-only glassmorphism, sin Tailwind/shadcn.
 - **LLM** — primary+agent `gpt-5.5` (Responses API + prompt caching 24h),
   secondary/fallback `gemini-3.1-pro-low`, vision `glm-4.6v`.
-- **QA** — `full-qa.sh` **944 passed, 1 skipped, 28 deselected** +
+- **QA** — `full-qa.sh` **947 passed, 1 skipped, 28 deselected** +
   ruff/format/mypy/Alembic/lint/build/`sync_doc_counts`/`git diff --check`;
-  `stress-qa.sh` 3 pasadas verdes; Playwright **31 passed**; carril opt-in
-  `tests/live/` verificado con **8 passed** contra proveedores reales.
-  TestSprite MCP/CLI corrio como smoke advisory acotado: **3/3 passed**.
+  `stress-qa.sh` 3 pasadas verdes de **947 passed**; Playwright **31
+  passed** (sin necesidad de exportar `COGOS_JWT` — auto-mint via
+  `POST /auth/local-token`); carril opt-in `tests/live/` verificado con
+  **8 passed** contra proveedores reales. TestSprite MCP re-audit en dos
+  batches acotados: **10/10 passed**
+  (`TC001/002/003/004/006/007/008/009/010/014`).
 - Infra de datos (Postgres / Redis 7 / Weaviate 1.29.0 / Neo4j 5) ligada a
   `127.0.0.1`, sin exposicion a internet.
 
 ## Cambios Recientes
+
+**Reaudit TestSprite + zero-friction Playwright (`647f103`, 2026-05-23).**
+Una segunda pasada de auditoria independiente cazo un P1 que la primera
+pasada no detecto y reforzo el carril QA local:
+
+- **P1 — `eager_defaults=True` en `db.Base`:**
+  `POST /actions/browser/preview/request` (y todos los `create_*_request`
+  que leen `updated_at` despues de `session.flush()` en `AsyncSession`)
+  devolvia HTTP 500 con `sqlalchemy.exc.MissingGreenlet`. El attribute
+  lazy-load disparaba SQL sincronico fuera del greenlet. Fix idiomatico
+  SQLAlchemy 2.x: `__mapper_args__ = {"eager_defaults": True}` en `Base`,
+  emite `INSERT ... RETURNING` para columnas con server-default.
+  Endpoint vivo verificado HTTP 200; idempotency intacta. 3 tests de
+  regresion nuevos (`backend/tests/test_action_request_eager_defaults.py`).
+- **P2 — Playwright zero-friction runner:** nuevo
+  `frontend/tests/e2e/_global-setup.ts` auto-mintea `COGOS_JWT` via
+  `POST /auth/local-token` cuando el perfil es `dedicated_local/full`.
+  `npx playwright test` ahora pasa 31/31 sin exportar nada.
+- **P3 — RUNBOOK QA actualizado:** método primario `curl POST
+  /auth/local-token | python3 -c "...access_token"`; el `uv run python -c
+  "from cognitive_os.core.auth..."` queda como fallback para `strict`.
+
+Gates post-fix: `full-qa.sh` **947 passed** (944 + 3 regresion), stress-qa
+3 × 947, Playwright 31/31, TestSprite re-audit 10/10. Detalle completo en
+`docs/audits/testsprite/16_FINAL_REAUDIT_REPORT.md`.
 
 **Post-gate MCP/frontend (`5953b40`, 2026-05-22).** Se corrigio un falso
 timeout real de `/system/mcp`: el inventario de MCP carga servidores en
 paralelo y usa `MCP_INVENTORY_TIMEOUT_SECONDS=30` por defecto. Runtime
 verificado: `mem`, `gh`, `fs`, `cc` y `gem` conectados (**5/5**) con **67
 tools**. Tambien se estabilizo `Ctrl/Cmd+K` del command palette usando capture
-phase en el hook de teclado. Gates posteriores: `full-qa.sh` **944 passed**,
-Playwright **31 passed**, live read-only **8 passed** y stress QA 3 pasadas de
-**944 passed**.
+phase en el hook de teclado.
 
 **Remediacion del audit comercial (2026-05-22).** Tras
 `docs/audits/CODEX_COMMERCIAL_READINESS_AUDIT.md` se cerraron las 8 fallas
@@ -124,7 +152,7 @@ rsync -a --exclude node_modules --exclude .next --exclude .venv --exclude '__pyc
 - Python ≥ 3.12 y [uv](https://docs.astral.sh/uv/)
 - Node.js ≥ 22 y npm
 - Verificación reproducible: `bash scripts/full-qa.sh` (`uv sync --extra openharness` + `pytest` + `ruff check` + `ruff format --check` + `mypy` + `npm ci` + `npm run lint` + `npm run build` + `sync_doc_counts.py --check` + `git diff --check`). Estrés: `bash scripts/stress-qa.sh` (3 pasadas de pytest por defecto). Smokes en vivo opt-in: `bash scripts/full-qa-live.sh`.
-- Snapshot QA vigente (2026-05-22): `bash scripts/full-qa.sh` **944 passed, 1 skipped, 28 deselected**; ruff/ruff format/mypy, frontend lint/build aislado con `.next-qa`, Alembic head `202605200003` y `git diff --check` verdes. Playwright frontend: **31 passed**. Stress QA: 3 pasadas de **944 passed**. Live read-only: `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**. TestSprite: **3/3 passed** como smoke advisory acotado.
+- Snapshot QA vigente (2026-05-23, commit `647f103`): `bash scripts/full-qa.sh` **947 passed, 1 skipped, 28 deselected** (944 históricos + 3 nuevos de regresión del bug `eager_defaults`); ruff/ruff format/mypy, frontend lint/build aislado con `.next-qa`, Alembic head `202605200003` y `git diff --check` verdes. Playwright frontend: **31 passed** sin exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`). Stress QA: 3 pasadas de **947 passed**. Live read-only: `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed** (último gate documentado; no re-ejecutado en re-audit por ser opt-in). TestSprite MCP re-audit: **10/10 passed** sobre dos batches.
 
 ## Backend
 

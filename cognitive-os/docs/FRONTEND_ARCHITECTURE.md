@@ -11,13 +11,22 @@
 > no drafts, no envíos automáticos, solo propuestas de texto salvo solicitud
 > explícita de Diego.
 >
-> Gates vigentes: `npm run lint` limpio, `npm run build` limpio,
-> `npx playwright test --reporter=list` con **31 passed** y
-> `bash scripts/full-qa.sh` desde la raíz usando build aislado
-> `NEXT_DIST_DIR=.next-qa` (**944 passed, 1 skipped, 28 deselected**).
-> Ajuste post-gate `5953b40`: `Ctrl/Cmd+K` de la command palette escucha
-> en capture phase para abrir de forma estable incluso cuando el foco está
-> dentro de un input.
+> Gates vigentes (commit `647f103`): `npm run lint` limpio,
+> `npm run build` limpio, `npx playwright test --reporter=list` con
+> **31 passed** sin necesidad de exportar `COGOS_JWT` (auto-mint via
+> `tests/e2e/_global-setup.ts` que llama `POST /auth/local-token` en
+> `dedicated_local/full`), `bash scripts/full-qa.sh` desde la raíz
+> usando build aislado `NEXT_DIST_DIR=.next-qa` (**947 passed**, 1
+> skipped, 28 deselected: 944 históricos + 3 nuevos que cubren el fix
+> del bug `MissingGreenlet`/`eager_defaults` que cazó la re-auditoría
+> 2026-05-23).
+>
+> Ajustes acumulados:
+> - `647f103` (re-audit): Playwright runner zero-friction (auto-mint
+>   JWT); fix `eager_defaults=True` en `db.Base` para action plane.
+> - `5953b40`: `Ctrl/Cmd+K` de la command palette escucha en capture
+>   phase para abrir de forma estable incluso cuando el foco está
+>   dentro de un input.
 
 Este documento describe **cómo está construido el cockpit** y **qué
 reglas firmes hay que respetar** para mantenerlo en grado comercial. Si
