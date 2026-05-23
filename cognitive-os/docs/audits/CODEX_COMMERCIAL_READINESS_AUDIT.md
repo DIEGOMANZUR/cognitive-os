@@ -455,7 +455,7 @@ overall = (
 )
 ```
 
-`_check_primary_llm` (líneas 190-208): si `PRIMARY_LLM_API_KEY != "CHANGEME"`
+`_check_primary_llm` (líneas 190-208): si `PRIMARY_LLM_API_KEY != "CHANGEME"`  <!-- pragma: allowlist secret -->
 retorna `configured` (no `ok`), pero el overall lo agrega como `ok`.
 
 `_check_embeddings` (211-236): mismo patrón.

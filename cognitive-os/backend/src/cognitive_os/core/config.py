@@ -951,9 +951,9 @@ class Settings(BaseSettings):
         default=30, ge=1, le=600, alias="MCP_CALL_TIMEOUT_SECONDS"
     )
     mcp_inventory_timeout_seconds: float = Field(
-        default=5.0,
+        default=30.0,
         ge=0.5,
-        le=30.0,
+        le=120.0,
         alias="MCP_INVENTORY_TIMEOUT_SECONDS",
     )
     mcp_allowed_for_research: StringList = Field(

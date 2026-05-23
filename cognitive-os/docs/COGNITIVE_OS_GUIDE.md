@@ -957,6 +957,7 @@ expongan los servidores que el operador declare.
 | `ENABLE_MCP_CLIENT` | `true` para encender el cliente |
 | `MCP_SERVERS` | CSV de declaraciones (ver sintaxis abajo) |
 | `MCP_CALL_TIMEOUT_SECONDS` | timeout por llamada (default 30) |
+| `MCP_INVENTORY_TIMEOUT_SECONDS` | timeout de `/system/mcp` para listar tools reales (default 30; necesario para arranque frío de varios MCP stdio via `npx`) |
 | `MCP_ALLOWED_FOR_RESEARCH` | allow-list de servers para el subgrafo research (vacío = todos) |
 | `MCP_ALLOWED_FOR_DOCUMENT_ANALYSIS` | allow-list para el subgrafo legal |
 

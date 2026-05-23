@@ -183,8 +183,8 @@ export function useKeyboard(handler: (event: KeyboardEvent) => void): void {
   ref.current = handler;
   useEffect(() => {
     const listener = (event: KeyboardEvent) => ref.current(event);
-    window.addEventListener("keydown", listener);
-    return () => window.removeEventListener("keydown", listener);
+    window.addEventListener("keydown", listener, { capture: true });
+    return () => window.removeEventListener("keydown", listener, { capture: true });
   }, []);
 }
 

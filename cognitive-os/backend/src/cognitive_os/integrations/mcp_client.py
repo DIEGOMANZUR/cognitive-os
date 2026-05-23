@@ -178,6 +178,54 @@ class MCPServerStatus:
     error: str | None
 
 
+async def _load_one_mcp_server(
+    spec: MCPServerSpec, client_cls: Any
+) -> tuple[list[Any], MCPServerStatus]:
+    try:
+        connection = spec.as_connection_dict()
+    except ValueError as exc:
+        logger.warning("mcp_server_config_failed name=%s error=%s", spec.name, exc)
+        return [], MCPServerStatus(
+            name=spec.name,
+            transport=spec.transport,
+            target=spec.target,
+            connected=False,
+            tools_count=0,
+            error=str(exc),
+        )
+    try:
+        # `MultiServerMCPClient` ships TypedDicts per transport for the
+        # connection value. Our parser produces the right shape at runtime
+        # but typing the whole branching union here would force us to
+        # restructure the parser around literals. `cast` keeps the runtime
+        # contract and silences mypy without sacrificing the dataclass.
+        client = client_cls(cast(Any, {spec.name: connection}), tool_name_prefix=True)
+        server_tools = await client.get_tools(server_name=spec.name)
+    except Exception as exc:  # noqa: BLE001 — fail-open per server
+        logger.warning(
+            "mcp_server_connect_failed name=%s transport=%s error=%s",
+            spec.name,
+            spec.transport,
+            type(exc).__name__,
+        )
+        return [], MCPServerStatus(
+            name=spec.name,
+            transport=spec.transport,
+            target=spec.target,
+            connected=False,
+            tools_count=0,
+            error=f"{type(exc).__name__}: {exc}"[:200],
+        )
+    return list(server_tools), MCPServerStatus(
+        name=spec.name,
+        transport=spec.transport,
+        target=spec.target,
+        connected=True,
+        tools_count=len(server_tools),
+        error=None,
+    )
+
+
 async def load_mcp_tools_async(
     app_settings: Settings | None = None,
 ) -> tuple[list[Any], list[MCPServerStatus]]:
@@ -207,61 +255,16 @@ async def load_mcp_tools_async(
     if not specs:
         return [], []
 
+    import asyncio  # noqa: PLC0415
+
+    results = await asyncio.gather(
+        *(_load_one_mcp_server(spec, MultiServerMCPClient) for spec in specs)
+    )
     tools: list[Any] = []
     statuses: list[MCPServerStatus] = []
-    for spec in specs:
-        try:
-            connection = spec.as_connection_dict()
-        except ValueError as exc:
-            logger.warning("mcp_server_config_failed name=%s error=%s", spec.name, exc)
-            statuses.append(
-                MCPServerStatus(
-                    name=spec.name,
-                    transport=spec.transport,
-                    target=spec.target,
-                    connected=False,
-                    tools_count=0,
-                    error=str(exc),
-                )
-            )
-            continue
-        try:
-            # `MultiServerMCPClient` ships TypedDicts per transport for the
-            # connection value. Our parser produces the right shape at runtime
-            # but typing the whole branching union here would force us to
-            # restructure the parser around literals. `cast` keeps the runtime
-            # contract and silences mypy without sacrificing the dataclass.
-            client = MultiServerMCPClient(cast(Any, {spec.name: connection}), tool_name_prefix=True)
-            server_tools = await client.get_tools(server_name=spec.name)
-        except Exception as exc:  # noqa: BLE001 — fail-open per server
-            logger.warning(
-                "mcp_server_connect_failed name=%s transport=%s error=%s",
-                spec.name,
-                spec.transport,
-                type(exc).__name__,
-            )
-            statuses.append(
-                MCPServerStatus(
-                    name=spec.name,
-                    transport=spec.transport,
-                    target=spec.target,
-                    connected=False,
-                    tools_count=0,
-                    error=f"{type(exc).__name__}: {exc}"[:200],
-                )
-            )
-            continue
+    for server_tools, status in results:
         tools.extend(server_tools)
-        statuses.append(
-            MCPServerStatus(
-                name=spec.name,
-                transport=spec.transport,
-                target=spec.target,
-                connected=True,
-                tools_count=len(server_tools),
-                error=None,
-            )
-        )
+        statuses.append(status)
     return tools, statuses
 
 

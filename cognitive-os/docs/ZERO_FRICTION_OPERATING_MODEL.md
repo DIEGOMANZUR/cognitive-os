@@ -118,4 +118,3 @@ postura antes de operar:
 5. `REQUIRE_HUMAN_APPROVAL_FOR_EXTERNAL_ACTIONS=true`.
 6. Re-auditoria de Telegram, auth, RBAC y secretos.
 7. E2E + smoke live de proveedores en entorno separado.
-

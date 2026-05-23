@@ -127,6 +127,48 @@ async def test_load_mcp_tools_async_records_per_server_failure(
 
 
 @pytest.mark.asyncio
+async def test_load_mcp_tools_async_connects_servers_concurrently(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    active = 0
+    max_active = 0
+
+    class _FakeClient:
+        def __init__(self, connections: dict, *, tool_name_prefix: bool) -> None:
+            self._connections = connections
+
+        async def get_tools(self, *, server_name: str | None = None) -> list[Any]:
+            nonlocal active, max_active
+            active += 1
+            max_active = max(max_active, active)
+            await asyncio.sleep(0.01)
+            active -= 1
+
+            class _T:
+                def __init__(self, name: str) -> None:
+                    self.name = name
+
+            return [_T(f"{server_name}_tool")]
+
+    monkeypatch.setattr("langchain_mcp_adapters.client.MultiServerMCPClient", _FakeClient)
+
+    s = Settings(
+        _env_file=None,
+        enable_mcp_client=True,
+        mcp_servers="one:sse:http://one/sse,two:sse:http://two/sse,three:sse:http://three/sse",
+    )
+    tools, statuses = await mcp_client.load_mcp_tools_async(s)
+
+    assert max_active > 1
+    assert [status.connected for status in statuses] == [True, True, True]
+    assert {getattr(tool, "name", "") for tool in tools} == {
+        "one_tool",
+        "two_tool",
+        "three_tool",
+    }
+
+
+@pytest.mark.asyncio
 async def test_system_mcp_inventory_timeout_returns_degraded_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -49,6 +49,8 @@ def test_loads_env_example() -> None:
     assert loaded_settings.mail_digest_timezone == "America/Santiago"
     assert loaded_settings.mail_digest_max_messages == 50
     assert loaded_settings.mail_allow_explicit_send is False
+    assert loaded_settings.mcp_call_timeout_seconds == 30
+    assert loaded_settings.mcp_inventory_timeout_seconds == 30
     assert loaded_settings.research_persistence_backend == "memory"
 
 
