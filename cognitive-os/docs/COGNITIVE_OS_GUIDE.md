@@ -47,15 +47,17 @@
 > agente, digest 10:00/20:00 Chile, máximo 50 correos, respuestas sugeridas
 > como campos de texto separados.
 >
-> **QA más reciente (commit `647f103`):** `bash scripts/full-qa.sh` verde
-> con **950 passed**, 1 skipped, 28 deselected (944 históricos + 3
-> nuevos del fix `eager_defaults`),
+> **QA más reciente (rama `codex/commercial-zero-friction-hardening`):**
+> `bash scripts/full-qa.sh` verde con **958 passed**, 1 skipped, 28 deselected
+> (944 históricos + 14 nuevos: 3 `eager_defaults`, 3
+> `health_llm_probe_timeout` y 3 guards QA/scripts/docs),
 > ruff/format/mypy/Alembic/lint/build/`sync_doc_counts --check`/`git
 > diff --check` OK; build frontend aislado con `NEXT_DIST_DIR=.next-qa`;
-> Playwright **31 passed** sin exportar `COGOS_JWT` (auto-mint via
+> Playwright **41 passed** sin exportar `COGOS_JWT` (auto-mint via
 > `_global-setup.ts`); `bash scripts/stress-qa.sh` verde con 3 pasadas
-> de **950 passed**; carril opt-in `tests/live/` verificado con **8
-> passed**; TestSprite MCP re-audit **10/10 passed** sobre dos batches.
+> de **958 passed**; carril opt-in `tests/live/` verificado con **8
+> passed**; TestSprite completo corregido en batches locales **28/28
+> passed**.
 >
 > **Ajustes post-gate acumulados:**
 > - `647f103` (re-audit): `eager_defaults=True` en `db.Base` corrige
@@ -722,7 +724,7 @@ bash scripts/stress-qa.sh     # repite pytest N veces (default 3) para detectar 
 bash scripts/full-qa-live.sh  # opt-in: smokes read-only contra proveedores reales (LIVE_TESTS_ENABLED=1)
 ```
 
-Snapshot vigente (commit `647f103`): `full-qa.sh` → **950 passed**, 1
+Snapshot historico (commit `647f103`): `full-qa.sh` → **950 passed**, 1
 skipped, 28 deselected; `stress-qa.sh 3` → 3 pasadas de 950; Playwright
 **31 passed** sin exportar `COGOS_JWT` (auto-mint via
 `_global-setup.ts`); `full-qa-live.sh` con `LIVE_TESTS_ENABLED=1` →
@@ -1117,7 +1119,7 @@ Lo que **funciona hoy** (verificado contra código y tests):
 - Memoria DeepAgents con propuestas + aprobación + episódica.
 - Bot Telegram con 37 comandos slash.
 - Research Orchestrator multi-subtarea con SSE y cancelación.
-- QA reproducible actual: `uv run pytest -m 'not integration and not slow'` → 484 passed, 1 skipped, 20 deselected; ruff/ruff format/mypy/frontend lint/build verdes.
+- QA reproducible actual: `bash scripts/full-qa.sh` → 958 passed, 1 skipped, 28 deselected; ruff/ruff format/mypy/frontend lint/build aislado en `.next-qa`, Alembic y `sync_doc_counts --check` verdes en esta rama.
 
 Lo que **falta** para llegar a "asistente personal absoluto" (detalle en [`PERSONAL_ASSISTANT_ROADMAP.md`](./PERSONAL_ASSISTANT_ROADMAP.md)):
 

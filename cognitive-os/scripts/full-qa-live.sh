@@ -11,11 +11,17 @@
 # aunque falten proveedores. Coste estimado: ~US$0.001 (solo el ping LLM).
 #
 # Uso:
-#   bash scripts/full-qa-live.sh
+#   LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+if [[ "${LIVE_TESTS_ENABLED:-}" != "1" ]]; then
+  echo "FAIL: full-qa-live is opt-in and LIVE_TESTS_ENABLED=1 is not set." >&2
+  echo "      Re-run exactly as: LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh" >&2
+  exit 2
+fi
+
 cd "$ROOT/backend"
-export LIVE_TESTS_ENABLED=1
 echo "== Live read-only smokes (LIVE_TESTS_ENABLED=1) =="
 uv run pytest -m live_readonly tests/live -v
 echo "OK: full-qa-live"

@@ -10,18 +10,18 @@
 > [`audits/testsprite/33_RELEASE_CANDIDATE_PACKAGE.md`](audits/testsprite/33_RELEASE_CANDIDATE_PACKAGE.md).
 >
 > **Snapshot vigente** (conteos por `scripts/sync_doc_counts.py`):
-> backend FastAPI con 147 endpoints REST, **23 tareas Celery** en
+> backend FastAPI con 150 endpoints REST, **23 tareas Celery** en
 > **5 colas** (`default`, `ingestion`, `agent_longrun`, `maintenance`,
 > `mail`) con hasta **13 jobs beat**, **20 migraciones Alembic** head
 > `202605200003`, **37 slash commands Telegram**, `/health/dashboard`
 > con 18 componentes + `POST /health/verify`. QA: `full-qa.sh`
-> **950 passed**, 1 skipped, 28 deselected; Playwright **31 passed** sin
+> **958 passed**, 1 skipped, 28 deselected; Playwright **41 passed** sin
 > exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`); `stress-qa.sh`
-> 3 pasadas verdes de **950 passed**. `full-qa.sh` construye Next en
+> 3 pasadas verdes de **958 passed**. `full-qa.sh` construye Next en
 > `.next-qa` para no invalidar el `.next` que usa un `next start` vivo.
 > Live read-only: `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh`
-> **8 passed**. TestSprite MCP re-audit: **10/10 passed** sobre dos
-> batches acotados. Fix `647f103`: `eager_defaults=True` en `db.Base`
+> **8 passed**. TestSprite completo corregido en batches locales:
+> **28/28 passed**. Fix `647f103`: `eager_defaults=True` en `db.Base`
 > elimina `MissingGreenlet` 500 en `POST /actions/*/preview/request`.
 > Ajuste previo `5953b40`: `/system/mcp` carga en paralelo, timeout
 > default 30s, runtime 5/5 servers y 67 tools.
@@ -73,9 +73,9 @@ Y para los gates QA:
 
 ```bash
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os"
-bash scripts/full-qa.sh                          # 950 passed (≈70s)
+bash scripts/full-qa.sh                          # 958 passed (≈70s)
 cd frontend && unset COGOS_JWT && npx playwright test --reporter=list
-# 31 passed (auto-mint JWT, no necesita exportar nada)
+# 41 passed (auto-mint JWT, no necesita exportar nada)
 ```
 
 ## Ejecutables de escritorio

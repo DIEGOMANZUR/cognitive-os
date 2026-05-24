@@ -15,6 +15,38 @@ conteos estructurales del "Snapshot Tecnico" se generan con
 
 ## Cambios Mas Recientes
 
+**Hardening comercial zero-friction (2026-05-23, rama
+`codex/commercial-zero-friction-hardening`).** Esta rama corrige falsos verdes
+de QA y formaliza el gate comercial sin cambiar la postura del producto:
+
+- `scripts/full-qa-live.sh` ya no auto-exporta `LIVE_TESTS_ENABLED=1`; si el
+  operador no lo setea explicitamente, sale con diagnostico y no toca
+  proveedores reales.
+- `scripts/full-e2e.sh` ya no minta JWT directo via Python; Playwright debe
+  ejercitar `POST /auth/local-token` desde `_global-setup.ts`.
+- `docs/USER_GUIDE.md` queda alineado con el contrato dark-only.
+- `scripts/full-testsprite.sh` queda como runner TestSprite reproducible en
+  lotes: usa plan canonico versionado
+  `qa/testsprite/frontend_commercial_plan.json`, fija por defecto
+  `TESTSPRITE_PACKAGE=@testsprite/testsprite-mcp@0.0.19`, valida health entre
+  batches, evita saturar `uvicorn` local, redacciona el config temporal y
+  genera `qa/reports/testsprite_latest_summary.md`.
+- `POST /test/fixtures/reset`, `POST /test/fixtures/seed/{scenario}` y
+  `GET /test/fixtures/state` quedan disponibles solo si el backend arranca con
+  `APP_ENV=test` o `COGOS_TEST_FIXTURES_ENABLED=true`; crean fixtures
+  sinteticas borrables para jobs, approvals, ActionRequests, mail read-only y
+  estados degradados sin tocar datos reales.
+- `scripts/full-commercial-qa.sh`, `scan-local-artifacts-for-secrets.sh` y
+  `probe-qa-stack-health.py` formalizan el perfil QA: batches moderados,
+  secret scan de artefactos locales ignorados y observabilidad
+  healthy/degraded/overloaded/failing.
+- Gate ejecutado en esta rama: `bash scripts/full-qa.sh` -> **958 passed**, 1
+  skipped, 28 deselected; `bash scripts/stress-qa.sh` -> 3 pasadas verdes de
+  **958 passed**; `npx playwright test` -> **41 passed**.
+- TestSprite historico corregido en batches -> **28 passed**. Intento final de
+  cierre con API key nueva: **bloqueado por proveedor** (`AUTH_FAILED` HTTP
+  401); ver `docs/qa/commercial_zero_friction_hardening/09_FINAL_CLOSURE_AUDIT.md`.
+
 **Cierre absoluto / Release Approved (2026-05-23, commit `bbaaea8`).**
 Cuarta pasada de auditoría — "cierre absoluto" — completada con
 RELEASE APPROVED. Cero defectos conocidos en el alcance auditado.
@@ -45,7 +77,8 @@ Lo que aportó esta pasada:
   - 25/25 idempotencia/estados-colgados
   - 30/30 UX comercial
   - 20/20 flujos E2E críticos
-  - 14/15 TestSprite (1 BLOCKED platform-side, no defecto del producto)
+  - 14/15 TestSprite historico; superseded en esta rama por
+    **28/28 TestSprite batched** (`scripts/full-testsprite.sh`)
   - 19/20 hallazgos cerrados como VERIFIED_FIXED + 1 OBSOLETE_WITH_REASON.
 
 **Certificación tercera pasada (2026-05-23, commit `9ab77a4`).** Tras
@@ -236,7 +269,7 @@ Conteos estructurales derivados del codigo (generados por
 
 | Conteo canónico | Valor |
 |---|---|
-| Endpoints REST (`@app.*` en `api/app.py`) | 147 |
+| Endpoints REST (`@app.*`/`@router.*` en `api/`) | 150 |
 | Tareas Celery (`workers/tasks.py`) | 23 |
 | Migraciones Alembic (`alembic/versions/`) | 20 |
 | Head Alembic | 202605200003 |
@@ -260,16 +293,25 @@ Conteos estructurales derivados del codigo (generados por
 | LLM | primary+agent `gpt-5.5` (Responses API + prompt caching 24h), secondary/fallback `gemini-3.1-pro-low`, vision `glm-4.6v` |
 | QA backend | `pytest` hermetico con DB de test aislada (`cognitive_os_test`) |
 | QA frontend | Playwright oficial: 31 tests en desktop/mobile; runner zero-friction (auto-mintea `COGOS_JWT` via `POST /auth/local-token` en `dedicated_local/full`) |
-| QA oficial | `scripts/full-qa.sh` (build Next aislado en `.next-qa`, 950 passed); `stress-qa.sh` para flakiness; `full-qa-live.sh` opt-in para smokes reales |
+| QA oficial | `scripts/full-qa.sh` (build Next aislado en `.next-qa`, 958 passed en esta rama); `stress-qa.sh` para flakiness; `full-qa-live.sh` opt-in para smokes reales |
 | Reaudit TestSprite | 2 pasadas independientes 2026-05-23: pasada 1 (PASS, 5 hallazgos P2/P3 cerrados); pasada 2 (PASS, 1 P1 nuevo cazado y corregido — eager_defaults). Reporte en `docs/audits/testsprite/16_FINAL_REAUDIT_REPORT.md` |
 
 ## Ultimo Gate Verde Conocido
 
-Gate de certificación final (2026-05-23, ver
+Gate mas reciente en esta rama (`codex/commercial-zero-friction-hardening`,
+2026-05-23):
+
+- `bash scripts/full-qa.sh` -> **958 passed, 1 skipped, 28 deselected**.
+- `bash scripts/stress-qa.sh` -> 3 pasadas verdes de **958 passed**.
+- `npx playwright test` -> **41 passed**.
+- TestSprite completo corregido en batches -> **28/28 passed**.
+
+Gate de certificación final historico (2026-05-23, ver
 [`17_COMMERCIAL_GRADE_CERTIFICATION.md`](audits/testsprite/17_COMMERCIAL_GRADE_CERTIFICATION.md)):
 
 - `bash scripts/full-qa.sh` -> **950 passed, 1 skipped, 28 deselected**
-  (944 históricos + 6 nuevos `test_health_llm_probe_timeout`).
+  (944 históricos + 6 nuevos: 3 `eager_defaults` + 3
+  `test_health_llm_probe_timeout`).
 - `bash scripts/stress-qa.sh 3` -> 3 pasadas verdes de **950 passed**.
 - `npx playwright test` × 3 pasadas seguidas -> **31 passed** cada una,
   sin flakiness (incluye fix anti-race del `useKeyboard` Ctrl+K).

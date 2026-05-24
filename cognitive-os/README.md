@@ -25,7 +25,7 @@
 Conteos derivados del codigo por `scripts/sync_doc_counts.py` (`full-qa.sh`
 falla si quedan desincronizados):
 
-- **Backend** FastAPI 0.115+ — **147 endpoints REST**, **23 tareas Celery** en
+- **Backend** FastAPI 0.115+ — **150 endpoints REST**, **23 tareas Celery** en
   **5 colas** (`default`, `ingestion`, `agent_longrun`, `maintenance`, `mail`),
   hasta **13 jobs beat** segun feature flags.
 - **DB** Postgres 16+pgvector — **20 migraciones Alembic**, head
@@ -40,14 +40,14 @@ falla si quedan desincronizados):
   PWA dark-only glassmorphism, sin Tailwind/shadcn.
 - **LLM** — primary+agent `gpt-5.5` (Responses API + prompt caching 24h),
   secondary/fallback `gemini-3.1-pro-low`, vision `glm-4.6v`.
-- **QA** — `full-qa.sh` **950 passed, 1 skipped, 28 deselected** +
+- **QA** — `full-qa.sh` **958 passed, 1 skipped, 28 deselected** +
   ruff/format/mypy/Alembic/lint/build/`sync_doc_counts`/`git diff --check`;
-  `stress-qa.sh` 3 pasadas verdes de **950 passed**; Playwright **31
+  `stress-qa.sh` 3 pasadas verdes de **958 passed**; Playwright **41
   passed** (sin necesidad de exportar `COGOS_JWT` — auto-mint via
   `POST /auth/local-token`); carril opt-in `tests/live/` verificado con
-  **8 passed** contra proveedores reales. TestSprite MCP re-audit en dos
-  batches acotados: **10/10 passed**
-  (`TC001/002/003/004/006/007/008/009/010/014`).
+  **8 passed** contra proveedores reales. TestSprite historico corregido en
+  batches locales: **28/28 passed**; el intento final con la API key entregada
+  quedo bloqueado por TestSprite con `AUTH_FAILED` HTTP 401.
 - Infra de datos (Postgres / Redis 7 / Weaviate 1.29.0 / Neo4j 5) ligada a
   `127.0.0.1`, sin exposicion a internet.
 
@@ -75,7 +75,13 @@ pasada no detecto y reforzo el carril QA local:
   "from cognitive_os.core.auth..."` queda como fallback para `strict`.
 
 Gates post-fix: `full-qa.sh` **950 passed** (944 + 6 regresion), stress-qa
-3 × 950, Playwright 31/31, TestSprite re-audit 10/10. Detalle completo en
+3 × 950, Playwright 31/31, TestSprite re-audit 10/10. En la rama
+`codex/commercial-zero-friction-hardening`, el gate subio a **958 passed** por
+14 regresiones/guards, Playwright subio a **41 passed** con fixtures criticas
+y TestSprite completo quedo **28/28 passed** en batches. El cierre final con
+API key nueva fue bloqueado por proveedor (`AUTH_FAILED` HTTP 401). Detalle en
+`docs/qa/commercial_zero_friction_hardening/09_FINAL_CLOSURE_AUDIT.md` y
+detalle historico en
 `docs/audits/testsprite/16_FINAL_REAUDIT_REPORT.md`.
 
 **Post-gate MCP/frontend (`5953b40`, 2026-05-22).** Se corrigio un falso
@@ -159,7 +165,7 @@ rsync -a --exclude node_modules --exclude .next --exclude .venv --exclude '__pyc
 - Python ≥ 3.12 y [uv](https://docs.astral.sh/uv/)
 - Node.js ≥ 22 y npm
 - Verificación reproducible: `bash scripts/full-qa.sh` (`uv sync --extra openharness` + `pytest` + `ruff check` + `ruff format --check` + `mypy` + `npm ci` + `npm run lint` + `npm run build` + `sync_doc_counts.py --check` + `git diff --check`). Estrés: `bash scripts/stress-qa.sh` (3 pasadas de pytest por defecto). Smokes en vivo opt-in: `bash scripts/full-qa-live.sh`.
-- Snapshot QA vigente (2026-05-23, commit `647f103`): `bash scripts/full-qa.sh` **950 passed, 1 skipped, 28 deselected** (944 históricos + 6 nuevos de regresión del bug `eager_defaults`); ruff/ruff format/mypy, frontend lint/build aislado con `.next-qa`, Alembic head `202605200003` y `git diff --check` verdes. Playwright frontend: **31 passed** sin exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`). Stress QA: 3 pasadas de **950 passed**. Live read-only: `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed** (último gate documentado; no re-ejecutado en re-audit por ser opt-in). TestSprite MCP re-audit: **10/10 passed** sobre dos batches.
+- Snapshot QA histórico (2026-05-23, commit `647f103`): `bash scripts/full-qa.sh` **950 passed, 1 skipped, 28 deselected** (944 históricos + 6 nuevos de regresión del bug `eager_defaults`); ruff/ruff format/mypy, frontend lint/build aislado con `.next-qa`, Alembic head `202605200003` y `git diff --check` verdes. Playwright frontend: **31 passed** sin exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`). Stress QA: 3 pasadas de **950 passed**. Live read-only: `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed** (último gate documentado; no re-ejecutado en re-audit por ser opt-in). TestSprite MCP re-audit: **10/10 passed** sobre dos batches.
 
 ## Backend
 

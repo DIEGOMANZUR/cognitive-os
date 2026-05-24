@@ -29,6 +29,7 @@ data/
 models/
 storage/
 backend/storage/
+logs/
 *.sqlite
 *.db
 *.pem
@@ -47,5 +48,8 @@ opencode.jsonc
 frontend/playwright-report/
 frontend/test-results/
 frontend/playwright/.cache/
+qa/reports/*.log
+qa/reports/*.json
+!qa/reports/testsprite_latest_summary.md
 
 testsprite_tests/tmp/config.json

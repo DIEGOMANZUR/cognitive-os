@@ -9,8 +9,9 @@
 > visible y recuperación rápida.
 >
 > `full-qa.sh` está actualizado al ciclo vigente (commit `647f103`):
-> backend con **950 passed**, 1 skipped, 28 deselected (944 históricos
-> + 3 nuevos por el fix `eager_defaults`); ruff/format/mypy/Alembic
+> backend con **958 passed**, 1 skipped, 28 deselected (944 históricos
+> + 14 nuevos: 3 `eager_defaults`, 3 `health_llm_probe_timeout` y 8 guards QA/scripts/docs);
+> ruff/format/mypy/Alembic
 > verdes, frontend lint/build verde, `sync_doc_counts --check` y
 > `git diff --check` finales. El build frontend de QA usa
 > `NEXT_DIST_DIR=.next-qa` para no invalidar un `next start` vivo.
@@ -64,9 +65,33 @@
 ## Calidad reproducible
 
 - `full-qa.sh`: `cd backend && uv sync --extra openharness && pytest -q && ruff check . && ruff format --check . && mypy src && alembic check && cd ../frontend && npm ci && npm run lint && NEXT_DIST_DIR=.next-qa npm run build`, más `sync_doc_counts.py --check` y `git diff --check` como guards finales. Usa `.next-qa` para no invalidar un `next start` vivo que esté sirviendo `frontend/.next`. `alembic check` solo se omite en clones sin `.env`, `.env.local` ni `DATABASE_URL`.
-- `full-e2e.sh`: gate Playwright separado para el cockpit local. Requiere API y frontend ya corriendo, minta `COGOS_JWT` si no existe, instala Chromium salvo `COGOS_SKIP_PLAYWRIGHT_INSTALL=1` y ejecuta `npx playwright test`.
+- `full-e2e.sh`: gate Playwright separado para el cockpit local. Requiere API y frontend ya corriendo; si falta `COGOS_JWT`, el `globalSetup` de Playwright lo obtiene vía `POST /auth/local-token` para probar el camino zero-friction real. Instala Chromium salvo `COGOS_SKIP_PLAYWRIGHT_INSTALL=1` y ejecuta `npx playwright test`.
+- `full-testsprite.sh`: gate TestSprite separado para el cockpit local. Requiere
+  `API_KEY` o `TESTSPRITE_API_KEY`. Usa como plan canonico versionado
+  `qa/testsprite/frontend_commercial_plan.json`, lo copia al runtime ignorado
+  `testsprite_tests/testsprite_frontend_test_plan.json`, ejecuta en micro-lotes
+  seriales (`TESTSPRITE_BATCH_SIZE=1` por defecto) y fija por defecto
+  `TESTSPRITE_PACKAGE=@testsprite/testsprite-mcp@0.0.19` (override permitido,
+  nunca `@latest` por defecto). Valida `/health` antes/despues de cada lote,
+  aplica idle-timeout/reintentos/split adaptativo, redacciona
+  `testsprite_tests/tmp/config.json` al salir y genera
+  `qa/reports/testsprite_latest_summary.md`. La ultima corrida completa
+  documentada quedo en **28 passed**.
+- `full-commercial-qa.sh`: gate orquestador comercial. Corre `full-qa`,
+  tests backend de fixtures, fixture live probe si el API fue arrancado con
+  `APP_ENV=test` o `COGOS_TEST_FIXTURES_ENABLED=true`, Playwright critico,
+  `full-e2e`, stress moderado, health probe de saturacion, secret scan local y
+  TestSprite batched si hay `TESTSPRITE_API_KEY`/`API_KEY`. Logs van a
+  `qa/reports/`.
+- `scan-local-artifacts-for-secrets.sh`: escanea artefactos locales ignorados
+  (`testsprite_tests/tmp`, `backend/storage/mail_digests`, logs/traces,
+  Playwright y `qa/reports`) sin recorrer `node_modules`; falla ante tokens o
+  secrets criticos y tolera placeholders obvios.
+- `probe-qa-stack-health.py`: probe de concurrencia moderada para distinguir
+  `healthy`, `degraded`, `overloaded` y `failing` sin saturar artificialmente
+  el stack local.
 - `stress-qa.sh [N]`: ejecuta `pytest -q --tb=no` N veces (default 3) con el mismo extra OpenHarness para detectar flakiness.
-- `full-qa-live.sh`: carril **opt-in** de smokes read-only contra los proveedores reales (LLM ping, GoDaddy GET domains, IMAP/SMTP handshake, Telegram `getMe`, Kimi status, MCP `list_tools`, Google OAuth/freebusy). Verificado con **8 passed**. Excluido de `full-qa.sh`. Cada test se auto-saltea si su credencial no está configurada. Coste ≈ US$0.001.
+- `full-qa-live.sh`: carril **opt-in** de smokes read-only contra los proveedores reales (LLM ping, GoDaddy GET domains, IMAP/SMTP handshake, Telegram `getMe`, Kimi status, MCP `list_tools`, Google OAuth/freebusy). Requiere invocación explícita `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh`; el script no habilita el flag por sí mismo. Verificado con **8 passed** en el último gate live documentado. Excluido de `full-qa.sh`. Cada test se auto-saltea si su credencial no está configurada. Coste ≈ US$0.001.
 - `sync_doc_counts.py`: recalcula los conteos canónicos (endpoints, tareas Celery, migraciones, head Alembic, vistas frontend) desde el código y reescribe el bloque `<!-- AUTO:counts -->` de `docs/CURRENT_STATE.md`. `--check` falla si están desincronizados (lo usa `full-qa.sh`); `--print` solo los imprime.
 
 ## Otros

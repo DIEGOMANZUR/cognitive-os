@@ -27,7 +27,8 @@ import sys
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parents[1]
-_APP_PY = _ROOT / "backend" / "src" / "cognitive_os" / "api" / "app.py"
+_API_DIR = _ROOT / "backend" / "src" / "cognitive_os" / "api"
+_APP_PY = _API_DIR / "app.py"
 _TASKS_PY = _ROOT / "backend" / "src" / "cognitive_os" / "workers" / "tasks.py"
 _MIGRATIONS_DIR = _ROOT / "backend" / "alembic" / "versions"
 _VIEWS_DIR = _ROOT / "frontend" / "app" / "views"
@@ -36,7 +37,10 @@ _CURRENT_STATE = _ROOT / "docs" / "CURRENT_STATE.md"
 _START = "<!-- AUTO:counts:start -->"
 _END = "<!-- AUTO:counts:end -->"
 
-_ENDPOINT_RE = re.compile(r"^@app\.(get|post|put|patch|delete|websocket)\(", re.MULTILINE)
+_ENDPOINT_RE = re.compile(
+    r"^@(app|router)\.(get|post|put|patch|delete|websocket)\(",
+    re.MULTILINE,
+)
 _TASK_RE = re.compile(r'name="cognitive_os\.')
 _REVISION_RE = re.compile(r'^revision(?:\s*:\s*str)?\s*=\s*["\']([^"\']+)["\']', re.MULTILINE)
 _DOWN_RE = re.compile(
@@ -45,7 +49,10 @@ _DOWN_RE = re.compile(
 
 
 def _count_endpoints() -> int:
-    return len(_ENDPOINT_RE.findall(_APP_PY.read_text(encoding="utf-8")))
+    total = 0
+    for path in sorted(_API_DIR.glob("*.py")):
+        total += len(_ENDPOINT_RE.findall(path.read_text(encoding="utf-8")))
+    return total
 
 
 def _count_celery_tasks() -> int:
@@ -84,7 +91,7 @@ def _count_views() -> int:
 
 def collect_counts() -> dict[str, str]:
     return {
-        "Endpoints REST (`@app.*` en `api/app.py`)": str(_count_endpoints()),
+        "Endpoints REST (`@app.*`/`@router.*` en `api/`)": str(_count_endpoints()),
         "Tareas Celery (`workers/tasks.py`)": str(_count_celery_tasks()),
         "Migraciones Alembic (`alembic/versions/`)": str(_count_migrations()),
         "Head Alembic": _alembic_head(),

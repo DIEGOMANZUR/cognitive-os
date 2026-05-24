@@ -6,6 +6,17 @@ const NOW = "2026-05-22T12:00:00Z";
 type MockOptions = {
   healthStatus?: "ok" | "configured" | "degraded";
   malformedLists?: boolean;
+  scenario?:
+    | "empty"
+    | "degraded"
+    | "populated"
+    | "pending_approval"
+    | "failed_job"
+    | "retryable_job"
+    | "mail_digest_disabled"
+    | "mail_digest_read_only"
+    | "malformed_api_state"
+    | "mobile_friendly_state";
 };
 
 function json(route: Route, body: unknown, status = 200) {
@@ -192,8 +203,12 @@ export async function seedMockAuth(page: Page) {
 }
 
 export async function installCommercialApiMocks(page: Page, options: MockOptions = {}) {
-  const healthStatus = options.healthStatus ?? "ok";
-  const listPayload: unknown = options.malformedLists ? {} : [];
+  const scenario = options.scenario ?? "pending_approval";
+  const malformed = options.malformedLists || scenario === "malformed_api_state";
+  const healthStatus = options.healthStatus ?? (scenario === "degraded" ? "degraded" : "ok");
+  const listPayload: unknown = malformed ? {} : [];
+  const mailDisabled = scenario === "mail_digest_disabled";
+  const emptyState = scenario === "empty";
 
   await page.route(`${API_BASE}/**`, async (route) => {
     const request = route.request();
@@ -243,24 +258,27 @@ export async function installCommercialApiMocks(page: Page, options: MockOptions
     }
     if (path === "/mail/status") {
       return json(route, {
-        enabled: true,
+        enabled: !mailDisabled,
         default_sender: "diego@example.test",
         require_approval_for_send: true,
         allow_explicit_send: false,
         background_sync_enabled: false,
-        digest_enabled: true,
+        digest_enabled: !mailDisabled,
         digest_hours_local: ["10", "20"],
         digest_timezone: "America/Santiago",
         digest_max_messages: 50,
         gmail_monitor_labels: ["TODOS", "SPAM"],
         accounts: [],
-        reasons: [],
+        reasons: mailDisabled ? ["MAIL_ENABLED=false fixture"] : [],
       });
     }
     if (path === "/mail/sync/dispatch") {
       return json(route, { task_id: "mail-sync-mock", status: "dispatched" });
     }
     if (path === "/mail/digest/preview") {
+      if (mailDisabled) {
+        return json(route, { detail: "MAIL_ENABLED=false fixture" }, 503);
+      }
       return json(route, {
         generated_at: new Date(NOW).toISOString(),
         total_considered: 1,
@@ -277,33 +295,49 @@ export async function installCommercialApiMocks(page: Page, options: MockOptions
       });
     }
     if (path === "/jobs") {
-      if (options.malformedLists) return json(route, listPayload);
+      if (malformed) return json(route, listPayload);
+      if (emptyState) return json(route, []);
+      const status = scenario === "failed_job" || scenario === "retryable_job" ? "failed" : "running";
+      const progress = status === "failed" ? 100 : 50;
+      const jobType = scenario === "failed_job" ? "document_analysis" : "action_request";
       return json(route, [
         {
           id: "11111111-1111-4111-8111-111111111111",
-          job_type: "action_request",
-          status: "running",
-          progress: 50,
-          metadata_json: { source: "mock" },
+          job_type: jobType,
+          status,
+          progress,
+          metadata_json: { source: "mock", retryable: scenario === "retryable_job" },
           created_at: NOW,
           updated_at: "2026-05-22T12:01:00Z",
         },
       ]);
     }
     if (path.endsWith("/events")) {
+      if (emptyState) return json(route, []);
       return json(route, [
         {
           id: "evt-1",
           job_id: "11111111-1111-4111-8111-111111111111",
-          event_type: "action_request_dispatch_submitted",
-          status: "ok",
-          message: "Dispatch submitted",
+          event_type:
+            scenario === "retryable_job"
+              ? "fixture_retry_available"
+              : scenario === "failed_job"
+                ? "fixture_failed"
+                : "action_request_dispatch_submitted",
+          status: scenario === "failed_job" || scenario === "retryable_job" ? "failed" : "ok",
+          message:
+            scenario === "retryable_job"
+              ? "Fixture failure is retryable; rerun is available."
+              : scenario === "failed_job"
+                ? "Fixture job failed with visible diagnostics."
+                : "Dispatch submitted",
           created_at: "2026-05-22T12:01:00Z",
-          metadata_json: {},
+          metadata_json: { retryable: scenario === "retryable_job" },
         },
       ]);
     }
     if (path === "/approvals") {
+      if (emptyState || scenario !== "pending_approval") return json(route, []);
       return json(route, [
         {
           id: "22222222-2222-4222-8222-222222222222",

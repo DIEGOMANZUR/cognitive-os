@@ -19,12 +19,11 @@
 > decoradores REST**, **23 tareas Celery** en **5 colas**, hasta **13 jobs
 > beat**, **20 migraciones Alembic** head `202605200003`, **20 vistas
 > frontend**, **37 comandos Telegram**, **18 componentes** en
-> `/health/dashboard` + `POST /health/verify`. QA: `full-qa` **950 passed**,
-> 1 skipped, 28 deselected (944 históricos + 6 nuevos que cubren el fix
-> `eager_defaults` para el bug P1 `MissingGreenlet` que la re-auditoría
-> 2026-05-23 cazó en `POST /actions/*/preview/request`); Playwright **31
+> `/health/dashboard` + `POST /health/verify`. QA: `full-qa` **958 passed**,
+> 1 skipped, 28 deselected (944 históricos + 14 nuevos: 3 `eager_defaults`,
+> 3 `health_llm_probe_timeout` y 3 guards QA/scripts/docs); Playwright **31
 > passed** sin exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`);
-> `stress-qa` 3 pasadas verdes de **950 passed**; carril opt-in
+> `stress-qa` 3 pasadas verdes de **958 passed**; carril opt-in
 > `tests/live/` verificado **8 passed**; TestSprite re-audit **10/10
 > passed** sobre dos batches. `full-qa.sh` construye Next en `.next-qa`
 > para no deshidratar el frontend vivo servido desde `.next`. La suite
@@ -579,13 +578,13 @@ la allow-list, te responde con los 37 comandos.
 ```bash
 cd cognitive-os
 bash scripts/full-qa.sh                  # pytest + ruff + mypy + frontend build + sync_doc_counts + git diff
-# Esperado vigente: 950 passed, 1 skipped, 28 deselected; todo verde
+# Esperado vigente: 958 passed, 1 skipped, 28 deselected; todo verde
 # (corre contra cognitive_os_test — la DB de producción nunca se toca)
 
 # Frontend E2E sin exportar nada:
 cd frontend
 unset COGOS_JWT
-npx playwright test --reporter=list      # 31 passed; el global-setup auto-mintea el JWT
+npx playwright test --reporter=list      # 41 passed; el global-setup auto-mintea el JWT
 ```
 
 En el panel, andá a **Health**: cada componente (db, redis, weaviate,
@@ -637,7 +636,7 @@ excepción: no drafts ni envío automático.
   vectorial + BM25), **Neo4j 5** (grafo de conocimiento / GraphRAG).
 - **Frontend Next.js 16.2.6** con **20 vistas** en `app/views/*.tsx`
   (ver §3). PWA instalable, SSE-over-fetch para tiempo real, hotkeys
-  1-9, paleta de comandos Ctrl-K, tema claro/oscuro, nav móvil.
+  1-9, paleta de comandos Ctrl-K, cockpit dark-only y nav móvil.
 - **Canal humano fuera del panel**: bot de **Telegram** (long-poll, sin
   webhook, funciona detrás de NAT). Espejado con el REST — el mismo
   `AuditEvent` se escribe para una decisión hecha por panel o por bot.
@@ -906,8 +905,8 @@ comandos (buscás cualquier vista o acción por nombre).
 
 #### Conexión (⚙) — SettingsView
 - **Qué hace:** apunta el panel a otra API (consumir el backend desde
-  otra máquina de la LAN vía túnel), pega el JWT, alterna tema. Persiste
-  en `localStorage`.
+  otra máquina de la LAN vía túnel), pega el JWT y mantiene el contrato
+  dark-only del cockpit. Persiste en `localStorage`.
 
 ---
 

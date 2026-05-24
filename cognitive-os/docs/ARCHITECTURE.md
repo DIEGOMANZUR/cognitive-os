@@ -39,11 +39,11 @@
 > `ENABLE_MCP_CLIENT=true`.
 >
 > **QA más reciente (commit `647f103`):** `bash scripts/full-qa.sh` verde
-> con **950 passed**, 1 skipped, 28 deselected;
+> con **958 passed**, 1 skipped, 28 deselected;
 > ruff/format/mypy/Alembic/lint/build/`sync_doc_counts --check`/`git diff
 > --check` OK; build frontend aislado con `NEXT_DIST_DIR=.next-qa`;
-> Playwright **31 passed** sin exportar `COGOS_JWT` (auto-mint via
-> `_global-setup.ts`); stress QA verde con 3 pasadas de **950 passed**;
+> Playwright **41 passed** sin exportar `COGOS_JWT` (auto-mint via
+> `_global-setup.ts`); stress QA verde con 3 pasadas de **958 passed**;
 > carril opt-in `tests/live/` verificado con **8 passed**; TestSprite MCP
 > re-audit **10/10 passed** sobre dos batches.
 

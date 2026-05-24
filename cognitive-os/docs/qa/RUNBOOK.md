@@ -3,13 +3,13 @@
 > **Actualización vigente (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** QA oficial del
 > proyecto:
 >
-> - `bash scripts/full-qa.sh` con **950 passed**, 1 skipped, 28 deselected
->   (944 históricos + 6 nuevos que cubren el fix `eager_defaults` para el
->   bug P1 `MissingGreenlet` que cazó la re-auditoría 2026-05-23).
-> - Playwright **31 passed** sin necesidad de exportar `COGOS_JWT`: el
+> - `bash scripts/full-qa.sh` con **958 passed**, 1 skipped, 28 deselected
+>   (944 históricos + 14 nuevos: 3 `eager_defaults`, 3
+>   `health_llm_probe_timeout` y 3 guards QA/scripts/docs).
+> - Playwright **41 passed** sin necesidad de exportar `COGOS_JWT`: el
 >   `tests/e2e/_global-setup.ts` mintea el JWT via
 >   `POST /auth/local-token` cuando el perfil es `dedicated_local/full`.
-> - `bash scripts/stress-qa.sh` con 3 pasadas de **950 passed**.
+> - `bash scripts/stress-qa.sh` con 3 pasadas de **958 passed**.
 > - Build frontend dentro de `full-qa.sh` usa `NEXT_DIST_DIR=.next-qa`
 >   para no invalidar un frontend vivo.
 > - Carril opt-in `bash scripts/full-qa-live.sh` (`LIVE_TESTS_ENABLED=1`)
@@ -142,7 +142,7 @@ npm run build   # next build
 
 ```bash
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/backend"
-uv run pytest -q          # 950 passed esperado en el snapshot vigente (commit 647f103)
+uv run pytest -q          # 958 passed esperado en esta rama
 uv run ruff check src tests
 uv run ruff format --check src tests
 uv run mypy src

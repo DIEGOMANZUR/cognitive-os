@@ -1,59 +1,35 @@
-# 05 Zero Friction Repair Plan
+# 05 Zero-Friction Repair Plan
 
-## P0
+Plan de reparacion de esta pasada. Se ejecuta sin confirmacion adicional porque
+los cambios son hermeticos, locales y alineados con el contrato
+`dedicated_local/full`.
 
-No hay P0 abierto confirmado al inicio de esta intervencion. Los P0 historicos
-Telegram fail-closed, mail read-only y DB test aislada ya tienen tests.
+## Hallazgos accionables
 
-## P1 Corregidos
+| ID | Severidad | Evidencia | Causa raiz probable | Test que debe fallar | Reparacion propuesta | Archivos a tocar | Riesgo de regresion | Comando de validacion | Criterio de aceptacion |
+|---|---|---|---|---|---|---|---|---|---|
+| R-001 | P1 | `full-qa-live.sh` tenia `export LIVE_TESTS_ENABLED=1` | el script asumio consentimiento por estar en carril live | nuevo test estatico de script | exigir env externo; mensaje claro; exit 2 sin tocar pytest | `scripts/full-qa-live.sh`, `test_frontend_static_assets.py`, docs QA | bajo | `bash scripts/full-qa-live.sh` sin env; pytest puntual | sin env no contacta proveedores; con env conserva comando pytest |
+| R-002 | P1 | `full-e2e.sh` usaba `create_access_token` | bypass local para comodidad del runner | test estatico que prohibe mint directo | quitar mint; documentar `_global-setup.ts` como dueño del token | `scripts/full-e2e.sh`, tests, scripts docs | medio: si global setup falla, E2E debe fallar | pytest puntual; Playwright cuando stack este vivo | E2E prueba `/auth/local-token` en vez de saltarlo |
+| R-003 | P2 | USER_GUIDE prometia "tema claro/oscuro" | doc stale | test docs/frontend dark-only | corregir texto a dark-only | `docs/USER_GUIDE.md`, test estatico | bajo | pytest puntual | docs no prometen toggle |
+| R-004 | P2 | guias con 944/+3/484 viejos | drift posterior a gates | sync/check y grep | actualizar conteos secundarios | `COGNITIVE_OS_GUIDE.md`, `AGENT_LEARNING_PLAN.md`, `scripts/README.md` | bajo | `sync_doc_counts --check`, grep | no quedan conteos contradictorios en guias tocadas |
 
-### ZF-P1-001 - Full QA puede dar verde falso si Alembic falla
+## Orden de ejecucion
 
-- Evidencia: `scripts/full-qa.sh` convierte fallo de `alembic check` en `WARN`.
-- Causa probable: tolerancia historica a Postgres apagado.
-- Test que debe fallar: static test que prohibe `WARN: alembic check` y exige `exit 1`.
-- Reparacion: `alembic check` hard-fail cuando existe `.env`, `.env.local` o `DATABASE_URL`;
-  skip solo si no hay configuracion DB.
-- Archivos: `scripts/full-qa.sh`, `scripts/README.md`, `backend/tests/test_frontend_static_assets.py`.
-- Validacion: `bash scripts/full-qa.sh`.
+1. Registrar alcance, matriz, inventario, gaps y failure log.
+2. Aplicar fixes R-001 a R-004.
+3. Correr tests estaticos puntuales.
+4. Verificar guard live sin `LIVE_TESTS_ENABLED=1`.
+5. Correr `git diff --check` y `sync_doc_counts --check`.
+6. Ejecutar gates de area factibles: ruff/format si se tocan tests Python.
+7. Actualizar `06_IMPLEMENTATION_LOG.md`, `07_TESTSPRITE_AND_PLAYWRIGHT_PLAN.md`
+   y `08_FINAL_COMMERCIAL_REPORT.md` con resultados reales.
 
-### ZF-P1-002 - Gate E2E mata el frontend vivo con `npm ci`
+## Stop conditions
 
-- Evidencia: `full-e2e.sh` hacia `npm ci` tras verificar server vivo; Next dev perdia `node_modules`.
-- Reparacion: `npm ci` opt-in (`COGOS_E2E_NPM_CI=1`), preflight CORS y verificacion de server despues de deps.
-- Validacion: `bash scripts/full-e2e.sh` -> 31 passed.
+No cerrar como PASS si:
 
-## P2 Corregidos / Documentados
-
-### ZF-P2-001 - Health configured se pinta mal en Sidebar
-
-- Evidencia: `Sidebar.tsx` manda todo lo distinto de ok/degraded/no-auth a danger.
-- Reparacion: mapear `configured` a warn.
-- Test: Playwright `health-verified-vs-configured.spec.ts` con API mock.
-- Validacion: `bash scripts/full-e2e.sh`.
-
-### ZF-P2-002 - Playwright comercial insuficiente por flujos especificos
-
-- Evidencia: specs actuales no cubren con nombre/alcance jobs approvals action lifecycle,
-  zero-friction dedicated local, mobile PWA y malformed JSON generalizado.
-- Reparacion: agregar specs comerciales con mocks hermeticos y console guard.
-- Validacion: `bash scripts/full-e2e.sh` o specs focales.
-
-### ZF-P2-003 - CORS local fallback demasiado estrecho
-
-- Evidencia: frontend `:3101` contra API local generaba CORS errors masivos.
-- Reparacion: defaults CORS incluyen `localhost/127.0.0.1:3101`; `full-e2e` diagnostica preflight antes de Playwright.
-- Validacion: `test_config.py` y `full-e2e` con API temporal `:8001`.
-
-### ZF-P2-004 - Docs secundarios pueden reintroducir friccion
-
-- Evidencia: `USER_GUIDE.md` y `ACTION_PLANE.md` conservan frases antiguas.
-- Reparacion: docs vigentes actualizados al snapshot `944/31`, MCP 5/5 y
-  67 tools; frases historicas quedan en audit docs como historico.
-
-## P3
-
-- Crear `scripts/full-e2e.sh` como gate Playwright separado.
-- Documentar TestSprite disponible/no disponible y su ejecucion. Estado:
-  ejecutado con subconjunto critico 3/3 passed como smoke advisory; fallback
-  fuerte y gate principal sigue siendo Playwright 31/31.
+- `full-qa-live.sh` sigue auto-habilitando live;
+- `full-e2e.sh` vuelve a mintar JWT directo;
+- USER_GUIDE vuelve a prometer toggle claro;
+- tests puntuales fallan;
+- se detecta P0/P1 nuevo durante validacion.

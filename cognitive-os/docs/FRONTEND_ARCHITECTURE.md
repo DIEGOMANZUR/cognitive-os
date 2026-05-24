@@ -17,8 +17,8 @@
 > **31 passed** sin necesidad de exportar `COGOS_JWT` (auto-mint via
 > `tests/e2e/_global-setup.ts` que llama `POST /auth/local-token` en
 > `dedicated_local/full`), `bash scripts/full-qa.sh` desde la raíz
-> usando build aislado `NEXT_DIST_DIR=.next-qa` (**950 passed**, 1
-> skipped, 28 deselected: 944 históricos + 6 nuevos: 3 `eager_defaults` + 3 `health_llm_probe_timeout`).
+> usando build aislado `NEXT_DIST_DIR=.next-qa` (**958 passed**, 1
+> skipped, 28 deselected: 944 históricos + 14 nuevos: 3 `eager_defaults` + 3 `health_llm_probe_timeout` + 3 guards QA/scripts/docs).
 >
 > Verificación live con Chrome DevTools MCP (cierre absoluto): las 20
 > tabs de la SPA montan sin un solo `console.error` crítico; Dashboard

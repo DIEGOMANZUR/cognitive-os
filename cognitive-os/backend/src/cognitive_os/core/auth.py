@@ -95,14 +95,17 @@ async def require_authenticated_user(
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Bearer token required",
+            detail="Not authenticated",
         )
     try:
         payload = decode_jwt(credentials.credentials)
     except ValueError as exc:
+        # Propagate the *specific* JWT failure ("Invalid JWT signature",
+        # "JWT has expired", "Malformed JWT") so external test harnesses
+        # (TestSprite, etc.) can distinguish tampering from expiry.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid bearer token",
+            detail=str(exc).rstrip("."),
         ) from exc
 
     user_id = str(payload["sub"])

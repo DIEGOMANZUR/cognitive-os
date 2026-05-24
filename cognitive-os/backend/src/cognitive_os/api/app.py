@@ -134,6 +134,7 @@ from cognitive_os.agents.research_orchestrator import (
 from cognitive_os.agents.research_persistence import create_research_run_store
 from cognitive_os.agents.state import CognitiveState
 from cognitive_os.agents.web_search import configured_web_search_provider_names
+from cognitive_os.api.test_fixtures import router as test_fixtures_router
 from cognitive_os.assist.schemas import (
     PersonalNoteCreate,
     PersonalNoteSearchHit,
@@ -433,6 +434,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(test_fixtures_router)
 
 
 @app.middleware("http")

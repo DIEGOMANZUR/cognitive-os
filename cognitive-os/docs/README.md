@@ -19,7 +19,7 @@
 > **Snapshot tecnico vigente** (conteos derivados del codigo por
 > `scripts/sync_doc_counts.py`):
 >
-> - Backend FastAPI 0.115+ — **147 endpoints REST**, **23 tareas Celery** en
+> - Backend FastAPI 0.115+ — **150 endpoints REST**, **23 tareas Celery** en
 >   **5 colas** (`default`, `ingestion`, `agent_longrun`, `maintenance`,
 >   `mail`), hasta **13 jobs beat** segun flags.
 > - **20 migraciones Alembic**, head `202605200003`, `alembic check` sin drift.
@@ -34,12 +34,12 @@
 >   `openharness-ai>=0.1.9,<0.2`, pipeline por defecto `prelude_merge`).
 > - LLM: **primary+agent `gpt-5.5`** (Responses API + prompt caching 24h),
 >   **secondary/fallback `gemini-3.1-pro-low`**, **vision `glm-4.6v`**.
-> - QA: `full-qa.sh` **950 passed, 1 skipped, 28 deselected** + ruff/format/
+> - QA: `full-qa.sh` **958 passed, 1 skipped, 28 deselected** + ruff/format/
 >   mypy/Alembic/lint/build/`sync_doc_counts`/`git diff --check`; `stress-qa.sh`
->   3 pasadas verdes de **950 passed**; Playwright **31 passed** sin
+>   3 pasadas verdes de **958 passed**; Playwright **41 passed** sin
 >   exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`); carril opt-in
->   `tests/live/` verificado con **8 passed**; TestSprite MCP re-audit
->   **10/10 passed** sobre dos batches acotados.
+>   `tests/live/` verificado con **8 passed**; TestSprite completo corregido
+>   en batches locales **28/28 passed**.
 >
 > **Re-audit `647f103` (2026-05-23):** fix `eager_defaults=True` en
 > `db.Base` resuelve `MissingGreenlet` 500 en endpoints

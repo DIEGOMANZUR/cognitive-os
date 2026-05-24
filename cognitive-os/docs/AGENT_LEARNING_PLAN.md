@@ -11,10 +11,10 @@
 > `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED` (default `true`,
 > AUDIT-2026-C) — ver §1 y §3.4.
 > QA vigente del repo (commit `bbaaea8`): `full-qa.sh`
-> **950 passed**, 1 skipped, 28 deselected; Playwright **31 passed**
+> **958 passed**, 1 skipped, 28 deselected; Playwright **41 passed**
 > sin exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`); stress
-> QA 3 pasadas de **950 passed**; TestSprite acumulado **15/15** TC
-> ejecutados (14 PASS + 1 BLOCKED platform-side). Ver
+> QA 3 pasadas de **958 passed**; TestSprite completo corregido en batches
+> **28/28 passed**. Ver
 > `CURRENT_STATE.md`.
 
 > Documento de handoff. Pensado para que un chat nuevo entienda **(a)** el estado
@@ -112,8 +112,8 @@ proactivos) — ver §3.
 
 ### 0.2 Estado funcional del stack
 
-- **Backend FastAPI:** `:8000`, 147 endpoints, suite hermética vigente
-  **950 passed**, 1 skipped, 28 deselected (944 históricos + 6 nuevos
+- **Backend FastAPI:** `:8000`, 150 endpoints, suite hermética vigente
+  **958 passed**, 1 skipped, 28 deselected (944 históricos + 14 nuevos
   por el fix `eager_defaults` del re-audit 2026-05-23).
 - **Frontend Next.js 16 SPA:** `:3001`, 20 vistas, **31/31 Playwright
   passed** sin exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`).
@@ -1048,7 +1048,7 @@ Si estás abriendo este doc desde un chat nuevo:
    JWT=$(cd cognitive-os/backend && uv run python -c "from cognitive_os.core.auth import create_access_token; print(create_access_token(user_id='auditor', roles=['admin']))" | tail -1)
    curl -s -H "Authorization: Bearer $JWT" http://127.0.0.1:8000/health/dashboard | python3 -m json.tool
    curl -s -H "Authorization: Bearer $JWT" http://127.0.0.1:8000/system/mcp | python3 -m json.tool
-   cd cognitive-os/backend && uv run pytest -q  # 944 esperado en el gate vigente
+   cd cognitive-os/backend && uv run pytest -q  # 958 passed, 1 skipped, 28 deselected en el gate vigente
    cd cognitive-os/frontend && npm run lint && npm run build  # 0 warnings + OK
    ```
 4. **Empezá por Fase A.** Es la base. Las otras 4 se construyen sobre su

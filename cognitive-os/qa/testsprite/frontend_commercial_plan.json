@@ -1,0 +1,770 @@
+[
+  {
+    "id": "TC001",
+    "title": "Keep the cockpit usable when opening the app",
+    "description": "This test verifies that the main cockpit shell loads successfully and the primary views are available without frontend crashes.",
+    "category": "Local Cockpit Navigation",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the cockpit interface is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the main cockpit tabs are available"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC002",
+    "title": "Move through the main cockpit tabs without leaving the app",
+    "description": "This test verifies that a user can switch between the core cockpit views and see each view load inside the single-page interface.",
+    "category": "Local Cockpit Navigation",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Switch to the Health tab"
+      },
+      {
+        "type": "action",
+        "description": "Switch to the Chat tab"
+      },
+      {
+        "type": "action",
+        "description": "Switch to the Documents tab"
+      },
+      {
+        "type": "action",
+        "description": "Switch to the Mail tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify each selected cockpit view is displayed within the app"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC003",
+    "title": "Run live health verification and see updated statuses",
+    "description": "This test verifies that a user can trigger live verification in Health and observe the health state update for core services.",
+    "category": "Health Dashboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Switch to the Health tab"
+      },
+      {
+        "type": "action",
+        "description": "Click the live verification control"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify live verification progress is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify updated service statuses are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC004",
+    "title": "Review system readiness in Configuration",
+    "description": "This test verifies that a user can open Configuration and inspect readiness information without the cockpit breaking.",
+    "category": "Configuration and Readiness",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Configuration tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify readiness information is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify capability status information is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC005",
+    "title": "Keep cockpit state while moving across secondary tabs",
+    "description": "This test verifies that a user can move between Settings, Configuration, Jobs, and Approvals and see the selected view update without leaving the page.",
+    "category": "Local Cockpit Navigation",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Switch to the Settings tab"
+      },
+      {
+        "type": "action",
+        "description": "Switch to the Configuration tab"
+      },
+      {
+        "type": "action",
+        "description": "Switch to the Jobs tab"
+      },
+      {
+        "type": "action",
+        "description": "Switch to the Approvals tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the selected tab content updates within the cockpit"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC006",
+    "title": "Review approval lifecycle safely without requiring a pending fixture",
+    "description": "This test verifies that the Approvals view exposes lifecycle status safely. If a safe TestSprite/no-op pending approval exists, it may be approved and the visible state change observed. If no pending approval exists, the empty state, 0-pending counter, and absence of crash count as the expected healthy outcome. Do not approve arbitrary existing real requests.",
+    "category": "Jobs and Approvals Review",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Approvals tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify either pending approvals with visible lifecycle status or a clear empty state with 0 pending is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no arbitrary approval is required for the test to pass and no error screen is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC007",
+    "title": "Review connected MCP servers in Settings",
+    "description": "This test verifies that a user can open Settings and see MCP connectivity and tool inventory details.",
+    "category": "Configuration and Readiness",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Settings tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the MCP servers information is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify connected status and tool counts are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC008",
+    "title": "See configured and healthy service states in Health",
+    "description": "This test verifies that the Health dashboard shows readiness badges for core services and distinguishes configured services from unhealthy ones.",
+    "category": "Health Dashboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Switch to the Health tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify service status badges are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify configured services are shown as configured rather than degraded"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC009A",
+    "title": "Mint and persist a local JWT without manual secrets",
+    "description": "This test verifies that a user can use the dedicated_local local-token flow in Settings, persist the JWT locally, and still see the token configuration after refreshing the app.",
+    "category": "Settings and Local Authentication Persistence",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Switch to the Settings tab"
+      },
+      {
+        "type": "action",
+        "description": "Click the Settings button with aria-label \"JWT local\" instead of pasting a manual token"
+      },
+      {
+        "type": "action",
+        "description": "Verify the JWT field is populated by the local-token flow and no manual secret is required"
+      },
+      {
+        "type": "action",
+        "description": "Refresh the page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the stored token configuration is still available"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify polling remains active"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC010",
+    "title": "Stay blocked from normal mail drafting and sending",
+    "description": "This test verifies that the mail view remains read-only and does not expose normal draft or send actions during review.",
+    "category": "Mail Read-Only Inbox",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Switch to the Mail tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify normal draft creation is not available"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify normal send actions are not available"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC011",
+    "title": "Sync and review the inbox in read-only mode",
+    "description": "This test verifies that a user can sync Mail, review updated inbox items, and see suggested reply text without entering a normal compose or send flow.",
+    "category": "Mail Read-Only Inbox and Digests",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Mail tab"
+      },
+      {
+        "type": "action",
+        "description": "Trigger inbox sync"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify updated inbox items are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify suggested reply text is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC012",
+    "title": "Store a local API base in Settings and keep it after refresh",
+    "description": "This test verifies that a user can save the local API base in Settings and see it persist after reloading the app.",
+    "category": "Settings and Local Authentication Persistence",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Switch to the Settings tab"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the local API base field with a valid local API base"
+      },
+      {
+        "type": "action",
+        "description": "Save the settings"
+      },
+      {
+        "type": "action",
+        "description": "Refresh the page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the saved API base is still present"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the cockpit remains configured"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC013",
+    "title": "Review mail inbox and digest previews in read-only mode",
+    "description": "This test verifies that a mail reviewer can sync the inbox, inspect digest previews and suggested replies, and stay in read-only mode.",
+    "category": "Mail Read-Only Inbox",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Switch to the Mail tab"
+      },
+      {
+        "type": "action",
+        "description": "Sync the inbox"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify inbox messages are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify digest previews and suggested replies are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC014",
+    "title": "Open the command palette from the cockpit",
+    "description": "This test verifies that a user can access the command palette from the cockpit and see available actions.",
+    "category": "Configuration and Readiness",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Configuration tab"
+      },
+      {
+        "type": "action",
+        "description": "Open the command palette"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the command palette is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify available actions are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC015",
+    "title": "Inspect a proposed reply without creating a draft",
+    "description": "This test verifies that a user can inspect a mail suggestion and continue browsing without normal draft or send actions becoming available.",
+    "category": "Mail Read-Only Inbox and Digests",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Mail tab"
+      },
+      {
+        "type": "action",
+        "description": "Inspect a message proposal"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify suggested response text is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify draft or send actions are not available in the normal mail flow"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC016",
+    "title": "Mint a local JWT from Settings and continue using the cockpit",
+    "description": "This test verifies that a user can mint a local JWT in Settings and keep using the cockpit with polling enabled.",
+    "category": "Settings and Local Authentication Persistence",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Switch to the Settings tab"
+      },
+      {
+        "type": "action",
+        "description": "Mint a local JWT"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the token is stored automatically"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify polling remains active"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC017",
+    "title": "Review the job queue and current job states",
+    "description": "This test verifies that a user can open Jobs and see the current job list with visible state information.",
+    "category": "Jobs and Approvals Review",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Jobs tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the current job list is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify job state information is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC018",
+    "title": "Review mail digest preview or disabled read-only diagnostics",
+    "description": "This test verifies that the Mail digest workflow is safe and read-only. If digest generation is enabled, request a preview and inspect the summary. If mail/digest is disabled in the current local configuration, the disabled button, mail status, and clear diagnostic text count as the expected healthy outcome. No drafts and no sending are allowed.",
+    "category": "Mail Read-Only Inbox and Digests",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Mail tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify digest preview is available or visibly disabled with a useful read-only diagnostic"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no compose, draft, or send flow is available in the normal UI"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC019",
+    "title": "View document statistics and knowledge summaries",
+    "description": "This test verifies that a user can open Documents and review document statistics together with knowledge-base summaries.",
+    "category": "Documents Overview",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Documents tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify document statistics are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify knowledge summaries are displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC020",
+    "title": "View an empty approvals queue gracefully",
+    "description": "This test verifies that an empty approvals queue shows a friendly empty state instead of an error screen.",
+    "category": "Graceful Empty-State Handling",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Approvals tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an empty state message is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no error screen is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC021",
+    "title": "Review approval lifecycle status or empty approval diagnostics",
+    "description": "This test verifies that a user can open Approvals and inspect lifecycle status when requests exist, or see a clear empty state when there are no approvals. Both populated and empty local states are valid; the test must fail only on crash, white screen, hidden counters, or unclear diagnostics.",
+    "category": "Jobs and Approvals Review",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Approvals tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify lifecycle status is visible for approvals or a clear empty-state message with 0 pending is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no error screen is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC022",
+    "title": "Review jobs queue populated or empty state gracefully",
+    "description": "This test verifies that the Jobs view is usable whether the local queue is populated or empty. If jobs exist, verify rows, statuses, counters, and events/details render without crash. If no jobs match the filter, verify the friendly empty state. Error-related words inside legitimate job statuses or labels must not be treated as a page error unless an actual error screen is visible.",
+    "category": "Graceful Empty-State Handling",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Jobs tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify either job rows with statuses/details or a friendly empty state is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no white screen, page error, or incoherent error overlay is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC023",
+    "title": "Restore the last active cockpit tab after refresh",
+    "description": "This test verifies that the cockpit restores the previously selected tab after a page refresh.",
+    "category": "Local Cockpit Navigation",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Switch to the Mail tab"
+      },
+      {
+        "type": "action",
+        "description": "Refresh the page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the Mail view is still active after reload"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC024",
+    "title": "Inspect the available document set and ingestion summaries",
+    "description": "This test verifies that a user can browse the document set and confirm ingestion-related summary information is visible.",
+    "category": "Documents Overview",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Documents tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the available document set is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify ingestion-related summaries are displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC025",
+    "title": "Return to the same cockpit tab after refresh",
+    "description": "This test verifies that the cockpit restores the last active tab after a browser refresh.",
+    "category": "Configuration and Readiness",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Settings tab"
+      },
+      {
+        "type": "action",
+        "description": "Refresh the page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the Settings tab remains active"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the cockpit content is still displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC026",
+    "title": "Load a jobs queue and review an empty state gracefully",
+    "description": "This test verifies that the Jobs view loads and shows a clear empty state when no jobs are available to review.",
+    "category": "Jobs Review and Approvals",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Switch to the Jobs tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the jobs queue is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an empty state is shown when there are no jobs"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC027",
+    "title": "Handle a malformed audit list gracefully",
+    "description": "This test verifies that malformed audit data falls back to an empty state instead of breaking the audit view.",
+    "category": "Graceful Empty-State Handling",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Audit tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an empty state or fallback message is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no error screen is displayed"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC028",
+    "title": "Load approval and audit queues without errors on empty data",
+    "description": "This test verifies that the Approvals and Audit views handle empty or sparse data with clear empty states.",
+    "category": "Jobs Review and Approvals",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Switch to the Approvals tab"
+      },
+      {
+        "type": "action",
+        "description": "Switch to the Audit tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify empty state messages are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the views remain usable"
+      }
+    ],
+    "priority": "Low"
+  }
+]

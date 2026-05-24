@@ -2,8 +2,9 @@
 # Playwright E2E gate for the local Cognitive OS cockpit.
 #
 # This is intentionally separate from full-qa.sh: Playwright needs the API and
-# frontend runtime already serving on the local ports. It mints a short-lived
-# local admin JWT when COGOS_JWT is not supplied.
+# frontend runtime already serving on the local ports. Token bootstrap lives in
+# frontend/tests/e2e/_global-setup.ts and must exercise POST /auth/local-token
+# in dedicated_local/full instead of bypassing that route from this script.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -49,14 +50,6 @@ if [[ "$cors_status" -lt 200 || "$cors_status" -ge 400 ]] || ! grep -qi '^access
   echo "FAIL: API CORS does not allow frontend origin ${WEB_BASE%/}." >&2
   echo "      Add it to CORS_ALLOW_ORIGINS or run the frontend on an allowed local port." >&2
   exit 1
-fi
-
-if [[ -z "${COGOS_JWT:-}" ]]; then
-  COGOS_JWT="$(
-    cd "$ROOT/backend"
-    uv run python -c "from cognitive_os.core.auth import create_access_token; print(create_access_token(user_id='e2e-auditor', roles=['admin']))" 2>/dev/null | tail -1
-  )"
-  export COGOS_JWT
 fi
 
 COGOS_API_BASE="$API_BASE" COGOS_BASE_URL="$WEB_BASE" npx playwright test "$@"
