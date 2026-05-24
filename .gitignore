@@ -23,6 +23,7 @@ opencode.local.json
 # plantilla, debe usar {env:VAR} y vivir en un archivo example saneado.
 opencode.json
 opencode.jsonc
+.antigravitycli/
 .opencode/local/
 memory-bank/
 task_plan.local.md
