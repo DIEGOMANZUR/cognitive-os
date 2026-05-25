@@ -61,6 +61,7 @@ tmp/
 
 # Local tool settings can include machine-specific permissions or paths.
 **/.claude/settings.local.json
+**/.claude/scheduled_tasks.lock
 
 # Recovered transcripts may contain pasted credentials or private context.
 conversacion_recuperada_codex_claude.md
