@@ -40,6 +40,7 @@ export async function seedAuth(page: Page, jwt: string): Promise<void> {
     ({ jwt, apiBase }) => {
       // `useLocalState` JSON-stringifies the value before storing it.
       window.localStorage.setItem("cogos.token", JSON.stringify(jwt));
+      window.localStorage.setItem("cogos.token.source", JSON.stringify("manual"));
       window.localStorage.setItem("cogos.api", JSON.stringify(apiBase));
     },
     { jwt, apiBase },

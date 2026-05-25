@@ -198,6 +198,7 @@ const capabilities = [
 export async function seedMockAuth(page: Page) {
   await page.addInitScript((apiBase) => {
     window.localStorage.setItem("cogos.token", JSON.stringify("mock-commercial-jwt"));
+    window.localStorage.setItem("cogos.token.source", JSON.stringify("manual"));
     window.localStorage.setItem("cogos.api", JSON.stringify(apiBase));
   }, API_BASE);
 }

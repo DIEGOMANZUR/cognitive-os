@@ -21,6 +21,7 @@ const WARN_STATUSES = new Set([
   "queued",
   "unknown"
 ]);
+const HEALTH_VERIFY_TIMEOUT_MS = 45000;
 
 export function HealthView({ client }: { client: ApiClient }) {
   const dashboard = usePolledFetch<HealthDashboardResponse>(client, "/health/dashboard", 7000);
@@ -31,12 +32,20 @@ export function HealthView({ client }: { client: ApiClient }) {
   async function runLiveVerify() {
     setVerifying(true);
     setVerifyError(null);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), HEALTH_VERIFY_TIMEOUT_MS);
     try {
-      const result = await client.post<HealthDashboardResponse>("/health/verify", {});
+      const result = await client.post<HealthDashboardResponse>(
+        "/health/verify",
+        {},
+        true,
+        controller.signal
+      );
       setVerifyResult(result);
     } catch (caught) {
-      setVerifyError(errorMessage(caught));
+      setVerifyError(healthVerifyError(caught));
     } finally {
+      window.clearTimeout(timeout);
       setVerifying(false);
     }
   }
@@ -307,6 +316,13 @@ export function HealthView({ client }: { client: ApiClient }) {
       </section>
     </div>
   );
+}
+
+function healthVerifyError(caught: unknown): string {
+  if (caught instanceof DOMException && caught.name === "AbortError") {
+    return `La verificacion en vivo no respondio en ${HEALTH_VERIFY_TIMEOUT_MS / 1000}s. Revisa conectividad, credenciales y logs del backend.`;
+  }
+  return errorMessage(caught);
 }
 
 function Stat({

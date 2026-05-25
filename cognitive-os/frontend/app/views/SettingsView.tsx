@@ -55,8 +55,16 @@ export function SettingsView({
   useEffect(() => setApiDraft(apiBase), [apiBase]);
   useEffect(() => setTokenDraft(token), [token]);
 
+  const mcpStatusLabel = mcpInventory.data
+    ? mcpInventory.data.enabled
+      ? `${mcpInventory.data.servers.filter((s) => s.connected).length}/${mcpInventory.data.declared_count} conectados`
+      : "disabled"
+    : mcpInventory.loading
+      ? "cargando"
+      : "sin datos";
+
   function commit() {
-    setApiBase(apiDraft.trim() || "http://127.0.0.1:8000");
+    setApiBase(apiDraft.trim() || apiBase || "http://127.0.0.1:8000");
     setToken(tokenDraft.trim());
     toast.push("Config local aplicada.", "success");
   }
@@ -114,41 +122,56 @@ export function SettingsView({
         </p>
       </section>
 
-      {mcpInventory.data && mcpInventory.data.enabled && (
-        <section className="section stack">
-          <div className="section-head">
-            <h2>MCP servers</h2>
-            <span className="muted small">
-              {mcpInventory.data.servers.filter((s) => s.connected).length}/
-              {mcpInventory.data.declared_count} conectados
-            </span>
+      <section className="section stack" data-testid="mcp-status-section">
+        <div className="section-head">
+          <h2>MCP servers</h2>
+          <span className="muted small">{mcpStatusLabel}</span>
+        </div>
+        {mcpInventory.error && (
+          <div className="warn-box">
+            No se pudo leer <code>/system/mcp</code>: {mcpInventory.error}. Verifica
+            JWT y URL de API; no se marca verde sin inventario real.
           </div>
-          {mcpInventory.data.servers.length === 0 ? (
-            <p className="muted small">
-              <code>ENABLE_MCP_CLIENT=true</code> pero no hay servers declarados en{" "}
-              <code>MCP_SERVERS</code>.
-            </p>
-          ) : (
-            <ul className="small" style={{ paddingLeft: "1.2rem", margin: 0 }}>
-              {mcpInventory.data.servers.map((server) => (
-                <li key={server.name} style={{ marginBottom: "0.4rem" }}>
-                  <span className={server.connected ? "badge ok" : "badge warn"}>
-                    {server.connected ? "OK" : "fallo"}
-                  </span>{" "}
-                  <code>{server.name}</code> ({server.transport}) ·{" "}
-                  <span className="muted">{server.target}</span>
-                  <br />
-                  <span className="muted">
-                    {server.connected
-                      ? `${server.tools_count} tool(s) expuestas al DeepAgent`
-                      : (server.error ?? "sin detalle")}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
+        )}
+        {!mcpInventory.data && !mcpInventory.error && (
+          <p className="muted small">
+            {mcpInventory.loading
+              ? "Cargando inventario MCP desde el backend..."
+              : "Sin inventario MCP recibido todavia."}
+          </p>
+        )}
+        {mcpInventory.data && !mcpInventory.data.enabled && (
+          <p className="muted small">
+            <code>ENABLE_MCP_CLIENT=false</code>. El inventario MCP esta desactivado
+            por configuracion y la UI lo reporta como estado degradado esperado.
+          </p>
+        )}
+        {mcpInventory.data && mcpInventory.data.enabled && mcpInventory.data.servers.length === 0 && (
+          <p className="muted small">
+            <code>ENABLE_MCP_CLIENT=true</code> pero no hay servers declarados en{" "}
+            <code>MCP_SERVERS</code>.
+          </p>
+        )}
+        {mcpInventory.data && mcpInventory.data.enabled && mcpInventory.data.servers.length > 0 && (
+          <ul className="small" style={{ paddingLeft: "1.2rem", margin: 0 }}>
+            {mcpInventory.data.servers.map((server) => (
+              <li key={server.name} style={{ marginBottom: "0.4rem" }}>
+                <span className={server.connected ? "badge ok" : "badge warn"}>
+                  {server.connected ? "OK" : "fallo"}
+                </span>{" "}
+                <code>{server.name}</code> ({server.transport}) ·{" "}
+                <span className="muted">{server.target}</span>
+                <br />
+                <span className="muted">
+                  {server.connected
+                    ? `${server.tools_count} tool(s) expuestas al DeepAgent`
+                    : (server.error ?? "sin detalle")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {readiness.data && readiness.data.gaps.length > 0 && (
         <section className="section stack">

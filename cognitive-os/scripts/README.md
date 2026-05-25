@@ -20,7 +20,8 @@
 > zero-friction: `npx playwright test` mintea el JWT automáticamente
 > via `POST /auth/local-token` en `dedicated_local/full`.
 > `full-qa-live.sh` cubre `/system/mcp`; tras `5953b40` el inventario MCP
-> carga en paralelo con timeout 30s y runtime verificado 5/5 servers.
+> carga en paralelo con timeout 30s. Runtime actual verificado: 6/6 servers
+> y 69 tools, incluyendo el MCP local read-only `time`.
 >
 > **Detalle de scripts:** `dev_worker.sh` escucha **5 queues**:
 > `default,ingestion,agent_longrun,maintenance,mail`. `full-qa.sh` y

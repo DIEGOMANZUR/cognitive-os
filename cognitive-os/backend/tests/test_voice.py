@@ -38,7 +38,7 @@ def test_status_disabled_blocked_ready() -> None:
     assert VoiceService(app_settings=_settings(key="CHANGEME")).status().status == "blocked"
     ready = VoiceService(app_settings=_settings()).status()
     assert ready.status == "ready"
-    assert ready.tts_voice_id == "voice-123"
+    assert ready.tts_voice_id == "configured"
 
 
 def test_transcribe_and_synthesize_blocked_when_not_ready() -> None:

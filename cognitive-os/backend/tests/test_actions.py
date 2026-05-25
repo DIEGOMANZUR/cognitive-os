@@ -1120,6 +1120,44 @@ async def test_drive_organize_action_request_service_persists_approval_lifecycle
 
 
 @pytest.mark.asyncio
+async def test_dispatch_missing_action_request_reports_blocked_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    missing_id = UUID("00000000-0000-0000-0000-000000000000")
+    calls: list[dict[str, object]] = []
+
+    class FakeActionRequestService:
+        async def queue_approved_action_request(self, action_request_id: UUID) -> ActionRequestView:
+            assert action_request_id == missing_id
+            msg = (
+                "Action request not found; dispatch blocked before side effects: "
+                f"{action_request_id}"
+            )
+            raise action_service_module.ActionRequestError(msg)
+
+    class FakeTask:
+        @staticmethod
+        def apply_async(*, args: list[str], queue: str) -> None:
+            calls.append({"args": args, "queue": queue})
+
+    monkeypatch.setattr(api_app, "ActionRequestService", FakeActionRequestService)
+    monkeypatch.setattr(api_app, "run_action_request_task_async", FakeTask)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            f"/actions/requests/{missing_id}/dispatch",
+            headers=_headers(),
+        )
+
+    assert response.status_code == 409
+    detail = response.json()["detail"]
+    assert "not found" in detail.lower()
+    assert "dispatch blocked before side effects" in detail.lower()
+    assert calls == []
+
+
+@pytest.mark.asyncio
 async def test_dispatch_action_request_enqueues_worker(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2638,6 +2676,44 @@ async def test_drive_folder_request_auto_approves_in_dedicated_local(
     assert view.status == "queued"
 
 
+class _FakeReadyDriveService:
+    """Stub Drive service used by auto-approve gating tests.
+
+    The real ``DriveService.status()`` returns ``blocked`` when there is no
+    ``token.json`` on disk, so without a stub the auto-approve assertions
+    below never reach the gate logic — they short-circuit at the readiness
+    check. The stub mirrors the shape used by
+    ``test_drive_organize_action_request_service_persists_approval_lifecycle``.
+    """
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        del args, kwargs
+
+    def organize_files(
+        self,
+        request: DriveOrganizeRequest,
+        *,
+        requested_by: str | None = None,
+    ) -> DriveOrganizePreview:
+        del requested_by
+        return DriveOrganizePreview(
+            status="preview",
+            query=request.query,
+            target_folder_name=request.target_folder_name or "Cognitive OS Deliverables",
+            dry_run=True,
+            operation_count=0,
+            operations=[],
+        )
+
+    def status(self) -> DriveStatus:
+        return DriveStatus(
+            status="ready",
+            write_enabled=True,
+            upload_max_bytes=2048,
+            deliverables_folder_name="Cognitive OS Deliverables",
+        )
+
+
 @pytest.mark.asyncio
 async def test_drive_organize_does_not_auto_approve_in_guarded_dedicated_local(
     monkeypatch: pytest.MonkeyPatch,
@@ -2645,6 +2721,7 @@ async def test_drive_organize_does_not_auto_approve_in_guarded_dedicated_local(
     """Guarded dedicated_local preserves the old approval-heavy behavior for
     drive_organize_files."""
     _install_fake_action_session(monkeypatch)
+    monkeypatch.setattr(action_service_module, "DriveService", _FakeReadyDriveService)
     called: list[bool] = []
 
     async def _spy(self: object, **_kwargs: object) -> object:
@@ -2686,6 +2763,7 @@ async def test_drive_organize_auto_approves_in_full_dedicated_local(
     """Full dedicated_local is intentionally zero-friction: executable Action
     Plane requests auto-approve through the canonical queue/dispatch path."""
     _install_fake_action_session(monkeypatch)
+    monkeypatch.setattr(action_service_module, "DriveService", _FakeReadyDriveService)
     captured: dict[str, object] = {}
 
     async def _spy(self: object, **kwargs: object) -> object:  # type: ignore[no-redef]

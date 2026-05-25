@@ -1688,7 +1688,10 @@ class ActionRequestService:
             )
             action_request = (await session.execute(stmt)).scalar_one_or_none()
             if action_request is None:
-                msg = f"Action request not found: {action_request_id}"
+                msg = (
+                    "Action request not found; dispatch blocked before side effects: "
+                    f"{action_request_id}"
+                )
                 raise ActionRequestError(msg)
             if action_request.status in {
                 "cancelled",

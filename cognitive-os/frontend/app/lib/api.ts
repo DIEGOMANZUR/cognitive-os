@@ -66,12 +66,18 @@ export class ApiClient {
     return this.request<T>(path, { method: "GET", signal }, authenticated);
   }
 
-  async post<T>(path: string, body: unknown, authenticated = true): Promise<T> {
+  async post<T>(
+    path: string,
+    body: unknown,
+    authenticated = true,
+    signal?: AbortSignal
+  ): Promise<T> {
     return this.request<T>(
       path,
       {
         method: "POST",
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        signal
       },
       authenticated
     );

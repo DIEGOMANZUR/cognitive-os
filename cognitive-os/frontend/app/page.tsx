@@ -92,6 +92,11 @@ type LocalTokenResponse = {
 };
 
 const AUTO_TOKEN_REFRESH_SKEW_MS = 5 * 60 * 1000;
+const LOCAL_API_BASE = "http://127.0.0.1:8000";
+const PUBLIC_API_BASE = "https://cognitive-api.doctormanzur.com";
+const LOCAL_TOKEN_TIMEOUT_MS = 10000;
+const PUBLIC_FRONTEND_HOSTS = new Set(["cognitive.doctormanzur.com"]);
+const LOCAL_FRONTEND_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 
 export default function Home() {
   return (
@@ -103,7 +108,7 @@ export default function Home() {
 
 function App() {
   const [tab, setTab] = useLocalState<Tab>("cogos.tab", "dashboard");
-  const [apiBase, setApiBase] = useLocalState<string>("cogos.api", "http://127.0.0.1:8000");
+  const [apiBase, setApiBase] = useLocalState<string>("cogos.api", defaultApiBase());
   // Persist JWT in localStorage so a page reload does not force the operator
   // to paste it again. Aligned with the AGENT_SELF.md / docs/USER_GUIDE.md
   // contract that says "JWT en localStorage" for dedicated_local. XSS risk
@@ -125,11 +130,7 @@ function App() {
   const [isMobile, setIsMobile] = useState(false);
   const online = useOnline();
   const toast = useToast();
-
-  useEffect(() => {
-    const env = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
-    if (env) setApiBase(env);
-  }, [setApiBase]);
+  const [localPrefsReady, setLocalPrefsReady] = useState(false);
 
   const applyManualToken = useCallback(
     (value: string) => {
@@ -150,11 +151,14 @@ function App() {
   const requestLocalToken = useCallback(async () => {
     setLocalAuthState("loading");
     setLocalAuthError(null);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), LOCAL_TOKEN_TIMEOUT_MS);
     try {
       const response = await fetch(`${apiBase.replace(/\/+$/, "")}/auth/local-token`, {
         method: "POST",
         headers: { Accept: "application/json" },
-        cache: "no-store"
+        cache: "no-store",
+        signal: controller.signal
       });
       if (!response.ok) {
         const detail = await response.text();
@@ -165,12 +169,19 @@ function App() {
       setLocalAuthState("ready");
     } catch (caught) {
       setLocalAuthState("unavailable");
-      setLocalAuthError(caught instanceof Error ? caught.message : "JWT local no disponible");
+      setLocalAuthError(formatLocalAuthError(caught));
+    } finally {
+      window.clearTimeout(timeout);
     }
   }, [apiBase, applyAutomaticToken]);
 
   useEffect(() => {
     if (!hydrated) return;
+    setLocalPrefsReady(true);
+  }, [hydrated]);
+
+  useEffect(() => {
+    if (!hydrated || !localPrefsReady) return;
     if (tokenSource === "manual") return;
     if (token && !jwtExpiresSoon(token)) {
       setLocalAuthState("ready");
@@ -178,7 +189,7 @@ function App() {
       return;
     }
     void requestLocalToken();
-  }, [hydrated, requestLocalToken, token, tokenSource]);
+  }, [hydrated, localPrefsReady, requestLocalToken, token, tokenSource]);
 
   // PWA deep-link via shortcut (?tab=jobs|approvals|chat|...). Runs once on mount.
   useEffect(() => {
@@ -483,6 +494,25 @@ function App() {
 
 function isUnauthorizedError(message: string): boolean {
   return /(^|\D)401(\D|$)|invalid bearer token|bearer token required/i.test(message);
+}
+
+function defaultApiBase(): string {
+  const env = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+  if (typeof window !== "undefined" && PUBLIC_FRONTEND_HOSTS.has(window.location.hostname)) {
+    return PUBLIC_API_BASE;
+  }
+  if (typeof window !== "undefined" && LOCAL_FRONTEND_HOSTS.has(window.location.hostname)) {
+    return LOCAL_API_BASE;
+  }
+  return env || LOCAL_API_BASE;
+}
+
+function formatLocalAuthError(caught: unknown): string {
+  if (caught instanceof DOMException && caught.name === "AbortError") {
+    return `Timeout al pedir JWT local despues de ${LOCAL_TOKEN_TIMEOUT_MS / 1000}s. Verifica la URL de la API.`;
+  }
+  if (caught instanceof Error) return caught.message;
+  return "JWT local no disponible";
 }
 
 function jwtExpiresSoon(token: string): boolean {

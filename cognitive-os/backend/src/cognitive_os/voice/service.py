@@ -175,7 +175,7 @@ class VoiceService:
             reason=reason,
             stt_model=self._settings.voice_stt_model,
             tts_model=self._settings.voice_tts_model,
-            tts_voice_id=self._settings.voice_tts_voice_id,
+            tts_voice_id="configured" if self._settings.voice_tts_voice_id else "missing",
             max_audio_bytes=self._settings.voice_max_audio_bytes,
         )
 
