@@ -53,6 +53,12 @@ cognitive-os-snapshot-*/
 # re-running the gates and stay out of version control.
 cognitive-os/test-results/
 
+# Read-only audit sandboxes (e.g. `tmp/commercial_audit_<timestamp>/`).
+# Contain the entregables of read-only audit passes (contract map, test
+# matrix, execution plan, final reports). Useful locally but not source
+# of truth — the canonical conclusions get folded into docs/.
+tmp/
+
 # Local tool settings can include machine-specific permissions or paths.
 **/.claude/settings.local.json
 
