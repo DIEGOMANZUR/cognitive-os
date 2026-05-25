@@ -2617,6 +2617,57 @@ async def test_browser_preview_request_endpoint_uses_action_service(
 # -- Fase 69 P0.2 — dedicated_local auto-approve for reversible actions ------
 
 
+class _FakeReadyDriveService:
+    """Stub Drive service used by auto-approve gating tests.
+
+    The real ``DriveService.status()`` returns ``blocked`` when there is no
+    ``token.json`` on disk, so without a stub the auto-approve assertions
+    below never reach the gate logic — they short-circuit at the readiness
+    check. The stub mirrors the shape used by
+    ``test_drive_organize_action_request_service_persists_approval_lifecycle``.
+    """
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        del args, kwargs
+
+    def ensure_deliverables_folder(
+        self,
+        request: DriveFolderRequest | None = None,
+        *,
+        requested_by: str | None = None,
+    ) -> DriveFolderPreview:
+        del requested_by
+        folder_request = request or DriveFolderRequest()
+        return DriveFolderPreview(
+            status="preview",
+            folder_name=folder_request.folder_name or "Cognitive OS Deliverables",
+        )
+
+    def organize_files(
+        self,
+        request: DriveOrganizeRequest,
+        *,
+        requested_by: str | None = None,
+    ) -> DriveOrganizePreview:
+        del requested_by
+        return DriveOrganizePreview(
+            status="preview",
+            query=request.query,
+            target_folder_name=request.target_folder_name or "Cognitive OS Deliverables",
+            dry_run=True,
+            operation_count=0,
+            operations=[],
+        )
+
+    def status(self) -> DriveStatus:
+        return DriveStatus(
+            status="ready",
+            write_enabled=True,
+            upload_max_bytes=2048,
+            deliverables_folder_name="Cognitive OS Deliverables",
+        )
+
+
 @pytest.mark.asyncio
 async def test_drive_folder_request_auto_approves_in_dedicated_local(
     monkeypatch: pytest.MonkeyPatch,
@@ -2625,6 +2676,7 @@ async def test_drive_folder_request_auto_approves_in_dedicated_local(
     auto_approve_reversible_actions=True the service must invoke
     `_auto_approve_and_dispatch` so the operator does not have to click."""
     _install_fake_action_session(monkeypatch)
+    monkeypatch.setattr(action_service_module, "DriveService", _FakeReadyDriveService)
     captured: dict[str, object] = {}
 
     async def _spy(self: object, **kwargs: object) -> object:  # type: ignore[no-redef]
@@ -2674,44 +2726,6 @@ async def test_drive_folder_request_auto_approves_in_dedicated_local(
 
     assert captured, "_auto_approve_and_dispatch must be called for whitelisted reversibles"
     assert view.status == "queued"
-
-
-class _FakeReadyDriveService:
-    """Stub Drive service used by auto-approve gating tests.
-
-    The real ``DriveService.status()`` returns ``blocked`` when there is no
-    ``token.json`` on disk, so without a stub the auto-approve assertions
-    below never reach the gate logic — they short-circuit at the readiness
-    check. The stub mirrors the shape used by
-    ``test_drive_organize_action_request_service_persists_approval_lifecycle``.
-    """
-
-    def __init__(self, *args: object, **kwargs: object) -> None:
-        del args, kwargs
-
-    def organize_files(
-        self,
-        request: DriveOrganizeRequest,
-        *,
-        requested_by: str | None = None,
-    ) -> DriveOrganizePreview:
-        del requested_by
-        return DriveOrganizePreview(
-            status="preview",
-            query=request.query,
-            target_folder_name=request.target_folder_name or "Cognitive OS Deliverables",
-            dry_run=True,
-            operation_count=0,
-            operations=[],
-        )
-
-    def status(self) -> DriveStatus:
-        return DriveStatus(
-            status="ready",
-            write_enabled=True,
-            upload_max_bytes=2048,
-            deliverables_folder_name="Cognitive OS Deliverables",
-        )
 
 
 @pytest.mark.asyncio
@@ -2831,6 +2845,7 @@ async def test_drive_folder_request_does_not_auto_approve_in_strict(
 ) -> None:
     """Even for whitelisted action_types: strict profile keeps approval flow."""
     _install_fake_action_session(monkeypatch)
+    monkeypatch.setattr(action_service_module, "DriveService", _FakeReadyDriveService)
     called: list[bool] = []
 
     async def _spy(self: object, **_kwargs: object) -> object:
