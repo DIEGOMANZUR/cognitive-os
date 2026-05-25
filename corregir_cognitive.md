@@ -1,26 +1,32 @@
 # corregir_cognitive.md — Pendientes Operativos (vivo)
 
-> **Última actualización:** 2026-05-25 post-cierre comercial final (Prompt 6).
-> **Estado de release:** **COMERCIAL LOCAL-FIRST APROBADO** — sin P0/P1/P2
-> funcionales abiertos. Sistema operativo cognitivo local-first con todos los
-> contratos críticos verificados en runtime real.
+> **Última actualización:** 2026-05-25 post-CIERRE ABSOLUTO (Prompt 7).
+> **Estado de release:** **COMERCIAL LOCAL-FIRST APROBADO — CIERRE ABSOLUTO** —
+> sin P0/P1/P2 funcionales abiertos. Sistema operativo cognitivo local-first con
+> todos los contratos críticos verificados en runtime real, 2 ciclos verdes
+> consecutivos post-cierre, runtime confirmado servir HEAD `6891d5c` (backend
+> reiniciado en Prompt 7 para alinear el proceso vivo con el código commiteado).
 >
 > **Reportes vigentes (orden cronológico):**
 > - Activación funcional inicial (Prompt 4):
 >   `tmp/full_functional_activation_20260525_073134/reports/FULL_FUNCTIONAL_ACTIVATION_REPORT.md`
 > - Evaluación independiente (Prompt 5):
 >   `tmp/full_functional_activation_20260525_073134/reports/FULL_FUNCTIONAL_EVALUATION.md`
-> - **Certificación final (Prompt 6 — este ciclo):**
+> - Certificación final P6:
 >   `cognitive-os/docs/audits/FINAL_LOCAL_FIRST_COMMERCIAL_CERTIFICATION.md`
+> - **Certificación absoluta P7 (este ciclo):**
+>   `cognitive-os/docs/audits/FINAL_ABSOLUTE_COMMERCIAL_LOCAL_FIRST_CERTIFICATION.md`
+> - Sandbox P7 con evidencia (305 controles, 2 ciclos verdes, 10 hostiles):
+>   `tmp/final_absolute_closure_20260525_182445/`
 > - Remediación P0 flakiness (archivada tar.gz):
 >   `tmp/full_functional_activation_20260525_073134/archived_remediation/remediation_20260525_065154.tar.gz`
 >
 > **Conteo vigente:**
 > - P0: **0**
-> - P1: **0** (los 2 abiertos del Prompt 5 cerrados)
-> - P2 funcionales: **0** (los 6 abiertos cerrados o documentados como no-bug)
-> - P2 operativos no-código: 2 (operador)
-> - P3 pulido: 2 + recomendaciones previas
+> - P1: **0** (los 2 abiertos del Prompt 5 cerrados en P6, sostenidos en P7)
+> - P2 funcionales: **0** (los 6 abiertos cerrados o documentados)
+> - P2 operativos no-código: 2 (operador) + 2 nuevos OBS no-bloqueantes detectados en P7 (OBS-2, OBS-3)
+> - P3 pulido: 2 + 1 nuevo OBS no-bloqueante detectado en P7 (OBS-1)
 
 Este documento solo lista lo **abierto o pendiente**. Lo cerrado vive en la
 certificación final + en este histórico.
