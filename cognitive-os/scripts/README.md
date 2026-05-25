@@ -1,6 +1,7 @@
 # Scripts
 
-> **Estado actual (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** scripts shell verificados para la
+> **Estado actual (2026-05-25 post-activación funcional, base `0f8232a` —
+> APTO COMERCIAL LOCAL-FIRST · FUNCTIONAL WITH WARNINGS):** scripts shell verificados para la
 > instalación local dedicada. La operación normal prioriza fricción casi
 > nula: los launchers de escritorio levantan Docker, API, worker, beat,
 > frontend, Telegram cuando aplica y Kimi WebBridge sin exigir pasos
@@ -8,20 +9,22 @@
 > conservadores; el objetivo diario es arranque reproducible, diagnóstico
 > visible y recuperación rápida.
 >
-> `full-qa.sh` está actualizado al ciclo vigente (commit `647f103`):
-> backend con **958 passed**, 1 skipped, 28 deselected (944 históricos
-> + 14 nuevos: 3 `eager_defaults`, 3 `health_llm_probe_timeout` y 8 guards QA/scripts/docs);
-> ruff/format/mypy/Alembic
-> verdes, frontend lint/build verde, `sync_doc_counts --check` y
-> `git diff --check` finales. El build frontend de QA usa
-> `NEXT_DIST_DIR=.next-qa` para no invalidar un `next start` vivo.
-> Carril opt-in `full-qa-live.sh` para smokes read-only contra
-> proveedores reales, verificado con **8 passed**. Playwright runner
-> zero-friction: `npx playwright test` mintea el JWT automáticamente
-> via `POST /auth/local-token` en `dedicated_local/full`.
-> `full-qa-live.sh` cubre `/system/mcp`; tras `5953b40` el inventario MCP
-> carga en paralelo con timeout 30s. Runtime actual verificado: 6/6 servers
-> y 69 tools, incluyendo el MCP local read-only `time`.
+> `full-qa.sh` está actualizado al ciclo vigente post-remediación P0:
+> backend con **1192 passed**, 1 skipped, 28 deselected (1190 base + 2
+> regresión `test_clean_slate_fixture_covers_all_fks.py` que cerró la
+> flakiness ~33% del gate hermético — root cause: orden FK del fixture
+> `clean_slate`); `stress-qa.sh 5` -> **5/5 verde × 1192 passed**,
+> flakiness post-fix = 0%; ruff/format/mypy/Alembic verdes, frontend
+> lint/build verde, `sync_doc_counts --check` y `git diff --check`
+> finales. El build frontend de QA usa `NEXT_DIST_DIR=.next-qa` para no
+> invalidar un `next start` vivo. Carril opt-in `full-qa-live.sh` para
+> smokes read-only contra proveedores reales, último gate documentado
+> **8 passed**. Playwright runner zero-friction: `npx playwright test`
+> mintea el JWT automáticamente via `POST /auth/local-token` en
+> `dedicated_local/full`. `full-qa-live.sh` cubre `/system/mcp`; tras
+> `5953b40` el inventario MCP carga en paralelo con timeout 30s. Runtime
+> actual verificado: 6/6 servers y 69 tools, incluyendo el MCP local
+> read-only `time`.
 >
 > **Detalle de scripts:** `dev_worker.sh` escucha **5 queues**:
 > `default,ingestion,agent_longrun,maintenance,mail`. `full-qa.sh` y

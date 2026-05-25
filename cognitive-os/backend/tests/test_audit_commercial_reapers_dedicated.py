@@ -32,6 +32,7 @@ from cognitive_os.core.config import settings
 from cognitive_os.core.db import session_scope
 from cognitive_os.db.models import (
     ActionRequest,
+    DeepAgentMemoryProposalRecord,
     HumanApproval,
     Job,
     JobEvent,
@@ -41,15 +42,23 @@ from cognitive_os.workers.tasks import _reap_stale_running_jobs
 
 @pytest.fixture
 async def clean_slate() -> None:
-    """Truncate the four tables this audit touches.
+    """Truncate this audit's tables + every table whose FK targets HumanApproval.
 
-    FK order matters: ``ActionRequest.approval_id`` references
-    ``HumanApproval.id``; ``JobEvent.job_id`` references ``Job.id``.
-    Children before parents.
+    Other tests (failure_postmortem, skill_promoter, recipe_extractor, etc.)
+    seed rows in ``deepagent_memory_proposals`` with ``approval_id`` populated.
+    Without deleting those children first, the ``HumanApproval`` cleanup hits
+    ``ForeignKeyViolationError`` on the
+    ``fk_deepagent_memory_proposals_approval_id_human_approvals`` constraint
+    (root cause of suite flakiness logged in audit 2026-05-25, F-P0-001).
+
+    FK order matters: both ``ActionRequest.approval_id`` and
+    ``DeepAgentMemoryProposalRecord.approval_id`` reference ``HumanApproval.id``;
+    ``JobEvent.job_id`` references ``Job.id``. Children before parents.
     """
     async with session_scope() as session:
         await session.execute(delete(JobEvent))
         await session.execute(delete(ActionRequest))
+        await session.execute(delete(DeepAgentMemoryProposalRecord))
         await session.execute(delete(HumanApproval))
         await session.execute(delete(Job))
 

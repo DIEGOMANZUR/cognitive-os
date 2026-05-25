@@ -41,15 +41,40 @@
 > `ENABLE_MCP_CLIENT=true` (runtime verificado 6/6 servers — `mem/gh/fs/
 > cc/gem/time` — y 69 tools).
 >
-> **QA más reciente (commit `0f8232a`):** `bash scripts/full-qa.sh` verde
-> con **1190 passed**, 1 skipped, 28 deselected (958 históricos + 227
-> audit-commercial + 4 time_mcp_server + 1 dispatch guard);
+> **Activación funcional end-to-end (2026-05-25):** 16 fases ejecutadas
+> con stack vivo. **APTO COMERCIAL LOCAL-FIRST · FUNCTIONAL WITH WARNINGS**.
+> Contratos críticos verificados live: Mail SMTP gate 3/3 → HTTP 409;
+> Calendar/Drive `dry_run=false` → HTTP 409; `/health/verify` confirma
+> `primary_llm`/`embeddings`/`mail` `ok` live; Chat LLM 10/10 OK (avg 7.16s);
+> thread persiste 4 mensajes; RAG PDF 2p→2 chunks `indexed`; Document
+> Analysis 6 modos detectó contradicción intencional con cita literal
+> (page 2, chunk 1); Code Director plan-only → 3 subtasks → HumanApproval
+> → reject **sin ejecución**; Telegram `@Socio_dimn_bot` live + 102/102
+> hermetic; MCP 6/6 servers, 69 tools; CDP 20 vistas **0 console.error,
+> 0 page.error, 0 5xx**; stress 30 concurrent /health/dashboard 30/30 OK
+> en 8.33s; `operational_backlog.status=ok`. Único hallazgo P1 runtime
+> nuevo (preexistente, no regresión): F-RUNTIME-001 `browser_preview`
+> executor con error Playwright sync/async — pendiente migración a Async
+> Playwright. Reporte:
+> `tmp/full_functional_activation_20260525_073134/reports/FULL_FUNCTIONAL_ACTIVATION_REPORT.md`.
+>
+> **QA más reciente (2026-05-25 post-remediación, base `0f8232a`):** `bash
+> scripts/full-qa.sh` verde con **1192 passed**, 1 skipped, 28 deselected
+> (1190 base + 2 regresión `test_clean_slate_fixture_covers_all_fks.py` de la
+> remediación P0 que cerró la flakiness ~33% del gate);
+> `bash scripts/stress-qa.sh 5` -> **5/5 verde × 1192 passed**, flakiness 0%;
 > ruff/format/mypy/Alembic/lint/build/`sync_doc_counts --check`/`git diff
 > --check` OK; build frontend aislado con `NEXT_DIST_DIR=.next-qa`;
 > Playwright **43 passed** sin exportar `COGOS_JWT` (auto-mint via
 > `_global-setup.ts`); carril opt-in `tests/live/` verificado con **8
 > passed**; TestSprite MCP re-audit histórico **10/10 passed** sobre dos
 > batches.
+>
+> **Cambio test-only en remediación P0:** `clean_slate` ahora limpia
+> `DeepAgentMemoryProposalRecord` antes de `HumanApproval` (FK a
+> `human_approvals.id`); test estructural nuevo
+> `test_clean_slate_fixture_covers_all_fks.py` defiende el orden. Cero
+> modificación a código de producto.
 
 ---
 

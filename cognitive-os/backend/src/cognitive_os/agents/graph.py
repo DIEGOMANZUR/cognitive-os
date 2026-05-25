@@ -205,8 +205,33 @@ def route_request(state: CognitiveState, *, router_llm: Any | None = None) -> Ro
             [
                 (
                     "system",
-                    "Route the user request to one of: research, legal, comm, social. "
-                    "Use needs_human_review for sensitive or high-risk requests.",
+                    # FUNC-EVAL-2026-001: the router LLM was sending purely
+                    # informational prompts ("¿qué eres?", "Repíteme X") to
+                    # `comm` with `proposed_action=send_email`. That triggers a
+                    # human-review interrupt and breaks the low-friction
+                    # promise. The rule below mirrors the deterministic_route
+                    # contract: `comm`/`social` require an EXPLICIT action
+                    # intent (send/draft/publish/notify a recipient), not just
+                    # a verb of internal reformulation like "responde",
+                    # "repíteme", "explica", "resume", "cuéntame".
+                    "Route the user request to one of: research, legal, comm, social.\n\n"
+                    "Routing rules (apply in order):\n"
+                    "1. `legal` ONLY if the user explicitly asks for legal "
+                    "analysis of documents (matrix, contradictions, timeline, "
+                    "draft with citations).\n"
+                    "2. `comm` ONLY if the user explicitly asks to SEND or "
+                    "DRAFT an EXTERNAL message (email, telegram, slack, "
+                    "letter) to a specific recipient. Verbs of internal "
+                    "reformulation like 'responde', 'repíteme', 'explica', "
+                    "'resume', 'cuéntame', 'lista', 'di' are NOT comm — they "
+                    "are research/chat answers.\n"
+                    "3. `social` ONLY for explicit publication intents (post, "
+                    "tweet, publish).\n"
+                    "4. Otherwise → `research` (default for any "
+                    "informational, introspective, or conversational prompt).\n\n"
+                    "Use `needs_human_review` ONLY when the routed lane "
+                    "actually involves external action; never for plain "
+                    "informational answers.",
                 ),
                 ("human", latest_text),
             ]

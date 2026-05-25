@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from datetime import UTC, datetime
 from email.utils import parseaddr
 from pathlib import Path
@@ -605,7 +606,7 @@ class PersonalMailService:
                 f"{subject} — {message.sender}"
             )
             if snippet:
-                lines.append(f"   {snippet[:280]}")
+                lines.append(f"   {_redact_digest_pii(snippet)[:280]}")
         return "\n".join(lines)
 
     @staticmethod
@@ -665,3 +666,29 @@ def _redact_email(address: str) -> str:
     if not local:
         return f"***@{domain}"
     return f"{local[:1]}***@{domain}"
+
+
+# FUNC-EVAL-2026-006: the digest's ``summary_text`` was exposing the operator's
+# full name and Chilean RUT (extracted from the body of judicial notification
+# emails). The summary lives on disk under ``LOCAL_STORAGE_DIR/mail_digests/``
+# and is included in audit sandboxes, so PII leaks beyond the operator's
+# mailbox unless we redact it before persistence.
+#
+# We keep redaction targeted (RUT format + bracketed legal-style ALL-CAPS
+# names that appear in court notifications) so legitimate non-PII content
+# (sender names already shown as the ``--`` header, free-form subjects) is
+# untouched. Email addresses keep the existing ``_redact_email`` policy.
+_RUT_RE = re.compile(r"\b\d{1,2}\.\d{3}\.\d{3}-[\dkK]\b")
+# Sequences of 3+ consecutive ALL-CAPS words (typical Chilean court header:
+# "DIEGO IGNACIO MANZUR NAOUM"). Accents allowed. Avoids over-redacting acronyms
+# by requiring at least 3 words.
+_NAME_CAPS_RE = re.compile(r"\b(?:[A-ZÁÉÍÓÚÑ]{2,}\s+){2,}[A-ZÁÉÍÓÚÑ]{2,}\b")
+
+
+def _redact_digest_pii(text: str) -> str:
+    """Redact RUT chileno and obvious court-style ALL-CAPS full names."""
+
+    if not text:
+        return text
+    redacted = _RUT_RE.sub("[REDACTED_RUT]", text)
+    return _NAME_CAPS_RE.sub("[REDACTED_NAME]", redacted)

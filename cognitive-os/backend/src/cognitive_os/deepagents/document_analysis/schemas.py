@@ -17,7 +17,13 @@ DocumentAnalysisOutputFormat = Literal["json", "markdown", "docx", "csv"]
 
 
 def default_output_formats() -> list[DocumentAnalysisOutputFormat]:
-    return ["json", "markdown"]
+    # Default-on the four supported formats so the operator can download report.docx
+    # and the three CSVs (evidence_matrix.csv, timeline.csv, contradictions.csv)
+    # without having to opt in per-request. Generating csv/docx is cheap (write
+    # to workspace storage) and the contract documented in RUNBOOK.md §Document
+    # Analysis promises all four formats. FUNC-EVAL-2026-003 caught the previous
+    # default ["json","markdown"] producing only 2 of the 4 promised artefacts.
+    return ["json", "markdown", "csv", "docx"]
 
 
 class DocumentAnalysisTask(BaseModel):

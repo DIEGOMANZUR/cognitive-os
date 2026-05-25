@@ -1,26 +1,39 @@
 # RUNBOOK Cognitive OS
 
-> **Estado canonico actual (2026-05-25, commit `0f8232a`):**
-> **RELEASE APPROVED** con matriz audit-commercial hardening cerrada.
-> Operar este host como PC dedicado `dedicated_local/full`: **friccion
-> casi nula por sobre seguridad estricta**. Para estado, gates y
-> contrato de mail ver `CURRENT_STATE.md`; para la postura operativa
-> ver `ZERO_FRICTION_OPERATING_MODEL.md`; para checklists diarias de
+> **Estado canonico actual (2026-05-25 post cierre comercial final, base commit
+> `0f8232a`):** **COMERCIAL LOCAL-FIRST APROBADO** —
+> matriz audit-commercial hardening cerrada + flakiness P0 cerrada (root
+> cause: orden FK del fixture `clean_slate`) + activación funcional end-to-end
+> verificada en 16 fases con stack vivo (mail SMTP gate 3/3 live, Calendar/Drive
+> `dry_run=false`→409, Chat LLM 10/10, RAG ingest+retrieve, Doc Analysis 6 modos
+> con contradicción detectada y cita literal, Code Director plan-only, Telegram
+> `getMe` live, MCP 6/6, CDP 20 vistas con 0 errors, stress 30 concurrent OK).
+> Hallazgo P1 runtime pendiente (preexistente, no regresión): `browser_preview`
+> executor con error Playwright sync/async — ver `corregir_cognitive.md`
+> F-RUNTIME-001. Operar este host como PC dedicado
+> `dedicated_local/full`: **friccion casi nula por sobre seguridad
+> estricta**. Para estado, gates y contrato de mail ver
+> `CURRENT_STATE.md`; para la postura operativa ver
+> `ZERO_FRICTION_OPERATING_MODEL.md`; para checklists diarias de
 > operación, actualización y rollback ver
-> [`audits/testsprite/33_RELEASE_CANDIDATE_PACKAGE.md`](audits/testsprite/33_RELEASE_CANDIDATE_PACKAGE.md).
+> [`audits/testsprite/33_RELEASE_CANDIDATE_PACKAGE.md`](audits/testsprite/33_RELEASE_CANDIDATE_PACKAGE.md);
+> para pendientes vivos ver `corregir_cognitive.md`.
 >
 > **Snapshot vigente** (conteos por `scripts/sync_doc_counts.py`):
 > backend FastAPI con **150 endpoints REST**, **23 tareas Celery** en
 > **5 colas** (`default`, `ingestion`, `agent_longrun`, `maintenance`,
 > `mail`) con hasta **13 jobs beat**, **20 migraciones Alembic** head
 > `202605200003`, **37 slash commands Telegram**, `/health/dashboard`
-> con 18 componentes + `POST /health/verify`. QA: `full-qa.sh`
-> **1190 passed**, 1 skipped, 28 deselected (958 históricos + 227
-> audit-commercial + 4 time_mcp_server + 1 dispatch guard); Playwright
+> con 18 componentes + `POST /health/verify`. QA post-remediación:
+> `full-qa.sh` **1192 passed**, 1 skipped, 28 deselected (1190 base +
+> 2 regresión `test_clean_slate_fixture_covers_all_fks.py`);
+> `stress-qa.sh 5` -> **5/5 verde × 1192 passed** (flakiness 0%); Playwright
 > **43 passed** sin exportar `COGOS_JWT` (auto-mint via
 > `_global-setup.ts`). `full-qa.sh` construye Next en `.next-qa` para
 > no invalidar el `.next` que usa un `next start` vivo. Live read-only:
-> `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**.
+> `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**
+> (último gate documentado); `POST /health/verify` confirmó live
+> `primary_llm`/`embeddings`/`mail` en `ok`.
 > TestSprite histórico corregido en batches locales: **28/28 passed**.
 > Fix `647f103`: `eager_defaults=True` en `db.Base` elimina
 > `MissingGreenlet` 500 en `POST /actions/*/preview/request` — ahora
@@ -77,7 +90,7 @@ Y para los gates QA:
 
 ```bash
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os"
-bash scripts/full-qa.sh                          # 1190 passed (≈70s)
+bash scripts/full-qa.sh                          # 1192 passed post-remediación (≈70s)
 cd frontend && unset COGOS_JWT && npx playwright test --reporter=list
 # 43 passed (auto-mint JWT, no necesita exportar nada)
 ```

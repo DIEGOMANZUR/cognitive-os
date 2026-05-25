@@ -34,6 +34,7 @@ from cognitive_os.core.db import session_scope
 from cognitive_os.core.health import _check_operational_backlog
 from cognitive_os.db.models import (
     ActionRequest,
+    DeepAgentMemoryProposalRecord,
     HumanApproval,
     Job,
     JobEvent,
@@ -42,18 +43,29 @@ from cognitive_os.db.models import (
 
 @pytest.fixture
 async def clean_slate() -> None:
-    """Truncate the four tables this check reads.
+    """Truncate the tables this check reads + every table whose FK targets HumanApproval.
 
-    The audit suite is hermetic against `cognitive_os_test`, but other
-    tests may seed rows. We delete only what this check inspects.
+    The audit suite is hermetic against `cognitive_os_test`, but other tests
+    (e.g. failure_postmortem, skill_promoter, recipe_extractor) may seed rows
+    in ``deepagent_memory_proposals`` with ``approval_id`` populated. We must
+    delete those children before ``HumanApproval`` or the cleanup hits
+    ``ForeignKeyViolationError`` on the
+    ``fk_deepagent_memory_proposals_approval_id_human_approvals`` constraint
+    (root cause of the suite flakiness logged in audit 2026-05-25,
+    F-P0-001 in ``corregir_cognitive.md``).
 
-    FK order matters: ``ActionRequest.approval_id`` references
-    ``HumanApproval.id``; ``JobEvent.job_id`` references ``Job.id``. So we
-    drop children before parents.
+    FK order matters: both ``ActionRequest.approval_id`` and
+    ``DeepAgentMemoryProposalRecord.approval_id`` reference ``HumanApproval.id``;
+    ``JobEvent.job_id`` references ``Job.id``. So we drop children before parents.
+
+    If new tables with a FK to ``human_approvals`` appear, the regression test
+    ``test_clean_slate_fixture_covers_all_fks.py`` will flag this fixture as
+    out of date.
     """
     async with session_scope() as session:
         await session.execute(delete(JobEvent))
         await session.execute(delete(ActionRequest))
+        await session.execute(delete(DeepAgentMemoryProposalRecord))
         await session.execute(delete(HumanApproval))
         await session.execute(delete(Job))
 

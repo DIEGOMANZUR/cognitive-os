@@ -1,6 +1,44 @@
 # ACCEPTANCE CHECKLIST
 
-> **Estado canónico actual (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** aceptación vigente para el
+> **Cierre comercial final 2026-05-25 (post Prompt 6, base `0f8232a`):**
+> **COMERCIAL LOCAL-FIRST APROBADO**. Tras la activación funcional y la
+> evaluación independiente del comité, los 2 P1 + 4 P2 abiertos fueron
+> cerrados con fixes mínimos: `actions/service.py` envuelve los executors de
+> Playwright con `asyncio.to_thread` (browser_preview live ahora completa);
+> `agents/graph.py` hardened el system prompt del router para no clasificar
+> preguntas informacionales como `comm`; `deepagents/document_analysis/schemas.py`
+> default `output_formats` a los 4 formatos prometidos; `mail/service.py`
+> redacta RUT chileno y nombres ALL-CAPS estilo notificación judicial en el
+> digest. 8 tests de regresión nuevos en `test_final_functional_hardening.py`.
+> Gate: `full-qa.sh` **1200 passed**, `stress-qa.sh 5` **5/5 verde**,
+> Playwright **43/43**. Certificación final:
+> `docs/audits/FINAL_LOCAL_FIRST_COMMERCIAL_CERTIFICATION.md`.
+>
+> **Activación funcional 2026-05-25 (post-remediación P0, base `0f8232a`) — histórico:**
+> APTO COMERCIAL LOCAL-FIRST · FUNCTIONAL WITH WARNINGS. 16 fases
+> ejecutadas con stack vivo verificando contratos críticos en runtime:
+> Mail SMTP gate live HTTP 409, Calendar/Drive `dry_run=false`→409, LLM
+> live OK 10/10 chats, RAG ingest+retrieve, Document Analysis 6 modos
+> con cita literal, Code Director plan→approval→reject sin ejecución,
+> Telegram `getMe` live, MCP 6/6/69 tools, CDP 20 vistas 0 errors, 30
+> concurrent /health/dashboard OK. Único hallazgo P1 runtime nuevo
+> (preexistente, no regresión): F-RUNTIME-001 `browser_preview` executor
+> con error Playwright sync/async. Reporte:
+> `tmp/full_functional_activation_20260525_073134/reports/FULL_FUNCTIONAL_ACTIVATION_REPORT.md`.
+>
+> **Cierre post-remediación previa (2026-05-25, base commit `0f8232a` +
+> fix flakiness FK order):** Cerrado el único P0 abierto (flakiness ~33%
+> del gate hermético) con 3 archivos de test (cero código de producto): `test_audit_commercial_operational_backlog.py`
+> + `test_audit_commercial_reapers_dedicated.py` ahora limpian
+> `DeepAgentMemoryProposalRecord` antes de `HumanApproval` (FK a
+> `human_approvals.id`); `test_clean_slate_fixture_covers_all_fks.py`
+> defiende el orden. Gate post-remediación: `full-qa.sh` **1192 passed**,
+> `stress-qa.sh 5` **5/5 verde × 1192 passed** (flakiness 0%), Playwright
+> **43/43**, CDP **0 console.error** × 2 rondas. Reporte:
+> `tmp/full_functional_activation_20260525_073134/archived_remediation/remediation_20260525_065154.tar.gz` (archivado tar.gz).
+> Pendientes vivos: `corregir_cognitive.md`.
+>
+> **Estado canónico previo (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** aceptación vigente para el
 > proyecto como instalación local dedicada. La prioridad de producto es
 > fricción casi nula por sobre seguridad estricta, por lo que `strict`
 > documenta el modo conservador y `dedicated_local/full` documenta el modo

@@ -1,13 +1,17 @@
 # QA · MAP — inventario funcional de la app
 
-> **Actualización vigente (2026-05-25, commit `0f8232a` — RELEASE
-> APPROVED + audit-commercial hardening cerrado):** mapa QA para el
-> cockpit actual. La suite oficial Playwright está verde con **43
-> passed** y se ejecuta contra la SPA Next.js de 20 tabs sin necesidad
-> de exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`). Backend
-> verificado por `full-qa.sh`: **1190 passed**, 1 skipped, 28 deselected
-> (958 históricos + 232 nuevos: 227 audit-commercial + 4 time_mcp_server
-> + 1 dispatch guard).
+> **Actualización vigente (2026-05-25 post-activación funcional, base
+> `0f8232a` — APTO COMERCIAL LOCAL-FIRST · FUNCTIONAL WITH WARNINGS):**
+> Activación funcional end-to-end ejecutada con 16 fases live verificando
+> contratos críticos. Hallazgo P1 runtime nuevo (preexistente, no regresión):
+> F-RUNTIME-001 `browser_preview` Playwright sync/async. Resto: mapa QA para el cockpit actual.
+> La suite oficial Playwright está verde con **43 passed** y se ejecuta
+> contra la SPA Next.js de 20 tabs sin necesidad de exportar
+> `COGOS_JWT` (auto-mint via `_global-setup.ts`). Backend verificado
+> por `full-qa.sh`: **1192 passed**, 1 skipped, 28 deselected (1190
+> base + 2 regresión `test_clean_slate_fixture_covers_all_fks.py`).
+> `stress-qa.sh 5` -> **5/5 verde × 1192 passed**, flakiness post-fix
+> = 0%.
 > El producto corre en un PC dedicado con prioridad de fricción casi
 > nula; los tests deben validar que esa fricción baja no esconda
 > errores, pantallas muertas ni operaciones silenciosas. Mail sigue

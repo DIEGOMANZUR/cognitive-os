@@ -23,18 +23,29 @@
 > correos, propuestas de respuesta como texto separado; no drafts y no
 > envío automático.
 >
-> **QA más reciente (rama `codex/commercial-zero-friction-hardening`):**
-> `bash scripts/full-qa.sh` verde con **1190 passed, 1 skipped, 28
-> deselected** (958 históricos + 227 audit-commercial + 4
-> time_mcp_server + 1 dispatch guard);
+> **Activación funcional end-to-end (2026-05-25):** **FUNCTIONAL WITH
+> WARNINGS**. 16 fases ejecutadas con stack vivo. Contratos críticos
+> verificados live (Mail SMTP gate, Calendar/Drive 409 workflow.v1, RAG con
+> citas, Doc Analysis 6 modos, Code Director plan-only sin ejecución,
+> Telegram getMe, MCP 6/6, CDP 20 vistas sin errors). Único hallazgo P1
+> runtime: F-RUNTIME-001 `browser_preview` Playwright sync/async — ver
+> `corregir_cognitive.md`.
+>
+> **QA más reciente (2026-05-25 post-remediación P0, rama
+> `codex/commercial-zero-friction-hardening`):** `bash scripts/full-qa.sh`
+> verde con **1192 passed, 1 skipped, 28 deselected** (1190 base + 2
+> regresión `test_clean_slate_fixture_covers_all_fks.py` que cierra la
+> flakiness ~33% del gate hermético observada en una auditoría posterior
+> al cierre `0f8232a`); `bash scripts/stress-qa.sh 5` -> **5/5 verde ×
+> 1192 passed**, flakiness 0%;
 > ruff/format/mypy/Alembic/lint/build/`sync_doc_counts --check`/`git
 > diff --check` OK; Playwright **43 passed** sin exportar `COGOS_JWT`
-> (auto-mint via `_global-setup.ts`); `bash scripts/stress-qa.sh` verde
-> con 3 pasadas
-> de **958 passed**. El build de QA usa `NEXT_DIST_DIR=.next-qa` para no
-> invalidar un frontend vivo servido desde `.next`. Live read-only:
-> **8 passed**. TestSprite completo corregido en batches locales:
-> **28/28 passed**.
+> (auto-mint via `_global-setup.ts`). El build de QA usa
+> `NEXT_DIST_DIR=.next-qa` para no invalidar un frontend vivo servido
+> desde `.next`. Live read-only: **8 passed** (último gate documentado);
+> `POST /health/verify` confirmó live `primary_llm`/`embeddings`/`mail` en
+> `ok` durante la remediación. TestSprite histórico corregido en batches
+> locales: **28/28 passed**.
 >
 > **Ultimo ajuste post-gate (`647f103`):** fix `eager_defaults=True` en
 > `db.Base` corrige `MissingGreenlet` en `/actions/*/preview/request` y

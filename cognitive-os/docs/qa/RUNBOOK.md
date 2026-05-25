@@ -1,12 +1,17 @@
 # QA · RUNBOOK — cómo correr la app y la suite Playwright
 
-> **Actualización vigente (2026-05-25, commit `0f8232a` — RELEASE
-> APPROVED + audit-commercial hardening cerrado):** QA oficial del
-> proyecto:
+> **Actualización vigente (2026-05-25 post-activación funcional, base
+> `0f8232a` — APTO COMERCIAL LOCAL-FIRST · FUNCTIONAL WITH WARNINGS):**
+> 16 fases funcionales ejecutadas con stack vivo. Reporte:
+> `tmp/full_functional_activation_20260525_073134/reports/`. Hallazgo P1
+> runtime: F-RUNTIME-001 `browser_preview` Playwright sync/async (no
+> regresión, preexistente). QA oficial del proyecto:
 >
-> - `bash scripts/full-qa.sh` con **1190 passed**, 1 skipped, 28
->   deselected (958 históricos + 232 nuevos: 227 audit-commercial + 4
->   time_mcp_server + 1 dispatch guard).
+> - `bash scripts/full-qa.sh` con **1192 passed**, 1 skipped, 28
+>   deselected (1190 base + 2 regresión `test_clean_slate_fixture_covers_all_fks.py`).
+> - `bash scripts/stress-qa.sh 5` -> **5/5 verde × 1192 passed**,
+>   flakiness post-fix = 0% (cerró F-P0-001 — root cause: orden FK del
+>   fixture `clean_slate`, fix en 3 archivos de test sin tocar producto).
 > - Playwright **43 passed** sin necesidad de exportar `COGOS_JWT`: el
 >   `tests/e2e/_global-setup.ts` mintea el JWT via
 >   `POST /auth/local-token` cuando el perfil es `dedicated_local/full`.
@@ -153,7 +158,7 @@ npm run build   # next build
 
 ```bash
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/backend"
-uv run pytest -q          # 1190 passed esperado en esta rama
+uv run pytest -q          # 1192 passed esperado post-remediación (1190 base + 2 regresión FK order)
 uv run ruff check src tests
 uv run ruff format --check src tests
 uv run mypy src

@@ -1951,14 +1951,25 @@ class ActionRequestService:
             return doc_result.model_dump(mode="json")
 
         if action_type == "browser_preview":
-            preview_result = BrowserPreviewService(self._settings).execute(
-                BrowserPreviewRequest.model_validate(payload)
+            # ``BrowserPreviewService.execute`` is sync and internally uses
+            # ``playwright.sync_api.sync_playwright`` which refuses to run inside
+            # an active asyncio loop. ``_execute`` is async (FastAPI lifespan +
+            # Celery worker eventloop), so we MUST hand off to a worker thread
+            # — otherwise the executor crashes with ``Error: It looks like you
+            # are using Playwright Sync API inside the asyncio loop`` (see
+            # F-RUNTIME-001 / FUNC-EVAL-2026-005 in corregir_cognitive.md).
+            preview_result = await asyncio.to_thread(
+                BrowserPreviewService(self._settings).execute,
+                BrowserPreviewRequest.model_validate(payload),
             )
             return preview_result.model_dump(mode="json")
 
         if action_type == "browser_interactive":
-            interactive_result = BrowserInteractiveService(self._settings).execute(
-                BrowserInteractiveRequest.model_validate(payload)
+            # Same constraint as ``browser_preview``: the sync Playwright
+            # provider cannot share the FastAPI/asyncio event loop.
+            interactive_result = await asyncio.to_thread(
+                BrowserInteractiveService(self._settings).execute,
+                BrowserInteractiveRequest.model_validate(payload),
             )
             return interactive_result.model_dump(mode="json")
 

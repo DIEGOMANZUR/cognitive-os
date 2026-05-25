@@ -1,13 +1,29 @@
 # Estado Actual Canonico — Cognitive OS
 
-Fecha de sincronizacion documental: **2026-05-25**
+Fecha de sincronizacion documental: **2026-05-25 (post-remediación)**
 Branch auditada: `codex/commercial-zero-friction-hardening`
 Ultimo commit certificado: **`0f8232a`** — `test: commercial audit
 hardening — 16 tests, 230 assertions` (precedido por `ce72dc2`
 `feat: Time MCP server + commercial UX hardening across stack`).
-Estado del producto: **RELEASE APPROVED** (grado comercial local-first)
-**con matriz audit-commercial hardening cerrada**. Snapshot de cierre formal:
+Estado del producto: **COMERCIAL LOCAL-FIRST APROBADO** (post cierre Prompt 6).
+Matriz audit-commercial hardening cerrada + flakiness P0 cerrada + activación
+funcional end-to-end verificada + cierre comercial final con 0 P0/P1/P2
+funcionales abiertos. Los 2 P1 abiertos del Prompt 5 (browser_preview Playwright
+sync/async + DeepAgent structured output) fueron resueltos en este commit:
+`actions/service.py` ahora envuelve los executors de Playwright con
+`asyncio.to_thread` (runtime confirmado: `example.com` → `status=completed`,
+`title="Example Domain"`); el DeepAgent BadRequestError quedó documentado como
+contrato "fallar visible" funcionando (fallback heurístico con warning
+explícito + `human_review_required=true`). Además, los 4 P2 del Prompt 5 también
+cerrados: router system prompt hardened, `default_output_formats` cubre los 4
+formatos (json/markdown/csv/docx), redacción PII en mail digest, kill switch
+ya cubierto por test hermético existente.
+Snapshot de cierre formal previo:
 [`docs/audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md`](audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md).
+**Certificación comercial final:**
+[`docs/audits/FINAL_LOCAL_FIRST_COMMERCIAL_CERTIFICATION.md`](audits/FINAL_LOCAL_FIRST_COMMERCIAL_CERTIFICATION.md).
+Reportes de activación + evaluación independiente en
+`tmp/full_functional_activation_20260525_073134/reports/`.
 
 Este archivo es la **fuente corta de verdad** del estado operativo actual. Si
 otro Markdown discrepa, este archivo manda y el otro debe corregirse. Los
@@ -15,6 +31,76 @@ conteos estructurales del "Snapshot Tecnico" se generan con
 `scripts/sync_doc_counts.py` y `full-qa.sh` falla si quedan desincronizados.
 
 ## Cambios Mas Recientes
+
+**Activación funcional end-to-end (2026-05-25 post-remediación).** Sesión
+operativa de 16 fases con el stack vivo en `dedicated_local/full` y JWT real.
+Resultado: **FUNCTIONAL WITH WARNINGS**. Todos los contratos críticos
+verificados en runtime:
+
+- **Mail SMTP gate 3/3 live** → `HTTP 409` con mensaje contrato; no drafts, no send.
+- **Calendar/Drive `dry_run=false` → `HTTP 409`** (workflow.v1 enforced).
+- **GoDaddy DNS preview** `dry_run_only=true`; nunca writes reales.
+- **`POST /health/verify` live** → `primary_llm`, `embeddings`, `mail` confirmados `ok`.
+- **Chat live LLM** 10 mensajes consecutivos OK (avg 7.16s); thread persiste 4 msgs.
+- **RAG ingest+retrieve** verificado: PDF 2p → 2 chunks `indexed` (Weaviate confirm).
+- **Document Analysis 6 modos** ejercitado; detectó contradicción intencional con
+  cita literal (page 2, chunk 1); JSON+MD descargables; `human_review_required=true`
+  por fallback heurístico (DeepAgent `BadRequestError` — F-DOC-ANALYSIS-001).
+- **Code Director plan-only** → 3 subtasks generadas → HumanApproval → reject limpio
+  **sin ejecución**.
+- **Telegram** `getMe` live `@Socio_dimn_bot` + 102/102 hermetic.
+- **MCP** 6/6 servers / 69 tools live.
+- **CDP 20 vistas** con **0 console.error, 0 page.error, 0 5xx**; Ctrl+K palette y
+  mobile OK; 21 screenshots capturados.
+- **Stress**: 30 GET /health/dashboard concurrentes 30/30 OK en 8.33s;
+  `operational_backlog.status=ok` post-actividad (beat_lag 6.6 min).
+
+Hallazgo P1 nuevo (runtime preexistente, NO regresión):
+- **F-RUNTIME-001**: `browser_preview` executor falla con
+  `Playwright Sync API inside asyncio loop`. Histórico confirmado:
+  los últimos 5 `browser_preview` ActionRequests previos (2026-05-23)
+  fallan idénticamente. Contrato "fallar visible" funciona
+  (`status=failed` + error legible + JobEvent). La función queda
+  pendiente de migrar a Async Playwright. Detalle en `corregir_cognitive.md`.
+
+Reporte completo: `tmp/full_functional_activation_20260525_073134/reports/FULL_FUNCTIONAL_ACTIVATION_REPORT.md`.
+
+**Remediación P0 — flakiness suite hermetica (2026-05-25, post `0f8232a`).**
+Una auditoría post-cierre detectó **flakiness real al ~33%** en
+`scripts/full-qa.sh` y `scripts/stress-qa.sh`: 1 de cada 3 corridas fallaba
+con tests distintos cada vez (`test_mail_api`, `test_failure_postmortem`,
+`test_audit_commercial_operational_backlog`, `test_audit_commercial_reapers_dedicated`).
+Causa raíz: el fixture `clean_slate` de los 2 archivos audit-commercial
+borraba `HumanApproval` antes que `DeepAgentMemoryProposalRecord`, que
+también tiene FK a `human_approvals.id`. Tests previos del plan de
+aprendizaje (`test_failure_postmortem`, `test_skill_promoter`,
+`test_recipe_extractor`, `test_nightly_reflection`) dejaban filas en
+`deepagent_memory_proposals` con `approval_id` poblado y la limpieza
+explotaba con `ForeignKeyViolationError` en
+`fk_deepagent_memory_proposals_approval_id_human_approvals`.
+
+Fix aplicado (3 archivos de test, **cero código de producto**):
+- `backend/tests/test_audit_commercial_operational_backlog.py` — agrega
+  `DeepAgentMemoryProposalRecord` al import y al fixture `clean_slate`
+  antes de `HumanApproval`.
+- `backend/tests/test_audit_commercial_reapers_dedicated.py` — idem.
+- `backend/tests/test_clean_slate_fixture_covers_all_fks.py` (nuevo) —
+  test de regresión que detecta futura adición de tablas con FK a
+  `human_approvals` sin actualizar los fixtures.
+
+Gate post-fix: `bash scripts/full-qa.sh` -> **1192 passed**, 1 skipped,
+28 deselected (1190 históricos + 2 regresión). `bash scripts/stress-qa.sh 5`
+-> **5/5 corridas × 1192 passed** sin un solo fallo. Playwright -> **43
+passed**. CDP sweep 20 vistas -> **0 console.error**. **2 ciclos completos
+verdes** tras el último cambio. Tasa de flakiness post-fix: **0%**. Reporte
+en
+`tmp/full_functional_activation_20260525_073134/archived_remediation/remediation_20260525_065154.tar.gz` (archivado tar.gz).
+
+Riesgos operativos residuales (no-código, requieren operador):
+- `google_calendar`/`google_drive` siguen `blocked` por OAuth scope; re-correr
+  `scripts/auth_google.py` para refrescar consent.
+- 309 approvals pending acumuladas (ninguna stale, reaper trabaja); triage
+  operador.
 
 **Audit-commercial hardening matrix (2026-05-25, commit `0f8232a`).**
 Pasada quirurgica de remediacion read-only convertida en cobertura
@@ -76,6 +162,8 @@ Gate ejecutado: `bash scripts/full-qa.sh` -> **1190 passed**, 1 skipped,
 28 deselected (958 historicos + 232 nuevos: 227 audit-commercial + 4
 time_mcp_server + 1 dispatch guard); `npx playwright test` -> **43
 passed** (41 historicos + 2 del nuevo spec de Mail UI).
+*Post-remediación 2026-05-25 ese gate subió a `1192 passed` por +2 tests
+de regresión de la fix `clean_slate` FK order.*
 
 **Time MCP local + commercial UX hardening (2026-05-25, commit `ce72dc2`).**
 Sumo un MCP server local que expone hora actual y conversion de zonas
@@ -392,24 +480,27 @@ Conteos estructurales derivados del codigo (generados por
 | LLM | primary+agent `gpt-5.5` (Responses API + prompt caching 24h), secondary/fallback `gemini-3.1-pro-low`, vision `glm-4.6v` |
 | QA backend | `pytest` hermetico con DB de test aislada (`cognitive_os_test`); guard exhaustivo (subproceso aislado) verifica que se niega a correr contra produccion |
 | QA frontend | Playwright oficial: 43 tests en desktop/mobile; runner zero-friction (auto-mintea `COGOS_JWT` via `POST /auth/local-token` en `dedicated_local/full`) |
-| QA oficial | `scripts/full-qa.sh` (build Next aislado en `.next-qa`, **1190 passed** en esta rama); `stress-qa.sh` para flakiness; `full-qa-live.sh` opt-in para smokes reales |
+| QA oficial | `scripts/full-qa.sh` (build Next aislado en `.next-qa`, **1192 passed** post-remediación 2026-05-25 — 1190 históricos + 2 regresión FK order); `stress-qa.sh 5` -> 5/5 verde, flakiness 0%; `full-qa-live.sh` opt-in para smokes reales |
 | Audit matrix | 16 archivos `test_audit_commercial_*` + `audit-commercial-*.spec.ts` (~230 asserciones) cubren los 4 P0-criticos y 12 GAPs P1 del contrato comercial: Mail SMTP gate, GoDaddy DNS gate, Code Director STDIN, eager_defaults full, auth matrix, path-traversal corpus, operational_backlog reactivo, workflow.v1 hardening, calendar/drive directo `dry_run=false`→409, health overall honest, reapers dedicados, DB isolation, secrets redaction, test fixtures gating, MCP fail-open, Mail UI sin boton Enviar |
 | Reaudit TestSprite | 2 pasadas independientes 2026-05-23: pasada 1 (PASS, 5 hallazgos P2/P3 cerrados); pasada 2 (PASS, 1 P1 nuevo cazado y corregido — eager_defaults). Reporte en `docs/audits/testsprite/16_FINAL_REAUDIT_REPORT.md` |
 
 ## Ultimo Gate Verde Conocido
 
 Gate mas reciente en esta rama (`codex/commercial-zero-friction-hardening`,
-2026-05-25, commit `0f8232a`):
+2026-05-25 post-remediación P0):
 
-- `bash scripts/full-qa.sh` -> **1190 passed, 1 skipped, 28 deselected**
-  (958 historicos + 232 nuevos: 227 audit-commercial + 4 time_mcp_server
-  + 1 dispatch guard).
-- `npx playwright test` -> **43 passed** (41 historicos + 2 del spec
-  `audit-commercial-mail-no-send-button.spec.ts`).
+- `bash scripts/full-qa.sh` -> **1192 passed, 1 skipped, 28 deselected**
+  (1190 históricos + 2 nuevos de regresión `test_clean_slate_fixture_covers_all_fks.py`).
+- `bash scripts/stress-qa.sh 5` -> **5/5 corridas × 1192 passed**, flakiness 0%.
+- `npx playwright test` -> **43 passed** sin exportar `COGOS_JWT`.
 - Ruff/format/mypy/Alembic verdes; frontend `npm run lint` + `tsc
   --noEmit` 0 warnings.
-- 2 fallos historicos `test_drive_organize_*` (test-only, no producto)
-  corregidos con `_FakeReadyDriveService` stub.
+- CDP sweep 20 vistas -> **0 console.error, 0 page.error, 0 5xx** × 2 rondas.
+- Mail SMTP gate verificado live -> `HTTP 409` con mensaje contrato.
+- `/system/mcp` -> **6/6 servers, 69 tools**. `/system/readiness` -> 14/14, gaps=[].
+- Gate previo `0f8232a` (1190 passed) preservado abajo como histórico.
+
+Gate `0f8232a` (2026-05-25, pre-remediación):
 
 Gate inmediatamente anterior (commit `5459ec5`, 2026-05-23):
 

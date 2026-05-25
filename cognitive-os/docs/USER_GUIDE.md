@@ -1,42 +1,55 @@
 # Cognitive OS — Guía de Usuario (comercial)
 
-> **Estado canonico actual (2026-05-25, commit `0f8232a`):**
-> **RELEASE APPROVED** con matriz audit-commercial hardening cerrada.
-> Cuatro pasadas de auditoría independiente cerradas con cero defectos
-> conocidos, **más 16 archivos de test audit-commercial (~230 asserciones
-> nuevas)** que cubren los 4 P0-críticos y 12 GAPs P1 más sensibles del
-> contrato (Mail SMTP gate, GoDaddy DNS gate, Code Director STDIN-only,
-> eager_defaults full matrix, auth matrix, path-traversal corpus,
-> operational_backlog reactivo, workflow.v1 hardening, calendar/drive
-> directo `dry_run=false`→409, health overall honest, reapers
-> dedicados, DB isolation, secrets redaction, fixtures gating, MCP
-> fail-open, Mail UI sin botón Enviar). Cognitive OS se opera en este
-> host como **sistema personal mono-operador para un PC dedicado**. La
-> prioridad de producto es **friccion casi nula por sobre seguridad
-> estricta**: Edge real, Kimi WebBridge, acceso amplio al PC y menos
-> aprobaciones cuando `OPERATOR_PROFILE=dedicated_local` +
+> **Estado canonico actual (2026-05-25 post cierre comercial final, base commit
+> `0f8232a`):** **COMERCIAL LOCAL-FIRST APROBADO** con matriz audit-commercial
+> hardening cerrada + **flakiness P0 cerrada** + **activación funcional end-to-end
+> verificada** (16 fases con stack vivo) + **cierre comercial final** con 0
+> P0/P1/P2 funcionales abiertos. Los 2 P1 abiertos del comité evaluador (router
+> LLM mis-clasificando `comm` + browser_preview Playwright sync/async) están
+> cerrados con tests de regresión y verificación runtime live. El doc_analysis
+> ahora emite los 6 archivos prometidos (json/markdown/csv/docx). El mail
+> digest redacta PII (RUT chileno + nombres ALL-CAPS estilo notificación
+> judicial). Certificación final completa:
+> `../audits/FINAL_LOCAL_FIRST_COMMERCIAL_CERTIFICATION.md`. Cinco pasadas de auditoría independiente cerradas con
+> cero defectos funcionales conocidos, **más 16 archivos de test
+> audit-commercial (~230 asserciones)** que cubren los 4 P0-críticos y 12
+> GAPs P1 más sensibles del contrato (Mail SMTP gate, GoDaddy DNS gate,
+> Code Director STDIN-only, eager_defaults full matrix, auth matrix,
+> path-traversal corpus, operational_backlog reactivo, workflow.v1
+> hardening, calendar/drive directo `dry_run=false`→409, health overall
+> honest, reapers dedicados, DB isolation, secrets redaction, fixtures
+> gating, MCP fail-open, Mail UI sin botón Enviar). Cognitive OS se opera
+> en este host como **sistema personal mono-operador para un PC
+> dedicado**. La prioridad de producto es **friccion casi nula por sobre
+> seguridad estricta**: Edge real, Kimi WebBridge, acceso amplio al PC y
+> menos aprobaciones cuando `OPERATOR_PROFILE=dedicated_local` +
 > `LOCAL_AUTONOMY_MODE=full`. Lo que no se sacrifica es trazabilidad:
 > jobs, eventos, audit, idempotencia, health, readiness y tests deben
 > seguir diciendo exactamente que paso. Mail es la excepcion: el flujo
 > normal solo lee, clasifica, resume y propone respuestas; no crea
 > drafts ni envia correos. Ver `CURRENT_STATE.md` y
-> `ZERO_FRICTION_OPERATING_MODEL.md`. Cierre formal en
-> [`audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md`](audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md).
+> `ZERO_FRICTION_OPERATING_MODEL.md`. Cierre formal del release base en
+> [`audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md`](audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md);
+> remediación P0 más reciente en
+> `tmp/full_functional_activation_20260525_073134/archived_remediation/remediation_20260525_065154.tar.gz` (archivado tar.gz);
+> pendientes vivos en `../../corregir_cognitive.md` (riesgos operativos
+> no-código: refrescar OAuth Google + triage de 309 approvals).
 >
 > **Snapshot actual** (conteos por `scripts/sync_doc_counts.py`): **150
 > endpoints REST**, **23 tareas Celery** en **5 colas**, hasta **13 jobs
 > beat**, **20 migraciones Alembic** head `202605200003`, **20 vistas
 > frontend**, **37 comandos Telegram**, **18 componentes** en
-> `/health/dashboard` + `POST /health/verify`. QA: `full-qa` **1190 passed**,
-> 1 skipped, 28 deselected (958 históricos + 232 nuevos: 227
-> audit-commercial + 4 time_mcp_server + 1 dispatch guard); Playwright
-> **43 passed** sin exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`);
-> carril opt-in `tests/live/` verificado **8 passed**; TestSprite re-audit
-> historico **10/10 passed** sobre dos batches. `full-qa.sh` construye Next
-> en `.next-qa` para no deshidratar el frontend vivo servido desde `.next`.
-> La suite es hermética y corre contra una DB de test aislada
-> (`cognitive_os_test`); producción nunca se toca (guard verificado en
-> subproceso aislado por `test_audit_commercial_db_isolation_guard.py`).
+> `/health/dashboard` + `POST /health/verify`. QA post-remediación: `full-qa`
+> **1192 passed**, 1 skipped, 28 deselected (1190 base + 2 regresión FK order
+> de la remediación 2026-05-25); `stress-qa.sh 5` -> **5/5 verde × 1192 passed**
+> (flakiness 0% tras cerrar F-P0-001); Playwright **43 passed** sin exportar
+> `COGOS_JWT` (auto-mint via `_global-setup.ts`); carril opt-in `tests/live/`
+> verificado **8 passed**; TestSprite re-audit historico **10/10 passed**
+> sobre dos batches. `full-qa.sh` construye Next en `.next-qa` para no
+> deshidratar el frontend vivo servido desde `.next`. La suite es hermética
+> y corre contra una DB de test aislada (`cognitive_os_test`); producción
+> nunca se toca (guard verificado en subproceso aislado por
+> `test_audit_commercial_db_isolation_guard.py`).
 >
 > **Frontend:** *command center glassmorphism dark-only*, instalable como
 > PWA — tokens en `app/globals.css`, tipografía self-hosted, charts SVG
@@ -587,7 +600,7 @@ la allow-list, te responde con los 37 comandos.
 ```bash
 cd cognitive-os
 bash scripts/full-qa.sh                  # pytest + ruff + mypy + frontend build + sync_doc_counts + git diff
-# Esperado vigente: 1190 passed, 1 skipped, 28 deselected; todo verde
+# Esperado vigente post-remediación: 1192 passed, 1 skipped, 28 deselected; todo verde
 # (corre contra cognitive_os_test — la DB de producción nunca se toca)
 
 # Frontend E2E sin exportar nada:

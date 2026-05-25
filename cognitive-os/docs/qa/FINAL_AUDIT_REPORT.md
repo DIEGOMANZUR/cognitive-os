@@ -1,15 +1,26 @@
 # QA · FINAL_AUDIT_REPORT — estado vigente y auditoría histórica
 
-> **Actualización vigente (2026-05-25, commit `0f8232a` — RELEASE
-> APPROVED + audit-commercial hardening cerrado):** este reporte
-> conserva abajo la auditoría Fase 76 como histórico, pero el gate
-> actual del proyecto es más amplio:
+> **Actualización vigente (2026-05-25 post-activación funcional, base
+> `0f8232a` — APTO COMERCIAL LOCAL-FIRST · FUNCTIONAL WITH WARNINGS):**
+> Tras la remediación P0 (flakiness FK order cerrada con 12 corridas verdes),
+> se ejecutó una **activación funcional end-to-end de 16 fases con stack vivo**
+> verificando contratos críticos en runtime real. Veredicto:
+> **FUNCTIONAL WITH WARNINGS**. Reporte:
+> `tmp/full_functional_activation_20260525_073134/reports/FULL_FUNCTIONAL_ACTIVATION_REPORT.md`.
+> Hallazgo P1 runtime nuevo (preexistente, NO regresión): F-RUNTIME-001
+> `browser_preview` executor con error Playwright sync/async — ver
+> `corregir_cognitive.md`. El gate hermético sigue verde: este reporte conserva abajo la
+> auditoría Fase 76 como histórico, pero el gate actual del proyecto
+> es más amplio:
 >
-> - `bash scripts/full-qa.sh` → **1190 passed**, 1 skipped, 28
->   deselected (958 históricos + 227 audit-commercial + 4
->   time_mcp_server + 1 dispatch guard). Ruff/format/mypy/Alembic/
->   frontend lint/build/`sync_doc_counts --check`/`git diff --check`
->   OK.
+> - `bash scripts/full-qa.sh` → **1192 passed**, 1 skipped, 28
+>   deselected (1190 base + 2 regresión `test_clean_slate_fixture_covers_all_fks.py`).
+>   Ruff/format/mypy/Alembic/frontend lint/build/`sync_doc_counts
+>   --check`/`git diff --check` OK.
+> - `bash scripts/stress-qa.sh 5` → **5/5 verde × 1192 passed**,
+>   flakiness post-fix = 0% (cerró F-P0-001 — root cause: orden FK
+>   del fixture `clean_slate`; fix en 3 archivos de test, cero código
+>   de producto).
 > - `npx playwright test --reporter=list` → **43 passed** sin
 >   exportar `COGOS_JWT` (auto-mint via `tests/e2e/_global-setup.ts`).
 >   Incluye `audit-commercial-mail-no-send-button.spec.ts`.
@@ -186,7 +197,7 @@ frontend/
 ```bash
 # Backend pytest (referencia):
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/backend"
-uv run pytest -q                                   # 1190 passed esperado en esta rama
+uv run pytest -q                                   # 1192 passed esperado post-remediación (1190 base + 2 regresión FK order)
 
 # Frontend lint + build:
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/frontend"
