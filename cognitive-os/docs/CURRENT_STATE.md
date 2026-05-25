@@ -1,11 +1,12 @@
 # Estado Actual Canonico — Cognitive OS
 
-Fecha de sincronizacion documental: **2026-05-23**
+Fecha de sincronizacion documental: **2026-05-25**
 Branch auditada: `codex/commercial-zero-friction-hardening`
-Ultimo commit certificado: **`bbaaea8`** — `docs: cierre absoluto release
-audit — RELEASE APPROVED, no known defects`.
-Estado del producto: **RELEASE APPROVED** (grado comercial local-first).
-Snapshot de cierre formal:
+Ultimo commit certificado: **`0f8232a`** — `test: commercial audit
+hardening — 16 tests, 230 assertions` (precedido por `ce72dc2`
+`feat: Time MCP server + commercial UX hardening across stack`).
+Estado del producto: **RELEASE APPROVED** (grado comercial local-first)
+**con matriz audit-commercial hardening cerrada**. Snapshot de cierre formal:
 [`docs/audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md`](audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md).
 
 Este archivo es la **fuente corta de verdad** del estado operativo actual. Si
@@ -14,6 +15,89 @@ conteos estructurales del "Snapshot Tecnico" se generan con
 `scripts/sync_doc_counts.py` y `full-qa.sh` falla si quedan desincronizados.
 
 ## Cambios Mas Recientes
+
+**Audit-commercial hardening matrix (2026-05-25, commit `0f8232a`).**
+Pasada quirurgica de remediacion read-only convertida en cobertura
+hermetica: cerro los 4 contratos P0-criticos y los 12 GAPs P1 mas
+sensibles que el mapa de contrato
+(`tmp/commercial_audit_20260525_030342/01_CONTRACT_MAP.md`) habia
+flageado entre "happy-path verificado" y "todos los caminos criticos
+bajo regresion". **No se toco codigo de producto** en esta remediacion;
+solo se agregaron 16 archivos de test (15 pytest backend + 1 Playwright
+spec) con ~230 asserciones nuevas.
+
+P0-criticos cubiertos por matriz exhaustiva:
+
+- **Mail SMTP escape hatch** (`test_audit_commercial_mail_smtp_gating.py`):
+  matriz 10 filas `(enable_email_send × mail_allow_explicit_send ×
+  confirmation phrase)`. Solo `(True, True, "SEND_THIS_EMAIL_EXPLICITLY")`
+  llega a SMTP; el resto levanta `MailServiceError` ANTES de
+  `_send_with_account`.
+- **GoDaddy DNS production gate**
+  (`test_audit_commercial_godaddy_dns_gating.py`): matriz 16 filas
+  `(enabled × dry_run × allow_writes × dominio_allow_list × prod_vs_OTE)`.
+  Solo 3 combinaciones ejecutan HTTP PATCH; el resto bloquea sin trafico.
+- **Code Director STDIN-only**
+  (`test_audit_commercial_code_director_stdin_only.py`): 4 layers —
+  `build_argv` no contiene prompt/secret tokens (Claude/Codex/Kimi),
+  argv bounded, lectura viva de `/proc/<pid>/cmdline` confirma cero
+  leak, static guard sobre `subprocess_base.py`.
+- **Mail UI sin boton Enviar**
+  (`audit-commercial-mail-no-send-button.spec.ts`): scan DOM por roles
+  (button/link/menuitem/switch/checkbox) y placeholders de input contra
+  patrones send/draft (es+en); intercept de
+  `/mail/messages/*/approve-send` para confirmar que el flujo de digest
+  jamas lo invoca.
+
+GAPs P1 cerrados (12 archivos): eager_defaults full matrix (los 9
+`WORKFLOW_EXPORTABLE_TYPES` + 2 carriles), auth matrix 35 operator x 9
+admin endpoints x 3 roles, corpus path-traversal +
+`resolve_ingest_document_path` + symlink escape, operational_backlog
+truth table reactivo, workflow.v1 version reject + dedup idempotente,
+calendar/drive directo `dry_run=false` -> 409, health `_overall_status`
+truth table (configured != ok), reapers dedicados (`reap_stuck_running`
++ `_reap_stale_running_jobs` con idempotencia), DB isolation guard en
+subproceso aislado, secrets redaction sobre 8 superficies hostiles,
+test fixtures gating en local/production/APP_ENV/COGOS flag, MCP
+per-server fail-open.
+
+Tambien resuelto en este pase (test-only bugs encontrados durante
+verificacion):
+
+- `test_drive_organize_does_not_auto_approve_in_guarded_dedicated_local`
+  y `test_drive_organize_auto_approves_in_full_dedicated_local`
+  estaban rojos en HEAD `5459ec5` porque no stubeaban `DriveService`
+  (el servicio real devolvia `blocked` por `token.json` ausente y
+  short-circuiteaba la gate). Se agrego `_FakeReadyDriveService`
+  reusando el patron de
+  `test_drive_organize_action_request_service_persists_approval_lifecycle`.
+
+Gate ejecutado: `bash scripts/full-qa.sh` -> **1190 passed**, 1 skipped,
+28 deselected (958 historicos + 232 nuevos: 227 audit-commercial + 4
+time_mcp_server + 1 dispatch guard); `npx playwright test` -> **43
+passed** (41 historicos + 2 del nuevo spec de Mail UI).
+
+**Time MCP local + commercial UX hardening (2026-05-25, commit `ce72dc2`).**
+Sumo un MCP server local que expone hora actual y conversion de zonas
+sin red ni auth (`time_mcp_server.py`, stdio), llevando el inventario a
+**6/6 servers** (`mem/gh/fs/cc/gem/time`) y **69 tools**. En la misma
+pasada lleva el hardening UX que el working tree habia acumulado:
+
+- `actions/service.py`: el error de dispatch ahora dice
+  *"Action request not found; dispatch blocked before side effects"* para
+  garantizar trazabilidad del fail-closed cuando el AR no existe.
+- `voice/service.py`: redacta `tts_voice_id` a `"configured"`/`"missing"`
+  en lugar de leakear el id real del proveedor.
+- Frontend: `lib/api.ts` reenvia `AbortSignal`; `page.tsx` detecta host
+  publico/local y elige API base correcto + aborta `requestLocalToken`
+  tras 10s; `HealthView` aborta `/health/verify` tras 45s con mensaje
+  legible; `SettingsView` siempre renderiza el tile MCP (cargando / sin
+  datos / N/M conectados) en lugar de esconderlo.
+- Tests: `test_dispatch_missing_action_request_reports_blocked_guard`
+  cubre el guard del dispatch; `test_audit_commercial_*` (en commit
+  posterior) cierran la matriz.
+- `scripts/README.md`, `qa/reports/testsprite_latest_summary.md`:
+  snapshots refrescados.
 
 **Hardening comercial zero-friction (2026-05-23, rama
 `codex/commercial-zero-friction-hardening`).** Esta rama corrige falsos verdes
@@ -174,13 +258,28 @@ quedaron corregidos y verificados:
 
 - `/system/mcp` ya no depende de una carga secuencial lenta: el inventario de
   servidores MCP se carga en paralelo y el timeout default
-  `MCP_INVENTORY_TIMEOUT_SECONDS` subio a 30s. Verificacion runtime:
+  `MCP_INVENTORY_TIMEOUT_SECONDS` subio a 30s. Verificacion runtime original:
   **5/5 servidores conectados** (`mem`, `gh`, `fs`, `cc`, `gem`) y **67 tools**
   expuestas; Playwright consulta `/system/mcp` dentro de su timeout.
 - `Ctrl/Cmd+K` de la command palette se registra en capture phase para que el
   atajo no quede consumido por inputs/foco de la pagina.
 - QA posterior al commit: `full-qa.sh` **944 passed**, Playwright **31 passed**,
   `full-qa-live.sh` **8 passed** y `stress-qa.sh` 3 pasadas de **944 passed**.
+
+**MCP local `time` (2026-05-25).** Se agrego un servidor MCP propio de
+Cognitive OS para hora/conversion de zonas sin depender del bridge de Codex:
+
+- Implementacion: `backend/src/cognitive_os/integrations/time_mcp_server.py`
+  con el SDK Python MCP (`FastMCP`) y transporte `stdio`.
+- Configuracion runtime: `MCP_SERVERS` suma
+  `time:stdio:uv run python -m cognitive_os.integrations.time_mcp_server::cwd=.../cognitive-os/backend`.
+  Como todo cambio en `.env`/`MCP_SERVERS`, requiere reinicio del stack para
+  que API y workers lean la declaracion nueva.
+- Seguridad/alcance: read-only, sin auth, sin secretos, sin red externa y sin
+  writes. Default timezone `America/Santiago`.
+- Tools expuestas: `time_time_now` y `time_time_convert`. Runtime vivo
+  verificado en `/system/mcp`: **6/6 servers conectados**
+  (`mem`, `gh`, `fs`, `cc`, `gem`, `time`) y **69 tools**.
 
 **Hardening comercial zero-friction (2026-05-22).** Se reforzo el gate
 oficial y la cobertura E2E sin cambiar la postura de producto:
@@ -278,7 +377,7 @@ Conteos estructurales derivados del codigo (generados por
 
 | Area | Estado actual |
 |---|---|
-| Backend | FastAPI 0.115+, 147 decoradores REST en `api/app.py` |
+| Backend | FastAPI 0.115+, 150 endpoints REST en `api/app.py` (147 `@app.*` + 3 `@router.*` de `test_fixtures`) |
 | Frontend | Next.js 16.2.6 + React 19, 20 vistas en `frontend/app/views` |
 | Infra | Docker Compose local con Postgres 16+pgvector, Redis 7, Weaviate 1.29.0, Neo4j 5; todo ligado a `127.0.0.1` |
 | DB | 20 migraciones Alembic, head `202605200003`, `alembic check` sin drift |
@@ -286,20 +385,33 @@ Conteos estructurales derivados del codigo (generados por
 | Telegram | 37 slash commands; modo conversacional sin slash en `dedicated_local`; dispatch fail-closed |
 | Mail | Gmail `TODOS`/`SPAM` + GoDaddy `Spam`; clasificacion propia del agente; digest 10:00 y 20:00 Chile; respuestas propuestas como texto |
 | Health | `/health/dashboard` expone 18 componentes (17 checks + checkpointer); `/health/verify` hace probe en vivo |
-| MCP | Cliente habilitable en `dedicated_local`; `/system/mcp` carga inventario en paralelo con timeout default 30s; runtime verificado 5/5 servers y 67 tools |
+| MCP | Cliente habilitable en `dedicated_local`; `/system/mcp` carga inventario en paralelo con timeout default 30s; runtime verificado 6/6 servers (`mem`, `gh`, `fs`, `cc`, `gem`, `time`) y 69 tools; `time` es local read-only por `stdio` (`uv run python -m cognitive_os.integrations.time_mcp_server`, no usa auth ni red externa) |
 | Learning | Fases A-E en produccion: recipes, failure postmortem, tool scorecard, skill promotion, nightly reflection; auto-promote con kill switch |
-| Code Director | Planner LLM-driven + adapters Claude Code/Codex/Kimi/DeepAgents bajo budget/audit |
+| Code Director | Planner LLM-driven + adapters Claude Code/Codex/Kimi/DeepAgents bajo budget/audit; STDIN-only (no fuga en `ps`) verificado por matriz audit-commercial |
 | Browser | Kimi WebBridge + Edge real disponibles para el perfil dedicado |
 | LLM | primary+agent `gpt-5.5` (Responses API + prompt caching 24h), secondary/fallback `gemini-3.1-pro-low`, vision `glm-4.6v` |
-| QA backend | `pytest` hermetico con DB de test aislada (`cognitive_os_test`) |
-| QA frontend | Playwright oficial: 31 tests en desktop/mobile; runner zero-friction (auto-mintea `COGOS_JWT` via `POST /auth/local-token` en `dedicated_local/full`) |
-| QA oficial | `scripts/full-qa.sh` (build Next aislado en `.next-qa`, 958 passed en esta rama); `stress-qa.sh` para flakiness; `full-qa-live.sh` opt-in para smokes reales |
+| QA backend | `pytest` hermetico con DB de test aislada (`cognitive_os_test`); guard exhaustivo (subproceso aislado) verifica que se niega a correr contra produccion |
+| QA frontend | Playwright oficial: 43 tests en desktop/mobile; runner zero-friction (auto-mintea `COGOS_JWT` via `POST /auth/local-token` en `dedicated_local/full`) |
+| QA oficial | `scripts/full-qa.sh` (build Next aislado en `.next-qa`, **1190 passed** en esta rama); `stress-qa.sh` para flakiness; `full-qa-live.sh` opt-in para smokes reales |
+| Audit matrix | 16 archivos `test_audit_commercial_*` + `audit-commercial-*.spec.ts` (~230 asserciones) cubren los 4 P0-criticos y 12 GAPs P1 del contrato comercial: Mail SMTP gate, GoDaddy DNS gate, Code Director STDIN, eager_defaults full, auth matrix, path-traversal corpus, operational_backlog reactivo, workflow.v1 hardening, calendar/drive directo `dry_run=false`→409, health overall honest, reapers dedicados, DB isolation, secrets redaction, test fixtures gating, MCP fail-open, Mail UI sin boton Enviar |
 | Reaudit TestSprite | 2 pasadas independientes 2026-05-23: pasada 1 (PASS, 5 hallazgos P2/P3 cerrados); pasada 2 (PASS, 1 P1 nuevo cazado y corregido — eager_defaults). Reporte en `docs/audits/testsprite/16_FINAL_REAUDIT_REPORT.md` |
 
 ## Ultimo Gate Verde Conocido
 
 Gate mas reciente en esta rama (`codex/commercial-zero-friction-hardening`,
-2026-05-23):
+2026-05-25, commit `0f8232a`):
+
+- `bash scripts/full-qa.sh` -> **1190 passed, 1 skipped, 28 deselected**
+  (958 historicos + 232 nuevos: 227 audit-commercial + 4 time_mcp_server
+  + 1 dispatch guard).
+- `npx playwright test` -> **43 passed** (41 historicos + 2 del spec
+  `audit-commercial-mail-no-send-button.spec.ts`).
+- Ruff/format/mypy/Alembic verdes; frontend `npm run lint` + `tsc
+  --noEmit` 0 warnings.
+- 2 fallos historicos `test_drive_organize_*` (test-only, no producto)
+  corregidos con `_FakeReadyDriveService` stub.
+
+Gate inmediatamente anterior (commit `5459ec5`, 2026-05-23):
 
 - `bash scripts/full-qa.sh` -> **958 passed, 1 skipped, 28 deselected**.
 - `bash scripts/stress-qa.sh` -> 3 pasadas verdes de **958 passed**.
@@ -336,7 +448,7 @@ anterior a la certificación):
   carril live verificado; 2 warnings de deprecacion del adaptador MCP upstream,
   no bloqueantes). En este audit no se re-ejecutó (opt-in, no presente en
   `.env`).
-- `/system/mcp` con JWT local -> **5/5 connected**, **67 tools**.
+- `/system/mcp` con JWT local -> **6/6 connected**, **69 tools**.
 - `/system/readiness` -> **14/14 capacidades unlocked**, `gaps=[]`,
   `summary="Sin friccion. Todas las capacidades del perfil estan activas."`.
 - `/health/dashboard` -> 18 componentes, overall `configured`; `POST /health/verify`

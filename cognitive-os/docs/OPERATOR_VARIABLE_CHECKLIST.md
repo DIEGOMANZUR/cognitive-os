@@ -29,7 +29,9 @@
 > - `ENABLE_MCP_CLIENT`, `MCP_SERVERS`, `MCP_CALL_TIMEOUT_SECONDS`,
 >   `MCP_INVENTORY_TIMEOUT_SECONDS`,
 >   `MCP_ALLOWED_FOR_RESEARCH`, `MCP_ALLOWED_FOR_DOCUMENT_ANALYSIS` —
->   cliente MCP.
+>   cliente MCP. El set local actual incluye `time:stdio:uv run python -m
+>   cognitive_os.integrations.time_mcp_server::cwd=.../cognitive-os/backend`;
+>   no requiere secreto y cualquier cambio en `MCP_SERVERS` exige restart.
 > - `AGENT_LLM_*` — carril de modelo tool-capable del agente.
 > - **`FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED`** (default `true`,
 >   AUDIT-2026-C) — kill switch del único auto-deploy del plan de

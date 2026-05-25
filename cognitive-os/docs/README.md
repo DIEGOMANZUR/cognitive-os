@@ -49,8 +49,10 @@
 > [`audits/testsprite/16_FINAL_REAUDIT_REPORT.md`](audits/testsprite/16_FINAL_REAUDIT_REPORT.md).
 >
 > **Post-gate `5953b40`:** `/system/mcp` carga inventario en paralelo con
-> `MCP_INVENTORY_TIMEOUT_SECONDS=30`; runtime verificado **5/5 MCP servers**
-> y **67 tools**. El frontend estabiliza `Ctrl/Cmd+K` de la command palette.
+> `MCP_INVENTORY_TIMEOUT_SECONDS=30`; runtime actual verificado **6/6 MCP
+> servers** y **69 tools** tras agregar el MCP local `time` (2 tools:
+> `time_time_now`, `time_time_convert`). El frontend estabiliza `Ctrl/Cmd+K`
+> de la command palette.
 >
 > **Plan de aprendizaje autonomo (Fases A-E, `AGENT_LEARNING_PLAN.md`):** en
 > produccion. Fase A recipe extractor, Fase B skill promotion (procedure →

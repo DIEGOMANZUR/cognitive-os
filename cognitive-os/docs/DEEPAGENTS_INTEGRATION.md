@@ -19,8 +19,10 @@
 > *tool-capable* (soporta `tool_choice` forzado para structured output);
 > los modelos *reasoner* rompen este carril en silencio.
 > Ajuste vigente `5953b40`: el cliente MCP inventaria servidores en paralelo
-> con timeout default 30s; runtime verificado 5/5 servers (`mem`, `gh`, `fs`,
-> `cc`, `gem`) y 67 tools.
+> con timeout default 30s. Runtime actual: 6/6 servers (`mem`, `gh`, `fs`,
+> `cc`, `gem`, `time`) y 69 tools. `time` es un MCP local read-only del
+> backend para hora/conversion de zonas, expuesto como `time_time_now` y
+> `time_time_convert`.
 
 ---
 

@@ -1,12 +1,14 @@
 # Cognitive OS
 
-> **Estado canonico (2026-05-23, commit `bbaaea8`):**
+> **Estado canonico (2026-05-25, commit `0f8232a`):**
 > **RELEASE APPROVED** — cuatro pasadas de auditoría independiente
-> cerradas con cero defectos conocidos. Cognitive OS corre como
-> **sistema cognitivo local mono-operador** para el PC dedicado de
-> Diego. Prioridad de producto: **friccion operativa casi nula por
-> sobre seguridad estricta** — perfil real de Edge, operacion amplia
-> en el PC y approvals reducidos cuando el perfil es
+> cerradas con cero defectos conocidos, **+ matriz audit-commercial
+> hardening cerrada** (16 archivos de test, ~230 asserciones nuevas
+> cubriendo los 4 P0-criticos y 12 GAPs P1 del contrato). Cognitive
+> OS corre como **sistema cognitivo local mono-operador** para el PC
+> dedicado de Diego. Prioridad de producto: **friccion operativa casi
+> nula por sobre seguridad estricta** — perfil real de Edge, operacion
+> amplia en el PC y approvals reducidos cuando el perfil es
 > `dedicated_local/full`. Los controles principales son trazabilidad,
 > idempotencia, logs, health/readiness honesto, reapers y tests.
 > Excepcion dura: **mail** — el flujo normal solo lee, clasifica,
@@ -40,18 +42,55 @@ falla si quedan desincronizados):
   PWA dark-only glassmorphism, sin Tailwind/shadcn.
 - **LLM** — primary+agent `gpt-5.5` (Responses API + prompt caching 24h),
   secondary/fallback `gemini-3.1-pro-low`, vision `glm-4.6v`.
-- **QA** — `full-qa.sh` **958 passed, 1 skipped, 28 deselected** +
+- **QA** — `full-qa.sh` **1190 passed, 1 skipped, 28 deselected** +
   ruff/format/mypy/Alembic/lint/build/`sync_doc_counts`/`git diff --check`;
-  `stress-qa.sh` 3 pasadas verdes de **958 passed**; Playwright **41
-  passed** (sin necesidad de exportar `COGOS_JWT` — auto-mint via
-  `POST /auth/local-token`); carril opt-in `tests/live/` verificado con
+  Playwright **43 passed** (sin necesidad de exportar `COGOS_JWT` — auto-mint
+  via `POST /auth/local-token`); carril opt-in `tests/live/` verificado con
   **8 passed** contra proveedores reales. TestSprite historico corregido en
   batches locales: **28/28 passed**; el intento final con la API key entregada
   quedo bloqueado por TestSprite con `AUTH_FAILED` HTTP 401.
+- **Audit-commercial hardening matrix** — 16 archivos `test_audit_commercial_*`
+  (15 pytest backend + 1 Playwright spec) con ~230 asserciones hermeticas que
+  cierran los contratos P0/P1 mas sensibles: Mail SMTP gate, GoDaddy DNS gate,
+  Code Director STDIN-only, eager_defaults full matrix, auth matrix completa,
+  path-traversal corpus, operational_backlog reactivo, workflow.v1 version
+  hardening, calendar/drive directo `dry_run=false`→409, health overall honest,
+  reapers dedicados, DB isolation guard, secrets redaction, test fixtures
+  gating, MCP fail-open, Mail UI sin boton Enviar.
 - Infra de datos (Postgres / Redis 7 / Weaviate 1.29.0 / Neo4j 5) ligada a
   `127.0.0.1`, sin exposicion a internet.
 
 ## Cambios Recientes
+
+**Audit-commercial hardening matrix (`0f8232a`, 2026-05-25).** Pasada
+quirurgica de remediacion read-only convertida en cobertura hermetica:
+cerro los 4 contratos P0-criticos y los 12 GAPs P1 del mapa de contrato
+(`tmp/commercial_audit_20260525_030342/01_CONTRACT_MAP.md`). **Sin tocar
+codigo de producto**; solo 16 archivos de test nuevos (15 pytest backend
++ 1 Playwright spec) con ~230 asserciones. Plan ejecutado en
+`tmp/commercial_audit_20260525_030342/03_EXECUTION_PLAN.md`; reporte en
+`tmp/commercial_audit_20260525_030342/05_REMEDIATION_REPORT.md`.
+
+Tambien resuelve 2 tests historicos rojos en HEAD `5459ec5`
+(`test_drive_organize_does_not_auto_approve_in_guarded_dedicated_local`
+y `test_drive_organize_auto_approves_in_full_dedicated_local`) que no
+stubeaban `DriveService`; ahora usan `_FakeReadyDriveService`.
+
+Gate post-fix: `bash scripts/full-qa.sh` -> **1190 passed**, 1 skipped,
+28 deselected (958 historicos + 227 audit-commercial + 4 time_mcp_server
++ 1 dispatch guard). Playwright -> **43 passed**.
+
+**Time MCP local + commercial UX hardening (`ce72dc2`, 2026-05-25).**
+MCP server local de hora (`time_mcp_server.py`, stdio, sin red, sin
+auth) -> inventario **6/6 servers** (`mem/gh/fs/cc/gem/time`) y **69
+tools**. En la misma pasada: error message del dispatch
+`"Action request not found; dispatch blocked before side effects"`,
+voice service redacta `tts_voice_id` a `configured`/`missing`,
+frontend `lib/api.ts` soporta `AbortSignal`, `page.tsx` detecta host
+publico/local + aborta `requestLocalToken` tras 10s, `HealthView`
+aborta `/health/verify` tras 45s con mensaje legible, `SettingsView`
+siempre renderiza el tile MCP (no oculto). Nuevo
+`test_dispatch_missing_action_request_reports_blocked_guard`.
 
 **Reaudit TestSprite + zero-friction Playwright (`647f103`, 2026-05-23).**
 Una segunda pasada de auditoria independiente cazo un P1 que la primera
@@ -86,9 +125,13 @@ detalle historico en
 
 **Post-gate MCP/frontend (`5953b40`, 2026-05-22).** Se corrigio un falso
 timeout real de `/system/mcp`: el inventario de MCP carga servidores en
-paralelo y usa `MCP_INVENTORY_TIMEOUT_SECONDS=30` por defecto. Runtime
-verificado: `mem`, `gh`, `fs`, `cc` y `gem` conectados (**5/5**) con **67
-tools**. Tambien se estabilizo `Ctrl/Cmd+K` del command palette usando capture
+paralelo y usa `MCP_INVENTORY_TIMEOUT_SECONDS=30` por defecto. Runtime actual
+verificado tras el alta local de `time` (2026-05-25): `mem`, `gh`, `fs`, `cc`,
+`gem` y `time` conectados (**6/6**) con **69 tools**. `time` corre como MCP
+local del backend por `stdio` (`uv run python -m
+cognitive_os.integrations.time_mcp_server`), no usa auth ni red externa, y
+expone `time_time_now` / `time_time_convert` para hora actual y conversion de
+zonas. Tambien se estabilizo `Ctrl/Cmd+K` del command palette usando capture
 phase en el hook de teclado.
 
 **Remediacion del audit comercial (2026-05-22).** Tras
@@ -165,7 +208,7 @@ rsync -a --exclude node_modules --exclude .next --exclude .venv --exclude '__pyc
 - Python ≥ 3.12 y [uv](https://docs.astral.sh/uv/)
 - Node.js ≥ 22 y npm
 - Verificación reproducible: `bash scripts/full-qa.sh` (`uv sync --extra openharness` + `pytest` + `ruff check` + `ruff format --check` + `mypy` + `npm ci` + `npm run lint` + `npm run build` + `sync_doc_counts.py --check` + `git diff --check`). Estrés: `bash scripts/stress-qa.sh` (3 pasadas de pytest por defecto). Smokes en vivo opt-in: `bash scripts/full-qa-live.sh`.
-- Snapshot QA histórico (2026-05-23, commit `647f103`): `bash scripts/full-qa.sh` **950 passed, 1 skipped, 28 deselected** (944 históricos + 6 nuevos de regresión del bug `eager_defaults`); ruff/ruff format/mypy, frontend lint/build aislado con `.next-qa`, Alembic head `202605200003` y `git diff --check` verdes. Playwright frontend: **31 passed** sin exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`). Stress QA: 3 pasadas de **950 passed**. Live read-only: `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed** (último gate documentado; no re-ejecutado en re-audit por ser opt-in). TestSprite MCP re-audit: **10/10 passed** sobre dos batches.
+- Snapshot QA actual (2026-05-25, commit `0f8232a`): `bash scripts/full-qa.sh` **1190 passed, 1 skipped, 28 deselected** (958 históricos + 232 nuevos: 227 audit-commercial + 4 time_mcp_server + 1 dispatch guard); ruff/ruff format/mypy, frontend lint/build aislado con `.next-qa`, Alembic head `202605200003` y `git diff --check` verdes. Playwright frontend: **43 passed** sin exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`). Live read-only: `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed** (último gate documentado; no re-ejecutado por ser opt-in). TestSprite MCP re-audit historico: **10/10 passed**.
 
 ## Backend
 
@@ -254,7 +297,7 @@ En desarrollo el panel puede apuntar al API desde ajustes en la UI; si defines
 - `npm run build` → Next 16.2.6 + Turbopack OK.
 - `npx tsc --noEmit` → 0 errores.
 - Playwright headless full-walk (1440×900 + 393×851 mobile) sobre las 20
-  tabs, palette y notification center: **31 passed**, 0 errores 5xx, 0 page
+  tabs, palette y notification center: **43 passed** (incluye `audit-commercial-mail-no-send-button.spec.ts`), 0 errores 5xx, 0 page
   errors, 0 console errors. `playwright.config.ts` bloquea el service worker
   durante los tests y deshabilita el cache HTTP.
 

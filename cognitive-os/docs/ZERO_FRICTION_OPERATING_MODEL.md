@@ -26,7 +26,11 @@ Diego. Es intencionalmente distinta de una postura SaaS/multiusuario.
 > - `647f103`: `eager_defaults=True` en ORM Base; Playwright auto-mintea
 >   JWT en `dedicated_local/full` via `_global-setup.ts`.
 > - `5953b40`: MCP inventario paralelo, timeout default 30s, runtime
->   verificado 5/5 servers / 67 tools; atajo `Ctrl/Cmd+K` capture phase.
+>   verificado inicialmente 5/5 servers / 67 tools; atajo `Ctrl/Cmd+K`
+>   capture phase.
+> - `2026-05-25`: MCP local `time` agregado como server `stdio` propio del
+>   backend. Runtime actual: 6/6 servers / 69 tools; `time` no usa auth,
+>   secretos, red externa ni writes.
 
 ## Decision De Producto
 
@@ -79,7 +83,9 @@ negociables porque reducen fallos reales sin meter friccion innecesaria:
 - MCP diagnosticable: `/system/mcp` habla con cada server, reporta
   `connected/tools_count/error`, carga inventario en paralelo y usa
   `MCP_INVENTORY_TIMEOUT_SECONDS=30` por defecto para evitar falsos timeouts
-  al arrancar varios servidores `stdio`.
+  al arrancar varios servidores `stdio`. El server local `time` agrega
+  conversiones horarias confiables para `America/Santiago` y otros timezones
+  sin introducir credenciales ni permisos de escritura.
 - Tests hermeticos que no toquen produccion + carril opt-in `tests/live/`
   (`LIVE_TESTS_ENABLED=1`) para smokes read-only contra proveedores reales.
 - Auth fail-closed donde la falla es silenciosa: el dispatch de Telegram

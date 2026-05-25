@@ -1,17 +1,32 @@
 # QA · MAP — inventario funcional de la app
 
-> **Actualización vigente (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** mapa QA para
-> el cockpit actual. La suite oficial Playwright está verde con **31
+> **Actualización vigente (2026-05-25, commit `0f8232a` — RELEASE
+> APPROVED + audit-commercial hardening cerrado):** mapa QA para el
+> cockpit actual. La suite oficial Playwright está verde con **43
 > passed** y se ejecuta contra la SPA Next.js de 20 tabs sin necesidad
 > de exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`). Backend
-> verificado por `full-qa.sh`: **958 passed**, 1 skipped, 28 deselected
-> (944 históricos + 14 nuevos: 3 `eager_defaults`, 3
-> `health_llm_probe_timeout` y 3 guards QA/scripts/docs).
+> verificado por `full-qa.sh`: **1190 passed**, 1 skipped, 28 deselected
+> (958 históricos + 232 nuevos: 227 audit-commercial + 4 time_mcp_server
+> + 1 dispatch guard).
 > El producto corre en un PC dedicado con prioridad de fricción casi
 > nula; los tests deben validar que esa fricción baja no esconda
 > errores, pantallas muertas ni operaciones silenciosas. Mail sigue
-> siendo read-only/digest por defecto. MCP actual: `/system/mcp` runtime
-> 5/5 servers y 67 tools.
+> siendo read-only/digest por defecto (contrato bloqueado en UI por
+> `audit-commercial-mail-no-send-button.spec.ts` y en backend por
+> `test_audit_commercial_mail_smtp_gating.py`). MCP actual:
+> `/system/mcp` runtime **6/6 servers** y **69 tools**, incluyendo
+> `time` local read-only.
+>
+> **Audit-commercial hardening matrix** — 16 archivos de test (~230
+> asserciones) introducidos en commit `0f8232a` cubren los 4
+> P0-críticos y 12 GAPs P1 que el mapa de contrato había marcado
+> entre "happy-path verificado" y "todos los caminos bajo regresión":
+> Mail SMTP gate, GoDaddy DNS gate, Code Director STDIN-only,
+> eager_defaults full matrix, auth matrix completa, path-traversal
+> corpus, operational_backlog reactivo, workflow.v1 hardening,
+> calendar/drive directo `dry_run=false`→409, health overall honest,
+> reapers dedicados, DB isolation, secrets redaction, fixtures
+> gating, MCP fail-open, Mail UI sin botón Enviar.
 >
 > Doble re-auditoría TestSprite 2026-05-23 cerrada: **10/10** passed,
 > 1 P1 nuevo cazado y corregido (eager_defaults), 16/16 hallazgos
@@ -147,7 +162,7 @@ sidebar abre/cierra con un `aria-label="Abrir menú"`/"Cerrar".
 | Google APIs | Maps/Calendar/Drive/Gmail | componentes `blocked` |
 | Kimi WebBridge daemon | KimiWebBridgeService | componente `degraded` |
 | GoDaddy API | DNS preview | endpoint reporta `blocked` |
-| MCP servers (mem/gh/fs/cc/gem) | DeepAgent dynamic tools | cada server falla aislado; inventario paralelo con timeout 30s |
+| MCP servers (mem/gh/fs/cc/gem/time) | DeepAgent dynamic tools | cada server falla aislado; inventario paralelo con timeout 30s; `time` es local read-only para hora/conversion de zonas |
 
 ## Riesgos funcionales identificados
 

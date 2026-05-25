@@ -1,15 +1,17 @@
 # Cognitive OS — Arquitectura (referencia técnica completa)
 
-> **Estado canónico actual (2026-05-23, commit `bbaaea8`):**
-> **RELEASE APPROVED**. Arquitectura local-first para un PC dedicado
-> del operador, con prioridad explícita de fricción casi nula por sobre
-> seguridad estricta. `strict` sigue existiendo como perfil
-> conservador, pero el perfil operativo preferido es
-> `dedicated_local/full`: usa Edge real/Kimi WebBridge, filesystem
-> local y auto-resolución de aprobaciones cuando está configurado. La
-> seguridad de perímetro no es el eje de esta instalación; sí lo son
-> trazabilidad, idempotencia, observabilidad, recuperación y fallos
-> explícitos.
+> **Estado canónico actual (2026-05-25, commit `0f8232a`):**
+> **RELEASE APPROVED** con matriz audit-commercial hardening cerrada.
+> Arquitectura local-first para un PC dedicado del operador, con
+> prioridad explícita de fricción casi nula por sobre seguridad
+> estricta. `strict` sigue existiendo como perfil conservador, pero el
+> perfil operativo preferido es `dedicated_local/full`: usa Edge real/
+> Kimi WebBridge, filesystem local y auto-resolución de aprobaciones
+> cuando está configurado. La seguridad de perímetro no es el eje de
+> esta instalación; sí lo son trazabilidad, idempotencia,
+> observabilidad, recuperación y fallos explícitos — ahora respaldados
+> por una matriz hermetica de 16 archivos `test_audit_commercial_*`
+> (~230 asserciones) sobre los contratos P0/P1 más sensibles.
 >
 > **Cambio reciente clave que afecta arquitectura (`647f103`):** la ORM
 > `Base` (`backend/src/cognitive_os/core/db.py`) define
@@ -29,23 +31,25 @@
 > con el ceñido `HEALTH_COMPONENT_TIMEOUT_SECONDS=3.0`.
 >
 > **Conteos verificados contra código** (generados por
-> `scripts/sync_doc_counts.py`): **147 decoradores REST**, **23 tareas
+> `scripts/sync_doc_counts.py`): **150 endpoints REST**, **23 tareas
 > Celery** en **5 colas** (`default`, `ingestion`, `agent_longrun`,
 > `maintenance`, `mail`) con hasta **13 jobs beat**, **20 migraciones
 > Alembic** (head `202605200003`), **20 vistas Next.js** bajo
 > `frontend/app/views/*.tsx`, **18 componentes** en `/health/dashboard`
 > (17 checks + `checkpointer`), **37 slash commands** de Telegram, el set
 > de tools built-in tipadas del DeepAgent más tools dinámicas MCP cuando
-> `ENABLE_MCP_CLIENT=true`.
+> `ENABLE_MCP_CLIENT=true` (runtime verificado 6/6 servers — `mem/gh/fs/
+> cc/gem/time` — y 69 tools).
 >
-> **QA más reciente (commit `647f103`):** `bash scripts/full-qa.sh` verde
-> con **958 passed**, 1 skipped, 28 deselected;
+> **QA más reciente (commit `0f8232a`):** `bash scripts/full-qa.sh` verde
+> con **1190 passed**, 1 skipped, 28 deselected (958 históricos + 227
+> audit-commercial + 4 time_mcp_server + 1 dispatch guard);
 > ruff/format/mypy/Alembic/lint/build/`sync_doc_counts --check`/`git diff
 > --check` OK; build frontend aislado con `NEXT_DIST_DIR=.next-qa`;
-> Playwright **41 passed** sin exportar `COGOS_JWT` (auto-mint via
-> `_global-setup.ts`); stress QA verde con 3 pasadas de **958 passed**;
-> carril opt-in `tests/live/` verificado con **8 passed**; TestSprite MCP
-> re-audit **10/10 passed** sobre dos batches.
+> Playwright **43 passed** sin exportar `COGOS_JWT` (auto-mint via
+> `_global-setup.ts`); carril opt-in `tests/live/` verificado con **8
+> passed**; TestSprite MCP re-audit histórico **10/10 passed** sobre dos
+> batches.
 
 ---
 
@@ -332,8 +336,14 @@ servidores MCP externos, además de su set de tools built-in tipadas.
 * **Observabilidad:** `GET /system/mcp` dialoga con cada server y reporta
   `connected` + `tools_count`; `health/dashboard` tiene el componente
   `mcp_client` (config sin live RPC).
-* **Runtime verificado:** `mem`, `gh`, `fs`, `cc` y `gem` conectados 5/5,
-  con 67 tools inyectables.
+* **Server local `time`:** Cognitive OS incluye
+  `backend/src/cognitive_os/integrations/time_mcp_server.py`, un MCP read-only
+  por `stdio` basado en `FastMCP`. Se declara como
+  `time:stdio:uv run python -m cognitive_os.integrations.time_mcp_server::cwd=.../backend`
+  y expone `time_time_now` / `time_time_convert` sin auth, secretos, red
+  externa ni writes.
+* **Runtime verificado:** `mem`, `gh`, `fs`, `cc`, `gem` y `time` conectados
+  6/6, con 69 tools inyectables.
 
 Detalle completo: `docs/COGNITIVE_OS_GUIDE.md` §MCP.
 
@@ -361,10 +371,11 @@ Detalle completo: `docs/COGNITIVE_OS_GUIDE.md` §MCP.
 
 ## 10. Dónde mirar después
 
-* `backend/src/cognitive_os/api/app.py` — wiring, lifespan, 147 decoradores REST.
+* `backend/src/cognitive_os/api/app.py` — wiring, lifespan, 150 endpoints REST (147 `@app.*` + 3 `@router.*` de `test_fixtures`).
 * `backend/src/cognitive_os/agents/graph.py` — nodos del orquestador y routing.
 * `backend/src/cognitive_os/deepagents/` — factory de DeepAgents controlados, subagentes de research y document analysis.
 * `backend/src/cognitive_os/integrations/mcp_client.py` — cliente MCP.
+* `backend/src/cognitive_os/integrations/time_mcp_server.py` — server MCP local read-only para hora y conversion de zonas.
 * `backend/src/cognitive_os/integrations/telegram_bot.py` — bot Telegram (37 commands + conversacional).
 * `backend/src/cognitive_os/ingestion/pipeline.py` — PDF → pages → chunks → Weaviate + Neo4j.
 * `backend/src/cognitive_os/workers/tasks.py` — definiciones de tasks Celery + reapers.

@@ -51,8 +51,9 @@ bash scripts/init_credentials.sh
 - ✅ GoDaddy mail — lectura de carpeta `Spam` para
   `diego@doctormanzur.com`; SMTP solo como escape hatch explícito.
 - ✅ GoDaddy DNS producción — auth HTTP 200, modo seguro dry-run.
-- ✅ MCP — 5 servidores conectados (Supermemory, GitHub, filesystem,
-  Claude Code y Gemini CLI), **67 tools**. Verificable en `/system/mcp`.
+- ✅ MCP — 6 servidores conectados (Supermemory, GitHub, filesystem,
+  Claude Code, Gemini CLI y time local), **69 tools**. Verificable en
+  `/system/mcp`; `time` no requiere credencial.
 - ✅ LLM gateway (gpt-5.5 / gemini-3.1-pro-low / glm-4.6v), embeddings,
   ElevenLabs, CapSolver, LangSmith.
 

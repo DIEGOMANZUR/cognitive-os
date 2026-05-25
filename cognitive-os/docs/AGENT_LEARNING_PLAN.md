@@ -108,7 +108,8 @@ proactivos) — ver §3.
 |---|---|---|
 | **F76** (QA) | Playwright E2E full-stack audit: `docs/qa/MAP.md`, `docs/qa/RUNBOOK.md`, `docs/qa/FINAL_AUDIT_REPORT.md`, suite `frontend/tests/e2e/` con 16 tests. **16/16 verdes**. Bug QA-1 detectado y corregido (tsconfig excluye `tests/`). | ✅ Cerrada |
 | **F77** (MCP gem + cc) | Cableados `gemini-mcp-tool` y `@steipete/claude-code-mcp` como MCP stdio servers. Total **5 MCP servers conectados**: `mem` (Supermemory, 4 tools), `gh` (GitHub, 42 tools), `fs` (filesystem `/home/jgonz`, 14 tools), `cc` (Claude Code, 1 tool), `gem` (Gemini CLI, 6 tools) → **67 tools inyectables al DeepAgent**. | ✅ Cerrada |
-| **Verificación live** | `/system/mcp` 5/5 connected con 67 tools (`mem`, `gh`, `fs`, `cc`, `gem`), inventario paralelo y timeout default 30s. `/health/dashboard` 18 componentes. `gem_ask-gemini` invocado en vivo respondió `PONG` en 8.4s. | ✅ |
+| **MCP time local** (2026-05-25) | Agregado `backend/src/cognitive_os/integrations/time_mcp_server.py` como MCP local `stdio` sin auth ni red externa. Expone `time_time_now` y `time_time_convert`; se declara en `MCP_SERVERS` con `uv run python -m cognitive_os.integrations.time_mcp_server::cwd=.../backend`. | ✅ Cerrada |
+| **Verificación live** | `/system/mcp` 6/6 connected con 69 tools (`mem`, `gh`, `fs`, `cc`, `gem`, `time`), inventario paralelo y timeout default 30s. `/health/dashboard` 18 componentes. `gem_ask-gemini` invocado en vivo respondió `PONG` en 8.4s. | ✅ |
 
 ### 0.2 Estado funcional del stack
 

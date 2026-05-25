@@ -1,29 +1,42 @@
 # QA · FINAL_AUDIT_REPORT — estado vigente y auditoría histórica
 
-> **Actualización vigente (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** este reporte
-> conserva abajo la auditoría Fase 76 como histórico, pero el gate actual
-> del proyecto es más amplio:
+> **Actualización vigente (2026-05-25, commit `0f8232a` — RELEASE
+> APPROVED + audit-commercial hardening cerrado):** este reporte
+> conserva abajo la auditoría Fase 76 como histórico, pero el gate
+> actual del proyecto es más amplio:
 >
-> - `bash scripts/full-qa.sh` → **958 passed**, 1 skipped, 28 deselected
->   (944 históricos + 14 nuevos en
->   `tests/test_action_request_eager_defaults.py` que cubren el fix
->   `eager_defaults` para el bug P1 `MissingGreenlet` que cazó la
->   re-auditoría 2026-05-23). Ruff/format/mypy/Alembic/frontend
->   lint/build/`sync_doc_counts --check`/`git diff --check` OK.
-> - `npx playwright test --reporter=list` → **31 passed** sin exportar
->   `COGOS_JWT` (auto-mint via `tests/e2e/_global-setup.ts` que llama
->   `POST /auth/local-token` cuando el perfil es `dedicated_local/full`).
-> - `bash scripts/stress-qa.sh` → 3 pasadas de **958 passed**.
+> - `bash scripts/full-qa.sh` → **1190 passed**, 1 skipped, 28
+>   deselected (958 históricos + 227 audit-commercial + 4
+>   time_mcp_server + 1 dispatch guard). Ruff/format/mypy/Alembic/
+>   frontend lint/build/`sync_doc_counts --check`/`git diff --check`
+>   OK.
+> - `npx playwright test --reporter=list` → **43 passed** sin
+>   exportar `COGOS_JWT` (auto-mint via `tests/e2e/_global-setup.ts`).
+>   Incluye `audit-commercial-mail-no-send-button.spec.ts`.
 > - `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` → **8 passed**,
 >   smokes read-only contra proveedores reales (último gate
->   documentado; en re-audit del 2026-05-23 no se re-ejecutó por ser
+>   documentado; en re-audit del 2026-05-25 no se re-ejecutó por ser
 >   opt-in y no estar `LIVE_TESTS_ENABLED` en `.env`).
-> - TestSprite MCP re-audit → **10/10 passed** sobre dos batches acotados
->   (TC001/002/003/004/006/007/008/009/010/014).
-> - Build frontend de QA aislado con `NEXT_DIST_DIR=.next-qa`, sin romper
->   un `next start` vivo servido desde `.next`.
-> - `/system/mcp` post-gate → **5/5 servers connected**, **67 tools**,
->   inventario paralelo con timeout default 30s (`5953b40`).
+> - TestSprite MCP re-audit histórico → **10/10 passed** sobre dos
+>   batches acotados (TC001/002/003/004/006/007/008/009/010/014).
+> - Build frontend de QA aislado con `NEXT_DIST_DIR=.next-qa`, sin
+>   romper un `next start` vivo servido desde `.next`.
+> - `/system/mcp` post-gate → **6/6 servers connected**, **69 tools**,
+>   inventario paralelo con timeout default 30s (`5953b40`) y MCP
+>   local `time` agregado el 2026-05-25.
+>
+> **Audit-commercial hardening matrix** — 16 archivos de test
+> introducidos en `0f8232a` (~230 asserciones hermeticas) cierran los
+> contratos P0/P1 mas sensibles: Mail SMTP gate, GoDaddy DNS gate,
+> Code Director STDIN-only, eager_defaults full matrix, auth matrix
+> completa, path-traversal corpus, operational_backlog reactivo,
+> workflow.v1 hardening, calendar/drive directo `dry_run=false`→409,
+> health overall honest, reapers dedicados, DB isolation guard,
+> secrets redaction, fixtures gating, MCP fail-open, Mail UI sin
+> boton Enviar. Plan de la auditoría read-only en
+> `tmp/commercial_audit_20260525_030342/`
+> (`01_CONTRACT_MAP.md`, `02_TEST_MATRIX.md`, `03_EXECUTION_PLAN.md`,
+> `04_FINAL_REPORT.md`, `05_REMEDIATION_REPORT.md`).
 >
 > Doble re-auditoría TestSprite 2026-05-23 cerrada con **PASS**: 1 P1
 > nuevo cazado y corregido (eager_defaults), 16/16 hallazgos previos
@@ -128,8 +141,8 @@ versión mobile colapsa el sidebar correctamente.
   hosts sin `TELEGRAM_ASSIST_USER_MAP` la spec se autoskippea con un
   `test.skip` explícito en lugar de fallar (decisión consciente).
 - **Cliente MCP:** en la Fase 76 los 3 servers declarados (Supermemory,
-  GitHub, filesystem) estaban `connected=true`; el estado actual es 5/5
-  servers (`mem`, `gh`, `fs`, `cc`, `gem`) y 67 tools. El test verifica la forma de la
+  GitHub, filesystem) estaban `connected=true`; el estado actual es 6/6
+  servers (`mem`, `gh`, `fs`, `cc`, `gem`, `time`) y 69 tools. El test verifica la forma de la
   respuesta y la presencia del componente `mcp_client` en
   `/health/dashboard`.
 
@@ -173,7 +186,7 @@ frontend/
 ```bash
 # Backend pytest (referencia):
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/backend"
-uv run pytest -q                                   # 958 passed esperado en esta rama
+uv run pytest -q                                   # 1190 passed esperado en esta rama
 
 # Frontend lint + build:
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/frontend"
@@ -182,7 +195,7 @@ npm run build                                      # static prerender OK
 
 # E2E Playwright (stack levantado en :3001 + :8000):
 JWT=$(cd ../backend && uv run python -c "from cognitive_os.core.auth import create_access_token; print(create_access_token(user_id='auditor', roles=['admin']))" 2>/dev/null | tail -1)
-COGOS_JWT="$JWT" npx playwright test               # 41 passed esperado en snapshot vigente
+COGOS_JWT="$JWT" npx playwright test               # 43 passed esperado en snapshot vigente
 COGOS_JWT="$JWT" npx playwright test --ui          # modo interactivo
 npx playwright show-report                          # HTML report
 ```

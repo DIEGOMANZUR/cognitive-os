@@ -11,22 +11,26 @@
 > Cierre formal en
 > [`audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md`](audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md).
 >
-> **Snapshot vivo:** backend FastAPI con **147 decoradores REST**, **23
-> tareas Celery** en **5 queues**, **20 migraciones Alembic** (head
-> `202605200003`), frontend Next.js 16.2.6 con **20 vistas**, Telegram con
-> **37 slash commands**, health dashboard con **18 componentes** y
-> `POST /health/verify` para probe en vivo. Mail personal: Gmail `TODOS` +
-> `SPAM` de `diegomanzurn@gmail.com`, GoDaddy `Spam` de
-> `diego@doctormanzur.com`, clasificación de spam por agente, digest
-> 10:00/20:00 Chile, máximo 50 correos, propuestas de respuesta como texto
-> separado; no drafts y no envío automático.
+> **Snapshot vivo (2026-05-25, commit `0f8232a`):** backend FastAPI con
+> **150 endpoints REST**, **23 tareas Celery** en **5 queues**, **20
+> migraciones Alembic** (head `202605200003`), frontend Next.js 16.2.6
+> con **20 vistas**, Telegram con **37 slash commands**, health dashboard
+> con **18 componentes** y `POST /health/verify` para probe en vivo. MCP
+> client con **6/6 servers** y **69 tools** (incluye `time` local
+> read-only). Mail personal: Gmail `TODOS` + `SPAM` de
+> `diegomanzurn@gmail.com`, GoDaddy `Spam` de `diego@doctormanzur.com`,
+> clasificación de spam por agente, digest 10:00/20:00 Chile, máximo 50
+> correos, propuestas de respuesta como texto separado; no drafts y no
+> envío automático.
 >
-> **QA más reciente (rama `codex/commercial-zero-friction-hardening`):** `bash scripts/full-qa.sh` verde
-> con **958 passed, 1 skipped, 28 deselected** (944 históricos + 14 nuevos);
-> ruff/format/mypy/Alembic/lint/
-> build/`sync_doc_counts --check`/`git diff --check` OK; Playwright
-> **31 passed** sin exportar `COGOS_JWT` (auto-mint via
-> `_global-setup.ts`); `bash scripts/stress-qa.sh` verde con 3 pasadas
+> **QA más reciente (rama `codex/commercial-zero-friction-hardening`):**
+> `bash scripts/full-qa.sh` verde con **1190 passed, 1 skipped, 28
+> deselected** (958 históricos + 227 audit-commercial + 4
+> time_mcp_server + 1 dispatch guard);
+> ruff/format/mypy/Alembic/lint/build/`sync_doc_counts --check`/`git
+> diff --check` OK; Playwright **43 passed** sin exportar `COGOS_JWT`
+> (auto-mint via `_global-setup.ts`); `bash scripts/stress-qa.sh` verde
+> con 3 pasadas
 > de **958 passed**. El build de QA usa `NEXT_DIST_DIR=.next-qa` para no
 > invalidar un frontend vivo servido desde `.next`. Live read-only:
 > **8 passed**. TestSprite completo corregido en batches locales:
@@ -37,9 +41,11 @@
 > análogos. Playwright runner zero-friction (auto-mint JWT).
 >
 > **Ajuste previo (`5953b40`):** `/system/mcp` ahora inventaria los
-> servidores en paralelo con timeout default 30s; runtime verificado
-> **5/5 MCP servers** y **67 tools**. El command palette del frontend
-> abre con `Ctrl/Cmd+K` de forma estable incluso con foco en inputs.
+> servidores en paralelo con timeout default 30s. Runtime actual verificado:
+> **6/6 MCP servers** (`mem`, `gh`, `fs`, `cc`, `gem`, `time`) y **69 tools**.
+> El server `time` es local, read-only y corre por `stdio` desde el backend
+> para hora/conversion de zonas. El command palette del frontend abre con
+> `Ctrl/Cmd+K` de forma estable incluso con foco en inputs.
 >
 > **Guía de usuario completa:** `docs/USER_GUIDE.md`. Estado canónico:
 > `docs/CURRENT_STATE.md`. Modelo operativo: `docs/ZERO_FRICTION_OPERATING_MODEL.md`.

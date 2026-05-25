@@ -120,8 +120,9 @@ vez de inventar.
   `<server>_<toolname>` junto a mis tools built-in tipadas.
 - Servidores cableados hoy: **Supermemory** (`mem_*`, memoria personal),
   **GitHub** (`gh_*`, issues/PRs/code search), **filesystem** (`fs_*`,
-  todo `/home/jgonz`), **Claude Code** (`cc_*`) y **Gemini CLI** (`gem_*`).
-  Runtime verificado: 5/5 servers, 67 tools.
+  todo `/home/jgonz`), **Claude Code** (`cc_*`), **Gemini CLI** (`gem_*`) y
+  **time local** (`time_*`, hora/conversion de zona read-only).
+  Runtime verificado: 6/6 servers, 69 tools.
 - Solo aplica bajo `dedicated_local`. Estado en vivo: `/system/mcp`.
 
 ### 2.9 DNS GoDaddy producción
@@ -185,7 +186,7 @@ Tres canales:
   `Jobs`, `Settings`, `Configuration`, `Health`.
 - JWT en `localStorage` (decisión consciente para `dedicated_local`).
 
-### 3.3 API REST (147 decoradores REST)
+### 3.3 API REST (150 endpoints REST)
 
 - `POST /chat` para integraciones; `GET /health/dashboard` para healthchecks
   (overall `ok`/`configured`/`degraded`); `POST /health/verify` para un probe

@@ -35,9 +35,10 @@
 > `MissingGreenlet` y eliminó la fricción del Playwright runner; ver
 > `docs/audits/testsprite/16_FINAL_REAUDIT_REPORT.md`.
 >
-> **Ajuste previo (`5953b40`):** MCP inventory paralelo con timeout 30s,
-> `/system/mcp` runtime **5/5 connected** y **67 tools**; command
-> palette `Ctrl/Cmd+K` estabilizado en frontend.
+> **Ajuste previo (`5953b40`):** MCP inventory paralelo con timeout 30s.
+> Runtime actual `/system/mcp`: **6/6 connected** y **69 tools** tras agregar
+> `time` local read-only; command palette `Ctrl/Cmd+K` estabilizado en
+> frontend.
 >
 > **Remediación del audit (AUDIT-2026-A..H, 2026-05-22):** las 8 fallas
 > accionables del audit comercial están cerradas — ver

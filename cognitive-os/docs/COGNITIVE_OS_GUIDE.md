@@ -65,8 +65,9 @@
 >   Playwright runner zero-friction.
 > - `5953b40`: `/system/mcp` carga inventario en paralelo con timeout
 >   default 30s (`MCP_INVENTORY_TIMEOUT_SECONDS`); runtime verificado
->   5/5 servers y 67 tools. `Ctrl/Cmd+K` del cockpit estabilizado
->   desde capture phase.
+>   inicialmente 5/5 servers y 67 tools. Estado actual tras `time`
+>   (2026-05-25): 6/6 servers y 69 tools. `Ctrl/Cmd+K` del cockpit
+>   estabilizado desde capture phase.
 > **Para qué es este documento:** la **guía maestra técnica** "desde cero". Complementa la `USER_GUIDE.md` (orientada a operación cotidiana) con arquitectura detallada, mail multicuenta, escritorio, credenciales y troubleshooting profundo. Cada afirmación tiene su archivo o variable de respaldo en el repo.
 
 ---
@@ -214,7 +215,7 @@ Todo corre en tu infraestructura (Docker local), las acciones quedan auditadas e
 
 ```
 ┌─────────────────┐                ┌─────────────────────────────────────────┐
-│  Frontend       │                │ FastAPI app (147 decoradores REST)      │
+│  Frontend       │                │ FastAPI app (150 endpoints REST)        │
 │  Next.js 16     │ ─── REST/SSE ──│  /chat /chat/stream /threads/*          │
 │  20 vistas      │ ◄── JWT ───────│  /documents/* /document-analysis/*      │
 │  (panel web)    │                │  /jobs /approvals /audit /health/*      │
@@ -303,7 +304,7 @@ Sigue una petición típica `POST /chat/stream` con un mensaje "Investiga X" par
 
 ### 6.1. API FastAPI (`backend/src/cognitive_os/api/app.py`)
 
-147 decoradores REST agrupados por dominio, verificados contra `backend/src/cognitive_os/api/app.py` el 2026-05-22 (conteo generado por `scripts/sync_doc_counts.py`). Incluye los endpoints `/deepagents/learning/*` del plan de aprendizaje (scorecard, skill-promotions, reflection) y los dispatchers de mail (`/mail/sync/dispatch`, `/mail/digest/dispatch`). Catálogo resumido de rutas reales del código, todas requieren JWT excepto `/health`:
+150 endpoints REST (147 `@app.*` + 3 `@router.*` del test_fixtures router) agrupados por dominio, verificados contra `backend/src/cognitive_os/api/app.py` el 2026-05-25 (conteo generado por `scripts/sync_doc_counts.py`). Incluye los endpoints `/deepagents/learning/*` del plan de aprendizaje (scorecard, skill-promotions, reflection) y los dispatchers de mail (`/mail/sync/dispatch`, `/mail/digest/dispatch`). Catálogo resumido de rutas reales del código, todas requieren JWT excepto `/health`:
 
 #### Salud y configuración
 - `GET /health` — público, devuelve `{status: "ok"}`.
@@ -1011,19 +1012,29 @@ MCP_SERVERS=mem:streamable_http:https://api.supermemory.ai/mcp::header_Authoriza
 
 # Varios servers a la vez, separados por coma:
 MCP_SERVERS=mem:streamable_http:https://api.supermemory.ai/mcp::header_Authorization=Bearer sm_xxx,gh:streamable_http:https://api.githubcopilot.com/mcp::header_Authorization=Bearer ghp_xxx,fs:stdio:npx -y @modelcontextprotocol/server-filesystem /home/jgonz
+
+# Time local de Cognitive OS (sin auth, sin red externa):
+MCP_SERVERS=time:stdio:uv run python -m cognitive_os.integrations.time_mcp_server::cwd=/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/backend
 ```
 
 **Cómo se ven las tools:** prefijadas `<server>_<toolname>` (p.ej.
-`mem_search_memories`, `gh_list_issues`, `fs_read_file`) para no
-colisionar con las 21 built-in.
+`mem_search_memories`, `gh_list_issues`, `fs_read_file`,
+`time_time_now`, `time_time_convert`) para no colisionar con las 21 built-in.
 
 **Observabilidad:** `GET /system/mcp` dialoga con cada server y reporta
 `{connected, tools_count, error}`. El panel `Settings` tiene el tile
 "MCP servers". El `/health/dashboard` incluye el componente `mcp_client`.
 Desde `5953b40`, el inventario se carga en paralelo por servidor y el timeout
 default es 30s para evitar falsos timeouts cuando varios MCP `stdio` arrancan
-en frio. Runtime verificado: `mem`, `gh`, `fs`, `cc` y `gem` conectados 5/5,
-**67 tools** visibles.
+en frio. Runtime verificado: `mem`, `gh`, `fs`, `cc`, `gem` y `time`
+conectados 6/6, **69 tools** visibles.
+
+**MCP local `time`:** se implemento dentro del backend con
+`mcp.server.fastmcp.FastMCP` y transporte `stdio`; no depende del bridge de
+Codex. Sirve para resolver hora actual y conversiones de zona horaria
+(`America/Santiago` por defecto). Al cambiar `MCP_SERVERS` o el modulo del
+server hay que reiniciar el stack, porque API/workers leen la configuracion al
+arranque.
 
 **Seguridad:** sólo se activa bajo `OPERATOR_PROFILE=dedicated_local`
 (las tools MCP usan credenciales personales del operador); cada server se
@@ -1035,9 +1046,9 @@ remota arbitraria.
 - **YouTube**: `YOUTUBE_API_KEY` → no hay extractor implementado.
 - **Microsoft Mail**: `MICROSOFT_MAIL_ENABLED` (flag) → sin executor real.
 - **Notion / cuentas externas**: variables presentes pero sin pipeline en backend.
-- **Servidor MCP** (Cognitive OS *exponiendo* sus tools por MCP a clientes
-  externos): hoy es sólo *cliente* MCP. Ser servidor MCP queda como
-  capacidad futura.
+- **Servidor MCP general** (Cognitive OS *exponiendo* sus tools de producto a
+  clientes externos): sigue pendiente. El MCP local `time` es un utilitario
+  interno read-only consumido por el propio cliente MCP de Cognitive OS.
 
 ---
 
@@ -1112,7 +1123,7 @@ activos; y recordatorios del asistente personal. Ver `ARCHITECTURE.md §6`.
 
 Lo que **funciona hoy** (verificado contra código y tests):
 
-- Backend completo (147 decoradores REST) + frontend (20 vistas, incluye `Assist`, `Google Ops` y `Research`).
+- Backend completo (150 endpoints REST) + frontend (20 vistas, incluye `Assist`, `Google Ops` y `Research`).
 - Ruta `research` con fusión opcional OpenHarness y fallback determinista.
 - Ruta `legal` con Document Analysis y exportadores.
 - Action Plane con `computer_organize`, `document_generate`, `browser_preview`, `browser_interactive`, Google Calendar create y Drive upload/folder/organize ejecutables sólo por `ActionRequest` aprobado; Maps read-only con tráfico/link; Calendar free/busy read-only; Gmail digest read-only; mail GoDaddy/Gmail con digest y propuestas escritas sin envío normal; GoDaddy DNS preview/executor con dry-run.

@@ -195,6 +195,10 @@ El DeepAgent puede cargar tools de servidores MCP externos
   deben filtrarse a deployments multi-tenant.
 - Cada servidor MCP se conecta **aislado**: un server caído o malicioso se
   skipea con warning, no compromete a los demás.
+- `time` es la excepcion de bajo riesgo dentro del set actual: corre local por
+  `stdio` desde `backend/src/cognitive_os/integrations/time_mcp_server.py`,
+  no requiere auth, no usa secretos, no accede a red externa y no escribe
+  datos. Solo calcula hora actual y conversiones de zona horaria.
 - Las tools MCP de **write** tienen efectos reales (p.ej. crear un issue
   en GitHub, escribir un archivo). El operador es responsable de qué
   servidores declara — el sistema no puede auditar qué hace una tool

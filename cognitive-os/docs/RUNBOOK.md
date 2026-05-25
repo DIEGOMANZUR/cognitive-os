@@ -1,30 +1,34 @@
 # RUNBOOK Cognitive OS
 
-> **Estado canonico actual (2026-05-23, commit `bbaaea8`):**
-> **RELEASE APPROVED**. Operar este host como PC dedicado
-> `dedicated_local/full`: **friccion casi nula por sobre seguridad
-> estricta**. Para estado, gates y contrato de mail ver
-> `CURRENT_STATE.md`; para la postura operativa ver
-> `ZERO_FRICTION_OPERATING_MODEL.md`; para checklists diarias de
+> **Estado canonico actual (2026-05-25, commit `0f8232a`):**
+> **RELEASE APPROVED** con matriz audit-commercial hardening cerrada.
+> Operar este host como PC dedicado `dedicated_local/full`: **friccion
+> casi nula por sobre seguridad estricta**. Para estado, gates y
+> contrato de mail ver `CURRENT_STATE.md`; para la postura operativa
+> ver `ZERO_FRICTION_OPERATING_MODEL.md`; para checklists diarias de
 > operación, actualización y rollback ver
 > [`audits/testsprite/33_RELEASE_CANDIDATE_PACKAGE.md`](audits/testsprite/33_RELEASE_CANDIDATE_PACKAGE.md).
 >
 > **Snapshot vigente** (conteos por `scripts/sync_doc_counts.py`):
-> backend FastAPI con 150 endpoints REST, **23 tareas Celery** en
+> backend FastAPI con **150 endpoints REST**, **23 tareas Celery** en
 > **5 colas** (`default`, `ingestion`, `agent_longrun`, `maintenance`,
 > `mail`) con hasta **13 jobs beat**, **20 migraciones Alembic** head
 > `202605200003`, **37 slash commands Telegram**, `/health/dashboard`
 > con 18 componentes + `POST /health/verify`. QA: `full-qa.sh`
-> **958 passed**, 1 skipped, 28 deselected; Playwright **41 passed** sin
-> exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`); `stress-qa.sh`
-> 3 pasadas verdes de **958 passed**. `full-qa.sh` construye Next en
-> `.next-qa` para no invalidar el `.next` que usa un `next start` vivo.
-> Live read-only: `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh`
-> **8 passed**. TestSprite completo corregido en batches locales:
-> **28/28 passed**. Fix `647f103`: `eager_defaults=True` en `db.Base`
-> elimina `MissingGreenlet` 500 en `POST /actions/*/preview/request`.
-> Ajuste previo `5953b40`: `/system/mcp` carga en paralelo, timeout
-> default 30s, runtime 5/5 servers y 67 tools.
+> **1190 passed**, 1 skipped, 28 deselected (958 históricos + 227
+> audit-commercial + 4 time_mcp_server + 1 dispatch guard); Playwright
+> **43 passed** sin exportar `COGOS_JWT` (auto-mint via
+> `_global-setup.ts`). `full-qa.sh` construye Next en `.next-qa` para
+> no invalidar el `.next` que usa un `next start` vivo. Live read-only:
+> `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**.
+> TestSprite histórico corregido en batches locales: **28/28 passed**.
+> Fix `647f103`: `eager_defaults=True` en `db.Base` elimina
+> `MissingGreenlet` 500 en `POST /actions/*/preview/request` — ahora
+> verificado por matriz audit-commercial sobre los 9
+> `WORKFLOW_EXPORTABLE_TYPES`. Ajuste previo `5953b40`: `/system/mcp`
+> carga en paralelo, timeout default 30s. Runtime actual: **6/6 servers
+> y 69 tools** tras agregar el MCP local read-only `time` por `stdio`;
+> cambiar `MCP_SERVERS` requiere restart.
 >
 > **Runtime:** la ruta `research` está fusionada con OpenHarness opcional; el
 > LLM es **gpt-5.5** (gateway openai-compatible, Responses API) como
@@ -73,9 +77,9 @@ Y para los gates QA:
 
 ```bash
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os"
-bash scripts/full-qa.sh                          # 958 passed (≈70s)
+bash scripts/full-qa.sh                          # 1190 passed (≈70s)
 cd frontend && unset COGOS_JWT && npx playwright test --reporter=list
-# 41 passed (auto-mint JWT, no necesita exportar nada)
+# 43 passed (auto-mint JWT, no necesita exportar nada)
 ```
 
 ## Ejecutables de escritorio
