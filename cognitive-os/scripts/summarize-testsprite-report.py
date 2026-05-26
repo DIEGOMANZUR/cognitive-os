@@ -35,6 +35,11 @@ def main() -> int:
     parser.add_argument("--output", default="qa/reports/testsprite_latest_summary.md")
     parser.add_argument("--package", default="@testsprite/testsprite-mcp@0.0.19")
     parser.add_argument("--batch-size", type=int, default=4)
+    parser.add_argument(
+        "--partial-ok",
+        action="store_true",
+        help="Treat a passed subset run (e.g. TESTSPRITE_TEST_IDS smoke) as success.",
+    )
     args = parser.parse_args()
 
     results_path = Path(args.results)
@@ -53,7 +58,12 @@ def main() -> int:
     failed = sum(count for status, count in counts.items() if status not in {"PASSED", "SKIPPED"})
     skipped = counts.get("SKIPPED", 0)
     batches = (len(plan) + max(args.batch_size, 1) - 1) // max(args.batch_size, 1)
-    verdict = "PASS" if total == len(plan) and failed == 0 and passed == len(plan) else "FAIL"
+    if total == len(plan) and failed == 0 and passed == len(plan):
+        verdict = "PASS"
+    elif args.partial_ok and failed == 0 and passed == total and total > 0:
+        verdict = "PARTIAL"
+    else:
+        verdict = "FAIL"
 
     lines = [
         "# TestSprite Latest Summary",
@@ -94,7 +104,7 @@ def main() -> int:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"OK: TestSprite summary written to {output_path}")
-    return 0 if verdict == "PASS" else 1
+    return 0 if verdict in {"PASS", "PARTIAL"} else 1
 
 
 if __name__ == "__main__":

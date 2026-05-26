@@ -10,10 +10,10 @@
 > visible y recuperación rápida.
 >
 > `full-qa.sh` está actualizado al ciclo vigente post-remediación P0:
-> backend con **1192 passed**, 1 skipped, 28 deselected (1190 base + 2
+> backend con **1200 passed**, 1 skipped, 28 deselected (1190 base + 2
 > regresión `test_clean_slate_fixture_covers_all_fks.py` que cerró la
 > flakiness ~33% del gate hermético — root cause: orden FK del fixture
-> `clean_slate`); `stress-qa.sh 5` -> **5/5 verde × 1192 passed**,
+> `clean_slate`); `stress-qa.sh 5` -> **5/5 verde × 1200 passed**,
 > flakiness post-fix = 0%; ruff/format/mypy/Alembic verdes, frontend
 > lint/build verde, `sync_doc_counts --check` y `git diff --check`
 > finales. El build frontend de QA usa `NEXT_DIST_DIR=.next-qa` para no

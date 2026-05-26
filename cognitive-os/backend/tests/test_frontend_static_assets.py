@@ -115,8 +115,8 @@ def test_full_testsprite_batches_and_redacts_secret_config() -> None:
     assert canonical_plan.exists()
     assert "TESTSPRITE_BATCH_SIZE" in full_testsprite
     assert "batched_results.json" in full_testsprite
-    assert 'envs["API_KEY"] = "<redacted>"' in full_testsprite
-    assert "Target connect failed" in full_testsprite
+    assert 'data["proxy"] = "<redacted>"' in full_testsprite
+    assert "Keep API_KEY in gitignored local config" in full_testsprite
     assert "TESTSPRITE_BATCH_IDLE_TIMEOUT_SECONDS" in full_testsprite
     assert "TESTSPRITE_BATCH_RETRIES" in full_testsprite
     assert "TESTSPRITE_TEST_IDS" in full_testsprite
@@ -126,6 +126,51 @@ def test_full_testsprite_batches_and_redacts_secret_config() -> None:
     assert "mcp.log" in full_testsprite
     assert 'data["proxy"] = "<redacted>"' in full_testsprite
     assert "Do not create email drafts, send email" in full_testsprite
+
+
+def test_testsprite_skill_fail_closed_contract() -> None:
+    root = PROJECT_ROOT
+    audit = (root / "scripts" / "testsprite_audit.sh").read_text(encoding="utf-8")
+    prepare = (root / "scripts" / "testsprite_mcp_prepare.sh").read_text(encoding="utf-8")
+    skill = (root / ".cursor" / "skills" / "testsprite-cognitive-os" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+    assert_script = (
+        root
+        / ".cursor"
+        / "skills"
+        / "testsprite-cognitive-os"
+        / "scripts"
+        / "assert_testsprite_run.py"
+    )
+    validate_script = (
+        root
+        / ".cursor"
+        / "skills"
+        / "testsprite-cognitive-os"
+        / "scripts"
+        / "validate_testsprite_config.py"
+    )
+    env_loader = (
+        root
+        / ".cursor"
+        / "skills"
+        / "testsprite-cognitive-os"
+        / "scripts"
+        / "load_testsprite_env.sh"
+    )
+
+    assert assert_script.exists()
+    assert validate_script.exists()
+    assert env_loader.exists()
+    assert "assert_testsprite_run.py" in audit
+    assert "TESTSPRITE_VERIFY_MODE=stack" in audit
+    assert "VERDICT TestSprite: PASS" in audit
+    assert "load_testsprite_env.sh" in prepare
+    assert "source \"${ROOT_DIR}/.env\"" not in prepare
+    assert "testsprite_audit.sh" in skill
+    assert "assert_testsprite_run.py" in skill
+    assert "load_testsprite_env.sh" in skill
 
 
 def test_commercial_qa_scripts_and_fixture_contract_are_versioned() -> None:

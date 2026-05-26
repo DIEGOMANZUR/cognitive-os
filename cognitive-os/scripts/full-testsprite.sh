@@ -4,9 +4,31 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
+SKILL_ENV="${ROOT_DIR}/.cursor/skills/testsprite-cognitive-os/scripts/load_testsprite_env.sh"
+if [[ -f "${SKILL_ENV}" ]]; then
+  # shellcheck disable=SC1091
+  source "${SKILL_ENV}" "${ROOT_DIR}"
+fi
+
+if [[ -z "${API_KEY:-}" && -z "${TESTSPRITE_API_KEY:-}" ]]; then
+  CONFIG_FILE="${ROOT_DIR}/testsprite_tests/tmp/config.json"
+  if [[ -f "${CONFIG_FILE}" ]]; then
+    API_KEY="$(python3 - <<'PY'
+import json
+from pathlib import Path
+p = Path("testsprite_tests/tmp/config.json")
+data = json.loads(p.read_text())
+key = data.get("executionArgs", {}).get("envs", {}).get("API_KEY", "")
+if key and key not in ("<redacted>", ""):
+    print(key)
+PY
+)"
+  fi
+fi
 if [[ -z "${API_KEY:-}" && -z "${TESTSPRITE_API_KEY:-}" ]]; then
   echo "ERROR: set API_KEY or TESTSPRITE_API_KEY with a TestSprite API key." >&2
-  echo "The key is used only for this run and redacted from testsprite_tests/tmp/config.json on exit." >&2
+  echo "Run: bash scripts/testsprite_mcp_prepare.sh (or add TESTSPRITE_API_KEY to .env)" >&2
+  echo "See: .cursor/skills/testsprite-cognitive-os/SKILL.md" >&2
   exit 2
 fi
 
@@ -35,9 +57,8 @@ root = Path.cwd()
 config = root / "testsprite_tests/tmp/config.json"
 if config.exists():
     data = json.loads(config.read_text())
-    envs = data.setdefault("executionArgs", {}).setdefault("envs", {})
-    if "API_KEY" in envs:
-        envs["API_KEY"] = "<redacted>"
+    # Keep API_KEY in gitignored local config for zero-friction re-runs on the
+    # dedicated PC. Only redact the tunnel proxy credential in artifacts.
     if "proxy" in data:
         data["proxy"] = "<redacted>"
     config.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
@@ -109,9 +130,6 @@ def redact_config() -> None:
     if not CONFIG.exists():
         return
     data = json.loads(CONFIG.read_text())
-    envs = data.setdefault("executionArgs", {}).setdefault("envs", {})
-    if "API_KEY" in envs:
-        envs["API_KEY"] = "<redacted>"
     if "proxy" in data:
         data["proxy"] = "<redacted>"
     CONFIG.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
@@ -348,6 +366,8 @@ def main() -> None:
             "--batch-size",
             str(batch_size),
         ]
+        if os.environ["TESTSPRITE_TEST_IDS"].strip():
+            summary_cmd.append("--partial-ok")
         subprocess.run(summary_cmd, cwd=ROOT, check=True)
     finally:
         redact_config()
