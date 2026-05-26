@@ -12,7 +12,7 @@ const AUTO_JWT = fakeJwt(Date.now() + 365 * 24 * 60 * 60 * 1000);
 
 /**
  * El panel es un SPA local: en dedicated_local/full debe conseguir su JWT
- * automáticamente, pero sigue permitiendo override manual en TopBar/Conexión.
+ * automáticamente, pero sigue permitiendo override manual en Conexión.
  */
 test.describe("auth: el JWT controla el acceso autenticado", () => {
   test("sin JWT persistido el panel autoprovisiona un JWT local", async ({
@@ -36,7 +36,9 @@ test.describe("auth: el JWT controla el acceso autenticado", () => {
 
     // Sidebar sigue renderizando y el JWT queda fijo en localStorage.
     await expect(page.getByRole("button", { name: "Dashboard" })).toBeVisible();
-    await expect(page.getByLabel("JWT local")).toHaveValue(AUTO_JWT);
+    await expect
+      .poll(() => page.evaluate(() => window.localStorage.getItem("cogos.token")))
+      .toBe(JSON.stringify(AUTO_JWT));
     await expect(
       page.getByText("Falta JWT local"),
     ).toHaveCount(0);
@@ -56,12 +58,10 @@ test.describe("auth: el JWT controla el acceso autenticado", () => {
     const health = watchPageHealth(page);
     await page.goto("/");
 
-    const tokenInput = page.getByLabel("JWT local");
+    await tabButton(page, "Conexión").click();
+    const tokenInput = page.getByLabel("JWT sin prefijo Bearer");
     await tokenInput.fill("token-fake-deliberadamente-roto");
-    // El TopBar persiste el JWT directamente via `useLocalState` en el
-    // onChange — no hace falta clickear "Aplicar". Disparamos un blur
-    // para asegurar el commit del state.
-    await tokenInput.blur();
+    await page.getByRole("button", { name: "Guardar" }).click();
 
     // El panel sigue montado: el Sidebar respondería a clicks.
     await tabButton(page, "Health").click();

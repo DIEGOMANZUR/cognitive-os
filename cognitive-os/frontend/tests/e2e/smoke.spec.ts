@@ -9,7 +9,7 @@ import {
 } from "./_helpers";
 
 test.describe("smoke: el panel carga y se autentica", () => {
-  test("home renderiza Sidebar + TopBar sin errores 5xx ni console.error", async ({
+  test("home renderiza Sidebar sin errores 5xx ni console.error", async ({
     page,
   }) => {
     const jwt = readJwt();
@@ -18,12 +18,13 @@ test.describe("smoke: el panel carga y se autentica", () => {
 
     await page.goto("/");
 
-    // Sidebar + TopBar deben existir en la primera pantalla.
+    // La navegación principal debe existir en la primera pantalla.
     await expect(tabButton(page, "Dashboard")).toBeVisible();
-    await expect(page.getByLabel("JWT local")).toBeVisible();
 
-    // El JWT seedeado debe ya estar pegado en el campo (Fase 71-H).
-    await expect(page.getByLabel("JWT local")).toHaveValue(jwt);
+    // El JWT seedeado debe estar persistido sin ocupar espacio visual permanente.
+    await expect
+      .poll(() => page.evaluate(() => window.localStorage.getItem("cogos.token")))
+      .toBe(JSON.stringify(jwt));
 
     // No debería haber respuestas 5xx en el primer paint.
     expect(health.serverErrors).toEqual([]);

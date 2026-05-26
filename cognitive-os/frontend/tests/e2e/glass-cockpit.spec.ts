@@ -13,7 +13,7 @@ import {
  *
  * Cubre:
  *  - Command palette: abre con Ctrl+K, filtra por fuzzy, navega con Enter.
- *  - Notification center: abre con el botón del TopBar, dismiss con ESC.
+ *  - Notification center: abre desde la command palette, dismiss con ESC.
  *  - Defensive list guards: aún con un endpoint devolviendo `{}` en vez de
  *    array, la vista no cae al ErrorBoundary.
  *  - Skip link: foco visible al tabular desde el body.
