@@ -111,7 +111,13 @@ export function DocumentsView({ client }: { client: ApiClient }) {
             onClick={() => void documents.refetch()}
             type="button"
             aria-label="Refrescar biblioteca de documentos"
-            style={{ alignSelf: "flex-end", marginBottom: 8, marginLeft: "auto" }}
+            style={{
+              display: "block",
+              marginLeft: "auto",
+              marginRight: 8,
+              marginTop: 8,
+              marginBottom: 8
+            }}
           >
             Refrescar
           </button>
