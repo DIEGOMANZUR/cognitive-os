@@ -190,7 +190,7 @@ export function MailInboxView({ client }: { client: ApiClient }) {
         )}
       </section>
 
-      <div className="grid-2" style={{ gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1fr)" }}>
+      <div className="grid-2 mail-layout-grid">
       <section className="section">
         <div className="section-head">
           <div>
@@ -284,10 +284,8 @@ export function MailInboxView({ client }: { client: ApiClient }) {
           <h2>Propuesta</h2>
           {selected && <span className={statusClass(selected.classification)}>{selected.classification}</span>}
         </div>
-        {!selected ? (
-          <p className="muted">Selecciona un mensaje.</p>
-        ) : (
-          <div className="stack">
+        <div className="stack">
+          {selected ? (
             <div className="card soft">
               <p className="muted small">{selected.account_label} / {selected.folder}</p>
               <h3>{selected.subject ?? "(sin asunto)"}</h3>
@@ -297,25 +295,48 @@ export function MailInboxView({ client }: { client: ApiClient }) {
                 <p className="muted small">Criterio: {selected.proposed_reply_rationale}</p>
               )}
             </div>
-            <textarea
-              rows={14}
-              value={replyText}
-              onChange={(event) => setReplyText(event.target.value)}
-              placeholder="Escribe o edita la respuesta propuesta..."
-            />
-            <div className="row wrap">
-              <button className="ghost" disabled={busy || !replyText.trim()} onClick={saveReply} type="button">
-                Guardar texto
-              </button>
-              <button className="ghost" disabled={busy || !replyText.trim()} onClick={copyReply} type="button">
-                Copiar texto
-              </button>
-              <button className="danger" disabled={busy} onClick={ignore} type="button">
-                Ignorar
-              </button>
-            </div>
+          ) : (
+            <p className="muted">Selecciona un mensaje para ver/editar la respuesta propuesta.</p>
+          )}
+          <textarea
+            rows={14}
+            value={selected ? replyText : ""}
+            onChange={(event) => setReplyText(event.target.value)}
+            placeholder={
+              selected
+                ? "Escribe o edita la respuesta propuesta..."
+                : "Selecciona un mensaje para ver la propuesta de respuesta (read-only)."
+            }
+            aria-label="Respuesta propuesta"
+            readOnly={!selected}
+          />
+          <div className="row wrap">
+            <button
+              className="ghost"
+              disabled={busy || !selected || !replyText.trim()}
+              onClick={saveReply}
+              type="button"
+            >
+              Guardar texto
+            </button>
+            <button
+              className="ghost"
+              disabled={busy || !selected || !replyText.trim()}
+              onClick={copyReply}
+              type="button"
+            >
+              Copiar texto
+            </button>
+            <button
+              className="danger"
+              disabled={busy || !selected}
+              onClick={ignore}
+              type="button"
+            >
+              Ignorar
+            </button>
           </div>
-        )}
+        </div>
       </section>
       </div>
     </div>

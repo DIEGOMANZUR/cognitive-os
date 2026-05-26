@@ -19,6 +19,7 @@ export function DocumentsView({ client }: { client: ApiClient }) {
   const toast = useToast();
   const trimmedPath = path.trim();
   const canIngest = trimmedPath.length > 0;
+  const liveDocuments = asArray(documents.data);
 
   async function ingest() {
     const documentPath = path.trim();
@@ -101,10 +102,19 @@ export function DocumentsView({ client }: { client: ApiClient }) {
 
       <section className="section">
         <div className="section-head">
-          <h2>Biblioteca ({documents.data?.length ?? 0})</h2>
+          <h2>Biblioteca ({liveDocuments.length})</h2>
           {documents.error && <span className="badge danger">{documents.error}</span>}
         </div>
         <div className="table-wrap">
+          <button
+            className="ghost"
+            onClick={() => void documents.refetch()}
+            type="button"
+            aria-label="Refrescar biblioteca de documentos"
+            style={{ alignSelf: "flex-end", marginBottom: 8, marginLeft: "auto" }}
+          >
+            Refrescar
+          </button>
           <table className="table">
             <thead>
               <tr>
@@ -119,21 +129,97 @@ export function DocumentsView({ client }: { client: ApiClient }) {
               </tr>
             </thead>
             <tbody>
-              {documents.error && asArray(documents.data).length === 0 && (
+              {documents.error && liveDocuments.length === 0 && (
+                <tr aria-label="Documents error placeholder row">
+                  <td><code>—</code></td>
+                  <td>
+                    <strong>—</strong>
+                    <br />
+                    <span className="muted small">
+                      Error al cargar la biblioteca de documentos.
+                    </span>
+                  </td>
+                  <td><span className="badge danger">error</span></td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td className="small muted">—</td>
+                  <td><code className="small">—</code></td>
+                  <td>
+                    <button
+                      aria-label="Reintentar carga de documentos"
+                      onClick={() => void documents.refetch()}
+                      type="button"
+                    >
+                      ↻ reintentar
+                    </button>
+                  </td>
+                </tr>
+              )}
+              {documents.error && liveDocuments.length === 0 && (
                 <tr>
                   <td colSpan={8}>
                     <ErrorPanel error={documents.error} onRetry={() => void documents.refetch()} />
                   </td>
                 </tr>
               )}
-              {documents.loading && asArray(documents.data).length === 0 && !documents.error && (
+              {documents.loading && liveDocuments.length === 0 && !documents.error && (
+                <tr aria-label="Documents loading placeholder row">
+                  <td><code>—</code></td>
+                  <td>
+                    <strong>Cargando…</strong>
+                    <br />
+                    <span className="muted small">Consultando biblioteca de documentos.</span>
+                  </td>
+                  <td><span className="badge">loading</span></td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td className="small muted">—</td>
+                  <td><code className="small">—</code></td>
+                  <td>
+                    <button
+                      aria-label="Cargando documentos"
+                      disabled
+                      type="button"
+                    >
+                      ▸ chunks / abrir detalle
+                    </button>
+                  </td>
+                </tr>
+              )}
+              {documents.loading && liveDocuments.length === 0 && !documents.error && (
                 <tr>
                   <td colSpan={8}>
                     <Skeleton rows={4} />
                   </td>
                 </tr>
               )}
-              {!documents.loading && !documents.error && asArray(documents.data).length === 0 && (
+              {!documents.loading && !documents.error && liveDocuments.length === 0 && (
+                <tr aria-label="Documents empty placeholder row">
+                  <td><code>—</code></td>
+                  <td>
+                    <strong>Sin documentos ingestados</strong>
+                    <br />
+                    <span className="muted small">
+                      Subí un PDF arriba o usá Ingestar PDF desde el Dashboard.
+                    </span>
+                  </td>
+                  <td><span className="badge configured">empty</span></td>
+                  <td>0</td>
+                  <td>0</td>
+                  <td className="small muted">—</td>
+                  <td><code className="small">—</code></td>
+                  <td>
+                    <button
+                      aria-label="Sin documentos para abrir"
+                      disabled
+                      type="button"
+                    >
+                      ▸ chunks / abrir detalle
+                    </button>
+                  </td>
+                </tr>
+              )}
+              {!documents.loading && !documents.error && liveDocuments.length === 0 && (
                 <tr>
                   <td colSpan={8}>
                     <EmptyState
@@ -144,7 +230,7 @@ export function DocumentsView({ client }: { client: ApiClient }) {
                   </td>
                 </tr>
               )}
-              {asArray(documents.data).map((document) => (
+              {liveDocuments.map((document) => (
                 <Row
                   key={document.id}
                   document={document}
@@ -201,40 +287,74 @@ function Row({
           <code className="small">{document.sha256.slice(0, 12)}…</code>
         </td>
         <td>
-          <button onClick={onToggle} type="button">
-            {open ? "▾ chunks" : "▸ chunks"}
+          <button
+            aria-label={open ? "Cerrar document detail view" : "Abrir document detail view"}
+            onClick={onToggle}
+            type="button"
+          >
+            {open ? "▾ chunks / cerrar detalle" : "▸ chunks / abrir detalle"}
           </button>
         </td>
       </tr>
       {open && (
         <tr>
           <td colSpan={8}>
-            {loading && <p className="muted small">Cargando chunks…</p>}
-            {!loading && chunks && chunks.length === 0 && (
-              <p className="muted small">Sin chunks indexados.</p>
-            )}
-            {!loading && chunks && chunks.length > 0 && (
-              <div className="stack" style={{ gap: 6, maxHeight: 360, overflow: "auto" }}>
-                {chunks.map((chunk) => (
-                  <div key={chunk.chunk_id} className="metric-card" style={{ minHeight: 0 }}>
-                    <div className="row">
-                      <code className="small">{chunk.chunk_id}</code>
-                      <span className="badge">
-                        páginas {chunk.page_start}-{chunk.page_end}
-                      </span>
-                      <button
-                        className="ghost"
-                        onClick={() => onCopy(chunk.text)}
-                        type="button"
-                      >
-                        ⎘ texto
-                      </button>
-                    </div>
-                    <p className="small">{chunk.text}</p>
-                  </div>
-                ))}
+            <section
+              aria-label="Document detail view"
+              className="document-detail-panel"
+              data-testid="document-detail-view"
+            >
+              <div className="section-head">
+                <div>
+                  <h3>Document detail view</h3>
+                  <p className="muted small">
+                    Vista read-only del documento seleccionado y sus chunks indexados.
+                  </p>
+                </div>
+                <span className={statusClass(document.status)}>{document.status}</span>
               </div>
-            )}
+              <div className="grid-3">
+                <div className="metric-card">
+                  <span className="metric-label">Documento</span>
+                  <strong>{document.title ?? document.source_path}</strong>
+                  <code className="small">{document.id}</code>
+                </div>
+                <div className="metric-card">
+                  <span className="metric-label">Páginas</span>
+                  <span className="metric-value">{document.page_count}</span>
+                </div>
+                <div className="metric-card">
+                  <span className="metric-label">Chunks</span>
+                  <span className="metric-value">{document.chunk_count}</span>
+                </div>
+              </div>
+              {loading && <p className="muted small">Cargando chunks…</p>}
+              {!loading && chunks && chunks.length === 0 && (
+                <p className="muted small">Sin chunks indexados.</p>
+              )}
+              {!loading && chunks && chunks.length > 0 && (
+                <div className="stack" style={{ gap: 6, maxHeight: 360, overflow: "auto" }}>
+                  {chunks.map((chunk) => (
+                    <div key={chunk.chunk_id} className="metric-card" style={{ minHeight: 0 }}>
+                      <div className="row">
+                        <code className="small">{chunk.chunk_id}</code>
+                        <span className="badge">
+                          páginas {chunk.page_start}-{chunk.page_end}
+                        </span>
+                        <button
+                          className="ghost"
+                          onClick={() => onCopy(chunk.text)}
+                          type="button"
+                        >
+                          ⎘ texto
+                        </button>
+                      </div>
+                      <p className="small">{chunk.text}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
           </td>
         </tr>
       )}
