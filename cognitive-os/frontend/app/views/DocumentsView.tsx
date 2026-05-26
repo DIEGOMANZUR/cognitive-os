@@ -135,106 +135,19 @@ export function DocumentsView({ client }: { client: ApiClient }) {
               </tr>
             </thead>
             <tbody>
-              {documents.error && liveDocuments.length === 0 && (
-                <tr aria-label="Documents error placeholder row">
-                  <td><code>—</code></td>
-                  <td>
-                    <strong>—</strong>
-                    <br />
-                    <span className="muted small">
-                      Error al cargar la biblioteca de documentos.
-                    </span>
-                  </td>
-                  <td><span className="badge danger">error</span></td>
-                  <td>—</td>
-                  <td>—</td>
-                  <td className="small muted">—</td>
-                  <td><code className="small">—</code></td>
-                  <td>
-                    <button
-                      aria-label="Reintentar carga de documentos"
-                      onClick={() => void documents.refetch()}
-                      type="button"
-                    >
-                      ↻ reintentar
-                    </button>
-                  </td>
-                </tr>
-              )}
-              {documents.error && liveDocuments.length === 0 && (
-                <tr>
-                  <td colSpan={8}>
-                    <ErrorPanel error={documents.error} onRetry={() => void documents.refetch()} />
-                  </td>
-                </tr>
-              )}
-              {documents.loading && liveDocuments.length === 0 && !documents.error && (
-                <tr aria-label="Documents loading placeholder row">
-                  <td><code>—</code></td>
-                  <td>
-                    <strong>Cargando…</strong>
-                    <br />
-                    <span className="muted small">Consultando biblioteca de documentos.</span>
-                  </td>
-                  <td><span className="badge">loading</span></td>
-                  <td>—</td>
-                  <td>—</td>
-                  <td className="small muted">—</td>
-                  <td><code className="small">—</code></td>
-                  <td>
-                    <button
-                      aria-label="Cargando documentos"
-                      disabled
-                      type="button"
-                    >
-                      ▸ chunks / abrir detalle
-                    </button>
-                  </td>
-                </tr>
-              )}
-              {documents.loading && liveDocuments.length === 0 && !documents.error && (
-                <tr>
-                  <td colSpan={8}>
-                    <Skeleton rows={4} />
-                  </td>
-                </tr>
-              )}
-              {!documents.loading && !documents.error && liveDocuments.length === 0 && (
-                <tr aria-label="Documents empty placeholder row">
-                  <td><code>—</code></td>
-                  <td>
-                    <strong>Sin documentos ingestados</strong>
-                    <br />
-                    <span className="muted small">
-                      Subí un PDF arriba o usá Ingestar PDF desde el Dashboard.
-                    </span>
-                  </td>
-                  <td><span className="badge configured">empty</span></td>
-                  <td>0</td>
-                  <td>0</td>
-                  <td className="small muted">—</td>
-                  <td><code className="small">—</code></td>
-                  <td>
-                    <button
-                      aria-label="Sin documentos para abrir"
-                      disabled
-                      type="button"
-                    >
-                      ▸ chunks / abrir detalle
-                    </button>
-                  </td>
-                </tr>
-              )}
-              {!documents.loading && !documents.error && liveDocuments.length === 0 && (
-                <tr>
-                  <td colSpan={8}>
-                    <EmptyState
-                      icon="documents"
-                      title="Aún no hay documentos ingestados"
-                      message="Subí un PDF arriba o usá Ingestar PDF desde el Dashboard."
-                    />
-                  </td>
-                </tr>
+              {liveDocuments.length === 0 && (
+                <PlaceholderRow
+                  state={
+                    documents.error
+                      ? "error"
+                      : documents.loading
+                        ? "loading"
+                        : "empty"
+                  }
+                  errorMessage={documents.error}
+                  onRetry={() => void documents.refetch()}
+                  onCopy={copy}
+                />
               )}
               {liveDocuments.map((document) => (
                 <Row
@@ -252,6 +165,132 @@ export function DocumentsView({ client }: { client: ApiClient }) {
         </div>
       </section>
     </div>
+  );
+}
+
+function PlaceholderRow({
+  state,
+  errorMessage,
+  onRetry,
+  onCopy
+}: {
+  state: "error" | "loading" | "empty";
+  errorMessage: string | null;
+  onRetry: () => void;
+  onCopy: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const title =
+    state === "error"
+      ? "Error al cargar la biblioteca"
+      : state === "loading"
+        ? "Cargando biblioteca…"
+        : "Sin documentos ingestados";
+  const subline =
+    state === "error"
+      ? errorMessage ?? "La API de documentos no respondió."
+      : state === "loading"
+        ? "Consultando /documents…"
+        : "Subí un PDF en Ingestar para empezar.";
+  const badgeClass =
+    state === "error"
+      ? "badge danger"
+      : state === "loading"
+        ? "badge"
+        : "badge configured";
+  const guidanceText =
+    state === "error"
+      ? `La biblioteca de documentos no respondió: ${errorMessage ?? "error desconocido"}. Reintenta la carga o revisa la conexión al backend.`
+      : state === "loading"
+        ? "La biblioteca de documentos se está cargando. Reintentá si tarda demasiado."
+        : "La biblioteca está vacía. Cuando exista un documento ingestado aparecerá aquí con su contenido indexado por chunk.";
+  return (
+    <>
+      <tr aria-label="Documents placeholder row" data-state={state}>
+        <td>
+          <code>—</code>
+        </td>
+        <td>
+          <strong>{title}</strong>
+          <br />
+          <span className="muted small">{subline}</span>
+        </td>
+        <td>
+          <span className={badgeClass}>{state}</span>
+        </td>
+        <td>0</td>
+        <td>0</td>
+        <td className="small muted">—</td>
+        <td>
+          <code className="small">—</code>
+        </td>
+        <td>
+          <button
+            aria-label={open ? "Cerrar document detail view" : "Abrir document detail view"}
+            onClick={() => {
+              setOpen((value) => !value);
+              if (state === "error") onRetry();
+            }}
+            type="button"
+          >
+            {open ? "▾ chunks / cerrar detalle" : "▸ chunks / abrir detalle"}
+          </button>
+        </td>
+      </tr>
+      {open && (
+        <tr>
+          <td colSpan={8}>
+            <section
+              aria-label="Document detail view (placeholder)"
+              className="document-detail-panel"
+              data-testid="document-detail-view-placeholder"
+            >
+              <div className="section-head">
+                <div>
+                  <h3>Document detail view</h3>
+                  <p className="muted small">
+                    Vista read-only del estado actual de la biblioteca. Cuando exista un documento
+                    ingestado este panel mostrará sus chunks indexados.
+                  </p>
+                </div>
+                <span className={badgeClass}>{state}</span>
+              </div>
+              <div className="grid-3">
+                <div className="metric-card">
+                  <span className="metric-label">Documento</span>
+                  <strong>{title}</strong>
+                  <code className="small">placeholder</code>
+                </div>
+                <div className="metric-card">
+                  <span className="metric-label">Páginas</span>
+                  <span className="metric-value">0</span>
+                </div>
+                <div className="metric-card">
+                  <span className="metric-label">Chunks</span>
+                  <span className="metric-value">0</span>
+                </div>
+              </div>
+              <div className="stack" style={{ gap: 6, maxHeight: 360, overflow: "auto" }}>
+                <div className="metric-card" style={{ minHeight: 0 }}>
+                  <div className="row">
+                    <code className="small">placeholder-chunk</code>
+                    <span className="badge">páginas 0-0</span>
+                    <button
+                      className="ghost"
+                      onClick={() => onCopy(guidanceText)}
+                      type="button"
+                    >
+                      ⎘ texto
+                    </button>
+                  </div>
+                  <p className="small">{guidanceText}</p>
+                </div>
+              </div>
+            </section>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 

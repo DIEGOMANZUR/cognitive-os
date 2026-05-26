@@ -31,9 +31,12 @@ export function MailInboxView({ client }: { client: ApiClient }) {
     }
   }, [messages.data, selectedId]);
 
+  const guidanceText =
+    "Las propuestas de respuesta aparecen aquí cuando la sincronización de mail clasifica un mensaje como reply_proposed. Aún no hay sugerencias listas; revisá Gmail/GoDaddy o ejecutá un nuevo digest.";
+
   useEffect(() => {
-    setReplyText(selected?.proposed_reply_text ?? "");
-  }, [selected?.id, selected?.proposed_reply_text]);
+    setReplyText(selected?.proposed_reply_text ?? guidanceText);
+  }, [selected?.id, selected?.proposed_reply_text, guidanceText]);
 
   async function syncNow() {
     setBusy(true);
@@ -300,12 +303,12 @@ export function MailInboxView({ client }: { client: ApiClient }) {
           )}
           <textarea
             rows={14}
-            value={selected ? replyText : ""}
+            value={replyText}
             onChange={(event) => setReplyText(event.target.value)}
             placeholder={
               selected
                 ? "Escribe o edita la respuesta propuesta..."
-                : "Selecciona un mensaje para ver la propuesta de respuesta (read-only)."
+                : "Texto de orientación read-only mientras no hay propuesta seleccionada."
             }
             aria-label="Respuesta propuesta"
             readOnly={!selected}
@@ -321,7 +324,7 @@ export function MailInboxView({ client }: { client: ApiClient }) {
             </button>
             <button
               className="ghost"
-              disabled={busy || !selected || !replyText.trim()}
+              disabled={busy}
               onClick={copyReply}
               type="button"
             >
