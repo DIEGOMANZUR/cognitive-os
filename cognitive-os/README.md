@@ -51,7 +51,7 @@ falla si quedan desincronizados):
   PWA dark-only glassmorphism, sin Tailwind/shadcn.
 - **LLM** — primary+agent `gpt-5.5` (Responses API + prompt caching 24h),
   secondary/fallback `gemini-3.1-pro-low`, vision `glm-4.6v`.
-- **QA** — `full-qa.sh` **1192 passed** post-remediación 2026-05-25 (1190
+- **QA** — `full-qa.sh` **1200 passed** post-remediación 2026-05-25 (1190
   base + 2 regresión FK order), `stress-qa.sh 5` -> **5/5 verde**
   (flakiness 0% tras cerrar F-P0-001) +
   ruff/format/mypy/Alembic/lint/build/`sync_doc_counts`/`git diff --check`;
@@ -113,8 +113,8 @@ de producto**):
 - `backend/tests/test_clean_slate_fixture_covers_all_fks.py` (nuevo) — test
   de regresión que detecta futura adición de FKs sin actualizar fixtures.
 
-Gate post-remediación: `full-qa.sh` -> **1192 passed**, `stress-qa.sh 5` ->
-**5/5 verde × 1192 passed**, Playwright **43 passed**, CDP **0 console.error**.
+Gate post-remediación: `full-qa.sh` -> **1200 passed**, `stress-qa.sh 5` ->
+**5/5 verde × 1200 passed**, Playwright **43 passed**, CDP **0 console.error**.
 **2 ciclos completos verdes** tras el último cambio. Flakiness post-fix: **0%**.
 Reporte completo en
 `tmp/full_functional_activation_20260525_073134/archived_remediation/remediation_20260525_065154.tar.gz` (archivado tar.gz).
@@ -143,7 +143,7 @@ stubeaban `DriveService`; ahora usan `_FakeReadyDriveService`.
 Gate post-fix: `bash scripts/full-qa.sh` -> **1190 passed**, 1 skipped,
 28 deselected (958 historicos + 227 audit-commercial + 4 time_mcp_server
 + 1 dispatch guard). Playwright -> **43 passed**.
-*Tras remediación 2026-05-25 ese gate subió a `1192 passed` por +2 tests
+*Tras remediación 2026-05-25 ese gate subió a `1200 passed` por +2 tests
 de regresión FK order; ver sección anterior.*
 
 **Time MCP local + commercial UX hardening (`ce72dc2`, 2026-05-25).**
@@ -274,7 +274,7 @@ rsync -a --exclude node_modules --exclude .next --exclude .venv --exclude '__pyc
 - Python ≥ 3.12 y [uv](https://docs.astral.sh/uv/)
 - Node.js ≥ 22 y npm
 - Verificación reproducible: `bash scripts/full-qa.sh` (`uv sync --extra openharness` + `pytest` + `ruff check` + `ruff format --check` + `mypy` + `npm ci` + `npm run lint` + `npm run build` + `sync_doc_counts.py --check` + `git diff --check`). Estrés: `bash scripts/stress-qa.sh` (3 pasadas de pytest por defecto). Smokes en vivo opt-in: `bash scripts/full-qa-live.sh`.
-- Snapshot QA actual (2026-05-25 post-remediación, base commit `0f8232a` + fix flakiness FK order): `bash scripts/full-qa.sh` **1192 passed, 1 skipped, 28 deselected** (1190 base + 2 regresión); `bash scripts/stress-qa.sh 5` -> **5/5 verde** (flakiness 0%); ruff/ruff format/mypy, frontend lint/build aislado con `.next-qa`, Alembic head `202605200003` y `git diff --check` verdes. Playwright frontend: **43 passed** sin exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`). Live read-only: `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed** (último gate documentado; no re-ejecutado en remediación por ser opt-in, pero `POST /health/verify` se llamó live y `primary_llm`/`embeddings`/`mail` retornaron `ok`). TestSprite MCP re-audit historico: **10/10 passed**.
+- Snapshot QA actual (2026-05-25 post-remediación, base commit `0f8232a` + fix flakiness FK order): `bash scripts/full-qa.sh` **1200 passed, 1 skipped, 28 deselected** (1190 base + 2 regresión); `bash scripts/stress-qa.sh 5` -> **5/5 verde** (flakiness 0%); ruff/ruff format/mypy, frontend lint/build aislado con `.next-qa`, Alembic head `202605200003` y `git diff --check` verdes. Playwright frontend: **43 passed** sin exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`). Live read-only: `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed** (último gate documentado; no re-ejecutado en remediación por ser opt-in, pero `POST /health/verify` se llamó live y `primary_llm`/`embeddings`/`mail` retornaron `ok`). TestSprite MCP re-audit historico: **10/10 passed**.
 
 ## Backend
 

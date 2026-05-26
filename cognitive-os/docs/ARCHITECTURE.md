@@ -59,10 +59,10 @@
 > `tmp/full_functional_activation_20260525_073134/reports/FULL_FUNCTIONAL_ACTIVATION_REPORT.md`.
 >
 > **QA más reciente (2026-05-25 post-remediación, base `0f8232a`):** `bash
-> scripts/full-qa.sh` verde con **1192 passed**, 1 skipped, 28 deselected
+> scripts/full-qa.sh` verde con **1200 passed**, 1 skipped, 28 deselected
 > (1190 base + 2 regresión `test_clean_slate_fixture_covers_all_fks.py` de la
 > remediación P0 que cerró la flakiness ~33% del gate);
-> `bash scripts/stress-qa.sh 5` -> **5/5 verde × 1192 passed**, flakiness 0%;
+> `bash scripts/stress-qa.sh 5` -> **5/5 verde × 1200 passed**, flakiness 0%;
 > ruff/format/mypy/Alembic/lint/build/`sync_doc_counts --check`/`git diff
 > --check` OK; build frontend aislado con `NEXT_DIST_DIR=.next-qa`;
 > Playwright **43 passed** sin exportar `COGOS_JWT` (auto-mint via

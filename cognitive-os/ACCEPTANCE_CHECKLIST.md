@@ -32,8 +32,8 @@
 > + `test_audit_commercial_reapers_dedicated.py` ahora limpian
 > `DeepAgentMemoryProposalRecord` antes de `HumanApproval` (FK a
 > `human_approvals.id`); `test_clean_slate_fixture_covers_all_fks.py`
-> defiende el orden. Gate post-remediación: `full-qa.sh` **1192 passed**,
-> `stress-qa.sh 5` **5/5 verde × 1192 passed** (flakiness 0%), Playwright
+> defiende el orden. Gate post-remediación: `full-qa.sh` **1200 passed**,
+> `stress-qa.sh 5` **5/5 verde × 1200 passed** (flakiness 0%), Playwright
 > **43/43**, CDP **0 console.error** × 2 rondas. Reporte:
 > `tmp/full_functional_activation_20260525_073134/archived_remediation/remediation_20260525_065154.tar.gz` (archivado tar.gz).
 > Pendientes vivos: `corregir_cognitive.md`.

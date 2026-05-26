@@ -40,8 +40,8 @@
 > beat**, **20 migraciones Alembic** head `202605200003`, **20 vistas
 > frontend**, **37 comandos Telegram**, **18 componentes** en
 > `/health/dashboard` + `POST /health/verify`. QA post-remediación: `full-qa`
-> **1192 passed**, 1 skipped, 28 deselected (1190 base + 2 regresión FK order
-> de la remediación 2026-05-25); `stress-qa.sh 5` -> **5/5 verde × 1192 passed**
+> **1200 passed**, 1 skipped, 28 deselected (1190 base + 2 regresión FK order
+> de la remediación 2026-05-25); `stress-qa.sh 5` -> **5/5 verde × 1200 passed**
 > (flakiness 0% tras cerrar F-P0-001); Playwright **43 passed** sin exportar
 > `COGOS_JWT` (auto-mint via `_global-setup.ts`); carril opt-in `tests/live/`
 > verificado **8 passed**; TestSprite re-audit historico **10/10 passed**
@@ -600,7 +600,7 @@ la allow-list, te responde con los 37 comandos.
 ```bash
 cd cognitive-os
 bash scripts/full-qa.sh                  # pytest + ruff + mypy + frontend build + sync_doc_counts + git diff
-# Esperado vigente post-remediación: 1192 passed, 1 skipped, 28 deselected; todo verde
+# Esperado vigente post-remediación: 1200 passed, 1 skipped, 28 deselected; todo verde
 # (corre contra cognitive_os_test — la DB de producción nunca se toca)
 
 # Frontend E2E sin exportar nada:

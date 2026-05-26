@@ -13,11 +13,11 @@
 > auditoría Fase 76 como histórico, pero el gate actual del proyecto
 > es más amplio:
 >
-> - `bash scripts/full-qa.sh` → **1192 passed**, 1 skipped, 28
+> - `bash scripts/full-qa.sh` → **1200 passed**, 1 skipped, 28
 >   deselected (1190 base + 2 regresión `test_clean_slate_fixture_covers_all_fks.py`).
 >   Ruff/format/mypy/Alembic/frontend lint/build/`sync_doc_counts
 >   --check`/`git diff --check` OK.
-> - `bash scripts/stress-qa.sh 5` → **5/5 verde × 1192 passed**,
+> - `bash scripts/stress-qa.sh 5` → **5/5 verde × 1200 passed**,
 >   flakiness post-fix = 0% (cerró F-P0-001 — root cause: orden FK
 >   del fixture `clean_slate`; fix en 3 archivos de test, cero código
 >   de producto).
@@ -197,7 +197,7 @@ frontend/
 ```bash
 # Backend pytest (referencia):
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/backend"
-uv run pytest -q                                   # 1192 passed esperado post-remediación (1190 base + 2 regresión FK order)
+uv run pytest -q                                   # 1200 passed esperado post-remediación (1190 base + 2 regresión FK order)
 
 # Frontend lint + build:
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/frontend"

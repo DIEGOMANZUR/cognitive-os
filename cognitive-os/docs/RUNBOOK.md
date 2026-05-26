@@ -25,9 +25,9 @@
 > `mail`) con hasta **13 jobs beat**, **20 migraciones Alembic** head
 > `202605200003`, **37 slash commands Telegram**, `/health/dashboard`
 > con 18 componentes + `POST /health/verify`. QA post-remediación:
-> `full-qa.sh` **1192 passed**, 1 skipped, 28 deselected (1190 base +
+> `full-qa.sh` **1200 passed**, 1 skipped, 28 deselected (1190 base +
 > 2 regresión `test_clean_slate_fixture_covers_all_fks.py`);
-> `stress-qa.sh 5` -> **5/5 verde × 1192 passed** (flakiness 0%); Playwright
+> `stress-qa.sh 5` -> **5/5 verde × 1200 passed** (flakiness 0%); Playwright
 > **43 passed** sin exportar `COGOS_JWT` (auto-mint via
 > `_global-setup.ts`). `full-qa.sh` construye Next en `.next-qa` para
 > no invalidar el `.next` que usa un `next start` vivo. Live read-only:
@@ -90,7 +90,7 @@ Y para los gates QA:
 
 ```bash
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os"
-bash scripts/full-qa.sh                          # 1192 passed post-remediación (≈70s)
+bash scripts/full-qa.sh                          # 1200 passed post-remediación (≈70s)
 cd frontend && unset COGOS_JWT && npx playwright test --reporter=list
 # 43 passed (auto-mint JWT, no necesita exportar nada)
 ```

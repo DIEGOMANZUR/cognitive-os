@@ -8,9 +8,9 @@
 > La suite oficial Playwright está verde con **43 passed** y se ejecuta
 > contra la SPA Next.js de 20 tabs sin necesidad de exportar
 > `COGOS_JWT` (auto-mint via `_global-setup.ts`). Backend verificado
-> por `full-qa.sh`: **1192 passed**, 1 skipped, 28 deselected (1190
+> por `full-qa.sh`: **1200 passed**, 1 skipped, 28 deselected (1190
 > base + 2 regresión `test_clean_slate_fixture_covers_all_fks.py`).
-> `stress-qa.sh 5` -> **5/5 verde × 1192 passed**, flakiness post-fix
+> `stress-qa.sh 5` -> **5/5 verde × 1200 passed**, flakiness post-fix
 > = 0%.
 > El producto corre en un PC dedicado con prioridad de fricción casi
 > nula; los tests deben validar que esa fricción baja no esconda

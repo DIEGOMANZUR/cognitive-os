@@ -21,7 +21,7 @@
 > desde el navegador. El resultado muestra resumen y respuestas sugeridas
 > como texto; no crea drafts y no envía emails.
 >
-> **Componentes:** `Sidebar.tsx`, `TopBar.tsx`, `CommandPalette.tsx`,
+> **Componentes:** `Sidebar.tsx`, `CommandPalette.tsx`,
 > `NotificationCenter.tsx`, `PWA.tsx`, `ErrorBoundary.tsx`, `Charts.tsx`,
 > `Icon.tsx` (set SVG curado de ~55 íconos Lucide-style).
 >
@@ -80,8 +80,8 @@
 >   frontend aislado con `NEXT_DIST_DIR=.next-qa` y limpia ese directorio
 >   para no romper un `next start` vivo servido desde `.next`; gate
 >   vigente: **950 passed**, 1 skipped, 28 deselected.
-> - Anclajes de la suite oficial (`aria-label="JWT local"`, `URL base de la
->   API`, `Abrir menú`, `Cerrar`, "Estado global", "componentes ok", 20
+> - Anclajes de la suite oficial (`Abrir menú`, `Cerrar`, "Estado global",
+>   "componentes ok", 20
 >   TAB_LABELS, labels "Guardar"/"API base"/"JWT sin prefijo Bearer" en
 >   `SettingsView`) intactos.
 >
@@ -106,8 +106,8 @@ npm run serve   # build + next start -H 127.0.0.1 -p 3001
 
 Configura `NEXT_PUBLIC_API_BASE_URL` (o ajustes en la UI) si la API no está en
 `http://127.0.0.1:8000`. El JWT se persiste en `localStorage` bajo
-`cogos.token` (perfil `dedicated_local`); el TopBar lo lee y lo escribe en
-caliente sin recargar.
+`cogos.token` (perfil `dedicated_local`); se autoprovisiona o se configura en
+`Conexión` para no ocupar espacio permanente en la pantalla principal.
 
 ## Sistema de diseño (Fase 82)
 

@@ -7,9 +7,9 @@
 > runtime: F-RUNTIME-001 `browser_preview` Playwright sync/async (no
 > regresión, preexistente). QA oficial del proyecto:
 >
-> - `bash scripts/full-qa.sh` con **1192 passed**, 1 skipped, 28
+> - `bash scripts/full-qa.sh` con **1200 passed**, 1 skipped, 28
 >   deselected (1190 base + 2 regresión `test_clean_slate_fixture_covers_all_fks.py`).
-> - `bash scripts/stress-qa.sh 5` -> **5/5 verde × 1192 passed**,
+> - `bash scripts/stress-qa.sh 5` -> **5/5 verde × 1200 passed**,
 >   flakiness post-fix = 0% (cerró F-P0-001 — root cause: orden FK del
 >   fixture `clean_slate`, fix en 3 archivos de test sin tocar producto).
 > - Playwright **43 passed** sin necesidad de exportar `COGOS_JWT`: el
@@ -158,7 +158,7 @@ npm run build   # next build
 
 ```bash
 cd "/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/backend"
-uv run pytest -q          # 1192 passed esperado post-remediación (1190 base + 2 regresión FK order)
+uv run pytest -q          # 1200 passed esperado post-remediación (1190 base + 2 regresión FK order)
 uv run ruff check src tests
 uv run ruff format --check src tests
 uv run mypy src

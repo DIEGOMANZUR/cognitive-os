@@ -88,9 +88,9 @@ Fix aplicado (3 archivos de test, **cero código de producto**):
   test de regresión que detecta futura adición de tablas con FK a
   `human_approvals` sin actualizar los fixtures.
 
-Gate post-fix: `bash scripts/full-qa.sh` -> **1192 passed**, 1 skipped,
+Gate post-fix: `bash scripts/full-qa.sh` -> **1200 passed**, 1 skipped,
 28 deselected (1190 históricos + 2 regresión). `bash scripts/stress-qa.sh 5`
--> **5/5 corridas × 1192 passed** sin un solo fallo. Playwright -> **43
+-> **5/5 corridas × 1200 passed** sin un solo fallo. Playwright -> **43
 passed**. CDP sweep 20 vistas -> **0 console.error**. **2 ciclos completos
 verdes** tras el último cambio. Tasa de flakiness post-fix: **0%**. Reporte
 en
@@ -162,7 +162,7 @@ Gate ejecutado: `bash scripts/full-qa.sh` -> **1190 passed**, 1 skipped,
 28 deselected (958 historicos + 232 nuevos: 227 audit-commercial + 4
 time_mcp_server + 1 dispatch guard); `npx playwright test` -> **43
 passed** (41 historicos + 2 del nuevo spec de Mail UI).
-*Post-remediación 2026-05-25 ese gate subió a `1192 passed` por +2 tests
+*Post-remediación 2026-05-25 ese gate subió a `1200 passed` por +2 tests
 de regresión de la fix `clean_slate` FK order.*
 
 **Time MCP local + commercial UX hardening (2026-05-25, commit `ce72dc2`).**
@@ -480,7 +480,7 @@ Conteos estructurales derivados del codigo (generados por
 | LLM | primary+agent `gpt-5.5` (Responses API + prompt caching 24h), secondary/fallback `gemini-3.1-pro-low`, vision `glm-4.6v` |
 | QA backend | `pytest` hermetico con DB de test aislada (`cognitive_os_test`); guard exhaustivo (subproceso aislado) verifica que se niega a correr contra produccion |
 | QA frontend | Playwright oficial: 43 tests en desktop/mobile; runner zero-friction (auto-mintea `COGOS_JWT` via `POST /auth/local-token` en `dedicated_local/full`) |
-| QA oficial | `scripts/full-qa.sh` (build Next aislado en `.next-qa`, **1192 passed** post-remediación 2026-05-25 — 1190 históricos + 2 regresión FK order); `stress-qa.sh 5` -> 5/5 verde, flakiness 0%; `full-qa-live.sh` opt-in para smokes reales |
+| QA oficial | `scripts/full-qa.sh` (build Next aislado en `.next-qa`, **1200 passed** post-remediación 2026-05-25 — 1190 históricos + 2 regresión FK order); `stress-qa.sh 5` -> 5/5 verde, flakiness 0%; `full-qa-live.sh` opt-in para smokes reales |
 | Audit matrix | 16 archivos `test_audit_commercial_*` + `audit-commercial-*.spec.ts` (~230 asserciones) cubren los 4 P0-criticos y 12 GAPs P1 del contrato comercial: Mail SMTP gate, GoDaddy DNS gate, Code Director STDIN, eager_defaults full, auth matrix, path-traversal corpus, operational_backlog reactivo, workflow.v1 hardening, calendar/drive directo `dry_run=false`→409, health overall honest, reapers dedicados, DB isolation, secrets redaction, test fixtures gating, MCP fail-open, Mail UI sin boton Enviar |
 | Reaudit TestSprite | 2 pasadas independientes 2026-05-23: pasada 1 (PASS, 5 hallazgos P2/P3 cerrados); pasada 2 (PASS, 1 P1 nuevo cazado y corregido — eager_defaults). Reporte en `docs/audits/testsprite/16_FINAL_REAUDIT_REPORT.md` |
 
@@ -489,9 +489,9 @@ Conteos estructurales derivados del codigo (generados por
 Gate mas reciente en esta rama (`codex/commercial-zero-friction-hardening`,
 2026-05-25 post-remediación P0):
 
-- `bash scripts/full-qa.sh` -> **1192 passed, 1 skipped, 28 deselected**
-  (1190 históricos + 2 nuevos de regresión `test_clean_slate_fixture_covers_all_fks.py`).
-- `bash scripts/stress-qa.sh 5` -> **5/5 corridas × 1192 passed**, flakiness 0%.
+- `bash scripts/full-qa.sh` -> **1200 passed, 1 skipped, 28 deselected**
+  (1192 base post-remediación FK + 8 regresiones `test_final_functional_hardening.py` del commit `6891d5c`).
+- `bash scripts/stress-qa.sh 5` -> **5/5 corridas × 1200 passed**, flakiness 0%.
 - `npx playwright test` -> **43 passed** sin exportar `COGOS_JWT`.
 - Ruff/format/mypy/Alembic verdes; frontend `npm run lint` + `tsc
   --noEmit` 0 warnings.

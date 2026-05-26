@@ -1,79 +1,50 @@
-# 03 · Runtime Boot Log
+# 03 — Runtime Boot Log
 
-Fecha: 2026-05-23 04:00-07:00 UTC
-Stack: ya levantado por la sesión anterior; no se relanzó nada al inicio
-del audit para evitar interrumpir el trabajo del operador.
+Fecha: **2026-05-25** | Auditoría Prompt 1
 
-## 1. Capturas de entorno
+## Snapshot entorno
 
-```
-git status: clean
-git branch: codex/commercial-zero-friction-hardening
-git rev-parse HEAD: 9b22f77
-git diff 2c3cff6..HEAD: 34 files (docs+counts mostly; ver §11 del DISCOVERY MAP)
-python: 3.12.3
-uv: presente (backend/.venv activo)
-docker: instalado, cognitive_os_{postgres,redis,weaviate,neo4j} healthy
-node: usado por next-server v16.2.6
-```
+| Item | Valor |
+|---|---|
+| Branch | `codex/commercial-zero-friction-hardening` |
+| HEAD | `6891d5c3dc573bcfadbe6438ea062334e4e86a05` |
+| Python | 3.12.3 |
+| uv | 0.11.6 |
+| Node | v22.22.0 |
+| npm | 10.9.4 |
+| Docker | 29.5.2 |
+| Compose | v5.1.4 |
 
-## 2. Procesos vivos (a 04:00 UTC)
+## Estado al inicio
 
-| PID | Componente | Comando |
+Stack **ya levantado** (no se reinició para no interrumpir operador):
+
+| Servicio | URL/Puerto | Estado |
 |---|---|---|
-| 106597/106603 | API | `uv run uvicorn cognitive_os.api.app:app --host 127.0.0.1 --port 8000` |
-| 106744+ | Celery worker | `worker -Q default,ingestion,agent_longrun,maintenance,mail --loglevel=info` |
-| 106760/106772 | Celery beat | `beat --loglevel=info` |
-| 106787 | Frontend | `next-server (v16.2.6)` en `127.0.0.1:3001` (`next start` desde `.next/BUILD_ID=vBH-vqxLOrOv8e5lHn1Rf` del 2026-05-22 22:26) |
-| 106944/106970 | Telegram bot | `python -m cognitive_os.integrations.telegram_bot` |
+| API FastAPI | 127.0.0.1:8000 | UP |
+| Frontend Next | 127.0.0.1:3001 | UP (HTTP 200) |
+| `/system/info` | — | `operator_profile=dedicated_local`, git `6891d5c` |
+| `/system/readiness` | — | 14/14 unlocked |
 
-## 3. Docker containers (cognitive-os)
+## Verificaciones ejecutadas
 
-| Container | Status | Ports |
-|---|---|---|
-| cognitive_os_postgres | Up (healthy) | 127.0.0.1:5432 |
-| cognitive_os_redis | Up (healthy) | 127.0.0.1:6379 |
-| cognitive_os_weaviate | Up (healthy) | 127.0.0.1:8081, 127.0.0.1:50052 (gRPC) |
-| cognitive_os_neo4j | Up (healthy) | 127.0.0.1:7475, 127.0.0.1:7688 |
-
-## 4. Verificaciones HTTP
-
-```
-$ curl http://127.0.0.1:8000/health
-{"status":"ok","service":"cognitive-os"}
-
-$ curl -X POST http://127.0.0.1:8000/auth/local-token
-{ "access_token": "<JWT>", "user_id": "local-operator",
-  "roles": ["admin", "operator"], "expires_at": "2036-05-20T..." }
-
-$ curl http://127.0.0.1:8000/system/info -H "Authorization: Bearer <JWT>"
-{ "operator_profile": "dedicated_local",
-  "git_commit": "2c3cff6dfccf", "alembic_head": "202605200003" }
-
-$ curl http://127.0.0.1:8000/system/mcp -H "Authorization: Bearer <JWT>"
-{ enabled: true, 5 servers all connected, 67 tools }
-
-$ curl http://127.0.0.1:8000/health/dashboard -H "Authorization: Bearer <JWT>"
-{ status: "configured", 18 components,
-  ok: postgres, redis, weaviate, neo4j, workers, langsmith, operational_backlog, checkpointer
-  ready: voice, maps, google_calendar, google_drive, kimi_webbridge, captcha_solver
-  configured: primary_llm, embeddings, mail, mcp_client (cableados, sin probe live) }
-
-$ curl http://127.0.0.1:8000/system/readiness -H "Authorization: Bearer <JWT>"
-{ operator_profile: "dedicated_local", local_autonomy_mode: "full",
-  target_capabilities_unlocked: 14, target_capabilities_total: 14, gaps: [] }
-
-$ curl -I http://127.0.0.1:3001/
-HTTP/1.1 200 OK (Next.js production server, security headers presentes)
+```bash
+curl -sX POST http://127.0.0.1:8000/auth/local-token
+curl -s http://127.0.0.1:8000/system/info -H "Authorization: Bearer $JWT"
+curl -s http://127.0.0.1:8000/system/readiness -H "Authorization: Bearer $JWT"
+curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3001  # → 200
 ```
 
-## 5. JWT capturado
+## Reparaciones aplicadas en boot
 
-Guardado en `/tmp/cogos_jwt.txt` para reuso en pytest/Playwright/TestSprite.
-Roles: `admin`, `operator`. TTL: ~10 años (decisión `dedicated_local/full`).
+Ninguna de infraestructura requerida — stack operativo.
 
-## 6. Sin reparación necesaria
+## PIDs / logs
 
-El stack estaba sano y reproducible al momento del audit. No se requirió
-levantar nada nuevo. Una eventual reinicialización al cierre se aplicará
-sólo si hace falta cargar binarios de HEAD (ver `02_ZERO_FRICTION_RUNTIME_PROFILE.md` §4).
+No se capturaron PIDs (stack preexistente vía launchers de escritorio). Logs en rutas estándar del RUNBOOK (`~/Escritorio/cognitive-os.sh logs`).
+
+## Carpetas de artefactos creadas
+
+- `docs/audits/testsprite/`
+- `test-results/testsprite/`
+- `test-results/manual/`, `playwright/`, `backend/`, `runtime/`

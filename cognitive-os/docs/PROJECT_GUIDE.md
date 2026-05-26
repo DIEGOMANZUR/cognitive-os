@@ -33,11 +33,11 @@
 >
 > **QA más reciente (2026-05-25 post-remediación P0, rama
 > `codex/commercial-zero-friction-hardening`):** `bash scripts/full-qa.sh`
-> verde con **1192 passed, 1 skipped, 28 deselected** (1190 base + 2
+> verde con **1200 passed, 1 skipped, 28 deselected** (1190 base + 2
 > regresión `test_clean_slate_fixture_covers_all_fks.py` que cierra la
 > flakiness ~33% del gate hermético observada en una auditoría posterior
 > al cierre `0f8232a`); `bash scripts/stress-qa.sh 5` -> **5/5 verde ×
-> 1192 passed**, flakiness 0%;
+> 1200 passed**, flakiness 0%;
 > ruff/format/mypy/Alembic/lint/build/`sync_doc_counts --check`/`git
 > diff --check` OK; Playwright **43 passed** sin exportar `COGOS_JWT`
 > (auto-mint via `_global-setup.ts`). El build de QA usa
