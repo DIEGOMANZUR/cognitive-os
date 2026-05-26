@@ -66,3 +66,4 @@ tmp/
 # Recovered transcripts may contain pasted credentials or private context.
 conversacion_recuperada_codex_claude.md
 sesion_14_15_mayo_completa.md
+.aider*
