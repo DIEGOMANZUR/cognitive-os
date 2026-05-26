@@ -6,6 +6,7 @@ import type { ApiClient } from "../lib/api";
 import { errorMessage, statusClass } from "../lib/api";
 import { Donut } from "../components/Charts";
 import { Icon } from "../components/Icon";
+import { ErrorPanel, Skeleton } from "../components/StatePrimitives";
 import { usePolledFetch } from "../lib/hooks";
 import type { HealthDashboardResponse } from "../lib/types";
 
@@ -28,6 +29,7 @@ export function HealthView({ client }: { client: ApiClient }) {
   const [verifying, setVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState<HealthDashboardResponse | null>(null);
   const [verifyError, setVerifyError] = useState<string | null>(null);
+  const dashboardData = dashboard.data;
 
   async function runLiveVerify() {
     setVerifying(true);
@@ -51,7 +53,7 @@ export function HealthView({ client }: { client: ApiClient }) {
   }
 
   const counts = useMemo(() => {
-    const components = dashboard.data?.components ?? [];
+    const components = dashboardData?.components ?? [];
     let ok = 0;
     let warn = 0;
     let danger = 0;
@@ -61,13 +63,13 @@ export function HealthView({ client }: { client: ApiClient }) {
       else danger += 1;
     }
     return { ok, warn, danger, total: components.length };
-  }, [dashboard.data]);
+  }, [dashboardData]);
 
-  const overall = dashboard.data?.status ?? "—";
+  const overall = dashboardData?.status ?? "—";
   const overallTone = overall === "ok" ? "ok" : overall === "configured" ? "warn" : "danger";
 
   const backlog = useMemo(() => {
-    const component = dashboard.data?.components.find(
+    const component = dashboardData?.components.find(
       (c) => c.name === "operational_backlog"
     );
     if (!component) return null;
@@ -85,7 +87,7 @@ export function HealthView({ client }: { client: ApiClient }) {
       actionRequestsStuck: num("action_requests_stuck"),
       beatLagMinutes: num("beat_lag_minutes")
     };
-  }, [dashboard.data]);
+  }, [dashboardData]);
 
   return (
     <div className="stack" style={{ gap: 18 }}>
@@ -98,8 +100,10 @@ export function HealthView({ client }: { client: ApiClient }) {
           </span>
         </div>
         <span className="sub">
-          {dashboard.data
-            ? `actualizado a las ${new Date(dashboard.data.checked_at).toLocaleTimeString()} · ${counts.total} componentes monitorizados`
+          {dashboardData
+            ? `actualizado a las ${new Date(dashboardData.checked_at).toLocaleTimeString()} · ${counts.total} componentes monitorizados`
+            : dashboard.error
+              ? `Backend health no disponible: ${dashboard.error}`
             : "Cargando estado del stack…"}
         </span>
       </header>
@@ -107,8 +111,14 @@ export function HealthView({ client }: { client: ApiClient }) {
       <section className="section">
         <div className="section-head">
           <h2>Verificación en vivo</h2>
-          <button className="ghost small" onClick={runLiveVerify} type="button" disabled={verifying}>
-            <Icon name="refresh" size={13} /> {verifying ? "Verificando…" : "Verificar en vivo"}
+          <button
+            className="ghost small"
+            onClick={runLiveVerify}
+            type="button"
+            disabled={verifying}
+          >
+            <Icon name="refresh" size={13} />{" "}
+            {verifying ? "Verificando…" : "Verificar en vivo"}
           </button>
         </div>
         <span className="faint small">
@@ -238,7 +248,7 @@ export function HealthView({ client }: { client: ApiClient }) {
         </section>
       </div>
 
-      {dashboard.error && (
+      {dashboard.error && dashboardData && (
         <div className="warn-box row">
           <Icon name="alert" size={16} />
           <span>{dashboard.error}</span>
@@ -250,7 +260,7 @@ export function HealthView({ client }: { client: ApiClient }) {
           <h2>Componentes</h2>
           <span className="faint small">live polling cada 7s</span>
         </div>
-        {dashboard.data ? (
+        {dashboardData ? (
           <div className="table-wrap">
             <table className="table">
               <thead>
@@ -263,7 +273,7 @@ export function HealthView({ client }: { client: ApiClient }) {
                 </tr>
               </thead>
               <tbody>
-                {dashboard.data.components.map((component) => (
+                {dashboardData.components.map((component) => (
                   <tr key={component.name}>
                     <td>
                       <strong>{component.name}</strong>
@@ -306,12 +316,10 @@ export function HealthView({ client }: { client: ApiClient }) {
               </tbody>
             </table>
           </div>
+        ) : dashboard.error ? (
+          <ErrorPanel error={dashboard.error} onRetry={() => void dashboard.refetch()} />
         ) : (
-          <div className="stack">
-            {[0, 1, 2, 3, 4].map((i) => (
-              <div key={i} className="skeleton skeleton-line" />
-            ))}
-          </div>
+          <Skeleton rows={5} />
         )}
       </section>
     </div>

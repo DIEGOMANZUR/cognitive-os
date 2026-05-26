@@ -650,62 +650,10 @@ select {
 }
 
 .main-head {
-  display: flex;
+  display: none;
   align-items: center;
   gap: 12px;
   min-width: 0;
-}
-
-.main-head .topbar {
-  flex: 1;
-  min-width: 0;
-}
-
-/* ---- Top bar ------------------------------------------------------------ */
-.topbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  max-width: 100%;
-  padding: 9px 12px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
-  background: var(--glass-2);
-  backdrop-filter: blur(var(--blur));
-  -webkit-backdrop-filter: blur(var(--blur));
-  box-shadow: var(--inner-hi), var(--shadow-2);
-}
-
-.topbar-field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1 1 0;
-  min-width: 0;
-}
-
-.topbar-field .field-icon {
-  color: var(--text-faint);
-  flex-shrink: 0;
-}
-
-.topbar input {
-  border: 1px solid transparent;
-  background: var(--bg-deep);
-  height: 36px;
-  min-width: 0;
-}
-
-.topbar-sep {
-  width: 1px;
-  align-self: stretch;
-  background: var(--line);
-  margin: 2px 0;
-}
-
-.topbar-spacer {
-  flex: 1;
 }
 
 .theme-toggle {
@@ -715,7 +663,7 @@ select {
   padding: 0;
 }
 
-/* Round icon button — top bar / panel actions */
+/* Round icon button — panel actions */
 .icon-btn {
   width: 38px;
   min-width: 38px;
@@ -749,7 +697,7 @@ select {
   bottom: 0;
   width: 100%;
   max-width: 100vw;
-  display: grid;
+  display: none;
   grid-template-columns: repeat(5, 1fr);
   background: rgba(10, 14, 24, 0.86);
   backdrop-filter: blur(var(--blur-strong));
@@ -813,6 +761,25 @@ select {
   padding-bottom: calc(18px + env(safe-area-inset-bottom));
   box-shadow: var(--shadow-pop);
   animation: slide-in-left var(--slow) var(--ease);
+}
+
+/* ---- Responsive data surfaces ------------------------------------------ */
+.mail-layout-grid {
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+}
+
+.audit-cards {
+  display: none;
+}
+
+.document-detail-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--glass-border-hi);
+  border-radius: var(--radius);
+  background: rgba(95, 227, 207, 0.06);
 }
 
 /* ---- Sections / glass panels ------------------------------------------- */
@@ -2123,6 +2090,15 @@ progress::-moz-progress-bar {
   .shell {
     grid-template-columns: 1fr;
   }
+  .sidebar-wrap:not(.is-drawer) {
+    display: none;
+  }
+  .main-head {
+    display: flex;
+  }
+  .bottom-nav {
+    display: grid;
+  }
   .sidebar {
     position: relative;
     height: auto;
@@ -2137,21 +2113,36 @@ progress::-moz-progress-bar {
   .grid-3 {
     grid-template-columns: 1fr;
   }
+  .mail-layout-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .section-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .section-head > .row,
+  .row.wrap {
+    width: 100%;
+  }
+  .section-head input,
+  .section-head select {
+    min-width: 0 !important;
+    width: 100%;
+  }
+  .table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  .audit-cards {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+  }
   .research-grid {
     grid-template-columns: 1fr;
   }
   .table {
     font-size: 12px;
-  }
-  .topbar {
-    flex-wrap: wrap;
-    overflow: hidden;
-  }
-  .topbar-sep {
-    display: none;
-  }
-  .topbar .tip[data-tip]::after {
-    display: none;
   }
 }
 

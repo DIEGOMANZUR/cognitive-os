@@ -21,8 +21,17 @@ async function parseErrorDetail(response: Response): Promise<string> {
     }
     return formatErrorDetail(parsed);
   } catch {
-    return body;
+    return sanitizeErrorBody(body);
   }
+}
+
+function sanitizeErrorBody(body: string): string {
+  const trimmed = body.trim();
+  if (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html")) {
+    return "Respuesta HTML en lugar de JSON del backend. Revisá que cogos.api apunte a https://cognitive-api.doctormanzur.com.";
+  }
+  if (trimmed.length > 240) return `${trimmed.slice(0, 240)}…`;
+  return trimmed;
 }
 
 function formatErrorDetail(detail: unknown): string {
@@ -327,7 +336,17 @@ export class ApiClient {
 }
 
 export function errorMessage(caught: unknown): string {
-  return caught instanceof Error ? caught.message : "Error desconocido";
+  if (!(caught instanceof Error)) return "Error desconocido";
+  const message = caught.message.trim();
+  if (message.startsWith("<!DOCTYPE") || message.includes("This page could not be found")) {
+    return "404: la URL de la API parece apuntar al frontend. Usá https://cognitive-api.doctormanzur.com en Conexión.";
+  }
+  const htmlIndex = message.indexOf("<!DOCTYPE");
+  if (htmlIndex >= 0) {
+    const prefix = message.slice(0, htmlIndex).trim();
+    return prefix || "La API devolvió HTML en lugar de JSON. Revisá cogos.api.";
+  }
+  return message.length > 240 ? `${message.slice(0, 240)}…` : message;
 }
 
 /**

@@ -19,7 +19,7 @@ const SECTIONS: Section[] = [
     label: "Agentes",
     items: [
       { id: "chat", label: "Chat", icon: "chat", hotkey: "2" },
-      { id: "agents", label: "DeepAgents", icon: "agents" },
+      { id: "agents", label: "DeepAgents", icon: "agents", hotkey: "3" },
       { id: "skills", label: "Skills", icon: "skills" },
       { id: "memory", label: "Memoria", icon: "memory" },
       { id: "assist", label: "Asistente", icon: "assist" },
@@ -30,7 +30,7 @@ const SECTIONS: Section[] = [
     id: "knowledge",
     label: "Conocimiento",
     items: [
-      { id: "documents", label: "Documentos", icon: "documents", hotkey: "3" },
+      { id: "documents", label: "Documentos", icon: "documents" },
       { id: "documentAnalysis", label: "Document Analysis", icon: "documentAnalysis", hotkey: "4" }
     ]
   },
