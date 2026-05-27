@@ -1,60 +1,53 @@
 # Cognitive OS — Guía de Usuario (comercial)
 
-> **Estado canonico actual (2026-05-25 post cierre comercial final, base commit
-> `0f8232a`):** **COMERCIAL LOCAL-FIRST APROBADO** con matriz audit-commercial
-> hardening cerrada + **flakiness P0 cerrada** + **activación funcional end-to-end
-> verificada** (16 fases con stack vivo) + **cierre comercial final** con 0
-> P0/P1/P2 funcionales abiertos. Los 2 P1 abiertos del comité evaluador (router
-> LLM mis-clasificando `comm` + browser_preview Playwright sync/async) están
-> cerrados con tests de regresión y verificación runtime live. El doc_analysis
-> ahora emite los 6 archivos prometidos (json/markdown/csv/docx). El mail
-> digest redacta PII (RUT chileno + nombres ALL-CAPS estilo notificación
-> judicial). Certificación final completa:
-> `../audits/FINAL_LOCAL_FIRST_COMMERCIAL_CERTIFICATION.md`. Cinco pasadas de auditoría independiente cerradas con
-> cero defectos funcionales conocidos, **más 16 archivos de test
-> audit-commercial (~230 asserciones)** que cubren los 4 P0-críticos y 12
-> GAPs P1 más sensibles del contrato (Mail SMTP gate, GoDaddy DNS gate,
-> Code Director STDIN-only, eager_defaults full matrix, auth matrix,
-> path-traversal corpus, operational_backlog reactivo, workflow.v1
-> hardening, calendar/drive directo `dry_run=false`→409, health overall
-> honest, reapers dedicados, DB isolation, secrets redaction, fixtures
-> gating, MCP fail-open, Mail UI sin botón Enviar). Cognitive OS se opera
-> en este host como **sistema personal mono-operador para un PC
-> dedicado**. La prioridad de producto es **friccion casi nula por sobre
-> seguridad estricta**: Edge real, Kimi WebBridge, acceso amplio al PC y
-> menos aprobaciones cuando `OPERATOR_PROFILE=dedicated_local` +
-> `LOCAL_AUTONOMY_MODE=full`. Lo que no se sacrifica es trazabilidad:
-> jobs, eventos, audit, idempotencia, health, readiness y tests deben
-> seguir diciendo exactamente que paso. Mail es la excepcion: el flujo
-> normal solo lee, clasifica, resume y propone respuestas; no crea
-> drafts ni envia correos. Ver `CURRENT_STATE.md` y
-> `ZERO_FRICTION_OPERATING_MODEL.md`. Cierre formal del release base en
-> [`audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md`](audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md);
-> remediación P0 más reciente en
-> `tmp/full_functional_activation_20260525_073134/archived_remediation/remediation_20260525_065154.tar.gz` (archivado tar.gz);
-> pendientes vivos en `../../corregir_cognitive.md` (riesgos operativos
-> no-código: refrescar OAuth Google + triage de 309 approvals).
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_START -->
+
+> **Cierre V2.0 absoluto local-first (2026-05-27, Prompt 7):** esta rama `codex/commercial-zero-friction-hardening` en base `8a33475d0502` queda sincronizada para el cierre comercial local-first. La evidencia viva se concentra en `/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/tmp/v2_07_absolute_release_closure_20260527_050231`. Estado de producto verificado durante Prompt 7: backend FastAPI local, frontend Next.js, Docker services, Postgres, Redis, Weaviate, Neo4j, Alembic head, worker, beat, health/readiness, LangGraph/chat, DeepAgents, MCP, RAG/documentos, Document Analysis, Action Plane sandbox, mail read-only, Telegram, Google read-only, GoDaddy dry-run, Kimi WebBridge y Code Director toy/guard rails.
 >
-> **Snapshot actual** (conteos por `scripts/sync_doc_counts.py`): **150
-> endpoints REST**, **23 tareas Celery** en **5 colas**, hasta **13 jobs
-> beat**, **20 migraciones Alembic** head `202605200003`, **20 vistas
-> frontend**, **37 comandos Telegram**, **18 componentes** en
-> `/health/dashboard` + `POST /health/verify`. QA post-remediación: `full-qa`
-> **1200 passed**, 1 skipped, 28 deselected (1190 base + 2 regresión FK order
-> de la remediación 2026-05-25); `stress-qa.sh 5` -> **5/5 verde × 1200 passed**
-> (flakiness 0% tras cerrar F-P0-001); Playwright **43 passed** sin exportar
-> `COGOS_JWT` (auto-mint via `_global-setup.ts`); carril opt-in `tests/live/`
-> verificado **8 passed**; TestSprite re-audit historico **10/10 passed**
-> sobre dos batches. `full-qa.sh` construye Next en `.next-qa` para no
-> deshidratar el frontend vivo servido desde `.next`. La suite es hermética
-> y corre contra una DB de test aislada (`cognitive_os_test`); producción
-> nunca se toca (guard verificado en subproceso aislado por
-> `test_audit_commercial_db_isolation_guard.py`).
+> **Gates V2.0 ejecutados antes de los dos ciclos verdes finales:** `bash scripts/full-qa.sh` **1221 passed, 1 skipped, 28 deselected**; `bash scripts/stress-qa.sh 5` **5/5 verde x 1221 passed**; `cd frontend && npx playwright test` **44 passed**; `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**; `python3 scripts/sync_doc_counts.py --check` OK; `bash scripts/verify_desktop_launchers.sh` OK; OpenAPI read-only smoke **70 GET / 0 failures**; security read-only scan sin secretos críticos; CDP/Playwright forense **10 ciclos x 20 vistas** sin console/page errors ni 5xx, con un aborto `POST /auth/local-token` adjudicado como cierre de contexto del harness y no defecto de producto; Lighthouse local: accessibility 96, best-practices 100, SEO 100.
 >
-> **Frontend:** *command center glassmorphism dark-only*, instalable como
-> PWA — tokens en `app/globals.css`, tipografía self-hosted, charts SVG
-> nativos, centro de notificaciones, command palette, `asArray<T>` en las
-> vistas que consumen colecciones. Detalle: `FRONTEND_ARCHITECTURE.md`.
+> **Criterio de verdad:** no se declara envio de correo, draft real ni escritura DNS. Mail queda normalizado como read-only: sync/list/classify/digest/proposed replies como texto, sin drafts ni sends. GoDaddy queda preview/dry-run; Action Plane mantiene sandbox/approval/audit/idempotencia segun riesgo. El tunnel publico `cognitive.doctormanzur.com` se valida con `scripts/testsprite_web/deploy_and_verify.sh` cuando Diego vaya a correr TestSprite web; Prompt 7 no lo expone permanentemente porque su propia regla prohibe exponer servicios a internet.
+
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
+
+
+> **Estado canonico actual (2026-05-26, HEAD `8a33475`):**
+> **COMERCIAL LOCAL-FIRST APROBADO** con hardening frontend/TestSprite web
+> aplicado encima del cierre comercial 2026-05-25. La base local-first sigue
+> cubierta por matriz audit-commercial (~230 asserciones), flakiness P0 cerrada,
+> activación funcional end-to-end y cierre final sin P0/P1/P2 funcionales
+> abiertos. El cambio vigente para el operador es la experiencia web pública:
+> shell estable sin TopBar, `data-cogos-active-tab`, API pública resuelta por
+> host, auth por `#cogos_token`, hotkey `3` para DeepAgents, command palette de
+> saltos rápidos, responsive 920px y estados comerciales reales en Documents,
+> Agents, Audit, Health y Mail.
+>
+> Cognitive OS se opera en este host como **sistema personal mono-operador para
+> un PC dedicado**. La prioridad de producto es **fricción casi nula por sobre
+> seguridad estricta**: Edge real, Kimi WebBridge, acceso amplio al PC y menos
+> aprobaciones cuando `OPERATOR_PROFILE=dedicated_local` +
+> `LOCAL_AUTONOMY_MODE=full`. Lo que no se sacrifica es trazabilidad: jobs,
+> eventos, audit, idempotencia, health, readiness y tests deben decir exactamente
+> qué pasó. Mail es la excepción: el flujo normal solo lee, clasifica, resume y
+> propone respuestas; no crea drafts ni envía correos.
+>
+> **Snapshot actual** (conteos por `scripts/sync_doc_counts.py`): **150 endpoints
+> REST**, **23 tareas Celery** en **5 colas**, hasta **13 jobs beat**, **20
+> migraciones Alembic** head `202605200003`, **20 vistas frontend**, **37 comandos
+> Telegram**, **18 componentes** en `/health/dashboard` + `POST /health/verify`.
+> QA local post-remediación: `full-qa` **1200 passed**, 1 skipped, 28 deselected;
+> `stress-qa.sh 5` -> **5/5 verde × 1200 passed**; Playwright **43 passed** sin
+> exportar `COGOS_JWT`; carril opt-in `tests/live/` verificado **8 passed**.
+> TestSprite histórico local en batches: **28/28 passed**. TestSprite web público
+> debe re-ejecutarse con el stack desplegado por
+> `scripts/testsprite_web/deploy_and_verify.sh`; no declarar dos corridas web
+> verdes hasta recibir los PDFs nuevos.
+>
+> **Frontend:** *command center glassmorphism dark-only*, instalable como PWA —
+> tokens en `app/globals.css`, tipografía self-hosted, charts SVG nativos,
+> centro de notificaciones, command palette, `asArray<T>` en vistas de
+> colecciones y service worker `cogos-v2026-05-26e-status-cards`. Detalle:
+> `FRONTEND_ARCHITECTURE.md` y `frontend/README.md`.
 >
 > **Remediación del audit comercial (AUDIT-2026-A..H, 2026-05-22):** se
 > cerraron las 8 fallas accionables — Telegram fail-closed, health honesto
@@ -163,7 +156,8 @@ A. [Empezar desde cero — sin saber nada técnico](#a-empezar-desde-cero--sin-s
 8. [Perfiles de operación: estricto vs PC dedicado](#8-perfiles-de-operación-estricto-vs-pc-dedicado)
 9. [Matriz de acciones (qué pide aprobación, cómo aflojarla)](#9-matriz-de-acciones-qué-pide-aprobación-cómo-aflojarla)
 10. [Seguridad operativa en una página](#10-seguridad-operativa-en-una-página)
-10.5. [Qué cambió en el release 2026-05-23 (commit `647f103`)](#105-qué-cambió-en-el-release-2026-05-23-commit-647f103)
+10.5. [Qué cambió en el release 2026-05-26 (frontend/TestSprite web)](#105-qué-cambió-en-el-release-2026-05-26-frontendtestsprite-web)
+10.6. [Qué cambió en el release 2026-05-23 (commit `647f103`)](#106-qué-cambió-en-el-release-2026-05-23-commit-647f103)
 11. [Troubleshooting express](#11-troubleshooting-express)
 12. [Glosario operativo (los conceptos que tenés que entender)](#12-glosario-operativo)
 13. [Recetario: un ejemplo de uso para cada capacidad](#13-recetario-un-ejemplo-de-uso-para-cada-capacidad)
@@ -557,9 +551,10 @@ uv run python -c "from cognitive_os.core.auth import create_access_token; \
 print(create_access_token(user_id='operator', roles=['admin']))"
 ```
 
-Pegá ese token en el TopBar del panel (o en la pestaña *Conexión*).
-Listo: las consultas autenticadas se activan y el Dashboard empieza a
-mostrar datos en vivo.
+Pegá ese token en la pestaña *Conexión* / *Settings* (`JWT sin prefijo Bearer`)
+o abre el panel con `#cogos_token=<JWT_SIN_BEARER>` para que se persista y la
+URL quede limpia. Listo: las consultas autenticadas se activan y el Dashboard
+empieza a mostrar datos en vivo.
 
 > **Para Playwright el JWT es totalmente transparente:** el
 > `tests/e2e/_global-setup.ts` mintea uno antes de cada corrida sin que
@@ -746,7 +741,7 @@ comandos (buscás cualquier vista o acción por nombre).
   vas a *Aprobaciones*, decidís, y el thread se reanuda con
   `/threads/{id}/resume`.
 
-#### DeepAgents (✱)
+#### DeepAgents (✱, hotkey 3)
 - **Qué hace:** estado del subagente DeepAgents — memoria, tools
   habilitadas, política efectiva, actividad reciente por job_type.
 - **Click "Toggle skill":** propone activar/desactivar una skill →
@@ -810,7 +805,7 @@ comandos (buscás cualquier vista o acción por nombre).
 
 ### Conocimiento
 
-#### Documentos (▦, hotkey 3)
+#### Documentos (▦)
 - **Qué hace:** ingesta de PDFs al RAG (Postgres + pgvector + Weaviate +
   Neo4j para entidades). Dedup por sha256.
 - **Click "Ingestar":** encola `cognitive_os.ingest_document` en
@@ -1360,8 +1355,8 @@ CODE_DIRECTOR_BUDGET_MODE=soft
 
 1. `~/Escritorio/Levantar\ Cognitive\ OS.sh` — health=ok (3-4 min).
 2. JWT admin: `cd backend && uv run python -c "from cognitive_os.core.auth import create_access_token; print(create_access_token(user_id='operator', roles=['admin']))"`.
-3. Frontend: `http://localhost:3001` → pega el JWT en TopBar → `/config/public`
-   debe mostrar `operator_profile: dedicated_local`.
+3. Frontend: `http://localhost:3001/#cogos_token=<JWT_SIN_BEARER>` o pestaña
+   *Conexión* → `/config/public` debe mostrar `operator_profile: dedicated_local`.
 4. `Chat` → "¿qué es el teorema CAP?" — respuesta limpia, sin fallback RAG.
 5. `Google Ops` → calcula ruta `Plaza Italia → Aeropuerto SCL` (real).
 6. `Telegram` → `/health`, `/stats`, `/maps origen | destino` (cuando tengas token nuevo).
@@ -1465,26 +1460,79 @@ Detalle completo en `docs/SECURITY.md`.
 
 ---
 
-## 10.5. Qué cambió en el release 2026-05-23 (commit `647f103`)
+## 10.5. Qué cambió en el release 2026-05-26 (frontend/TestSprite web)
+
+Esta sección resume lo que cambió para usar la app y para re-correr el portal
+web de TestSprite. Son cambios reales de producto, no atajos para pasar tests.
+
+### 10.5.1 La pantalla principal ya no depende del TopBar
+
+El cockpit ahora usa una shell única: sidebar, header contextual, bottom nav en
+móvil y `<main data-cogos-active-tab="...">` como marcador estable de la vista
+activa. La autenticación sigue viviendo en `localStorage`, pero el acceso público
+puede llegar con `#cogos_token=<JWT>`; la app guarda el token y limpia el
+fragmento para no dejarlo visible en la URL.
+
+### 10.5.2 Hotkeys y paleta quedaron alineados con el uso real
+
+Mapa vigente: `1 Dashboard`, `2 Chat`, `3 DeepAgents`, `4 Document Analysis`,
+`5 Jobs`, `6 Aprobaciones`, `7 LangSmith`, `8 Audit`, `9 Health`. La tecla `3`
+ya no abre Documentos. `Ctrl/Cmd+K` abre la paleta aunque el foco esté dentro de
+componentes que hagan `stopPropagation`; elegir `Ir a ...` cambia de vista y deja
+la paleta abierta para seguir saltando rápido.
+
+### 10.5.3 Estados vacíos, loading y error son UI comercial
+
+Documentos conserva su tabla y muestra una fila de estado; DeepAgents conserva
+cards y muestra `AgentsStatusCard`; Audit y Health usan skeleton/error/empty
+states explícitos; Mail mantiene el textarea de propuesta aunque no haya mensaje
+seleccionado, sin habilitar enviar ni crear drafts. No hay filas falsas ni datos
+inventados.
+
+### 10.5.4 Responsive móvil usa breakpoint estable
+
+Debajo de 920px el sidebar se desmonta salvo cuando el drawer está abierto y
+aparece la barra inferior móvil. La detección usa `matchMedia`,
+`orientationchange` y `visualViewport`, no un script inline ni hacks de polling.
+
+### 10.5.5 TestSprite web se prepara con un solo comando
+
+Desde la raíz del repo:
+
+```bash
+bash scripts/testsprite_web/deploy_and_verify.sh
+```
+
+El script reconstruye producción, levanta el túnel público y valida que el bundle
+servido sea el actual: `/sw.js` debe contener
+`cogos-v2026-05-26e-status-cards` y `/` debe incluir `data-cogos-active-tab`.
+Si termina verde, sólo falta apretar **Rerun** en el portal TestSprite con el
+mismo PRD e instructions. Hasta recibir los PDFs nuevos, el estado correcto es
+"listo para rerun", no "dos corridas web verdes".
+
+---
+
+## 10.6. Qué cambió en el release 2026-05-23 (commit `647f103`)
 
 Esta sección es un cambio reciente que afecta tu experiencia diaria. Si
 ya conocías el sistema antes, leelo entero — las cosas que antes
 "tenías que hacer" ahora se hacen solas.
 
-### 10.5.1 El frontend ya no te pide pegar el JWT
+### 10.6.1 El frontend ya no te pide pegar el JWT
 
 Antes: abrir `http://localhost:3001` mostraba el panel pidiendo "pegá
 tu JWT en el TopBar". Tenías que ir a la terminal, generarlo con
 `uv run python -c "from cognitive_os.core.auth..."`, copiar la salida y
 pegarla.
 
-Ahora (`dedicated_local/full`): el frontend detecta que no hay token,
-llama `POST /auth/local-token` y se autoprovisiona. Verás
+En 2026-05-23 (`dedicated_local/full`) el frontend empezó a detectar que no
+hay token, llamar `POST /auth/local-token` y autoprovisionarse. Verás
 `localStorage["cogos.token.source"]="auto"` y los polls empiezan
-inmediatamente. **El TopBar sigue ahí por si querés cambiar el token
-manualmente o usar uno distinto** (p.ej. para testing).
+inmediatamente. En el estado vigente 2026-05-26 el TopBar ya fue retirado; para
+cambiar token/API usá la vista **Conexión** o el fragmento público
+`#cogos_token=<JWT>`.
 
-### 10.5.2 Playwright corre sin exportar nada
+### 10.6.2 Playwright corre sin exportar nada
 
 Antes:
 
@@ -1504,7 +1552,7 @@ worker. Si `dedicated_local/full` no está activo (p.ej. corrés contra
 un staging strict), el global-setup falla silenciosamente y el helper
 te muestra el error claro con el comando de mint manual.
 
-### 10.5.3 El bug de los `/actions/*/preview/request` quedó resuelto
+### 10.6.3 El bug de los `/actions/*/preview/request` quedó resuelto
 
 Si alguna vez (antes del `647f103`) pediste `POST
 /actions/browser/preview/request` y recibiste un `HTTP 500 Internal
@@ -1533,7 +1581,7 @@ Endpoints que se beneficiaron sin tocar más nada:
 
 Todos verificados HTTP 200 vivo en el re-audit.
 
-### 10.5.4 RUNBOOK QA promovió el método curl
+### 10.6.4 RUNBOOK QA promovió el método curl
 
 Antes el método primario documentado para mintear JWT en operaciones
 manuales era:
@@ -1553,7 +1601,7 @@ JWT=$(curl -sX POST http://127.0.0.1:8000/auth/local-token | \
 El método largo queda como fallback para perfiles `strict`/`guarded`
 donde `/auth/local-token` devuelve 403.
 
-### 10.5.5 Re-auditoría TestSprite completa
+### 10.6.5 Re-auditoría TestSprite completa
 
 Dos pasadas independientes de TestSprite MCP cerraron con **PASS**:
 

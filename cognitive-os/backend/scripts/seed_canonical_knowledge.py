@@ -9,7 +9,6 @@ from sqlalchemy import select
 from cognitive_os.core.db import session_scope
 from cognitive_os.db.models import AuditEvent, Document, DocumentChunk, DocumentPage
 
-
 CANONICAL_DOCUMENTS = [
     "README.md",
     "docs/COGNITIVE_OS_GUIDE.md",

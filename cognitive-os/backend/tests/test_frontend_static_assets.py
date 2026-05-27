@@ -167,7 +167,7 @@ def test_testsprite_skill_fail_closed_contract() -> None:
     assert "TESTSPRITE_VERIFY_MODE=stack" in audit
     assert "VERDICT TestSprite: PASS" in audit
     assert "load_testsprite_env.sh" in prepare
-    assert "source \"${ROOT_DIR}/.env\"" not in prepare
+    assert 'source "${ROOT_DIR}/.env"' not in prepare
     assert "testsprite_audit.sh" in skill
     assert "assert_testsprite_run.py" in skill
     assert "load_testsprite_env.sh" in skill
@@ -214,6 +214,30 @@ def test_commercial_qa_scripts_and_fixture_contract_are_versioned() -> None:
         "mobile-friendly",
     ):
         assert flow in critical_spec
+
+
+def test_security_readonly_qa_uses_ephemeral_tools_without_lockfile_mutation() -> None:
+    script = (PROJECT_ROOT / "scripts" / "security-readonly-qa.sh").read_text(encoding="utf-8")
+    scripts_readme = (PROJECT_ROOT / "scripts" / "README.md").read_text(encoding="utf-8")
+    openapi_smoke = (PROJECT_ROOT / "scripts" / "openapi_readonly_smoke.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "uvx --from bandit bandit --version" in script
+    assert "uvx --from semgrep semgrep --version" in script
+    assert "uvx --from schemathesis schemathesis --version" in script
+    assert "uvx --from bandit bandit" in script
+    assert "--severity-level high" in script
+    assert "--confidence-level medium" in script
+    assert "uvx --from semgrep semgrep scan --config p/python" in script
+    assert "scripts/scan-local-artifacts-for-secrets.sh" in script
+    assert "--include-method GET" in script
+    assert "--max-examples" in script
+    assert "COGOS_SCHEMATHESIS_LIVE_READONLY" in script
+    assert "sin modificar lockfiles" in scripts_readme
+    assert "only GET operations" in openapi_smoke
+    assert "unexpected_5xx" in openapi_smoke
+    assert 'POST", "/auth/local-token"' in openapi_smoke
 
 
 def test_user_guide_matches_dark_only_frontend_contract() -> None:

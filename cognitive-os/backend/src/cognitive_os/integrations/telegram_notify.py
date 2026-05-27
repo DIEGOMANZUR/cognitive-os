@@ -16,7 +16,7 @@ def send_telegram_markdown(chat_id: int, text: str, *, timeout_seconds: float = 
         return
     raw = settings.telegram_bot_token.get_secret_value().strip()
     if not raw or raw == "CHANGEME":
-        logger.warning("telegram_notify_missing_token chat_id=%s", chat_id)
+        logger.warning("telegram_notify_missing_token")
         return
     url = f"https://api.telegram.org/bot{raw}/sendMessage"
     body: dict[str, object] = {
@@ -29,6 +29,6 @@ def send_telegram_markdown(chat_id: int, text: str, *, timeout_seconds: float = 
         response.raise_for_status()
         payload = response.json()
         if not payload.get("ok"):
-            logger.warning("telegram_notify_api_not_ok chat_id=%s payload=%s", chat_id, payload)
+            logger.warning("telegram_notify_api_not_ok payload=%s", payload)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("telegram_notify_failed chat_id=%s exc=%s", chat_id, exc)
+        logger.warning("telegram_notify_failed error_type=%s", type(exc).__name__)

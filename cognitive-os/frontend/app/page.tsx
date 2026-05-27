@@ -504,6 +504,8 @@ function App() {
             healthStatus={healthStatus}
             envName={token ? "ops" : localAuthState === "loading" ? "local" : "guest"}
             onCommand={() => setPaletteOpen(true)}
+            onNotifications={() => setNotifOpen(true)}
+            notificationCount={unreadCount}
             isMobile={isMobile || showDrawer}
             onCloseMobile={() => setDrawerOpen(false)}
           />
@@ -518,6 +520,15 @@ function App() {
             aria-label="Abrir menú"
           >
             <Icon name="menu" size={18} />
+          </button>
+          <button
+            className={`ghost icon notification-trigger${unreadCount > 0 ? " unread" : ""}`}
+            onClick={() => setNotifOpen(true)}
+            type="button"
+            aria-label="Abrir centro de notificaciones"
+          >
+            <Icon name="bell" size={16} />
+            {unreadCount > 0 && <span className="dot-badge" aria-hidden="true" />}
           </button>
         </div>
         {hydrated && !token && localAuthState === "loading" && (

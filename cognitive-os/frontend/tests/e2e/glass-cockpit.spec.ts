@@ -48,6 +48,10 @@ test.describe("Fase 82 — Glass Cockpit", () => {
     await expect(palette).toBeVisible();
 
     const search = page.getByPlaceholder("¿Qué querés hacer? (ESC para cerrar)");
+    await expect(palette.locator('ul[aria-label="Resultados de comandos"]')).toHaveAttribute(
+      "tabindex",
+      "0",
+    );
     await search.fill("Aprob");
     // El primer resultado debe ser "Ir a Aprobaciones".
     await expect(palette.getByText(/Ir a Aprobaciones/)).toBeVisible();
@@ -78,6 +82,23 @@ test.describe("Fase 82 — Glass Cockpit", () => {
     await expect(panel).toBeHidden();
 
     expect(health.serverErrors).toEqual([]);
+    health.dispose();
+  });
+
+  test("Jobs expone filtros y tabla con nombres accesibles", async ({ page }) => {
+    const jwt = readJwt();
+    await seedAuth(page, jwt);
+    const health = watchPageHealth(page);
+
+    await page.goto("/");
+    await page.getByRole("button", { name: /Jobs/ }).first().click();
+
+    await expect(page.getByLabel("Filtrar jobs por tipo")).toBeVisible();
+    await expect(page.getByLabel("Filtrar jobs por estado")).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "Acciones" })).toBeVisible();
+
+    expect(health.serverErrors).toEqual([]);
+    expect(filterUnexpectedErrors(health.errors)).toEqual([]);
     health.dispose();
   });
 

@@ -1,13 +1,15 @@
 # Roadmap: Cognitive OS como asistente personal
 
-> **Estado actual (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):**
-> roadmap vivo, mayormente ejecutado para una instalación local
-> dedicada. Producto certificado para uso comercial local-first tras
-> cuatro pasadas de auditoría independiente sin defectos conocidos. La
-> prioridad de producto es fricción casi nula por sobre seguridad
-> estricta: acceso real al PC, Edge real/Kimi WebBridge, filesystem
-> local y auto-resolución en `dedicated_local/full` cuando la capacidad
-> lo soporte. `strict` queda como modo conservador.
+> **Estado actual (2026-05-26, HEAD `8a33475`):** roadmap vivo, mayormente
+> ejecutado para una instalación local dedicada. Producto certificado como
+> **COMERCIAL LOCAL-FIRST APROBADO** y con frontend/TestSprite web endurecido sin
+> fricción adicional: hash auth `#cogos_token`, API pública automática, shell
+> estable sin TopBar, hotkey `3 DeepAgents`, estados comerciales sin datos falsos
+> y service worker `cogos-v2026-05-26e-status-cards`. La prioridad de producto es
+> fricción casi nula por sobre seguridad estricta: acceso real al PC, Edge
+> real/Kimi WebBridge, filesystem local y auto-resolución en
+> `dedicated_local/full` cuando la capacidad lo soporte. `strict` queda como modo
+> conservador.
 >
 > **Correo personal actual:** dos veces al día, 10:00 y 20:00 hora Chile,
 > el sistema prepara un digest de hasta 50 correos desde Gmail
@@ -18,18 +20,18 @@
 > El resultado se entrega como documento/campos de texto separados; no se
 > crean borradores y no se envía nada en el flujo normal.
 >
-> **QA vigente (commit `647f103`):** `bash scripts/full-qa.sh` verde con
-> **958 passed**, 1 skipped, 28 deselected (944 históricos + 14 nuevos
-> del fix `eager_defaults`); frontend Playwright **41 passed** sin
-> exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`); stress QA 3
-> pasadas de **958 passed**; carril opt-in `tests/live/` verificado con
-> **8 passed**; TestSprite completo corregido en batches locales **28/28
-> passed**. MCP queda verificado 6/6 servers y 69 tools tras el
-> ajuste de inventario paralelo (`5953b40`) y el alta local de `time`
-> (2026-05-25).
-> Pendiente para "asistente personal absoluto": voz productiva
-> en frontend/Telegram, YouTube/video summaries y automatizaciones
-> proactivas avanzadas.
+> **QA vigente:** `bash scripts/full-qa.sh` **1200 passed**, 1 skipped, 28
+> deselected; `bash scripts/stress-qa.sh 5` **5/5 verde × 1200 passed**;
+> frontend Playwright **43/43** con auto-mint JWT vía `_global-setup.ts`; carril
+> opt-in `tests/live/` **8 passed**; TestSprite local batched histórico **28/28
+> passed**. Para TestSprite web público, el handoff vigente es
+> `bash scripts/testsprite_web/deploy_and_verify.sh`; no se declara doble verde
+> web hasta recibir PDFs/reportes del portal. MCP queda verificado 6/6 servers y
+> 69 tools tras el ajuste de inventario paralelo (`5953b40`) y el alta local de
+> `time` (2026-05-25).
+> Pendiente para "asistente personal absoluto": voz productiva en
+> frontend/Telegram, YouTube/video summaries y automatizaciones proactivas
+> avanzadas.
 
 Este documento separa lo que ya funciona, lo que esta parcialmente listo y lo
 que falta para que Cognitive OS sea un asistente personal operativo.

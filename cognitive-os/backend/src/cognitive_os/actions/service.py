@@ -320,12 +320,6 @@ class ActionRequestService:
         self._settings = app_settings
 
     def _should_auto_approve_action(self, action_type: str) -> bool:
-        if (
-            self._settings.operator_profile == "dedicated_local"
-            and getattr(self._settings, "local_autonomy_mode", "guarded") == "full"
-            and not self._settings.require_human_approval_for_external_actions
-        ):
-            return True
         return (
             self._settings.auto_approve_reversible_actions
             and action_type in _AUTO_APPROVABLE_REVERSIBLE_ACTIONS

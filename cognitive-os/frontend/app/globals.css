@@ -689,6 +689,22 @@ select {
   border: 2px solid var(--bg-elev);
 }
 
+.notification-trigger {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.notification-trigger .dot-badge {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warn);
+  border: 2px solid var(--bg-elev);
+}
+
 /* ---- Bottom nav (mobile) ----------------------------------------------- */
 .bottom-nav {
   position: fixed;

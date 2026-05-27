@@ -23,26 +23,27 @@ There are **only two routes that exist server-side**:
 All "views" are React tabs rendered conditionally inside `/`. Switch tabs by:
 
 - Clicking sidebar items, OR
-- Pressing hotkeys: `1` (Dashboard), `2` (Chat), `3` (Documents), `4` (Document Analysis), `5` (Jobs), `6` (Approvals), `7` (LangSmith), `8` (Audit), `9` (Health), OR
+- Pressing hotkeys: `1` (Dashboard), `2` (Chat), `3` (DeepAgents), `4` (Document Analysis), `5` (Jobs), `6` (Approvals), `7` (LangSmith), `8` (Audit), `9` (Health), OR
 - Pressing `Ctrl+K` to open the Command Palette and selecting a view.
 
-### 2.2 Authentication is JWT in localStorage (no login form)
+### 2.2 Authentication is JWT in URL fragment or localStorage (no login form)
 
-There is no email/password form. The app reads two localStorage keys at load:
+There is no email/password form. Preferred public-web auth is:
 
-- `cogos.token` — the JWT bearer token (no `Bearer ` prefix)
-- `cogos.api`   — the backend base URL
+```text
+https://cognitive.doctormanzur.com/#cogos_token=<JWT provided in extra instructions>
+```
 
-**BEFORE running any test**, seed the browser with:
+On load, the app persists the fragment value as `localStorage.cogos.token` and removes the token from the URL. The public frontend host automatically resolves the API base to `https://cognitive-api.doctormanzur.com`.
+
+If your test framework seeds storage before navigation, use:
 
 ```js
 localStorage.setItem('cogos.token', '<JWT provided in extra instructions>');
 localStorage.setItem('cogos.api', 'https://cognitive-api.doctormanzur.com');
 ```
 
-Then reload. The TopBar will show "Connected". Without these, **every backend call returns 401** and most tabs show empty/error state. This is correct behavior and is **not** a bug — it is the documented authentication model.
-
-If your test framework cannot seed localStorage before navigation, paste the JWT into the TopBar's "JWT local" input (visible at the top of every page) and click anywhere to commit.
+Then reload `/`. The stable connected state is the sidebar + contextual header + `<main data-cogos-active-tab="...">` with authenticated data. Without a JWT, protected backend calls return 401 and tabs show honest empty/error states. This is correct behavior and is **not** a bug.
 
 ### 2.3 Backend dependency
 
@@ -54,12 +55,12 @@ Every meaningful UI test depends on the backend at `cognitive-api.doctormanzur.c
 |---------------------|--------------------|--------|-----------------------------------------------|
 | `dashboard`         | Dashboard          | 1      | `/system/info`, `/system/readiness`, KPIs     |
 | `chat`              | Chat               | 2      | `/chat/*`, `/threads/*`                       |
-| `agents`            | DeepAgents         |        | `/deepagents/*`                               |
+| `agents`            | DeepAgents         | 3      | `/deepagents/*`                               |
 | `skills`            | Skills             |        | (read-only catalog)                           |
 | `memory`            | Memoria            |        | `/knowledge`                                  |
 | `assist`            | Asistente          |        | `/assist/*`                                   |
 | `mail`              | Mail               |        | `/mail/*` (READ-ONLY for this test window)    |
-| `documents`         | Documentos         | 3      | `/documents/*`                                |
+| `documents`         | Documentos         |        | `/documents/*`                                |
 | `documentAnalysis`  | Document Analysis  | 4      | `/document-analysis/*`                        |
 | `jobs`              | Jobs               | 5      | `/jobs/*`                                     |
 | `approvals`         | Aprobaciones       | 6      | `/approvals/*`                                |
@@ -79,9 +80,9 @@ For each, switch tab via hotkey or click sidebar item — **never** by changing 
 
 ### J1 — Bootstrap
 
-1. Open `/`. Confirm app shell renders (sidebar, topbar, content area).
-2. Seed localStorage (or paste JWT in TopBar).
-3. Reload. Confirm TopBar shows "Connected" / green status indicator.
+1. Open `/`. Confirm app shell renders (sidebar, contextual header, content area, `<main data-cogos-active-tab>`).
+2. Authenticate via `#cogos_token=<JWT>` or seeded localStorage.
+3. Reload `/`. Confirm authenticated data loads or protected views show explicit, non-crashing states.
 
 ### J2 — Health tab
 
@@ -102,9 +103,15 @@ For each, switch tab via hotkey or click sidebar item — **never** by changing 
 3. Send. Wait for response from the chat backend.
 4. Verify message appears in thread view.
 
-### J5 — Documents
+### J5 — DeepAgents
 
 1. Hotkey `3`.
+2. Confirm DeepAgents fleet loads or shows a commercial empty/error/loading state.
+3. Open an agent card if available and verify detail content renders.
+
+### J5b — Documents
+
+1. Click sidebar "Documentos" or use `Ctrl+K`.
 2. Confirm list of indexed documents loads (or "no documents" empty state).
 3. Click the first document. Verify detail view renders.
 
@@ -130,7 +137,7 @@ For each, switch tab via hotkey or click sidebar item — **never** by changing 
 
 ### J10 — Notifications panel
 
-1. Click the bell icon in TopBar (if present).
+1. Use any visible notification entry point if present.
 2. Confirm panel opens, lists notifications or shows empty state.
 
 ## 5. Out-of-scope — DO NOT trigger any of these
@@ -163,7 +170,7 @@ Tests that probe these guards (verifying the block fires) are encouraged. Tests 
 - No mixed-content warnings (the whole app must be HTTPS).
 - No fetches to `localhost:*` from the public origin.
 - No CORS errors.
-- Focus traps don't break (TopBar input remains focusable).
+- Focus traps don't break (Command Palette, drawer and modal controls remain keyboard-accessible).
 - `Ctrl+K` palette is keyboard-navigable.
 
 ## 7. Known cosmetic items (NOT bugs)

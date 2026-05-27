@@ -1,80 +1,53 @@
 # Cognitive OS — Arquitectura (referencia técnica completa)
 
-> **Estado canónico actual (2026-05-25, commit `0f8232a`):**
-> **RELEASE APPROVED** con matriz audit-commercial hardening cerrada.
-> Arquitectura local-first para un PC dedicado del operador, con
-> prioridad explícita de fricción casi nula por sobre seguridad
-> estricta. `strict` sigue existiendo como perfil conservador, pero el
-> perfil operativo preferido es `dedicated_local/full`: usa Edge real/
-> Kimi WebBridge, filesystem local y auto-resolución de aprobaciones
-> cuando está configurado. La seguridad de perímetro no es el eje de
-> esta instalación; sí lo son trazabilidad, idempotencia,
-> observabilidad, recuperación y fallos explícitos — ahora respaldados
-> por una matriz hermetica de 16 archivos `test_audit_commercial_*`
-> (~230 asserciones) sobre los contratos P0/P1 más sensibles.
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_START -->
+
+> **Cierre V2.0 absoluto local-first (2026-05-27, Prompt 7):** esta rama `codex/commercial-zero-friction-hardening` en base `8a33475d0502` queda sincronizada para el cierre comercial local-first. La evidencia viva se concentra en `/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/tmp/v2_07_absolute_release_closure_20260527_050231`. Estado de producto verificado durante Prompt 7: backend FastAPI local, frontend Next.js, Docker services, Postgres, Redis, Weaviate, Neo4j, Alembic head, worker, beat, health/readiness, LangGraph/chat, DeepAgents, MCP, RAG/documentos, Document Analysis, Action Plane sandbox, mail read-only, Telegram, Google read-only, GoDaddy dry-run, Kimi WebBridge y Code Director toy/guard rails.
 >
-> **Cambio reciente clave que afecta arquitectura (`647f103`):** la ORM
-> `Base` (`backend/src/cognitive_os/core/db.py`) define
-> `__mapper_args__ = {"eager_defaults": True}` para que SQLAlchemy 2.x
-> emita `INSERT/UPDATE ... RETURNING` para las columnas con
-> server-default (`created_at`, `updated_at`, etc.). Esto es
-> **obligatorio en async sessions** porque sin `eager_defaults` un
-> attribute lazy-load tras `await session.flush()` dispara SQL síncrono
-> fuera del greenlet y rompe con `sqlalchemy.exc.MissingGreenlet`. Era
-> la causa raíz de un P1 en `/actions/browser/preview/request` y
-> endpoints análogos.
+> **Gates V2.0 ejecutados antes de los dos ciclos verdes finales:** `bash scripts/full-qa.sh` **1221 passed, 1 skipped, 28 deselected**; `bash scripts/stress-qa.sh 5` **5/5 verde x 1221 passed**; `cd frontend && npx playwright test` **44 passed**; `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**; `python3 scripts/sync_doc_counts.py --check` OK; `bash scripts/verify_desktop_launchers.sh` OK; OpenAPI read-only smoke **70 GET / 0 failures**; security read-only scan sin secretos críticos; CDP/Playwright forense **10 ciclos x 20 vistas** sin console/page errors ni 5xx, con un aborto `POST /auth/local-token` adjudicado como cierre de contexto del harness y no defecto de producto; Lighthouse local: accessibility 96, best-practices 100, SEO 100.
 >
-> **Cambio reciente clave (`9ab77a4`):** nueva variable
-> `HEALTH_LLM_PROBE_TIMEOUT_SECONDS=10` específica para LLM/embeddings
-> probes; `_safe_check` la usa selectivamente, evitando falsos
-> `degraded` en cold-start del gateway. El resto de componentes sigue
-> con el ceñido `HEALTH_COMPONENT_TIMEOUT_SECONDS=3.0`.
+> **Criterio de verdad:** no se declara envio de correo, draft real ni escritura DNS. Mail queda normalizado como read-only: sync/list/classify/digest/proposed replies como texto, sin drafts ni sends. GoDaddy queda preview/dry-run; Action Plane mantiene sandbox/approval/audit/idempotencia segun riesgo. El tunnel publico `cognitive.doctormanzur.com` se valida con `scripts/testsprite_web/deploy_and_verify.sh` cuando Diego vaya a correr TestSprite web; Prompt 7 no lo expone permanentemente porque su propia regla prohibe exponer servicios a internet.
+
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
+
+
+> **Estado canónico actual (2026-05-26, HEAD `8a33475`):**
+> **COMERCIAL LOCAL-FIRST APROBADO + frontend/TestSprite web hardening**. La
+> arquitectura local-first para PC dedicado mantiene prioridad explícita de
+> fricción casi nula por sobre seguridad estricta; `strict` sigue como perfil
+> conservador y `dedicated_local/full` como perfil operativo preferido. La base
+> 2026-05-25 conserva matriz hermética de 16 archivos `test_audit_commercial_*`
+> (~230 asserciones), flakiness P0 cerrada, activación funcional de 16 fases,
+> `browser_preview` migrado a `asyncio.to_thread`, router LLM hardened, document
+> analysis con formatos completos y mail digest con redacción PII.
 >
-> **Conteos verificados contra código** (generados por
-> `scripts/sync_doc_counts.py`): **150 endpoints REST**, **23 tareas
-> Celery** en **5 colas** (`default`, `ingestion`, `agent_longrun`,
-> `maintenance`, `mail`) con hasta **13 jobs beat**, **20 migraciones
-> Alembic** (head `202605200003`), **20 vistas Next.js** bajo
-> `frontend/app/views/*.tsx`, **18 componentes** en `/health/dashboard`
-> (17 checks + `checkpointer`), **37 slash commands** de Telegram, el set
-> de tools built-in tipadas del DeepAgent más tools dinámicas MCP cuando
-> `ENABLE_MCP_CLIENT=true` (runtime verificado 6/6 servers — `mem/gh/fs/
-> cc/gem/time` — y 69 tools).
+> **Cambio vigente de cockpit público (2026-05-26):** el frontend Next.js resuelve
+> API pública por host, acepta `#cogos_token`, retira TopBar, expone
+> `data-cogos-active-tab`, reasigna `3` a DeepAgents, usa estados
+> loading/empty/error comerciales sin datos falsos y publica el service worker
+> `cogos-v2026-05-26e-status-cards`. El handoff para TestSprite web es
+> `bash scripts/testsprite_web/deploy_and_verify.sh`.
 >
-> **Activación funcional end-to-end (2026-05-25):** 16 fases ejecutadas
-> con stack vivo. **APTO COMERCIAL LOCAL-FIRST · FUNCTIONAL WITH WARNINGS**.
-> Contratos críticos verificados live: Mail SMTP gate 3/3 → HTTP 409;
-> Calendar/Drive `dry_run=false` → HTTP 409; `/health/verify` confirma
-> `primary_llm`/`embeddings`/`mail` `ok` live; Chat LLM 10/10 OK (avg 7.16s);
-> thread persiste 4 mensajes; RAG PDF 2p→2 chunks `indexed`; Document
-> Analysis 6 modos detectó contradicción intencional con cita literal
-> (page 2, chunk 1); Code Director plan-only → 3 subtasks → HumanApproval
-> → reject **sin ejecución**; Telegram `@Socio_dimn_bot` live + 102/102
-> hermetic; MCP 6/6 servers, 69 tools; CDP 20 vistas **0 console.error,
-> 0 page.error, 0 5xx**; stress 30 concurrent /health/dashboard 30/30 OK
-> en 8.33s; `operational_backlog.status=ok`. Único hallazgo P1 runtime
-> nuevo (preexistente, no regresión): F-RUNTIME-001 `browser_preview`
-> executor con error Playwright sync/async — pendiente migración a Async
-> Playwright. Reporte:
-> `tmp/full_functional_activation_20260525_073134/reports/FULL_FUNCTIONAL_ACTIVATION_REPORT.md`.
+> **Cambio arquitectónico clave (`647f103`):** la ORM `Base`
+> (`backend/src/cognitive_os/core/db.py`) define
+> `__mapper_args__ = {"eager_defaults": True}` para que SQLAlchemy 2.x emita
+> `INSERT/UPDATE ... RETURNING` para columnas con server-default (`created_at`,
+> `updated_at`, etc.). Esto es obligatorio en async sessions porque sin
+> `eager_defaults` un attribute lazy-load tras `await session.flush()` dispara SQL
+> síncrono fuera del greenlet y rompe con `sqlalchemy.exc.MissingGreenlet`.
 >
-> **QA más reciente (2026-05-25 post-remediación, base `0f8232a`):** `bash
-> scripts/full-qa.sh` verde con **1200 passed**, 1 skipped, 28 deselected
-> (1190 base + 2 regresión `test_clean_slate_fixture_covers_all_fks.py` de la
-> remediación P0 que cerró la flakiness ~33% del gate);
-> `bash scripts/stress-qa.sh 5` -> **5/5 verde × 1200 passed**, flakiness 0%;
-> ruff/format/mypy/Alembic/lint/build/`sync_doc_counts --check`/`git diff
-> --check` OK; build frontend aislado con `NEXT_DIST_DIR=.next-qa`;
-> Playwright **43 passed** sin exportar `COGOS_JWT` (auto-mint via
-> `_global-setup.ts`); carril opt-in `tests/live/` verificado con **8
-> passed**; TestSprite MCP re-audit histórico **10/10 passed** sobre dos
-> batches.
+> **Conteos verificados contra código** (generados por `scripts/sync_doc_counts.py`):
+> **150 endpoints REST**, **23 tareas Celery** en **5 colas** (`default`,
+> `ingestion`, `agent_longrun`, `maintenance`, `mail`) con hasta **13 jobs beat**,
+> **20 migraciones Alembic** (head `202605200003`), **20 vistas Next.js** bajo
+> `frontend/app/views/*.tsx`, **18 componentes** en `/health/dashboard`, **37
+> slash commands** de Telegram y cliente MCP runtime **6/6 servers** (`mem`, `gh`,
+> `fs`, `cc`, `gem`, `time`) con **69 tools**.
 >
-> **Cambio test-only en remediación P0:** `clean_slate` ahora limpia
-> `DeepAgentMemoryProposalRecord` antes de `HumanApproval` (FK a
-> `human_approvals.id`); test estructural nuevo
-> `test_clean_slate_fixture_covers_all_fks.py` defiende el orden. Cero
-> modificación a código de producto.
+> **QA vigente:** `bash scripts/full-qa.sh` **1200 passed**, `stress-qa.sh 5`
+> **5/5 verde × 1200 passed**, Playwright **43 passed**, carril live opt-in **8
+> passed** documentado, TestSprite local batched histórico **28/28 passed** y
+> TestSprite web pendiente de evidencia del portal tras `deploy_and_verify.sh`.
 
 ---
 

@@ -1,35 +1,45 @@
 # Cognitive OS
 
-> **Estado canonico (2026-05-25 post cierre comercial final, base commit `0f8232a`):**
-> **COMERCIAL LOCAL-FIRST APROBADO** — matriz audit-commercial hardening
-> cerrada (16 archivos de test, ~230 asserciones) + remediación P0 2026-05-25
-> que cerró la flakiness ~33% del gate hermético (root cause: orden FK del
-> fixture `clean_slate`) + activación funcional end-to-end de 16 fases
-> verificadas en runtime vivo + cierre comercial final con 0 P0/P1/P2
-> funcionales abiertos. Browser_preview executor migrado a `asyncio.to_thread`
-> (runtime ahora completa correctamente), router LLM hardened contra
-> mis-clasificación `comm`, doc_analysis genera los 6 formatos por default,
-> mail digest redacta PII (RUT + nombres ALL-CAPS). Certificación final:
-> `docs/audits/FINAL_LOCAL_FIRST_COMMERCIAL_CERTIFICATION.md`. Cognitive OS corre como **sistema
-> cognitivo local mono-operador** para el PC dedicado de Diego. Prioridad
-> de producto: **friccion operativa casi nula por sobre seguridad
-> estricta** — perfil real de Edge, operacion amplia en el PC y approvals
-> reducidos cuando el perfil es `dedicated_local/full`. Los controles
-> principales son trazabilidad, idempotencia, logs, health/readiness
-> honesto, reapers y tests. Excepcion dura: **mail** — el flujo normal
-> solo lee, clasifica, resume y propone respuestas como texto; no crea
-> drafts ni envia correos salvo peticion explicita + flags de escape
-> hatch.
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_START -->
+
+> **Cierre V2.0 absoluto local-first (2026-05-27, Prompt 7):** esta rama `codex/commercial-zero-friction-hardening` en base `8a33475d0502` queda sincronizada para el cierre comercial local-first. La evidencia viva se concentra en `/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/tmp/v2_07_absolute_release_closure_20260527_050231`. Estado de producto verificado durante Prompt 7: backend FastAPI local, frontend Next.js, Docker services, Postgres, Redis, Weaviate, Neo4j, Alembic head, worker, beat, health/readiness, LangGraph/chat, DeepAgents, MCP, RAG/documentos, Document Analysis, Action Plane sandbox, mail read-only, Telegram, Google read-only, GoDaddy dry-run, Kimi WebBridge y Code Director toy/guard rails.
+>
+> **Gates V2.0 ejecutados antes de los dos ciclos verdes finales:** `bash scripts/full-qa.sh` **1221 passed, 1 skipped, 28 deselected**; `bash scripts/stress-qa.sh 5` **5/5 verde x 1221 passed**; `cd frontend && npx playwright test` **44 passed**; `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**; `python3 scripts/sync_doc_counts.py --check` OK; `bash scripts/verify_desktop_launchers.sh` OK; OpenAPI read-only smoke **70 GET / 0 failures**; security read-only scan sin secretos críticos; CDP/Playwright forense **10 ciclos x 20 vistas** sin console/page errors ni 5xx, con un aborto `POST /auth/local-token` adjudicado como cierre de contexto del harness y no defecto de producto; Lighthouse local: accessibility 96, best-practices 100, SEO 100.
+>
+> **Criterio de verdad:** no se declara envio de correo, draft real ni escritura DNS. Mail queda normalizado como read-only: sync/list/classify/digest/proposed replies como texto, sin drafts ni sends. GoDaddy queda preview/dry-run; Action Plane mantiene sandbox/approval/audit/idempotencia segun riesgo. El tunnel publico `cognitive.doctormanzur.com` se valida con `scripts/testsprite_web/deploy_and_verify.sh` cuando Diego vaya a correr TestSprite web; Prompt 7 no lo expone permanentemente porque su propia regla prohibe exponer servicios a internet.
+
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
+
+
+> **Estado canonico (2026-05-26, HEAD `8a33475`):**
+> **COMERCIAL LOCAL-FIRST APROBADO + frontend/TestSprite web hardening**. La
+> base comercial local-first 2026-05-25 sigue certificada: matriz
+> audit-commercial cerrada, flakiness P0 corregida, activación funcional de 16
+> fases verificada, `browser_preview` migrado a `asyncio.to_thread`, router LLM
+> hardened, document analysis con formatos completos y mail digest con redacción
+> PII. Encima de esa base, el cockpit público quedó endurecido para el portal web
+> de TestSprite sin atajos: auth por `#cogos_token=...`, API pública resuelta por
+> host, TopBar retirado, shell estable en sidebar + header contextual +
+> `data-cogos-active-tab`, hotkey 3 reasignada a DeepAgents, estados
+> loading/empty/error reales para colecciones, responsive estable a 920px y PWA
+> cache-bust `cogos-v2026-05-26e-status-cards`. Cognitive OS corre como
+> **sistema cognitivo local mono-operador** para el PC dedicado de Diego.
+> Prioridad de producto: **friccion operativa casi nula por sobre seguridad
+> estricta**. Excepcion dura: **mail** — el flujo normal solo lee, clasifica,
+> resume y propone respuestas como texto; no crea drafts ni envia correos salvo
+> peticion explicita + flags de escape hatch.
 >
 > **Documentos de referencia:**
 > - `docs/CURRENT_STATE.md` — fuente corta de verdad.
 > - `docs/ZERO_FRICTION_OPERATING_MODEL.md` — modelo operativo.
 > - `docs/USER_GUIDE.md` — guía didáctica para empezar desde cero.
-> - `docs/audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md` —
->   cierre formal del release base.
+> - `frontend/README.md` — contrato vigente del cockpit Next.js/PWA.
+> - `scripts/README.md` y `scripts/testsprite_web/README.md` — operación QA,
+>   incluido el despliegue público con `deploy_and_verify.sh`.
+> - `docs/audits/FINAL_LOCAL_FIRST_COMMERCIAL_CERTIFICATION.md` — cierre formal
+>   local-first 2026-05-25.
 > - `tmp/full_functional_activation_20260525_073134/reports/FULL_FUNCTIONAL_ACTIVATION_REPORT.md` —
 >   activación funcional end-to-end 2026-05-25 (16 fases live).
-> - `corregir_cognitive.md` — pendientes vivos del proyecto (incluye F-RUNTIME-001 browser_preview).
 
 ## Snapshot Tecnico
 
@@ -57,9 +67,10 @@ falla si quedan desincronizados):
   ruff/format/mypy/Alembic/lint/build/`sync_doc_counts`/`git diff --check`;
   Playwright **43 passed** (sin necesidad de exportar `COGOS_JWT` — auto-mint
   via `POST /auth/local-token`); carril opt-in `tests/live/` verificado con
-  **8 passed** contra proveedores reales. TestSprite historico corregido en
-  batches locales: **28/28 passed**; el intento final con la API key entregada
-  quedo bloqueado por TestSprite con `AUTH_FAILED` HTTP 401.
+  **8 passed** contra proveedores reales. TestSprite local batched histórico:
+  **28/28 passed**; TestSprite web público se prepara con
+  `bash scripts/testsprite_web/deploy_and_verify.sh` y no debe declararse doble
+  verde hasta recibir las corridas/PDFs del portal.
 - **Audit-commercial hardening matrix** — 16 archivos `test_audit_commercial_*`
   (15 pytest backend + 1 Playwright spec) con ~230 asserciones hermeticas que
   cierran los contratos P0/P1 mas sensibles: Mail SMTP gate, GoDaddy DNS gate,
@@ -72,6 +83,28 @@ falla si quedan desincronizados):
   `127.0.0.1`, sin exposicion a internet.
 
 ## Cambios Recientes
+
+**Frontend/TestSprite web hardening (`8a33475`, 2026-05-26).** El cockpit
+público ahora usa el contrato de producto que TestSprite web necesita sin
+maquillaje de tests:
+
+- `app/lib/apiBase.ts` resuelve `https://cognitive-api.doctormanzur.com` cuando
+  el host es `cognitive.doctormanzur.com`, acepta override controlado por hash y
+  evita que la build pública llame a localhost por accidente.
+- `app/page.tsx` acepta `#cogos_token=<JWT>`/`#token=`/`#jwt=`, persiste
+  `localStorage.cogos.token`, elimina el fragmento de la URL y expone
+  `data-cogos-active-tab` sobre `<main>` como marcador estable de vista.
+- El TopBar fue retirado; la navegación viva es sidebar + header contextual +
+  bottom nav móvil. Hotkeys vigentes: `1 Dashboard`, `2 Chat`, `3 DeepAgents`,
+  `4 Document Analysis`, `5 Jobs`, `6 Aprobaciones`, `7 LangSmith`, `8 Audit`,
+  `9 Health`.
+- `DocumentsView`, `AgentsView`, `AuditView`, `HealthView` y `MailInboxView`
+  muestran estados loading/empty/error reales y estables; no hay filas ni cards
+  falsas para pasar TestSprite.
+- `scripts/testsprite_web/deploy_and_verify.sh` reconstruye producción, levanta
+  backend/worker/beat/frontend/tunnel, valida frontend público, backend
+  `/health`, marker `cogos-v2026-05-26e-status-cards` en `/sw.js` y shell
+  `data-cogos-active-tab` antes de pedir el rerun humano.
 
 **Activación funcional end-to-end (2026-05-25 post-remediación).** Sesión de
 16 fases con el stack vivo en `dedicated_local/full`. Veredicto: **FUNCTIONAL
@@ -89,11 +122,12 @@ WITH WARNINGS**. Lo verificado en runtime:
 - CDP 20 vistas: 0 console.error, 0 page.error, 0 5xx; Ctrl+K + mobile.
 - Stress: 30 concurrent /health/dashboard 30/30 OK; backlog `ok`.
 
-Hallazgo P1 nuevo runtime (preexistente, NO regresión):
-- **F-RUNTIME-001**: `browser_preview` executor falla con `Playwright Sync API
-  inside asyncio loop`. Histórico: 5 `browser_preview` previos fallan idénticamente.
-  Contrato "fallar visible" funciona (`status=failed` + error legible). Pendiente
-  migrar provider a Async Playwright. Detalle en `corregir_cognitive.md`.
+Hallazgo P1 runtime de esa pasada (preexistente, luego cerrado en el cierre comercial final 2026-05-25):
+- **F-RUNTIME-001**: `browser_preview` executor fallaba con `Playwright Sync API
+  inside asyncio loop`. Histórico: 5 `browser_preview` previos fallaban idénticamente.
+  El contrato "fallar visible" ya funcionaba (`status=failed` + error legible) y
+  el cierre comercial posterior lo cerró envolviendo los executors Playwright en
+  `asyncio.to_thread`. Detalle histórico en `corregir_cognitive.md`.
 
 Reporte completo: `tmp/full_functional_activation_20260525_073134/reports/FULL_FUNCTIONAL_ACTIVATION_REPORT.md`.
 
@@ -124,7 +158,7 @@ Riesgos operativos residuales (no-código, no bloquean release):
   `scripts/auth_google.py` (contrato "fallar visible" funciona).
 - 309 approvals pending acumuladas (ninguna stale, reaper trabaja) — triage operador.
 
-Pendientes vivos en `corregir_cognitive.md`.
+Registro histórico de pendientes de esa pasada: `corregir_cognitive.md`; el estado vigente 2026-05-26 se resume al inicio de este README.
 
 **Audit-commercial hardening matrix (`0f8232a`, 2026-05-25).** Pasada
 quirurgica de remediacion read-only convertida en cobertura hermetica:
@@ -274,7 +308,7 @@ rsync -a --exclude node_modules --exclude .next --exclude .venv --exclude '__pyc
 - Python ≥ 3.12 y [uv](https://docs.astral.sh/uv/)
 - Node.js ≥ 22 y npm
 - Verificación reproducible: `bash scripts/full-qa.sh` (`uv sync --extra openharness` + `pytest` + `ruff check` + `ruff format --check` + `mypy` + `npm ci` + `npm run lint` + `npm run build` + `sync_doc_counts.py --check` + `git diff --check`). Estrés: `bash scripts/stress-qa.sh` (3 pasadas de pytest por defecto). Smokes en vivo opt-in: `bash scripts/full-qa-live.sh`.
-- Snapshot QA actual (2026-05-25 post-remediación, base commit `0f8232a` + fix flakiness FK order): `bash scripts/full-qa.sh` **1200 passed, 1 skipped, 28 deselected** (1190 base + 2 regresión); `bash scripts/stress-qa.sh 5` -> **5/5 verde** (flakiness 0%); ruff/ruff format/mypy, frontend lint/build aislado con `.next-qa`, Alembic head `202605200003` y `git diff --check` verdes. Playwright frontend: **43 passed** sin exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`). Live read-only: `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed** (último gate documentado; no re-ejecutado en remediación por ser opt-in, pero `POST /health/verify` se llamó live y `primary_llm`/`embeddings`/`mail` retornaron `ok`). TestSprite MCP re-audit historico: **10/10 passed**.
+- Snapshot QA actual (2026-05-26, HEAD `8a33475`): `bash scripts/full-qa.sh` **1200 passed, 1 skipped, 28 deselected** (1190 base + 2 regresión FK order); `bash scripts/stress-qa.sh 5` -> **5/5 verde** (flakiness 0%); ruff/ruff format/mypy, frontend lint/build aislado con `.next-qa`, Alembic head `202605200003` y `git diff --check` verdes. Playwright frontend: **43 passed** sin exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`). Live read-only: `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed** (último gate documentado). TestSprite local batched histórico: **28/28 passed**; TestSprite web público se entrega con `bash scripts/testsprite_web/deploy_and_verify.sh` y queda pendiente de confirmar por reportes del portal, sin afirmar dos corridas web verdes hasta recibirlos.
 
 ## Backend
 

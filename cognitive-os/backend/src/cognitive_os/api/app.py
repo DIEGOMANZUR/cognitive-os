@@ -64,6 +64,7 @@ from cognitive_os.actions.kimi_webbridge import (
     EvaluateRequest,
     FillRequest,
     KimiWebBridgeError,
+    KimiWebBridgePolicyError,
     KimiWebBridgeService,
     NavigateRequest,
     ScreenshotRequest,
@@ -1582,6 +1583,13 @@ async def list_deepagent_skills(
     return [skill.model_dump() for skill in skills if skill.enabled]
 
 
+@app.get("/deepagents", response_model=list[dict[str, Any]])
+async def list_deepagents_root(
+    user: AuthenticatedUser = _auth_dependency,
+) -> list[dict[str, Any]]:
+    return await list_deepagent_skills(user)
+
+
 @app.get("/deepagents/skills/{name}", response_model=SkillDetailResponse)
 async def get_deepagent_skill(
     name: str,
@@ -2226,6 +2234,14 @@ async def list_audit_events(
         ]
 
 
+@app.get("/audit", response_model=list[AuditEventResponse])
+async def list_audit_events_root(
+    limit: int = 100,
+    user: AuthenticatedUser = _auth_dependency,
+) -> list[AuditEventResponse]:
+    return await list_audit_events(limit=limit, user=user)
+
+
 @app.get("/knowledge/stats", response_model=KnowledgeStatsResponse)
 async def knowledge_stats(
     user: AuthenticatedUser = _auth_dependency,
@@ -2377,6 +2393,13 @@ async def action_capabilities(
         _calendar_capability(),
         _drive_capability(),
     ]
+
+
+@app.get("/actions", response_model=list[ActionCapabilityStatus])
+async def action_capabilities_root(
+    user: AuthenticatedUser = _auth_dependency,
+) -> list[ActionCapabilityStatus]:
+    return await action_capabilities(user)
 
 
 def _maps_capability() -> ActionCapabilityStatus:
@@ -2877,6 +2900,17 @@ async def drive_status(user: AuthenticatedUser = _auth_dependency) -> DriveStatu
     return DriveService().status()
 
 
+def _drive_error_status(exc: DriveError) -> int:
+    detail = str(exc).lower()
+    if "not found" in detail:
+        return status.HTTP_404_NOT_FOUND
+    if "local_path" in detail or "file_id must not be empty" in detail:
+        return status.HTTP_400_BAD_REQUEST
+    if "enable_google_drive" in detail or "no drive upload roots" in detail:
+        return status.HTTP_409_CONFLICT
+    return status.HTTP_502_BAD_GATEWAY
+
+
 @app.post("/actions/drive/files", response_model=list[DriveFile])
 async def drive_files(
     request: DriveSearchRequest,
@@ -2887,7 +2921,7 @@ async def drive_files(
         return await asyncio.to_thread(DriveService().list_files, request)
     except DriveError as exc:
         raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
+            status_code=_drive_error_status(exc),
             detail=str(exc),
         ) from exc
 
@@ -2902,7 +2936,7 @@ async def drive_get_file(
         return await asyncio.to_thread(DriveService().get_file, file_id)
     except DriveError as exc:
         raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
+            status_code=_drive_error_status(exc),
             detail=str(exc),
         ) from exc
 
@@ -2931,7 +2965,7 @@ async def drive_upload_file(
         )
     except DriveError as exc:
         raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
+            status_code=_drive_error_status(exc),
             detail=str(exc),
         ) from exc
 
@@ -3042,6 +3076,11 @@ def _webbridge_call(
 ) -> WebBridgeCallResult:
     try:
         result = fn(*args, **kwargs)
+    except KimiWebBridgePolicyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
     except KimiWebBridgeError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

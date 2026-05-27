@@ -1,13 +1,30 @@
 # Scripts
 
-> **Estado actual (2026-05-25 post-activación funcional, base `0f8232a` —
-> APTO COMERCIAL LOCAL-FIRST · FUNCTIONAL WITH WARNINGS):** scripts shell verificados para la
-> instalación local dedicada. La operación normal prioriza fricción casi
-> nula: los launchers de escritorio levantan Docker, API, worker, beat,
-> frontend, Telegram cuando aplica y Kimi WebBridge sin exigir pasos
-> manuales extra. La seguridad estricta queda en perfiles/flags
-> conservadores; el objetivo diario es arranque reproducible, diagnóstico
-> visible y recuperación rápida.
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_START -->
+
+> **Cierre V2.0 absoluto local-first (2026-05-27, Prompt 7):** esta rama `codex/commercial-zero-friction-hardening` en base `8a33475d0502` queda sincronizada para el cierre comercial local-first. La evidencia viva se concentra en `/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/tmp/v2_07_absolute_release_closure_20260527_050231`. Estado de producto verificado durante Prompt 7: backend FastAPI local, frontend Next.js, Docker services, Postgres, Redis, Weaviate, Neo4j, Alembic head, worker, beat, health/readiness, LangGraph/chat, DeepAgents, MCP, RAG/documentos, Document Analysis, Action Plane sandbox, mail read-only, Telegram, Google read-only, GoDaddy dry-run, Kimi WebBridge y Code Director toy/guard rails.
+>
+> **Gates V2.0 ejecutados antes de los dos ciclos verdes finales:** `bash scripts/full-qa.sh` **1221 passed, 1 skipped, 28 deselected**; `bash scripts/stress-qa.sh 5` **5/5 verde x 1221 passed**; `cd frontend && npx playwright test` **44 passed**; `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**; `python3 scripts/sync_doc_counts.py --check` OK; `bash scripts/verify_desktop_launchers.sh` OK; OpenAPI read-only smoke **70 GET / 0 failures**; security read-only scan sin secretos críticos; CDP/Playwright forense **10 ciclos x 20 vistas** sin console/page errors ni 5xx, con un aborto `POST /auth/local-token` adjudicado como cierre de contexto del harness y no defecto de producto; Lighthouse local: accessibility 96, best-practices 100, SEO 100.
+>
+> **Criterio de verdad:** no se declara envio de correo, draft real ni escritura DNS. Mail queda normalizado como read-only: sync/list/classify/digest/proposed replies como texto, sin drafts ni sends. GoDaddy queda preview/dry-run; Action Plane mantiene sandbox/approval/audit/idempotencia segun riesgo. El tunnel publico `cognitive.doctormanzur.com` se valida con `scripts/testsprite_web/deploy_and_verify.sh` cuando Diego vaya a correr TestSprite web; Prompt 7 no lo expone permanentemente porque su propia regla prohibe exponer servicios a internet.
+
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
+
+
+> **Estado actual (2026-05-26, HEAD `8a33475` — COMERCIAL LOCAL-FIRST +
+> frontend/TestSprite web hardening):** scripts shell verificados para la
+> instalación local dedicada y para ventanas públicas de TestSprite. La operación
+> normal prioriza fricción casi nula: los launchers de escritorio levantan Docker,
+> API, worker, beat, frontend, Telegram cuando aplica y Kimi WebBridge sin exigir
+> pasos manuales extra. Para TestSprite web, el flujo canónico es un único comando:
+> `bash scripts/testsprite_web/deploy_and_verify.sh`.
+>
+> `deploy_and_verify.sh` detiene restos del stack anterior, reconstruye el
+> frontend de producción, levanta backend/worker/beat/frontend/tunnel, espera
+> `https://cognitive.doctormanzur.com/` con HTTP 200, chequea
+> `https://cognitive-api.doctormanzur.com/health`, valida el marker
+> `cogos-v2026-05-26e-status-cards` en `/sw.js` y confirma la shell con
+> `data-cogos-active-tab` antes de pedir el rerun humano en TestSprite.
 >
 > `full-qa.sh` está actualizado al ciclo vigente post-remediación P0:
 > backend con **1200 passed**, 1 skipped, 28 deselected (1190 base + 2
@@ -79,8 +96,9 @@
   nunca `@latest` por defecto). Valida `/health` antes/despues de cada lote,
   aplica idle-timeout/reintentos/split adaptativo, redacciona
   `testsprite_tests/tmp/config.json` al salir y genera
-  `qa/reports/testsprite_latest_summary.md`. La ultima corrida completa
-  documentada quedo en **28 passed**.
+  `qa/reports/testsprite_latest_summary.md`. La última corrida local completa
+  documentada quedó en **28 passed**; el rerun público web se prepara con
+  `scripts/testsprite_web/deploy_and_verify.sh`, no con este runner local.
 - `full-commercial-qa.sh`: gate orquestador comercial. Corre `full-qa`,
   tests backend de fixtures, fixture live probe si el API fue arrancado con
   `APP_ENV=test` o `COGOS_TEST_FIXTURES_ENABLED=true`, Playwright critico,
@@ -96,6 +114,11 @@
   el stack local.
 - `stress-qa.sh [N]`: ejecuta `pytest -q --tb=no` N veces (default 3) con el mismo extra OpenHarness para detectar flakiness.
 - `full-qa-live.sh`: carril **opt-in** de smokes read-only contra los proveedores reales (LLM ping, GoDaddy GET domains, IMAP/SMTP handshake, Telegram `getMe`, Kimi status, MCP `list_tools`, Google OAuth/freebusy). Requiere invocación explícita `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh`; el script no habilita el flag por sí mismo. Verificado con **8 passed** en el último gate live documentado. Excluido de `full-qa.sh`. Cada test se auto-saltea si su credencial no está configurada. Coste ≈ US$0.001.
+- `security-readonly-qa.sh`: carril estático/read-only para Bandit, Semgrep,
+  secret scan local y Schemathesis GET-only opt-in. Usa `uvx` para ejecutar
+  herramientas temporales sin modificar lockfiles. `--tool-smoke` imprime
+  versiones; `--scan` corre Bandit/Semgrep/secret scan y solo ejecuta
+  Schemathesis si `COGOS_SCHEMATHESIS_LIVE_READONLY=1`.
 - `sync_doc_counts.py`: recalcula los conteos canónicos (endpoints, tareas Celery, migraciones, head Alembic, vistas frontend) desde el código y reescribe el bloque `<!-- AUTO:counts -->` de `docs/CURRENT_STATE.md`. `--check` falla si están desincronizados (lo usa `full-qa.sh`); `--print` solo los imprime.
 
 ## Otros

@@ -1,62 +1,44 @@
 # Cognitive OS - Guia Simple Y Tecnica
 
-> **Estado actual (2026-05-23, commit `bbaaea8`):**
-> **RELEASE APPROVED** — cuatro pasadas de auditoría independiente
-> cerradas con cero defectos conocidos. Producto local-first para un
-> PC dedicado del operador. La prioridad explícita es fricción casi
-> nula por sobre seguridad estricta: usar Edge real, Kimi WebBridge,
-> filesystem local y auto-resolución de aprobaciones en
-> `dedicated_local/full` es una decisión de producto, no una excepción
-> accidental. `strict` queda disponible como perfil conservador.
-> Cierre formal en
-> [`audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md`](audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md).
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_START -->
+
+> **Cierre V2.0 absoluto local-first (2026-05-27, Prompt 7):** esta rama `codex/commercial-zero-friction-hardening` en base `8a33475d0502` queda sincronizada para el cierre comercial local-first. La evidencia viva se concentra en `/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/tmp/v2_07_absolute_release_closure_20260527_050231`. Estado de producto verificado durante Prompt 7: backend FastAPI local, frontend Next.js, Docker services, Postgres, Redis, Weaviate, Neo4j, Alembic head, worker, beat, health/readiness, LangGraph/chat, DeepAgents, MCP, RAG/documentos, Document Analysis, Action Plane sandbox, mail read-only, Telegram, Google read-only, GoDaddy dry-run, Kimi WebBridge y Code Director toy/guard rails.
 >
-> **Snapshot vivo (2026-05-25, commit `0f8232a`):** backend FastAPI con
-> **150 endpoints REST**, **23 tareas Celery** en **5 queues**, **20
-> migraciones Alembic** (head `202605200003`), frontend Next.js 16.2.6
-> con **20 vistas**, Telegram con **37 slash commands**, health dashboard
-> con **18 componentes** y `POST /health/verify` para probe en vivo. MCP
-> client con **6/6 servers** y **69 tools** (incluye `time` local
+> **Gates V2.0 ejecutados antes de los dos ciclos verdes finales:** `bash scripts/full-qa.sh` **1221 passed, 1 skipped, 28 deselected**; `bash scripts/stress-qa.sh 5` **5/5 verde x 1221 passed**; `cd frontend && npx playwright test` **44 passed**; `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**; `python3 scripts/sync_doc_counts.py --check` OK; `bash scripts/verify_desktop_launchers.sh` OK; OpenAPI read-only smoke **70 GET / 0 failures**; security read-only scan sin secretos críticos; CDP/Playwright forense **10 ciclos x 20 vistas** sin console/page errors ni 5xx, con un aborto `POST /auth/local-token` adjudicado como cierre de contexto del harness y no defecto de producto; Lighthouse local: accessibility 96, best-practices 100, SEO 100.
+>
+> **Criterio de verdad:** no se declara envio de correo, draft real ni escritura DNS. Mail queda normalizado como read-only: sync/list/classify/digest/proposed replies como texto, sin drafts ni sends. GoDaddy queda preview/dry-run; Action Plane mantiene sandbox/approval/audit/idempotencia segun riesgo. El tunnel publico `cognitive.doctormanzur.com` se valida con `scripts/testsprite_web/deploy_and_verify.sh` cuando Diego vaya a correr TestSprite web; Prompt 7 no lo expone permanentemente porque su propia regla prohibe exponer servicios a internet.
+
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
+
+
+> **Estado actual (2026-05-26, HEAD `8a33475`):**
+> **COMERCIAL LOCAL-FIRST APROBADO + frontend/TestSprite web hardening**. Cognitive
+> OS sigue siendo producto local-first para un PC dedicado del operador, con
+> fricción casi nula por sobre seguridad estricta como decisión de producto.
+> `strict` queda disponible como perfil conservador. El cierre formal local-first
+> 2026-05-25 sigue vigente y el cockpit público quedó endurecido para TestSprite
+> web: `#cogos_token`, API pública automática, TopBar retirado, hotkey `3
+> DeepAgents`, estados comerciales sin datos falsos, responsive 920px y service
+> worker `cogos-v2026-05-26e-status-cards`.
+>
+> **Snapshot vivo:** backend FastAPI con **150 endpoints REST**, **23 tareas
+> Celery** en **5 queues**, **20 migraciones Alembic** (head `202605200003`),
+> frontend Next.js 16.2.6 con **20 vistas**, Telegram con **37 slash commands**,
+> health dashboard con **18 componentes** y `POST /health/verify` para probe en
+> vivo. MCP client con **6/6 servers** y **69 tools** (incluye `time` local
 > read-only). Mail personal: Gmail `TODOS` + `SPAM` de
 > `diegomanzurn@gmail.com`, GoDaddy `Spam` de `diego@doctormanzur.com`,
-> clasificación de spam por agente, digest 10:00/20:00 Chile, máximo 50
-> correos, propuestas de respuesta como texto separado; no drafts y no
-> envío automático.
+> clasificación de spam por agente, digest 10:00/20:00 Chile, máximo 50 correos,
+> propuestas de respuesta como texto separado; no drafts y no envío automático.
 >
-> **Activación funcional end-to-end (2026-05-25):** **FUNCTIONAL WITH
-> WARNINGS**. 16 fases ejecutadas con stack vivo. Contratos críticos
-> verificados live (Mail SMTP gate, Calendar/Drive 409 workflow.v1, RAG con
-> citas, Doc Analysis 6 modos, Code Director plan-only sin ejecución,
-> Telegram getMe, MCP 6/6, CDP 20 vistas sin errors). Único hallazgo P1
-> runtime: F-RUNTIME-001 `browser_preview` Playwright sync/async — ver
-> `corregir_cognitive.md`.
->
-> **QA más reciente (2026-05-25 post-remediación P0, rama
-> `codex/commercial-zero-friction-hardening`):** `bash scripts/full-qa.sh`
-> verde con **1200 passed, 1 skipped, 28 deselected** (1190 base + 2
-> regresión `test_clean_slate_fixture_covers_all_fks.py` que cierra la
-> flakiness ~33% del gate hermético observada en una auditoría posterior
-> al cierre `0f8232a`); `bash scripts/stress-qa.sh 5` -> **5/5 verde ×
-> 1200 passed**, flakiness 0%;
-> ruff/format/mypy/Alembic/lint/build/`sync_doc_counts --check`/`git
-> diff --check` OK; Playwright **43 passed** sin exportar `COGOS_JWT`
-> (auto-mint via `_global-setup.ts`). El build de QA usa
-> `NEXT_DIST_DIR=.next-qa` para no invalidar un frontend vivo servido
-> desde `.next`. Live read-only: **8 passed** (último gate documentado);
-> `POST /health/verify` confirmó live `primary_llm`/`embeddings`/`mail` en
-> `ok` durante la remediación. TestSprite histórico corregido en batches
-> locales: **28/28 passed**.
->
-> **Ultimo ajuste post-gate (`647f103`):** fix `eager_defaults=True` en
-> `db.Base` corrige `MissingGreenlet` en `/actions/*/preview/request` y
-> análogos. Playwright runner zero-friction (auto-mint JWT).
->
-> **Ajuste previo (`5953b40`):** `/system/mcp` ahora inventaria los
-> servidores en paralelo con timeout default 30s. Runtime actual verificado:
-> **6/6 MCP servers** (`mem`, `gh`, `fs`, `cc`, `gem`, `time`) y **69 tools**.
-> El server `time` es local, read-only y corre por `stdio` desde el backend
-> para hora/conversion de zonas. El command palette del frontend abre con
-> `Ctrl/Cmd+K` de forma estable incluso con foco en inputs.
+> **QA vigente:** `bash scripts/full-qa.sh` verde con **1200 passed, 1 skipped,
+> 28 deselected**; `bash scripts/stress-qa.sh 5` -> **5/5 verde × 1200 passed**,
+> flakiness 0%; ruff/format/mypy/Alembic/lint/build/`sync_doc_counts --check`/
+> `git diff --check` OK; Playwright **43 passed** sin exportar `COGOS_JWT`
+> (auto-mint via `_global-setup.ts`). Live read-only: **8 passed** (último gate
+> documentado). TestSprite local batched histórico: **28/28 passed**. TestSprite
+> web público usa `bash scripts/testsprite_web/deploy_and_verify.sh`; no declarar
+> doble verde web hasta recibir reportes del portal.
 >
 > **Guía de usuario completa:** `docs/USER_GUIDE.md`. Estado canónico:
 > `docs/CURRENT_STATE.md`. Modelo operativo: `docs/ZERO_FRICTION_OPERATING_MODEL.md`.

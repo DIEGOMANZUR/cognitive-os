@@ -1,26 +1,24 @@
 # Estado Actual Canonico — Cognitive OS
 
-Fecha de sincronizacion documental: **2026-05-25 (post-remediación)**
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_START -->
+
+> **Cierre V2.0 absoluto local-first (2026-05-27, Prompt 7):** esta rama `codex/commercial-zero-friction-hardening` en base `8a33475d0502` queda sincronizada para el cierre comercial local-first. La evidencia viva se concentra en `/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/tmp/v2_07_absolute_release_closure_20260527_050231`. Estado de producto verificado durante Prompt 7: backend FastAPI local, frontend Next.js, Docker services, Postgres, Redis, Weaviate, Neo4j, Alembic head, worker, beat, health/readiness, LangGraph/chat, DeepAgents, MCP, RAG/documentos, Document Analysis, Action Plane sandbox, mail read-only, Telegram, Google read-only, GoDaddy dry-run, Kimi WebBridge y Code Director toy/guard rails.
+>
+> **Gates V2.0 ejecutados antes de los dos ciclos verdes finales:** `bash scripts/full-qa.sh` **1221 passed, 1 skipped, 28 deselected**; `bash scripts/stress-qa.sh 5` **5/5 verde x 1221 passed**; `cd frontend && npx playwright test` **44 passed**; `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**; `python3 scripts/sync_doc_counts.py --check` OK; `bash scripts/verify_desktop_launchers.sh` OK; OpenAPI read-only smoke **70 GET / 0 failures**; security read-only scan sin secretos críticos; CDP/Playwright forense **10 ciclos x 20 vistas** sin console/page errors ni 5xx, con un aborto `POST /auth/local-token` adjudicado como cierre de contexto del harness y no defecto de producto; Lighthouse local: accessibility 96, best-practices 100, SEO 100.
+>
+> **Criterio de verdad:** no se declara envio de correo, draft real ni escritura DNS. Mail queda normalizado como read-only: sync/list/classify/digest/proposed replies como texto, sin drafts ni sends. GoDaddy queda preview/dry-run; Action Plane mantiene sandbox/approval/audit/idempotencia segun riesgo. El tunnel publico `cognitive.doctormanzur.com` se valida con `scripts/testsprite_web/deploy_and_verify.sh` cuando Diego vaya a correr TestSprite web; Prompt 7 no lo expone permanentemente porque su propia regla prohibe exponer servicios a internet.
+
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
+
+
+Fecha de sincronizacion documental: **2026-05-26 (post frontend/TestSprite web hardening)**
 Branch auditada: `codex/commercial-zero-friction-hardening`
-Ultimo commit certificado: **`0f8232a`** — `test: commercial audit
-hardening — 16 tests, 230 assertions` (precedido por `ce72dc2`
-`feat: Time MCP server + commercial UX hardening across stack`).
-Estado del producto: **COMERCIAL LOCAL-FIRST APROBADO** (post cierre Prompt 6).
-Matriz audit-commercial hardening cerrada + flakiness P0 cerrada + activación
-funcional end-to-end verificada + cierre comercial final con 0 P0/P1/P2
-funcionales abiertos. Los 2 P1 abiertos del Prompt 5 (browser_preview Playwright
-sync/async + DeepAgent structured output) fueron resueltos en este commit:
-`actions/service.py` ahora envuelve los executors de Playwright con
-`asyncio.to_thread` (runtime confirmado: `example.com` → `status=completed`,
-`title="Example Domain"`); el DeepAgent BadRequestError quedó documentado como
-contrato "fallar visible" funcionando (fallback heurístico con warning
-explícito + `human_review_required=true`). Además, los 4 P2 del Prompt 5 también
-cerrados: router system prompt hardened, `default_output_formats` cubre los 4
-formatos (json/markdown/csv/docx), redacción PII en mail digest, kill switch
-ya cubierto por test hermético existente.
+Ultimo commit certificado documentalmente: **`8a33475`** — `feat(frontend): commercial status-card UX for empty/loading/error states`
+Estado del producto: **COMERCIAL LOCAL-FIRST APROBADO + cockpit público preparado para TestSprite web**.
+La certificación local-first 2026-05-25 se conserva como base: matriz audit-commercial hardening cerrada, flakiness P0 cerrada, activación funcional end-to-end verificada, browser_preview migrado a `asyncio.to_thread`, router LLM hardened, document analysis con formatos completos, mail digest con redacción PII y 0 P0/P1/P2 funcionales abiertos en esa capa. El estado vigente agrega el hardening frontend/public-web: hash auth `#cogos_token`, API pública por host, TopBar retirado, shell estable en sidebar + header contextual + `data-cogos-active-tab`, hotkey 3 = DeepAgents, estados comerciales loading/empty/error sin datos falsos, responsive 920px y service worker `cogos-v2026-05-26e-status-cards`.
 Snapshot de cierre formal previo:
 [`docs/audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md`](audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md).
-**Certificación comercial final:**
+**Certificación comercial final local-first:**
 [`docs/audits/FINAL_LOCAL_FIRST_COMMERCIAL_CERTIFICATION.md`](audits/FINAL_LOCAL_FIRST_COMMERCIAL_CERTIFICATION.md).
 Reportes de activación + evaluación independiente en
 `tmp/full_functional_activation_20260525_073134/reports/`.
@@ -31,6 +29,29 @@ conteos estructurales del "Snapshot Tecnico" se generan con
 `scripts/sync_doc_counts.py` y `full-qa.sh` falla si quedan desincronizados.
 
 ## Cambios Mas Recientes
+
+**Frontend/TestSprite web hardening (2026-05-26, commit `8a33475`).** El
+estado activo del cockpit público quedó alineado con el PRD read-only usado en
+TestSprite web:
+
+- Frontend público: `https://cognitive.doctormanzur.com`.
+- Backend público: `https://cognitive-api.doctormanzur.com`.
+- Auth preferida: `#cogos_token=<JWT_SIN_BEARER>`; el frontend persiste
+  `localStorage.cogos.token` y limpia el fragmento de la URL.
+- El shell ya no depende del TopBar: la navegación vive en sidebar + header
+  contextual + bottom nav móvil, y `<main>` expone `data-cogos-active-tab`.
+- Hotkeys vigentes: `1 Dashboard`, `2 Chat`, `3 DeepAgents`, `4 Document
+  Analysis`, `5 Jobs`, `6 Aprobaciones`, `7 LangSmith`, `8 Audit`, `9 Health`.
+- `DocumentsView`, `AgentsView`, `AuditView`, `HealthView` y `MailInboxView`
+  mantienen DOM estable para loading/empty/error sin inventar datos.
+- Responsive comercial: breakpoint 920px, sidebar desmontado en móvil salvo
+  drawer abierto, bottom nav visible y sincronización por `matchMedia` +
+  `orientationchange` + `visualViewport`.
+- PWA/service worker: marker `cogos-v2026-05-26e-status-cards`.
+- Handoff público: `bash scripts/testsprite_web/deploy_and_verify.sh`; este
+  valida frontend, backend `/health`, marker SW y shell antes de pedir rerun
+  humano. No se deben declarar dos corridas web verdes hasta recibir los PDFs o
+  reportes del portal.
 
 **Activación funcional end-to-end (2026-05-25 post-remediación).** Sesión
 operativa de 16 fases con el stack vivo en `dedicated_local/full` y JWT real.
@@ -456,7 +477,7 @@ Conteos estructurales derivados del codigo (generados por
 
 | Conteo canónico | Valor |
 |---|---|
-| Endpoints REST (`@app.*`/`@router.*` en `api/`) | 150 |
+| Endpoints REST (`@app.*`/`@router.*` en `api/`) | 153 |
 | Tareas Celery (`workers/tasks.py`) | 23 |
 | Migraciones Alembic (`alembic/versions/`) | 20 |
 | Head Alembic | 202605200003 |
@@ -466,7 +487,7 @@ Conteos estructurales derivados del codigo (generados por
 | Area | Estado actual |
 |---|---|
 | Backend | FastAPI 0.115+, 150 endpoints REST en `api/app.py` (147 `@app.*` + 3 `@router.*` de `test_fixtures`) |
-| Frontend | Next.js 16.2.6 + React 19, 20 vistas en `frontend/app/views` |
+| Frontend | Next.js 16.2.6 + React 19, 20 vistas en `frontend/app/views`; cockpit público con hash auth, `data-cogos-active-tab`, hotkey 3 DeepAgents y SW `cogos-v2026-05-26e-status-cards` |
 | Infra | Docker Compose local con Postgres 16+pgvector, Redis 7, Weaviate 1.29.0, Neo4j 5; todo ligado a `127.0.0.1` |
 | DB | 20 migraciones Alembic, head `202605200003`, `alembic check` sin drift |
 | Celery | 23 tareas, 5 colas (`default`, `ingestion`, `agent_longrun`, `maintenance`, `mail`), hasta 13 jobs beat segun flags |
@@ -480,14 +501,15 @@ Conteos estructurales derivados del codigo (generados por
 | LLM | primary+agent `gpt-5.5` (Responses API + prompt caching 24h), secondary/fallback `gemini-3.1-pro-low`, vision `glm-4.6v` |
 | QA backend | `pytest` hermetico con DB de test aislada (`cognitive_os_test`); guard exhaustivo (subproceso aislado) verifica que se niega a correr contra produccion |
 | QA frontend | Playwright oficial: 43 tests en desktop/mobile; runner zero-friction (auto-mintea `COGOS_JWT` via `POST /auth/local-token` en `dedicated_local/full`) |
-| QA oficial | `scripts/full-qa.sh` (build Next aislado en `.next-qa`, **1200 passed** post-remediación 2026-05-25 — 1190 históricos + 2 regresión FK order); `stress-qa.sh 5` -> 5/5 verde, flakiness 0%; `full-qa-live.sh` opt-in para smokes reales |
+| QA oficial | `scripts/full-qa.sh` (build Next aislado en `.next-qa`, **1200 passed** post-remediación 2026-05-25 — 1190 históricos + 2 regresión FK order); `stress-qa.sh 5` -> 5/5 verde, flakiness 0%; `full-qa-live.sh` opt-in para smokes reales; `scripts/testsprite_web/deploy_and_verify.sh` para handoff público TestSprite web |
 | Audit matrix | 16 archivos `test_audit_commercial_*` + `audit-commercial-*.spec.ts` (~230 asserciones) cubren los 4 P0-criticos y 12 GAPs P1 del contrato comercial: Mail SMTP gate, GoDaddy DNS gate, Code Director STDIN, eager_defaults full, auth matrix, path-traversal corpus, operational_backlog reactivo, workflow.v1 hardening, calendar/drive directo `dry_run=false`→409, health overall honest, reapers dedicados, DB isolation, secrets redaction, test fixtures gating, MCP fail-open, Mail UI sin boton Enviar |
-| Reaudit TestSprite | 2 pasadas independientes 2026-05-23: pasada 1 (PASS, 5 hallazgos P2/P3 cerrados); pasada 2 (PASS, 1 P1 nuevo cazado y corregido — eager_defaults). Reporte en `docs/audits/testsprite/16_FINAL_REAUDIT_REPORT.md` |
+| TestSprite | Reaudit MCP histórico 2026-05-23: 2 pasadas independientes PASS (incluye P1 eager_defaults cazado y corregido). TestSprite local batched histórico: **28/28 passed**. TestSprite web público vigente: usar `deploy_and_verify.sh` y esperar PDFs/reportes antes de afirmar doble verde. |
 
 ## Ultimo Gate Verde Conocido
 
-Gate mas reciente en esta rama (`codex/commercial-zero-friction-hardening`,
-2026-05-25 post-remediación P0):
+Gate local más reciente en esta rama (`codex/commercial-zero-friction-hardening`,
+2026-05-26, HEAD `8a33475`; capa frontend/TestSprite web aplicada sobre el gate
+local 2026-05-25):
 
 - `bash scripts/full-qa.sh` -> **1200 passed, 1 skipped, 28 deselected**
   (1192 base post-remediación FK + 8 regresiones `test_final_functional_hardening.py` del commit `6891d5c`).
@@ -498,6 +520,9 @@ Gate mas reciente en esta rama (`codex/commercial-zero-friction-hardening`,
 - CDP sweep 20 vistas -> **0 console.error, 0 page.error, 0 5xx** × 2 rondas.
 - Mail SMTP gate verificado live -> `HTTP 409` con mensaje contrato.
 - `/system/mcp` -> **6/6 servers, 69 tools**. `/system/readiness` -> 14/14, gaps=[].
+- Handoff TestSprite web: `bash scripts/testsprite_web/deploy_and_verify.sh`
+  valida frontend público, backend `/health`, SW marker y shell; el doble verde
+  web queda pendiente de evidencia del portal.
 - Gate previo `0f8232a` (1190 passed) preservado abajo como histórico.
 
 Gate `0f8232a` (2026-05-25, pre-remediación):

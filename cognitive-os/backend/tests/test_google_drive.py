@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
+import cognitive_os.api.app as api_app
 from cognitive_os.actions.drive import (
     DriveError,
     DriveFile,
@@ -13,6 +14,7 @@ from cognitive_os.actions.drive import (
     DriveOrganizeRequest,
     DriveSearchRequest,
     DriveService,
+    DriveUploadPreview,
     DriveUploadRequest,
     FakeDriveProvider,
     GoogleDriveProvider,
@@ -255,6 +257,53 @@ async def test_drive_direct_upload_rejects_real_write() -> None:
 
     assert response.status_code == 409
     assert "/actions/drive/files/upload/request" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_drive_get_missing_file_returns_controlled_404(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _DriveService:
+        def get_file(self, file_id: str) -> DriveFile:
+            raise DriveError(f"File {file_id!r} not found.")
+
+    monkeypatch.setattr(api_app, "DriveService", _DriveService)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(
+            "/actions/drive/files/00000000-0000-0000-0000-000000000000",
+            headers=_headers(),
+        )
+
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_drive_upload_missing_local_path_returns_controlled_400(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _DriveService:
+        def upload_file(
+            self,
+            request: DriveUploadRequest,
+            *,
+            requested_by: str | None = None,
+        ) -> DriveUploadPreview:
+            del request, requested_by
+            raise DriveError("local_path does not exist or is not a file.")
+
+    monkeypatch.setattr(api_app, "DriveService", _DriveService)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/actions/drive/files/upload",
+            json={"local_path": "/definitely/not/found/read-only-audit.txt"},
+            headers=_headers(),
+        )
+
+    assert response.status_code == 400
+    assert "local_path" in response.json()["detail"]
 
 
 @pytest.mark.asyncio

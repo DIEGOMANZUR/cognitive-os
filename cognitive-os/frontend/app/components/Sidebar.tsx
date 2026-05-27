@@ -74,6 +74,8 @@ export function Sidebar({
   healthStatus,
   envName,
   onCommand,
+  onNotifications,
+  notificationCount,
   isMobile,
   onCloseMobile
 }: {
@@ -83,6 +85,8 @@ export function Sidebar({
   healthStatus: string;
   envName: string;
   onCommand: () => void;
+  onNotifications: () => void;
+  notificationCount: number;
   isMobile?: boolean;
   onCloseMobile?: () => void;
 }) {
@@ -116,6 +120,15 @@ export function Sidebar({
             <span className="brand-sub">command center</span>
           </div>
         </div>
+        <button
+          className={`ghost icon notification-trigger${notificationCount > 0 ? " unread" : ""}`}
+          onClick={onNotifications}
+          type="button"
+          aria-label="Abrir centro de notificaciones"
+        >
+          <Icon name="bell" size={16} />
+          {notificationCount > 0 && <span className="dot-badge" aria-hidden="true" />}
+        </button>
         {isMobile && (
           <button
             className="ghost icon"
@@ -128,7 +141,12 @@ export function Sidebar({
         )}
       </div>
 
-      <button className="cmd-trigger" onClick={onCommand} type="button">
+      <button
+        className="cmd-trigger"
+        onClick={onCommand}
+        type="button"
+        aria-label="Abrir buscador de comandos"
+      >
         <span className="row" style={{ gap: 8 }}>
           <Icon name="search" size={14} />
           <span>Quick action…</span>

@@ -1,11 +1,12 @@
 # OpenShell Sandbox (referencia técnica)
 
-> **Estado actual (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** integración separada e independiente,
-> documentada para el modelo local dedicado. Aunque el producto prioriza
-> fricción casi nula por sobre seguridad estricta, OpenShell sigue siendo
-> un sandbox opcional: si se enciende, debe fallar de forma explícita,
-> registrar JobEvents/AuditEvents y no simular que ejecutó cuando el vendor,
-> Docker o gateway no están disponibles.
+> **Estado actual (2026-05-26, HEAD `8a33475`):** integración separada e independiente,
+> documentada para el modelo **COMERCIAL LOCAL-FIRST APROBADO + frontend/TestSprite web hardening**.
+> Aunque el producto prioriza fricción casi nula por sobre seguridad estricta,
+> OpenShell sigue siendo un sandbox opcional: si se enciende, debe fallar de
+> forma explícita, registrar JobEvents/AuditEvents y no simular que ejecutó cuando
+> el vendor, Docker o gateway no están disponibles. La capa pública/TestSprite no
+> habilita ejecución de código ni cambia el requisito de aprobación.
 >
 > **Histórico (2026-05-20, Fase 74):** integración separada e independiente
 > de OpenHarness y del carril mail. OpenShell se ejecuta vía un *vendor*

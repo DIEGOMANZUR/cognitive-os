@@ -1,21 +1,31 @@
 # AGENT_LEARNING_PLAN — Cómo el agente aprende solo
 
-> **Actualización vigente (2026-05-23, commit `bbaaea8` — RELEASE
-> APPROVED):** el plan de aprendizaje autónomo está implementado y
-> convive con el modelo operativo de baja fricción. La prioridad del
-> sistema en este PC dedicado es reducir fricción por sobre seguridad
-> estricta, pero las promociones de memoria/skills siguen pasando por
-> proposals porque afectan el comportamiento futuro del agente.
-> La **única excepción de auto-deploy** es el auto-promote de
-> *warnings* de Fase D, con kill switch
-> `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED` (default `true`,
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_START -->
+
+> **Cierre V2.0 absoluto local-first (2026-05-27, Prompt 7):** esta rama `codex/commercial-zero-friction-hardening` en base `8a33475d0502` queda sincronizada para el cierre comercial local-first. La evidencia viva se concentra en `/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/tmp/v2_07_absolute_release_closure_20260527_050231`. Estado de producto verificado durante Prompt 7: backend FastAPI local, frontend Next.js, Docker services, Postgres, Redis, Weaviate, Neo4j, Alembic head, worker, beat, health/readiness, LangGraph/chat, DeepAgents, MCP, RAG/documentos, Document Analysis, Action Plane sandbox, mail read-only, Telegram, Google read-only, GoDaddy dry-run, Kimi WebBridge y Code Director toy/guard rails.
+>
+> **Gates V2.0 ejecutados antes de los dos ciclos verdes finales:** `bash scripts/full-qa.sh` **1221 passed, 1 skipped, 28 deselected**; `bash scripts/stress-qa.sh 5` **5/5 verde x 1221 passed**; `cd frontend && npx playwright test` **44 passed**; `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**; `python3 scripts/sync_doc_counts.py --check` OK; `bash scripts/verify_desktop_launchers.sh` OK; OpenAPI read-only smoke **70 GET / 0 failures**; security read-only scan sin secretos críticos; CDP/Playwright forense **10 ciclos x 20 vistas** sin console/page errors ni 5xx, con un aborto `POST /auth/local-token` adjudicado como cierre de contexto del harness y no defecto de producto; Lighthouse local: accessibility 96, best-practices 100, SEO 100.
+>
+> **Criterio de verdad:** no se declara envio de correo, draft real ni escritura DNS. Mail queda normalizado como read-only: sync/list/classify/digest/proposed replies como texto, sin drafts ni sends. GoDaddy queda preview/dry-run; Action Plane mantiene sandbox/approval/audit/idempotencia segun riesgo. El tunnel publico `cognitive.doctormanzur.com` se valida con `scripts/testsprite_web/deploy_and_verify.sh` cuando Diego vaya a correr TestSprite web; Prompt 7 no lo expone permanentemente porque su propia regla prohibe exponer servicios a internet.
+
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
+
+
+> **Actualización vigente (2026-05-26, HEAD `8a33475`):** el plan de
+> aprendizaje autónomo está implementado y convive con el modelo **COMERCIAL
+> LOCAL-FIRST APROBADO + frontend/TestSprite web hardening**. La prioridad del
+> sistema en este PC dedicado es reducir fricción por sobre seguridad estricta,
+> pero las promociones de memoria/skills siguen pasando por proposals porque
+> afectan el comportamiento futuro del agente.
+> La **única excepción de auto-deploy** es el auto-promote de *warnings* de Fase
+> D, con kill switch `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED` (default `true`,
 > AUDIT-2026-C) — ver §1 y §3.4.
-> QA vigente del repo (commit `bbaaea8`): `full-qa.sh`
-> **958 passed**, 1 skipped, 28 deselected; Playwright **41 passed**
-> sin exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`); stress
-> QA 3 pasadas de **958 passed**; TestSprite completo corregido en batches
-> **28/28 passed**. Ver
-> `CURRENT_STATE.md`.
+> QA vigente del repo: `full-qa.sh` **1200 passed**, 1 skipped, 28 deselected;
+> `stress-qa.sh 5` **5/5 verde × 1200 passed**; Playwright **43/43** con
+> auto-mint JWT vía `_global-setup.ts`; live opt-in **8 passed**; TestSprite
+> local batched histórico **28/28 passed**. Para TestSprite web público usar
+> `scripts/testsprite_web/deploy_and_verify.sh` y esperar PDFs/reportes antes de
+> afirmar doble verde. Ver `CURRENT_STATE.md`.
 
 > Documento de handoff. Pensado para que un chat nuevo entienda **(a)** el estado
 > actual del proyecto, **(b)** la arquitectura de memoria existente, y
@@ -114,10 +124,11 @@ proactivos) — ver §3.
 ### 0.2 Estado funcional del stack
 
 - **Backend FastAPI:** `:8000`, 150 endpoints, suite hermética vigente
-  **958 passed**, 1 skipped, 28 deselected (944 históricos + 14 nuevos
-  por el fix `eager_defaults` del re-audit 2026-05-23).
-- **Frontend Next.js 16 SPA:** `:3001`, 20 vistas, **31/31 Playwright
-  passed** sin exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`).
+  **1200 passed**, 1 skipped, 28 deselected; gate previo de 958/950 queda como
+  histórico del re-audit 2026-05-23 y de las fases de aprendizaje.
+- **Frontend Next.js 16 SPA:** `:3001`, 20 vistas, **43/43 Playwright passed**
+  con auto-mint JWT vía `_global-setup.ts`; la capa pública/TestSprite web usa
+  hash auth, API pública automática y shell estable sin TopBar.
 - **Workers Celery:** 5 queues + 3 reapers (approval, stuck_action_requests, stale_running_jobs).
 - **Stores:** Postgres 16+pgvector, Redis 7, Weaviate 1.29, Neo4j 5.
 - **LLM chain:** primary+agent `gpt-5.5` (openai-compatible gateway), secondary/fallback `gemini-3.1-pro-low`, vision `glm-4.6v` (z.ai), Kimi-k2.6 vía CLI.

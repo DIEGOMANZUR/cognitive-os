@@ -1,25 +1,27 @@
 # QA · MAP — inventario funcional de la app
 
-> **Actualización vigente (2026-05-25 post-activación funcional, base
-> `0f8232a` — APTO COMERCIAL LOCAL-FIRST · FUNCTIONAL WITH WARNINGS):**
-> Activación funcional end-to-end ejecutada con 16 fases live verificando
-> contratos críticos. Hallazgo P1 runtime nuevo (preexistente, no regresión):
-> F-RUNTIME-001 `browser_preview` Playwright sync/async. Resto: mapa QA para el cockpit actual.
-> La suite oficial Playwright está verde con **43 passed** y se ejecuta
-> contra la SPA Next.js de 20 tabs sin necesidad de exportar
-> `COGOS_JWT` (auto-mint via `_global-setup.ts`). Backend verificado
-> por `full-qa.sh`: **1200 passed**, 1 skipped, 28 deselected (1190
-> base + 2 regresión `test_clean_slate_fixture_covers_all_fks.py`).
-> `stress-qa.sh 5` -> **5/5 verde × 1200 passed**, flakiness post-fix
-> = 0%.
-> El producto corre en un PC dedicado con prioridad de fricción casi
-> nula; los tests deben validar que esa fricción baja no esconda
-> errores, pantallas muertas ni operaciones silenciosas. Mail sigue
-> siendo read-only/digest por defecto (contrato bloqueado en UI por
-> `audit-commercial-mail-no-send-button.spec.ts` y en backend por
-> `test_audit_commercial_mail_smtp_gating.py`). MCP actual:
-> `/system/mcp` runtime **6/6 servers** y **69 tools**, incluyendo
-> `time` local read-only.
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_START -->
+
+> **Cierre V2.0 absoluto local-first (2026-05-27, Prompt 7):** esta rama `codex/commercial-zero-friction-hardening` en base `8a33475d0502` queda sincronizada para el cierre comercial local-first. La evidencia viva se concentra en `/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/tmp/v2_07_absolute_release_closure_20260527_050231`. Estado de producto verificado durante Prompt 7: backend FastAPI local, frontend Next.js, Docker services, Postgres, Redis, Weaviate, Neo4j, Alembic head, worker, beat, health/readiness, LangGraph/chat, DeepAgents, MCP, RAG/documentos, Document Analysis, Action Plane sandbox, mail read-only, Telegram, Google read-only, GoDaddy dry-run, Kimi WebBridge y Code Director toy/guard rails.
+>
+> **Gates V2.0 ejecutados antes de los dos ciclos verdes finales:** `bash scripts/full-qa.sh` **1221 passed, 1 skipped, 28 deselected**; `bash scripts/stress-qa.sh 5` **5/5 verde x 1221 passed**; `cd frontend && npx playwright test` **44 passed**; `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**; `python3 scripts/sync_doc_counts.py --check` OK; `bash scripts/verify_desktop_launchers.sh` OK; OpenAPI read-only smoke **70 GET / 0 failures**; security read-only scan sin secretos críticos; CDP/Playwright forense **10 ciclos x 20 vistas** sin console/page errors ni 5xx, con un aborto `POST /auth/local-token` adjudicado como cierre de contexto del harness y no defecto de producto; Lighthouse local: accessibility 96, best-practices 100, SEO 100.
+>
+> **Criterio de verdad:** no se declara envio de correo, draft real ni escritura DNS. Mail queda normalizado como read-only: sync/list/classify/digest/proposed replies como texto, sin drafts ni sends. GoDaddy queda preview/dry-run; Action Plane mantiene sandbox/approval/audit/idempotencia segun riesgo. El tunnel publico `cognitive.doctormanzur.com` se valida con `scripts/testsprite_web/deploy_and_verify.sh` cuando Diego vaya a correr TestSprite web; Prompt 7 no lo expone permanentemente porque su propia regla prohibe exponer servicios a internet.
+
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
+
+
+> **Actualización vigente (2026-05-26, HEAD `8a33475`):** cockpit público
+> endurecido para TestSprite web sobre la base local-first 2026-05-25. El mapa QA
+> debe considerar el frontend real en `https://cognitive.doctormanzur.com`, auth
+> por `#cogos_token`, API pública automática, shell sin TopBar con
+> `data-cogos-active-tab`, hotkey `3 DeepAgents`, estados comerciales
+> loading/empty/error sin datos falsos, responsive 920px y service worker
+> `cogos-v2026-05-26e-status-cards`. Suite local: Playwright **43 passed**,
+> `full-qa.sh` **1200 passed**, `stress-qa.sh 5` **5/5 verde × 1200 passed**.
+> TestSprite local batched histórico: **28/28 passed**. TestSprite web público se
+> prepara con `scripts/testsprite_web/deploy_and_verify.sh`; no afirmar dos
+> corridas web verdes hasta recibir reportes del portal.
 >
 > **Audit-commercial hardening matrix** — 16 archivos de test (~230
 > asserciones) introducidos en commit `0f8232a` cubren los 4
@@ -59,7 +61,7 @@
 |---|---|---|
 | `http://localhost:3001/` | `app/page.tsx` (SPA) | Única ruta real. La vista activa la decide el state `tab`. |
 | `/manifest.webmanifest` | `app/manifest.ts` | PWA manifest. |
-| `/sw.js` | `public/sw.js` | Service worker que excluye `/api/*` del cache. |
+| `/sw.js` | `public/sw.js` | Service worker `cogos-v2026-05-26e-status-cards`; los prefijos REST son network-only. |
 
 ## Tabs (20 vistas)
 
@@ -75,10 +77,8 @@ sidebar abre/cierra con un `aria-label="Abrir menú"`/"Cerrar".
 
 ## Flujos críticos a auditar
 
-1. **Carga inicial sin JWT.** `app/page.tsx` muestra TopBar con campo JWT
-   + un placeholder con instrucciones; las views deberían renderizar
-   estado "no auth" sin romper.
-2. **Pegado de JWT** (Settings o TopBar) → polling de `/health/dashboard`,
+1. **Carga inicial sin JWT.** `app/page.tsx` debe renderizar la shell estable sin romper, mostrar estados no-auth/empty/error honestos y aceptar bootstrap posterior por `#cogos_token` o localStorage.
+2. **Activación de JWT** (fragmento `#cogos_token`, localStorage o Settings) → polling de `/health/dashboard`,
    `/config/public`, `/knowledge/stats` debe empezar y producir datos
    reales (overall `ok` o `configured`, 18 componentes).
 3. **Navegación entre tabs** — cambiar a cada una de las 20 sin
@@ -91,7 +91,7 @@ sidebar abre/cierra con un `aria-label="Abrir menú"`/"Cerrar".
    (`/system/readiness`) y "MCP servers" (`/system/mcp`).
 7. **ConfigurationView** — tabla de flags, marca danger por perfil
    (`strict` invierte vs `dedicated_local`).
-8. **Mobile (375x667)** — Sidebar colapsa, TopBar usable, vistas no
+8. **Mobile (375x667)** — Sidebar se desmonta fuera del drawer, bottom nav usable, vistas no
    overflow.
 9. **Chat con JWT (smoke)** — submit envía y recibe respuesta o muestra
    estado de loading consistente.
@@ -132,7 +132,7 @@ sidebar abre/cierra con un `aria-label="Abrir menú"`/"Cerrar".
 
 ## Formularios principales
 
-- **TopBar:** API base + JWT (`useLocalState("cogos.token")`).
+- **Shell/auth:** hash `#cogos_token`, `localStorage.cogos.token`, API base por host y Settings (`useLocalState("cogos.token")`).
 - **Settings:** misma idea + tile readiness + tile MCP.
 - **ChatView:** textarea + submit → `/chat`.
 - **GoogleOpsView:** origen/destino (Maps), datetime-local (Calendar

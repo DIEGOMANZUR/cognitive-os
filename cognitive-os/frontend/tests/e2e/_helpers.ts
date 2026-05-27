@@ -83,8 +83,10 @@ export function watchPageHealth(page: Page): {
   const onRequestFailed = (req: Request) => {
     const failure = req.failure();
     if (!failure) return;
-    // `net::ERR_ABORTED` happens when we navigate away mid-fetch; ignore.
-    if (failure.errorText.includes("ABORTED")) return;
+    // `net::ERR_ABORTED` is benign only for GET polling/view-refresh calls
+    // cancelled by fast tab navigation. Mutating/critical requests must stay
+    // visible to the suite.
+    if (failure.errorText.includes("ABORTED") && req.method() === "GET") return;
     errors.push({
       url: req.url(),
       text: `requestfailed: ${failure.errorText}`,

@@ -1,5 +1,7 @@
 # 03 — TestSprite Master Blueprint (Cognitive OS · Cursor)
 
+> **Actualización 2026-05-26:** este archivo es evidencia histórica de auditoría. El flujo vigente ya no usa TopBar: la autenticación pública es por `#cogos_token` o `localStorage.cogos.token`, la API se resuelve automáticamente por host y el shell estable se valida con `<main data-cogos-active-tab="...">`. Las menciones a TopBar debajo se conservan solo como contexto histórico.
+
 Fecha: **2026-05-26**  
 Fuentes primarias: `/home/jgonz/Escritorio/testsprite/PRD.md`, `PRD_FRONTEND.md`, `PRD_BACKEND.md`  
 Contexto secundario: `docs/CURRENT_STATE.md`, `ZERO_FRICTION_OPERATING_MODEL.md`, `ACTION_PLANE.md`

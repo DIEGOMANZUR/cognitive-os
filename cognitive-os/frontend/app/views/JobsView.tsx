@@ -82,14 +82,22 @@ export function JobsView({ client }: { client: ApiClient }) {
             <span className="field-icon faint" aria-hidden="true">
               <Icon name="filter" size={14} />
             </span>
-            <select value={type} onChange={(event) => setType(event.target.value)}>
+            <select
+              value={type}
+              onChange={(event) => setType(event.target.value)}
+              aria-label="Filtrar jobs por tipo"
+            >
               {TYPE_OPTIONS.map((option) => (
                 <option key={option} value={option}>
                   {option || "Cualquier tipo"}
                 </option>
               ))}
             </select>
-            <select value={status} onChange={(event) => setStatus(event.target.value)}>
+            <select
+              value={status}
+              onChange={(event) => setStatus(event.target.value)}
+              aria-label="Filtrar jobs por estado"
+            >
               {STATUS_OPTIONS.map((option) => (
                 <option key={option} value={option}>
                   {option || "Cualquier estado"}
@@ -110,7 +118,7 @@ export function JobsView({ client }: { client: ApiClient }) {
                 <th>Estado</th>
                 <th>Prog.</th>
                 <th>Creado</th>
-                <th></th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>

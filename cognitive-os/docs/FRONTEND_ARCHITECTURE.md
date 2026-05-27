@@ -1,36 +1,43 @@
 # Frontend Architecture — Cognitive OS Cockpit
 
-> Documento técnico estable. Estado: **2026-05-23, commit `bbaaea8`,
-> RELEASE APPROVED**. Acompaña a `cognitive-os/frontend/README.md`
-> (orientación rápida). Cuatro pasadas de auditoría independiente
-> cerradas con cero defectos conocidos.
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_START -->
+
+> **Cierre V2.0 absoluto local-first (2026-05-27, Prompt 7):** esta rama `codex/commercial-zero-friction-hardening` en base `8a33475d0502` queda sincronizada para el cierre comercial local-first. La evidencia viva se concentra en `/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/tmp/v2_07_absolute_release_closure_20260527_050231`. Estado de producto verificado durante Prompt 7: backend FastAPI local, frontend Next.js, Docker services, Postgres, Redis, Weaviate, Neo4j, Alembic head, worker, beat, health/readiness, LangGraph/chat, DeepAgents, MCP, RAG/documentos, Document Analysis, Action Plane sandbox, mail read-only, Telegram, Google read-only, GoDaddy dry-run, Kimi WebBridge y Code Director toy/guard rails.
+>
+> **Gates V2.0 ejecutados antes de los dos ciclos verdes finales:** `bash scripts/full-qa.sh` **1221 passed, 1 skipped, 28 deselected**; `bash scripts/stress-qa.sh 5` **5/5 verde x 1221 passed**; `cd frontend && npx playwright test` **44 passed**; `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**; `python3 scripts/sync_doc_counts.py --check` OK; `bash scripts/verify_desktop_launchers.sh` OK; OpenAPI read-only smoke **70 GET / 0 failures**; security read-only scan sin secretos críticos; CDP/Playwright forense **10 ciclos x 20 vistas** sin console/page errors ni 5xx, con un aborto `POST /auth/local-token` adjudicado como cierre de contexto del harness y no defecto de producto; Lighthouse local: accessibility 96, best-practices 100, SEO 100.
+>
+> **Criterio de verdad:** no se declara envio de correo, draft real ni escritura DNS. Mail queda normalizado como read-only: sync/list/classify/digest/proposed replies como texto, sin drafts ni sends. GoDaddy queda preview/dry-run; Action Plane mantiene sandbox/approval/audit/idempotencia segun riesgo. El tunnel publico `cognitive.doctormanzur.com` se valida con `scripts/testsprite_web/deploy_and_verify.sh` cuando Diego vaya a correr TestSprite web; Prompt 7 no lo expone permanentemente porque su propia regla prohibe exponer servicios a internet.
+
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
+
+
+> Documento técnico estable. Estado: **2026-05-26, HEAD `8a33475`**. Acompaña a
+> `cognitive-os/frontend/README.md` (orientación rápida). El cockpit mantiene
+> grado comercial local-first y suma hardening público/TestSprite web: auth por
+> `#cogos_token`, API pública por host, shell sin TopBar, `data-cogos-active-tab`,
+> hotkey `3 DeepAgents`, estados loading/empty/error reales y SW
+> `cogos-v2026-05-26e-status-cards`.
 >
 > El cockpit está optimizado para el perfil de instalación actual:
-> `dedicated_local/full` en un PC dedicado, con prioridad de fricción casi
-> nula por sobre seguridad estricta. La UI debe facilitar operación rápida,
-> mostrar degradaciones de forma explícita y respetar la excepción de mail:
-> no drafts, no envíos automáticos, solo propuestas de texto salvo solicitud
-> explícita de Diego.
+> `dedicated_local/full` en un PC dedicado, con prioridad de fricción casi nula
+> por sobre seguridad estricta. La UI debe facilitar operación rápida, mostrar
+> degradaciones de forma explícita y respetar la excepción de mail: no drafts, no
+> envíos automáticos, solo propuestas de texto salvo solicitud explícita de Diego.
 >
-> Gates vigentes (commit `bbaaea8`): `npm run lint` limpio,
-> `npm run build` limpio, `npx playwright test --reporter=list` con
-> **31 passed** sin necesidad de exportar `COGOS_JWT` (auto-mint via
-> `tests/e2e/_global-setup.ts` que llama `POST /auth/local-token` en
-> `dedicated_local/full`), `bash scripts/full-qa.sh` desde la raíz
-> usando build aislado `NEXT_DIST_DIR=.next-qa` (**958 passed**, 1
-> skipped, 28 deselected: 944 históricos + 14 nuevos: 3 `eager_defaults` + 3 `health_llm_probe_timeout` + 3 guards QA/scripts/docs).
+> Gates vigentes: `npm run lint` limpio, `npm run build` limpio, `npx playwright
+> test --reporter=list` con **43 passed** sin exportar `COGOS_JWT` (auto-mint via
+> `_global-setup.ts`), `bash scripts/full-qa.sh` desde la raíz usando build
+> aislado `NEXT_DIST_DIR=.next-qa` (**1200 passed**, 1 skipped, 28 deselected),
+> `stress-qa.sh 5` **5/5 verde × 1200 passed**. TestSprite web público se prepara
+> con `bash scripts/testsprite_web/deploy_and_verify.sh`; no se declara doble
+> verde web sin reportes del portal.
 >
-> Verificación live con Chrome DevTools MCP (cierre absoluto): las 20
-> tabs de la SPA montan sin un solo `console.error` crítico; Dashboard
-> renderiza datos vivos reales (14/18 ok, 309 approvals, audit log con
-> timeline real, configuración con LLM gpt-5.5 activo).
+> Verificación live con Chrome DevTools MCP (cierre absoluto 2026-05-25): las 20
+> tabs de la SPA montan sin un solo `console.error` crítico.
 >
 > Ajustes acumulados:
-> - `bbaaea8` (cierre absoluto): docs frontend alineados al estado
->   final; 4 pasadas de auditoría sin defectos abiertos.
-> - `9ab77a4` (cert pass 3): anti-flake `Ctrl+K` con poll-retry hasta
->   7s en `glass-cockpit.spec.ts`; `regression-critical.spec.ts`
->   acepta `degraded` además de `blocked/error`.
+> - `8a33475`: status rows/cards comerciales para empty/loading/error y handoff
+>   público TestSprite web con marker `cogos-v2026-05-26e-status-cards`.
 > - `647f103`: Playwright runner zero-friction (auto-mint JWT); fix
 >   `eager_defaults=True` en `db.Base` para action plane.
 > - `5953b40`: `Ctrl/Cmd+K` capture phase para abrir de forma estable
@@ -73,7 +80,6 @@ app/
 │   ├── PWA.tsx           Install / update / offline prompt
 │   ├── Sidebar.tsx       Nav lateral con secciones plegables
 │   ├── StatePrimitives.tsx  Skeleton/EmptyState/ErrorPanel/DataBoundary
-│   └── TopBar.tsx
 ├── lib/
 │   ├── a11y.ts           useFocusTrap, helpers de accesibilidad
 │   ├── api.ts            ApiClient, asArray<T>, statusClass, etc.
@@ -126,7 +132,7 @@ Toda regla nueva consume tokens; nada se hardcodea. Los grupos:
    (`width: ${pct}%`). El resto va a `globals.css`.
 4. **Iconografía consistente:** stroke 1.75, viewBox 24, hereda
    `currentColor`. Tamaño explícito (`size` prop) según rol: 13–15 en
-   botones small, 17–18 en TopBar/empty-state, 21+ en hero/brand.
+   botones small, 17–18 en header contextual/empty-state, 21+ en hero/brand.
 5. **Charts:** primitivos SVG en `components/Charts.tsx`. No instalar
    librerías de charts (Chart.js, Recharts, etc.). Si necesitás un tipo
    nuevo, agregalo siguiendo el patrón (puro SVG, themable, accesible).
@@ -240,8 +246,8 @@ considerarlo antes de marcarla client.
   - `launchOptions.args: ['--disable-application-cache', '--disable-cache']`.
   - `extraHTTPHeaders.Cache-Control: 'no-store'`.
 - **Anclajes E2E sagrados** (no cambiar sin actualizar tests):
-  - `aria-label="JWT local"` y `aria-label="URL base de la API"` en
-    TopBar.
+  - `<main data-cogos-active-tab="...">` refleja la tab activa.
+  - `#cogos_token=<JWT>` en el hash se persiste como `localStorage.cogos.token` y se limpia de la URL.
   - `aria-label="Abrir menú"` en hamburger mobile.
   - `aria-label="Cerrar"` en cierre de drawer y de notification panel.
   - Literales `"Estado global"` y `"componentes ok"` en Dashboard.

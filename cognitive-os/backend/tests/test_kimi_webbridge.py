@@ -4,21 +4,25 @@ from typing import Any
 
 import httpx
 import pytest
+from fastapi import HTTPException
 
 from cognitive_os.actions.kimi_webbridge import (
     ClickRequest,
+    EdgeDevToolsCdpProvider,
     EvaluateRequest,
     FakeWebBridgeProvider,
     FillRequest,
     KimiWebBridgeError,
+    KimiWebBridgePolicyError,
     KimiWebBridgeService,
     NavigateRequest,
     ScreenshotRequest,
     SnapshotRequest,
     _domain_allowed,
     _host_of,
+    _safe_kimi_extension_id,
 )
-from cognitive_os.api.app import app
+from cognitive_os.api.app import _webbridge_call, app
 from cognitive_os.core.config import Settings
 
 
@@ -76,6 +80,15 @@ def test_host_helpers() -> None:
     # Wildcard = operator opted out of the allow-list.
     assert _domain_allowed("any-random-host.tld", ["*"]) is True
     assert _domain_allowed("bank.com", ["google.com", "*"]) is True
+
+
+def test_kimi_extension_id_from_env_is_chromium_id_only() -> None:
+    assert _safe_kimi_extension_id("bnlffdbcfnanfbknnlaflhlhkocccckg") == (
+        "bnlffdbcfnanfbknnlaflhlhkocccckg"
+    )
+    assert _safe_kimi_extension_id("bad;--user-data-dir=/tmp/pwned") == (
+        "bnlffdbcfnanfbknnlaflhlhkocccckg"
+    )
 
 
 def test_status_disabled_blocked_ready() -> None:
@@ -163,6 +176,34 @@ def test_edge_devtools_fallback_when_kimi_daemon_fails() -> None:
     assert fake_devtools.calls[0]["action"] == "snapshot"
 
 
+def test_edge_devtools_transport_errors_are_controlled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = EdgeDevToolsCdpProvider(app_settings=_settings(domains=["*"], edge_devtools=True))
+
+    def fake_put(url: str, **kwargs: Any) -> httpx.Response:
+        return httpx.Response(
+            405,
+            request=httpx.Request("PUT", url),
+        )
+
+    def fake_get(url: str, **kwargs: Any) -> httpx.Response:
+        raise httpx.ConnectError(
+            "connection refused",
+            request=httpx.Request("GET", url),
+        )
+
+    monkeypatch.setattr(httpx, "put", fake_put)
+    monkeypatch.setattr(httpx, "get", fake_get)
+
+    with pytest.raises(KimiWebBridgeError, match="Edge DevTools is not reachable"):
+        provider.call(
+            "navigate",
+            {"url": "https://example.com", "newTab": True},
+            session=None,
+        )
+
+
 def test_wildcard_domains_makes_status_ready_and_allows_any_host() -> None:
     fake = FakeWebBridgeProvider()
     service = KimiWebBridgeService(
@@ -198,7 +239,17 @@ def test_navigate_rejects_domain_outside_allowlist() -> None:
         provider=FakeWebBridgeProvider(),
         app_settings=_settings(domains=["google.com"]),
     )
-    with pytest.raises(KimiWebBridgeError, match="not in KIMI_WEBBRIDGE_ALLOWED_DOMAINS"):
+    with pytest.raises(KimiWebBridgePolicyError, match="not in KIMI_WEBBRIDGE_ALLOWED_DOMAINS"):
+        service.navigate(NavigateRequest(url="https://malicious.example"))
+
+
+def test_navigate_checks_domain_policy_before_runtime_readiness() -> None:
+    service = KimiWebBridgeService(
+        provider=FakeWebBridgeProvider(extension_connected=False),
+        app_settings=_settings(domains=["google.com"]),
+    )
+
+    with pytest.raises(KimiWebBridgePolicyError, match="not in KIMI_WEBBRIDGE_ALLOWED_DOMAINS"):
         service.navigate(NavigateRequest(url="https://malicious.example"))
 
 
@@ -282,11 +333,11 @@ def test_mutating_ops_blocked_without_allow_mutations_flag() -> None:
         provider=FakeWebBridgeProvider(),
         app_settings=_settings(domains=["google.com"], mutations=False),
     )
-    with pytest.raises(KimiWebBridgeError, match="KIMI_WEBBRIDGE_ALLOW_MUTATIONS"):
+    with pytest.raises(KimiWebBridgePolicyError, match="KIMI_WEBBRIDGE_ALLOW_MUTATIONS"):
         service.click(ClickRequest(selector="#submit"))
-    with pytest.raises(KimiWebBridgeError, match="KIMI_WEBBRIDGE_ALLOW_MUTATIONS"):
+    with pytest.raises(KimiWebBridgePolicyError, match="KIMI_WEBBRIDGE_ALLOW_MUTATIONS"):
         service.fill(FillRequest(selector="#q", value="hola"))
-    with pytest.raises(KimiWebBridgeError, match="KIMI_WEBBRIDGE_ALLOW_MUTATIONS"):
+    with pytest.raises(KimiWebBridgePolicyError, match="KIMI_WEBBRIDGE_ALLOW_MUTATIONS"):
         service.evaluate(EvaluateRequest(code="1+1"))
 
 
@@ -295,7 +346,7 @@ def test_mutating_ops_blocked_when_approval_is_required() -> None:
         provider=FakeWebBridgeProvider(),
         app_settings=_settings(domains=["google.com"], mutations=True, require_approval=True),
     )
-    with pytest.raises(KimiWebBridgeError, match="requires human approval"):
+    with pytest.raises(KimiWebBridgePolicyError, match="requires human approval"):
         service.click(ClickRequest(selector="#submit"))
 
 
@@ -316,6 +367,27 @@ def test_daemon_failure_surfaces_kimi_error() -> None:
     )
     with pytest.raises(KimiWebBridgeError, match="fake webbridge failure"):
         service.snapshot(SnapshotRequest())
+
+
+def test_webbridge_policy_errors_map_to_controlled_403() -> None:
+    def blocked() -> None:
+        raise KimiWebBridgePolicyError("Host 'malicious.example' is not allowed.")
+
+    with pytest.raises(HTTPException) as exc_info:
+        _webbridge_call(blocked)
+
+    assert exc_info.value.status_code == 403
+    assert "malicious.example" in str(exc_info.value.detail)
+
+
+def test_webbridge_runtime_errors_remain_bad_gateway() -> None:
+    def unavailable() -> None:
+        raise KimiWebBridgeError("WebBridge daemon is reachable, but extension is not connected.")
+
+    with pytest.raises(HTTPException) as exc_info:
+        _webbridge_call(unavailable)
+
+    assert exc_info.value.status_code == 502
 
 
 def test_http_provider_call_parses_response(monkeypatch: pytest.MonkeyPatch) -> None:

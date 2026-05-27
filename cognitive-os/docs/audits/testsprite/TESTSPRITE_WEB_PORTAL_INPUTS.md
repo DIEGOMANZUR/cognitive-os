@@ -36,8 +36,10 @@ It contains a single line — the bearer token. Copy that line.
 
 Use it in two places:
 
-- **UI project:** when the app loads, paste the token into the TopBar
-  "Token" field (the value is stored in localStorage as `cogos.token`).
+- **UI project:** open the app with the fragment
+  `https://cognitive.doctormanzur.com/#cogos_token=<JWT>` or seed
+  `localStorage.cogos.token=<JWT>` before reload. The frontend persists it as
+  `cogos.token` and removes the token from the URL.
 - **API project:** add a global header
 
   ```

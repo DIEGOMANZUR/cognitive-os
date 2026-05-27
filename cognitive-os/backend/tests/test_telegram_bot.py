@@ -7,11 +7,12 @@ from typing import Any
 from uuid import UUID
 
 import pytest
+from pydantic import SecretStr
 
 import cognitive_os.actions.service as action_service_module
 import cognitive_os.api.app as api_app_module
 import cognitive_os.workers.tasks as worker_tasks
-from cognitive_os.integrations import telegram_bot
+from cognitive_os.integrations import telegram_bot, telegram_notify
 
 
 class DummyBot:
@@ -20,6 +21,27 @@ class DummyBot:
 
     def send(self, chat_id: int, text: str, *, markdown: bool = True) -> None:
         self.sent.append((chat_id, text, markdown))
+
+
+def test_telegram_notify_missing_token_log_redacts_chat_id(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setattr(
+        telegram_notify,
+        "settings",
+        SimpleNamespace(
+            telegram_enabled=True,
+            telegram_bot_token=SecretStr(""),
+        ),
+    )
+
+    caplog.set_level(logging.WARNING, logger=telegram_notify.__name__)
+    telegram_notify.send_telegram_markdown(987654321, "hello")
+
+    assert "telegram_notify_missing_token" in caplog.text
+    assert "987654321" not in caplog.text
+    assert "chat_id" not in caplog.text
 
 
 def test_approve_action_request_from_telegram_queues_and_dispatches(

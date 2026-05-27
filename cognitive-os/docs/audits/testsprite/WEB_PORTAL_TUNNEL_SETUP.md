@@ -1,5 +1,11 @@
 # TestSprite Web Portal Tunnel Setup — Cognitive OS
 
+> **Actualización 2026-05-26 (HEAD `8a33475`):** este reporte conserva el setup
+> histórico del túnel, pero el handoff vigente ya no usa TopBar. El flujo actual
+> es `bash scripts/testsprite_web/deploy_and_verify.sh`, auth por
+> `#cogos_token=<JWT>` o `localStorage.cogos.token`, API pública automática por
+> host y shell estable con `data-cogos-active-tab`.
+
 **Date:** 2026-05-23
 **Operator:** Diego Manzur
 **Branch:** codex/commercial-zero-friction-hardening
@@ -62,14 +68,13 @@ La variable que el frontend lee en runtime es `NEXT_PUBLIC_API_BASE_URL`
 - Persistido en `frontend/.env.local`.
 - El `useEffect` del componente raíz pisa el valor de `localStorage` `cogos.api`
   al cargar la página, de modo que cualquier usuario nuevo termina apuntando al
-  backend público sin tocar el TopBar.
+  backend público sin intervención manual en la UI.
 
-**Detalle conocido (no bloqueante):** el bundle JS sigue conteniendo el literal
-`http://127.0.0.1:8000` en dos lugares — el placeholder del input del
-TopBar y el valor inicial del estado de `useLocalState` — antes de que el
-`useEffect` lo sobre-escriba. Esto NO produce llamadas a localhost en
-runtime para la sesión pública (el efecto corre en el primer render y
-fija la URL pública); es estético en la UI de Settings.
+**Detalle conocido original (ya superado por la capa 2026-05-26):** el bundle JS
+contenía el literal `http://127.0.0.1:8000` en placeholders/estado inicial antes
+de que el efecto lo sobre-escribiera. En el estado actual, el host público
+resuelve automáticamente `https://cognitive-api.doctormanzur.com` y el handoff
+verifica que no haya fetches públicos a localhost.
 
 ## CORS
 
@@ -154,8 +159,9 @@ bash scripts/testsprite_web/stop_testsprite_stack.sh
 
 **UI project:**
 - URL: `https://cognitive.doctormanzur.com`
-- Auth: pegar el JWT de `/tmp/cognitive_os_testsprite_jwt.txt` en el TopBar
-  (campo "Token") cuando el portal abra la app.
+- Auth: abrir `https://cognitive.doctormanzur.com/#cogos_token=<JWT>` con el JWT
+  de `/tmp/cognitive_os_testsprite_jwt.txt`, o seed `localStorage.cogos.token`
+  antes de recargar `/`.
 - PRD: `docs/audits/testsprite/COGNITIVE_OS_TESTSPRITE_PRD.md`
 
 **API project:**
@@ -179,7 +185,7 @@ bash scripts/testsprite_web/stop_testsprite_stack.sh
 | `curl https://cognitive-api.doctormanzur.com/openapi.json`     | 200, 140 paths |
 | `curl -H "Authorization: Bearer …" /system/info` (público)     | 200       |
 | `curl -H "Authorization: Bearer …" /system/readiness` (público)| 200       |
-| Frontend HTML servido por túnel hace fetch a localhost?        | NO (en runtime; sólo aparece en placeholder estático del TopBar) |
+| Frontend HTML servido por túnel hace fetch a localhost?        | NO (el handoff vigente verifica API pública por host) |
 | CORS_ALLOW_ORIGINS incluye `https://cognitive.doctormanzur.com`| YES       |
 | Safety flags peligrosos                                        | OFF/dry-run |
 

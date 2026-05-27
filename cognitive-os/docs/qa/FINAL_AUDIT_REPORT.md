@@ -1,5 +1,25 @@
 # QA · FINAL_AUDIT_REPORT — estado vigente y auditoría histórica
 
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_START -->
+
+> **Cierre V2.0 absoluto local-first (2026-05-27, Prompt 7):** esta rama `codex/commercial-zero-friction-hardening` en base `8a33475d0502` queda sincronizada para el cierre comercial local-first. La evidencia viva se concentra en `/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/tmp/v2_07_absolute_release_closure_20260527_050231`. Estado de producto verificado durante Prompt 7: backend FastAPI local, frontend Next.js, Docker services, Postgres, Redis, Weaviate, Neo4j, Alembic head, worker, beat, health/readiness, LangGraph/chat, DeepAgents, MCP, RAG/documentos, Document Analysis, Action Plane sandbox, mail read-only, Telegram, Google read-only, GoDaddy dry-run, Kimi WebBridge y Code Director toy/guard rails.
+>
+> **Gates V2.0 ejecutados antes de los dos ciclos verdes finales:** `bash scripts/full-qa.sh` **1221 passed, 1 skipped, 28 deselected**; `bash scripts/stress-qa.sh 5` **5/5 verde x 1221 passed**; `cd frontend && npx playwright test` **44 passed**; `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**; `python3 scripts/sync_doc_counts.py --check` OK; `bash scripts/verify_desktop_launchers.sh` OK; OpenAPI read-only smoke **70 GET / 0 failures**; security read-only scan sin secretos críticos; CDP/Playwright forense **10 ciclos x 20 vistas** sin console/page errors ni 5xx, con un aborto `POST /auth/local-token` adjudicado como cierre de contexto del harness y no defecto de producto; Lighthouse local: accessibility 96, best-practices 100, SEO 100.
+>
+> **Criterio de verdad:** no se declara envio de correo, draft real ni escritura DNS. Mail queda normalizado como read-only: sync/list/classify/digest/proposed replies como texto, sin drafts ni sends. GoDaddy queda preview/dry-run; Action Plane mantiene sandbox/approval/audit/idempotencia segun riesgo. El tunnel publico `cognitive.doctormanzur.com` se valida con `scripts/testsprite_web/deploy_and_verify.sh` cuando Diego vaya a correr TestSprite web; Prompt 7 no lo expone permanentemente porque su propia regla prohibe exponer servicios a internet.
+
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
+
+
+> **Actualización vigente 2026-05-26 (HEAD `8a33475`):** se suma capa
+> frontend/TestSprite web hardening sobre el gate local-first 2026-05-25. El
+> cockpit público usa hash auth `#cogos_token`, API pública por host, shell sin
+> TopBar con `data-cogos-active-tab`, hotkey `3 DeepAgents`, estados comerciales
+> loading/empty/error sin datos falsos, responsive 920px y SW
+> `cogos-v2026-05-26e-status-cards`. TestSprite web público se prepara con
+> `bash scripts/testsprite_web/deploy_and_verify.sh`; no se declara doble verde
+> web sin evidencia del portal.
+
 > **Actualización vigente (2026-05-25 post-activación funcional, base
 > `0f8232a` — APTO COMERCIAL LOCAL-FIRST · FUNCTIONAL WITH WARNINGS):**
 > Tras la remediación P0 (flakiness FK order cerrada con 12 corridas verdes),
@@ -7,9 +27,10 @@
 > verificando contratos críticos en runtime real. Veredicto:
 > **FUNCTIONAL WITH WARNINGS**. Reporte:
 > `tmp/full_functional_activation_20260525_073134/reports/FULL_FUNCTIONAL_ACTIVATION_REPORT.md`.
-> Hallazgo P1 runtime nuevo (preexistente, NO regresión): F-RUNTIME-001
-> `browser_preview` executor con error Playwright sync/async — ver
-> `corregir_cognitive.md`. El gate hermético sigue verde: este reporte conserva abajo la
+> Hallazgo P1 runtime de esa activación (preexistente, NO regresión): F-RUNTIME-001
+> `browser_preview` executor con error Playwright sync/async — registrado en
+> `corregir_cognitive.md` y cerrado en el cierre comercial final 2026-05-25 con
+> wrapper `asyncio.to_thread` en los executors Playwright. El gate hermético sigue verde: este reporte conserva abajo la
 > auditoría Fase 76 como histórico, pero el gate actual del proyecto
 > es más amplio:
 >
@@ -91,7 +112,7 @@ de la suite cubren:
 
 ### `smoke.spec.ts` (2 tests)
 
-- `home renderiza Sidebar + TopBar sin errores 5xx ni console.error`
+- `home renderiza Sidebar + shell sin TopBar sin errores 5xx ni console.error`
 - `Dashboard muestra métricas vivas (no spinner infinito)`
 
 ### `navigation.spec.ts` (2 tests)
@@ -103,7 +124,7 @@ de la suite cubren:
 
 ### `auth.spec.ts` (3 tests)
 
-- `sin JWT el panel monta y muestra la TopBar pidiendo token`
+- `sin JWT el panel monta shell estable y muestra estado no autenticado/acciones de conexión`
 - `pegar un JWT inválido NO rompe el SPA — la API responde 401 pero el UI sigue`
 - `con JWT válido las llamadas autenticadas resuelven 200`
 

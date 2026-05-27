@@ -1,5 +1,7 @@
 # 03 - TestSprite Auth Setup
 
+> **Actualización 2026-05-26:** este archivo es evidencia histórica de auditoría. El flujo vigente ya no usa TopBar: la autenticación pública es por `#cogos_token` o `localStorage.cogos.token`, la API se resuelve automáticamente por host y el shell estable se valida con `<main data-cogos-active-tab="...">`. Las menciones a TopBar debajo se conservan solo como contexto histórico.
+
 Fecha UTC: 2026-05-24T08:25:01Z
 
 ## Modelo de autenticacion

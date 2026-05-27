@@ -9,11 +9,11 @@ alwaysApply: true
 
 You are working inside the Cognitive OS repository.
 
-For the current QA phase, your role is to operate as a Cursor agent using TestSprite MCP only.
+For the current QA phase, your role is to keep Cognitive OS aligned with the commercial local-first contract and the public TestSprite web handoff.
 
-The user wants a TestSprite-only audit/repair/reaudit workflow.
+The current public TestSprite flow is browser/web-portal driven against the Cloudflare tunnel, not a Cursor-only/TestSprite-MCP-only workflow.
 
-Do not use other testing systems unless the user explicitly asks later.
+Use the QA toolchain that matches the request: public TestSprite reruns use `scripts/testsprite_web/deploy_and_verify.sh`; local code validation may use the documented repo gates when the user asks for implementation verification.
 
 ## Project identity
 
@@ -58,42 +58,19 @@ Use these as the test contract.
 
 If there is a conflict between a generated TestSprite assumption and these PRDs, the PRDs win.
 
-## TestSprite-only workflow
+## TestSprite web workflow
 
-When the task mentions:
+When the task mentions the public TestSprite web portal, the canonical handoff is:
 
-- TestSprite;
-- TestSprite MCP;
-- Cursor TestSprite;
-- TestSprite loop;
-- TestSprite zero defects;
-- TestSprite repair;
-- TestSprite re-audit;
+```bash
+bash scripts/testsprite_web/deploy_and_verify.sh
+```
 
-use TestSprite MCP as the only QA/testing system.
+That script stops stale services, rebuilds the production frontend, starts backend/worker/beat/frontend/tunnel, waits for the public frontend, checks the public backend `/health`, verifies the service worker marker `cogos-v2026-05-26e-status-cards`, and confirms the root shell exposes `data-cogos-active-tab` before a human presses **Rerun** in TestSprite.
 
-Do not run:
+Do not change the TestSprite PRD/instructions just to pass a run. Fix product behavior, stable UI states, navigation, auth, and documentation instead.
 
-- pytest;
-- Playwright local;
-- full-qa;
-- stress-qa;
-- lint;
-- typecheck;
-- Lighthouse;
-- axe;
-- other testing frameworks.
-
-Terminal may be used only for:
-
-- reading files;
-- preparing runtime;
-- checking URL availability;
-- creating reports;
-- restarting services when TestSprite needs a live app;
-- applying fixes after TestSprite findings.
-
-Do not represent runtime checks as QA gates.
+Local validation is not banned. Use the documented repo gates when the task requires code verification, and keep the public TestSprite rerun path separate from the local TestSprite MCP/batched runner.
 
 ## Runtime URLs
 
@@ -149,7 +126,7 @@ Hotkeys:
 
 - 1 Dashboard
 - 2 Chat
-- 3 Documents
+- 3 DeepAgents
 - 4 Document Analysis
 - 5 Jobs
 - 6 Approvals
@@ -161,16 +138,17 @@ Hotkeys:
 
 There is no email/password login form.
 
-Before UI tests, seed localStorage:
+Preferred public TestSprite auth is URL fragment bootstrap:
 
-localStorage.setItem('cogos.token', '<JWT>');
-localStorage.setItem('cogos.api', 'https://cognitive-api.doctormanzur.com');
+```text
+https://cognitive.doctormanzur.com/#cogos_token=<JWT_WITHOUT_BEARER>
+```
 
-Then reload `/`.
+The frontend stores the token in `localStorage.cogos.token`, strips the fragment from the URL, and uses `https://cognitive-api.doctormanzur.com` automatically for the public host. Seeding `localStorage` directly remains acceptable for local/manual debugging.
 
-Without this, 401s are expected and are not bugs.
+Without a valid bearer token, 401s are expected and are not bugs.
 
-The TopBar should then show Connected / green status / equivalent connected state.
+The current shell has no TopBar; stable state is exposed through the sidebar, contextual header, view content, and `<main data-cogos-active-tab="...">`.
 
 The public frontend must not perform actual network fetches to:
 
@@ -387,7 +365,7 @@ Test:
 
 - Bootstrap
 - localStorage auth
-- TopBar Connected
+- hash/localStorage auth connected
 - sidebar navigation
 - hotkeys
 - Ctrl+K

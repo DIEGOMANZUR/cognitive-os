@@ -1,5 +1,7 @@
 # 06 — E2E Integrated Plan
 
+> **Actualización 2026-05-26:** este archivo es evidencia histórica de auditoría. El flujo vigente ya no usa TopBar: la autenticación pública es por `#cogos_token` o `localStorage.cogos.token`, la API se resuelve automáticamente por host y el shell estable se valida con `<main data-cogos-active-tab="...">`. Las menciones a TopBar debajo se conservan solo como contexto histórico.
+
 - Generated: `2026-05-26 02:46 UTC`
 - Suite: **C — E2E INTEGRATED**
 - Source: manual blueprint (TestSprite MCP has no dedicated E2E plan tool)

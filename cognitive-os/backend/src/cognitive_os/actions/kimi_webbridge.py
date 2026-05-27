@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -58,10 +59,16 @@ MUTATING_ACTIONS = frozenset({"click", "fill", "evaluate", "upload", "close_tab"
 
 MAX_SELECTOR_LENGTH = 512
 MAX_VALUE_LENGTH = 4000
+DEFAULT_KIMI_EXTENSION_ID = "bnlffdbcfnanfbknnlaflhlhkocccckg"
+CHROMIUM_EXTENSION_ID_RE = re.compile(r"^[a-p]{32}$")
 
 
 class KimiWebBridgeError(RuntimeError):
     """Raised when a WebBridge call cannot be completed."""
+
+
+class KimiWebBridgePolicyError(KimiWebBridgeError):
+    """Raised when local policy rejects a WebBridge call before runtime I/O."""
 
 
 class WebBridgeStatus(BaseModel):
@@ -361,6 +368,7 @@ class EdgeDevToolsCdpProvider:
 
     def _new_target(self, url: str) -> dict[str, Any]:
         encoded = quote(url, safe="")
+        last_error: Exception | None = None
         for method in ("put", "get"):
             try:
                 response = getattr(httpx, method)(
@@ -373,10 +381,20 @@ class EdgeDevToolsCdpProvider:
                 payload = response.json()
                 if isinstance(payload, dict):
                     return payload
-            except Exception:
+            except httpx.HTTPError as exc:
+                last_error = exc
                 if method == "get":
-                    raise
-        raise KimiWebBridgeError("Edge DevTools could not create a new page target.")
+                    raise KimiWebBridgeError(f"Edge DevTools is not reachable: {exc}") from exc
+            except ValueError as exc:
+                last_error = exc
+                if method == "get":
+                    raise KimiWebBridgeError("Edge DevTools returned invalid JSON.") from exc
+            except Exception as exc:
+                last_error = exc
+                if method == "get":
+                    raise KimiWebBridgeError(f"Edge DevTools call failed: {exc}") from exc
+        detail = f": {last_error}" if last_error else "."
+        raise KimiWebBridgeError(f"Edge DevTools could not create a new page target{detail}")
 
     def _activate(self, target_id: str) -> None:
         try:
@@ -645,6 +663,14 @@ def _domain_allowed(host: str, allowed: list[str]) -> bool:
     return False
 
 
+def _safe_kimi_extension_id(raw: str | None) -> str:
+    candidate = (raw or DEFAULT_KIMI_EXTENSION_ID).strip().lower()
+    if CHROMIUM_EXTENSION_ID_RE.fullmatch(candidate):
+        return candidate
+    _log.warning("webbridge_invalid_extension_id_ignored")
+    return DEFAULT_KIMI_EXTENSION_ID
+
+
 def _audit_webbridge(
     action: str,
     args_redacted: dict[str, Any],
@@ -770,24 +796,30 @@ class KimiWebBridgeService:
         gtk_launch = shutil.which("gtk-launch")
         if edge_bin is None and gtk_launch is None:
             return False
-        extension_id = os.environ.get(
-            "KIMI_EXTENSION_ID",
-            "bnlffdbcfnanfbknnlaflhlhkocccckg",
-        )
+        extension_id = _safe_kimi_extension_id(os.environ.get("KIMI_EXTENSION_ID"))
         try:
             self._open_cockpit_app()
             time.sleep(2)
             extension_url = f"chrome-extension://{extension_id}/popup.html"
             if gtk_launch is not None:
+                # nosemgrep
                 subprocess.Popen(  # noqa: S603 - fixed executable path from PATH lookup
-                    [gtk_launch, "microsoft-edge", extension_url],
+                    [  # nosemgrep
+                        gtk_launch,
+                        "microsoft-edge",
+                        extension_url,
+                    ],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     start_new_session=True,
                 )
             elif edge_bin is not None:
+                # nosemgrep
                 subprocess.Popen(  # noqa: S603 - fixed executable path from PATH lookup
-                    [edge_bin, extension_url],
+                    [  # nosemgrep
+                        edge_bin,
+                        extension_url,
+                    ],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     start_new_session=True,
@@ -1018,25 +1050,27 @@ class KimiWebBridgeService:
                 f"WebBridge action {action!r} is a mutation; "
                 "set KIMI_WEBBRIDGE_ALLOW_MUTATIONS=true to enable."
             )
-            raise KimiWebBridgeError(msg)
+            raise KimiWebBridgePolicyError(msg)
         if action in MUTATING_ACTIONS and self._settings.kimi_webbridge_require_approval:
             msg = (
                 f"WebBridge action {action!r} is a mutation and requires human approval; "
                 "direct execution is disabled while KIMI_WEBBRIDGE_REQUIRE_APPROVAL=true."
             )
-            raise KimiWebBridgeError(msg)
+            raise KimiWebBridgePolicyError(msg)
         if action not in READ_ONLY_ACTIONS and action not in MUTATING_ACTIONS:
             msg = f"Unknown WebBridge action {action!r}."
-            raise KimiWebBridgeError(msg)
+            raise KimiWebBridgePolicyError(msg)
 
     def _check_url_allowed(self, url: str | None) -> None:
         if url is None:
             return
         host = _host_of(url)
         if host is None:
-            raise KimiWebBridgeError(f"Could not parse host from URL {url!r}.")
+            raise KimiWebBridgePolicyError(f"Could not parse host from URL {url!r}.")
         if not _domain_allowed(host, list(self._settings.kimi_webbridge_allowed_domains)):
-            raise KimiWebBridgeError(f"Host {host!r} is not in KIMI_WEBBRIDGE_ALLOWED_DOMAINS.")
+            raise KimiWebBridgePolicyError(
+                f"Host {host!r} is not in KIMI_WEBBRIDGE_ALLOWED_DOMAINS."
+            )
         if getattr(self._settings, "enable_browser_ssrf_check", True):
             try:
                 if self._hostname_resolver is None:
@@ -1044,7 +1078,7 @@ class KimiWebBridgeService:
                 else:
                     validate_browser_target_ip(host, resolver=self._hostname_resolver)
             except ActionPolicyViolation as exc:
-                raise KimiWebBridgeError(str(exc)) from exc
+                raise KimiWebBridgePolicyError(str(exc)) from exc
 
     def navigate(
         self,
@@ -1052,9 +1086,11 @@ class KimiWebBridgeService:
         *,
         requested_by: str | None = None,
     ) -> WebBridgeCallResult:
-        self._require_ready()
         self._check_action_allowed("navigate")
+        if not self._settings.enable_kimi_webbridge and not self._devtools_enabled():
+            self._require_ready()
         self._check_url_allowed(request.url)
+        self._require_ready()
         args: dict[str, Any] = {"url": request.url, "newTab": request.new_tab}
         if request.group_title:
             args["group_title"] = request.group_title

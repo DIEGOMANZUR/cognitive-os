@@ -1,12 +1,30 @@
 # Cognitive OS Frontend
 
-> **Estado actual (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** cockpit definitivo Next.js 16.2.6 +
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_START -->
+
+> **Cierre V2.0 absoluto local-first (2026-05-27, Prompt 7):** esta rama `codex/commercial-zero-friction-hardening` en base `8a33475d0502` queda sincronizada para el cierre comercial local-first. La evidencia viva se concentra en `/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/tmp/v2_07_absolute_release_closure_20260527_050231`. Estado de producto verificado durante Prompt 7: backend FastAPI local, frontend Next.js, Docker services, Postgres, Redis, Weaviate, Neo4j, Alembic head, worker, beat, health/readiness, LangGraph/chat, DeepAgents, MCP, RAG/documentos, Document Analysis, Action Plane sandbox, mail read-only, Telegram, Google read-only, GoDaddy dry-run, Kimi WebBridge y Code Director toy/guard rails.
+>
+> **Gates V2.0 ejecutados antes de los dos ciclos verdes finales:** `bash scripts/full-qa.sh` **1221 passed, 1 skipped, 28 deselected**; `bash scripts/stress-qa.sh 5` **5/5 verde x 1221 passed**; `cd frontend && npx playwright test` **44 passed**; `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**; `python3 scripts/sync_doc_counts.py --check` OK; `bash scripts/verify_desktop_launchers.sh` OK; OpenAPI read-only smoke **70 GET / 0 failures**; security read-only scan sin secretos críticos; CDP/Playwright forense **10 ciclos x 20 vistas** sin console/page errors ni 5xx, con un aborto `POST /auth/local-token` adjudicado como cierre de contexto del harness y no defecto de producto; Lighthouse local: accessibility 96, best-practices 100, SEO 100.
+>
+> **Criterio de verdad:** no se declara envio de correo, draft real ni escritura DNS. Mail queda normalizado como read-only: sync/list/classify/digest/proposed replies como texto, sin drafts ni sends. GoDaddy queda preview/dry-run; Action Plane mantiene sandbox/approval/audit/idempotencia segun riesgo. El tunnel publico `cognitive.doctormanzur.com` se valida con `scripts/testsprite_web/deploy_and_verify.sh` cuando Diego vaya a correr TestSprite web; Prompt 7 no lo expone permanentemente porque su propia regla prohibe exponer servicios a internet.
+
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
+
+
+> **Estado actual (2026-05-26, HEAD `8a33475`):** cockpit definitivo Next.js 16.2.6 +
 > React 19 + TypeScript estricto, dark-only glass cockpit, 20 vistas en
-> `app/views/*.tsx`, PWA instalable y API client con JWT local persistente.
-> La prioridad de producto es fricción casi nula en un PC dedicado:
-> `dedicated_local/full` puede operar con el perfil real del operador y
-> auto-resolver aprobaciones permitidas por backend. El frontend debe
-> mostrar ese modelo con claridad, sin esconder degradaciones ni errores.
+> `app/views/*.tsx`, PWA instalable y API client con JWT persistente. La
+> prioridad sigue siendo fricción casi nula en un PC dedicado
+> (`dedicated_local/full`), pero el frontend debe mostrar estados reales y
+> auditables: nada de datos falsos, loaders infinitos ni éxito silencioso.
+>
+> **Hardening frontend/TestSprite web 2026-05-26:** el flujo público usa
+> `https://cognitive.doctormanzur.com` + API
+> `https://cognitive-api.doctormanzur.com`; `app/lib/apiBase.ts` resuelve
+> automáticamente el backend correcto por host, acepta `#cogos_token=...`,
+> persiste `localStorage.cogos.token` y limpia el fragmento de la URL. El
+> TopBar fue retirado: el shell estable vive en sidebar + header contextual +
+> `data-cogos-active-tab` sobre `<main>`.
 >
 > **Vistas:** `ChatView`, `DashboardView`, `SettingsView`,
 > `ApprovalsView`, `MemoryView`, `JobsView`, `SandboxView`,
@@ -15,11 +33,24 @@
 > `HealthView`, `AuditView`, `AssistView`, `GoogleOpsView`,
 > `ResearchView` y `CodeDirectorView`.
 >
-> **Mail UI actual:** `Sync por worker` usa `/mail/sync/dispatch`; `Generar
-> resumen 50` usa `/mail/digest/preview` con `sync_first=false`, por lo que
-> trabaja sobre mensajes ya persistidos y no intenta sincronizar IMAP/OAuth
-> desde el navegador. El resultado muestra resumen y respuestas sugeridas
-> como texto; no crea drafts y no envía emails.
+> **Navegación vigente:** hotkeys `1 Dashboard`, `2 Chat`, `3 DeepAgents`,
+> `4 Document Analysis`, `5 Jobs`, `6 Aprobaciones`, `7 LangSmith`,
+> `8 Audit`, `9 Health`. `Ctrl/Cmd+K` escucha en capture phase; las acciones
+> `Ir a ...` mantienen la paleta abierta para saltos rápidos y las acciones
+> one-shot la cierran. Las hotkeys numéricas se leen desde `key`, `code`
+> (`DigitN`/`NumpadN`) y `keyCode`, y se ignoran dentro de campos editables.
+>
+> **Estados comerciales:** `DocumentsView` conserva tabla/header y muestra
+> filas de estado reales para loading/empty/error; `AgentsView` conserva cards
+> reales mediante `AgentsStatusCard`; `AuditView`/`HealthView` usan paneles de
+> error/skeleton/empty-state; `MailInboxView` mantiene el panel de propuesta
+> estable sin habilitar envío ni drafts. Estos son arreglos de producto, no
+> placeholders para TestSprite.
+>
+> **Responsive:** breakpoint comercial `920px`; en móvil el sidebar se desmonta
+> salvo drawer abierto y aparece bottom nav. La sincronización usa `matchMedia`,
+> `orientationchange` y `visualViewport`, sin scripts inline ni observers de
+> emergencia.
 >
 > **Componentes:** `Sidebar.tsx`, `CommandPalette.tsx`,
 > `NotificationCenter.tsx`, `PWA.tsx`, `ErrorBoundary.tsx`, `Charts.tsx`,
@@ -29,66 +60,22 @@
 > (sin toggle de tema claro), tipografía self-hosted Inter + JetBrains Mono
 > vía `next/font/google`. Paleta dirigida por tokens en `app/globals.css`.
 >
-> **Capacidades Fase 82+:**
-> - **Charts SVG sin dependencias** (`components/Charts.tsx`): `Sparkline`
->   por métrica, `AreaChart` con crosshair y leyenda, `BarList` para
->   ranking, `Donut` con centro tipado. Usa tokens, hereda `currentColor`.
-> - **Centro de notificaciones** (`NotificationCenter.tsx`): side-panel
->   glass derecho con feed unificado de aprobaciones + jobs + auditoría;
->   tracking de "vistos" persistido en `localStorage`; handshake para
->   permisos push del SO (frontend listo; backend POST → SW `push` hook).
-> - **Command palette mejorado** (`CommandPalette.tsx`): fuzzy match con
->   scoring de subsecuencia + boundary bonus, agrupación, íconos por
->   acción, recientes persistidos, footer con shortcuts. `Ctrl/Cmd+K`
->   escucha en capture phase desde `hooks.ts` para no perderse cuando el
->   foco está en campos editables.
-> - **Defensive array guards** (`api.ts → asArray<T>(...)`): todas las
->   vistas usan `asArray(data).filter|map|...` en lugar de
->   `(data ?? []).filter(...)`. Si el backend devuelve forma incorrecta,
->   la vista cae a empty-state en vez de romper la `ErrorBoundary`.
-> - **PWA endurecida**: manifest con 4 shortcuts (Chat/Aprobaciones/
->   Jobs/Health), íconos PNG 192/512 + maskable + SVG fallback,
->   `service worker v2026-05-20-glass-2` con offline shell, página
->   `/offline.html` con branding propio, handlers `push` y
->   `notificationclick`, soporte de deep-link `?tab=...`.
+> **PWA vigente:** manifest con 4 shortcuts (Chat/Aprobaciones/Jobs/Health),
+> íconos PNG/SVG/maskable, `/offline.html`, handlers `push` y
+> `notificationclick`, deep-link `?tab=...`, APIs network-only y service worker
+> `cogos-v2026-05-26e-status-cards`.
 >
-> **Carry-over Fase 71-74 vigente:**
-> - JWT persistente en `localStorage` (`useLocalState`).
-> - `SettingsView` muestra los tiles "Capacidades bloqueadas"
->   (`/system/readiness`) y "MCP servers" (`/system/mcp`).
-> - `ConfigurationView` invierte la semántica de "danger" según
->   `operator_profile`.
-> - `GoogleOpsView` deshabilita los botones de write cuando
->   `write_enabled=false` y muestra `missing_scopes`.
-> - `HealthView` lista metadata como key=value; **18 componentes** (incluye
->   `mcp_client` y `operational_backlog`). Tiene el botón "Verificar en vivo"
->   (`POST /health/verify`) y el tile "Backlog operacional" — un componente
->   sólo `configured` se pinta en amarillo, no en verde (AUDIT-2026-B).
-> - `MemoryView` muestra el estado del flag
->   `FAILURE_POSTMORTEM_AUTO_PROMOTE_ENABLED` en la sección de warnings.
-> - `ChatView` muestra `tg…<sufijo>` para threads de Telegram.
+> **QA/deploy vigente:** `bash scripts/testsprite_web/deploy_and_verify.sh`
+> es el único comando de despliegue público para re-runs web: reconstruye el
+> frontend, levanta backend/worker/beat/frontend/tunnel, espera HTTP 200,
+> valida `/health`, verifica el marker del service worker y confirma que la raíz
+> sirve la cockpit shell. La última reparación quedó lista para rerun humano en
+> TestSprite web; no declarar dos corridas web verdes hasta recibir esos PDFs.
 >
-> **QA verde vigente (commit `647f103`):**
-> - `npm run lint` → 0 warnings (`--max-warnings 0`).
-> - `npm run build` → Next 16.2.6 + Turbopack, 4 páginas estáticas OK.
-> - `npx tsc --noEmit` → 0 errores.
-> - `npx playwright test --reporter=list` → **31 passed** sin exportar
->   `COGOS_JWT` (auto-mint via `tests/e2e/_global-setup.ts` que llama
->   `POST /auth/local-token` en `dedicated_local/full`; en `strict` el
->   helper sigue exigiendo la env var manualmente con mensaje claro).
-> - `bash scripts/full-qa.sh` desde la raíz del repo ejecuta build
->   frontend aislado con `NEXT_DIST_DIR=.next-qa` y limpia ese directorio
->   para no romper un `next start` vivo servido desde `.next`; gate
->   vigente: **950 passed**, 1 skipped, 28 deselected.
-> - Anclajes de la suite oficial (`Abrir menú`, `Cerrar`, "Estado global",
->   "componentes ok", 20
->   TAB_LABELS, labels "Guardar"/"API base"/"JWT sin prefijo Bearer" en
->   `SettingsView`) intactos.
->
-> El `ApiClient` normaliza tokens con prefijo `Bearer`, omite
-> `Content-Type` en requests sin body y soporta `AbortSignal`. Next.js
-> añade headers de seguridad; el service worker mantiene las APIs
-> network-only.
+> El `ApiClient` normaliza tokens con prefijo `Bearer`, omite `Content-Type` en
+> requests sin body, soporta `AbortSignal` y sanea respuestas HTML/404 de una API
+> mal apuntada. Next.js añade headers de seguridad; el service worker mantiene
+> los prefijos REST en network-only.
 
 Consola operativa en Next.js para usar Cognitive OS: chat, documentos, jobs,
 aprobaciones, salud, memoria, skills, sandbox, mail personal, Google Ops y estado
@@ -142,12 +129,13 @@ Reglas clave:
 - **Íconos:** `/icons/icon-{192,512}.png` (primarios), `/icons/icon-
   maskable-512.png` (maskable), `/icons/icon.svg` (any-size fallback),
   `/icons/apple-touch-icon.{svg,png}`.
-- **Service worker:** `/public/sw.js` v `cogos-v2026-05-20-glass-2`.
+- **Service worker:** `/public/sw.js` v `cogos-v2026-05-26e-status-cards`.
   Strategy: stale-while-revalidate para chunks estáticos; network-first
   con fallback a shell + `/offline.html` para navegaciones; network-only
-  para todos los prefijos REST. Handlers nativos de `push` y
-  `notificationclick` (el backend puede emitir Web Push payloads JSON con
-  `title`/`body`/`tag`/`url`).
+  para todos los prefijos REST. Este marker es el cache-bust canónico que
+  `scripts/testsprite_web/deploy_and_verify.sh` valida en `/sw.js` antes de
+  autorizar un rerun web. Handlers nativos de `push` y `notificationclick`
+  (el backend puede emitir Web Push payloads JSON con `title`/`body`/`tag`/`url`).
 - **Página offline:** `/offline.html` (branded, glass dark, botón
   Reintentar).
 - **Deep-links:** `?tab=<id>` desde shortcuts navega al view correcto y
@@ -163,9 +151,19 @@ build anterior no contamine el siguiente run con chunks viejos.
 Comandos:
 
 ```bash
-COGOS_JWT=<token> npx playwright test            # full suite
-COGOS_JWT=<token> npx playwright test smoke      # one spec
+npx playwright test            # full suite; globalSetup auto-mintea JWT en dedicated_local/full
+npx playwright test smoke      # spec acotado
 ```
+
+Para publicar la build actual en los dominios de TestSprite web, usar desde la
+raíz del repo:
+
+```bash
+bash scripts/testsprite_web/deploy_and_verify.sh
+```
+
+Ese script reconstruye producción, levanta el túnel Cloudflare, espera HTTP 200
+y valida `cogos-v2026-05-26e-status-cards` en `/sw.js`.
 
 ## Defensive array guards
 

@@ -1,12 +1,14 @@
 # Guía de Credenciales — paso a paso, con detalle de cada botón
 
-> **Estado actual (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** esta guía sigue siendo la referencia de
-> credenciales, pero el modelo operativo cambió: Cognitive OS corre en un
-> PC dedicado y prioriza fricción casi nula por sobre seguridad estricta.
-> Eso significa que se permite usar el perfil real del operador, Edge real
-> y credenciales locales persistidas cuando Diego lo decida. La excepción
-> dura es mail: las credenciales de Gmail/GoDaddy habilitan lectura y
-> digest; no habilitan envío automático en el flujo normal.
+> **Estado actual (2026-05-26, HEAD `8a33475`):** esta guía sigue siendo la referencia de
+> credenciales para el modo **COMERCIAL LOCAL-FIRST APROBADO + frontend/TestSprite web hardening**.
+> Cognitive OS corre en un PC dedicado y prioriza fricción casi nula por sobre
+> seguridad estricta. Eso significa que se permite usar el perfil real del
+> operador, Edge real y credenciales locales persistidas cuando Diego lo decida.
+> La capa pública de TestSprite usa hash auth `#cogos_token` y backend público
+> automático, pero no introduce una postura SaaS/multiusuario. La excepción dura
+> es mail: las credenciales de Gmail/GoDaddy habilitan lectura y digest; no
+> habilitan envío automático en el flujo normal.
 >
 > Guía operativa para obtener **cada credencial** que Cognitive OS puede
 > usar. Pensada para que la sigas sin saber nada previo: te digo a qué
@@ -29,7 +31,7 @@
   línea exacta de `.env` (archivo `cognitive-os/.env`). Nunca subas ese
   archivo a git.
 
-## Estado actual en esta máquina (2026-05-22)
+## Estado actual en esta máquina (2026-05-26)
 
 Verificá en cualquier momento con:
 

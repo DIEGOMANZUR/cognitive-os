@@ -1,5 +1,16 @@
 # ACCEPTANCE CHECKLIST
 
+> **Estado vigente 2026-05-26 (HEAD `8a33475`):** aceptación comercial local-first
+> preservada + cockpit público/TestSprite web preparado. Encima del cierre
+> comercial 2026-05-25, el frontend público quedó endurecido sin hacks de test:
+> `#cogos_token` persiste JWT y limpia URL, API pública se resuelve por host,
+> TopBar retirado, shell estable en sidebar/header contextual/
+> `data-cogos-active-tab`, hotkeys vigentes con `3 DeepAgents`, estados
+> loading/empty/error comerciales sin datos falsos, responsive 920px y service
+> worker `cogos-v2026-05-26e-status-cards`. El rerun web canónico se prepara con
+> `bash scripts/testsprite_web/deploy_and_verify.sh`; no se declara doble verde
+> web hasta recibir PDFs/reportes del portal.
+
 > **Cierre comercial final 2026-05-25 (post Prompt 6, base `0f8232a`):**
 > **COMERCIAL LOCAL-FIRST APROBADO**. Tras la activación funcional y la
 > evaluación independiente del comité, los 2 P1 + 4 P2 abiertos fueron
@@ -36,7 +47,8 @@
 > `stress-qa.sh 5` **5/5 verde × 1200 passed** (flakiness 0%), Playwright
 > **43/43**, CDP **0 console.error** × 2 rondas. Reporte:
 > `tmp/full_functional_activation_20260525_073134/archived_remediation/remediation_20260525_065154.tar.gz` (archivado tar.gz).
-> Pendientes vivos: `corregir_cognitive.md`.
+> Pendiente histórico registrado entonces: `corregir_cognitive.md`. El estado
+> vigente 2026-05-26 se resume arriba y no depende de ese pendiente histórico.
 >
 > **Estado canónico previo (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** aceptación vigente para el
 > proyecto como instalación local dedicada. La prioridad de producto es

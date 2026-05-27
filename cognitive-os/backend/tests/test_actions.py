@@ -2771,35 +2771,18 @@ async def test_drive_organize_does_not_auto_approve_in_guarded_dedicated_local(
 
 
 @pytest.mark.asyncio
-async def test_drive_organize_auto_approves_in_full_dedicated_local(
+async def test_drive_organize_does_not_auto_approve_in_full_dedicated_local(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Full dedicated_local is intentionally zero-friction: executable Action
-    Plane requests auto-approve through the canonical queue/dispatch path."""
+    """Full dedicated_local still keeps non-whitelisted external writes manual."""
     _install_fake_action_session(monkeypatch)
     monkeypatch.setattr(action_service_module, "DriveService", _FakeReadyDriveService)
-    captured: dict[str, object] = {}
 
-    async def _spy(self: object, **kwargs: object) -> object:  # type: ignore[no-redef]
-        captured.update(kwargs)
-        from cognitive_os.actions.service import ActionRequestView  # noqa: PLC0415
+    called: list[bool] = []
 
-        return ActionRequestView(
-            id=kwargs["action_request_id"],  # type: ignore[arg-type]
-            action_type="drive_organize_files",
-            status="queued",
-            requested_by="operator-1",
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
-            preview={},
-            payload_redacted={},
-            error=None,
-            metadata_json={},
-            idempotency_key=None,
-            job_id=None,
-            approval_id=None,
-            workflow_run_id=None,
-        )
+    async def _spy(self: object, **_kwargs: object) -> object:
+        called.append(True)
+        raise AssertionError("auto-approve must not fire for drive_organize_files")
 
     monkeypatch.setattr(
         ActionRequestService,
@@ -2824,8 +2807,33 @@ async def test_drive_organize_auto_approves_in_full_dedicated_local(
         requested_by="operator-1",
     )
 
-    assert captured
-    assert view.status == "queued"
+    assert not called
+    assert view.status == "pending_approval"
+
+
+def test_dedicated_full_does_not_auto_approve_dangerous_external_actions() -> None:
+    service = ActionRequestService(
+        Settings(
+            _env_file=None,
+            operator_profile="dedicated_local",
+            local_autonomy_mode="full",
+            require_human_approval_for_external_actions=False,
+            auto_approve_reversible_actions=True,
+        )
+    )
+
+    assert service._should_auto_approve_action("drive_ensure_folder") is True
+    assert service._should_auto_approve_action("drive_upload_file") is True
+    assert service._should_auto_approve_action("computer_organize") is True
+    for action_type in (
+        "godaddy_dns_change",
+        "calendar_create_event",
+        "browser_interactive",
+        "browser_preview",
+        "drive_organize_files",
+        "document_generate",
+    ):
+        assert service._should_auto_approve_action(action_type) is False
 
 
 def test_drive_upload_file_is_auto_approvable_when_reversible_policy_enabled() -> None:

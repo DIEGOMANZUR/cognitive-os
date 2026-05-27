@@ -1,12 +1,23 @@
 # DeepAgents Skills y Memory (referencia técnica)
 
-> **Estado actual (2026-05-23, commit `bbaaea8` — RELEASE APPROVED):** skills y memoria siguen activos como
-> capa de aprendizaje operativo. Aunque el producto prioriza baja fricción
-> en este PC dedicado, las promociones de memoria/skills se mantienen por
-> proposal para preservar calidad y rollback: no son un mecanismo de
-> seguridad perimetral, sino de control de comportamiento del agente. Mail
-> personal no se convierte en tool de envío ni en memoria activa por
-> defecto.
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_START -->
+
+> **Cierre V2.0 absoluto local-first (2026-05-27, Prompt 7):** esta rama `codex/commercial-zero-friction-hardening` en base `8a33475d0502` queda sincronizada para el cierre comercial local-first. La evidencia viva se concentra en `/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/tmp/v2_07_absolute_release_closure_20260527_050231`. Estado de producto verificado durante Prompt 7: backend FastAPI local, frontend Next.js, Docker services, Postgres, Redis, Weaviate, Neo4j, Alembic head, worker, beat, health/readiness, LangGraph/chat, DeepAgents, MCP, RAG/documentos, Document Analysis, Action Plane sandbox, mail read-only, Telegram, Google read-only, GoDaddy dry-run, Kimi WebBridge y Code Director toy/guard rails.
+>
+> **Gates V2.0 ejecutados antes de los dos ciclos verdes finales:** `bash scripts/full-qa.sh` **1221 passed, 1 skipped, 28 deselected**; `bash scripts/stress-qa.sh 5` **5/5 verde x 1221 passed**; `cd frontend && npx playwright test` **44 passed**; `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**; `python3 scripts/sync_doc_counts.py --check` OK; `bash scripts/verify_desktop_launchers.sh` OK; OpenAPI read-only smoke **70 GET / 0 failures**; security read-only scan sin secretos críticos; CDP/Playwright forense **10 ciclos x 20 vistas** sin console/page errors ni 5xx, con un aborto `POST /auth/local-token` adjudicado como cierre de contexto del harness y no defecto de producto; Lighthouse local: accessibility 96, best-practices 100, SEO 100.
+>
+> **Criterio de verdad:** no se declara envio de correo, draft real ni escritura DNS. Mail queda normalizado como read-only: sync/list/classify/digest/proposed replies como texto, sin drafts ni sends. GoDaddy queda preview/dry-run; Action Plane mantiene sandbox/approval/audit/idempotencia segun riesgo. El tunnel publico `cognitive.doctormanzur.com` se valida con `scripts/testsprite_web/deploy_and_verify.sh` cuando Diego vaya a correr TestSprite web; Prompt 7 no lo expone permanentemente porque su propia regla prohibe exponer servicios a internet.
+
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
+
+
+> **Estado actual (2026-05-26, HEAD `8a33475`):** skills y memoria siguen activos
+> como capa de aprendizaje operativo. Aunque el producto prioriza baja fricción en
+> este PC dedicado, las promociones de memoria/skills se mantienen por proposal
+> para preservar calidad y rollback: no son un mecanismo de seguridad perimetral,
+> sino de control de comportamiento del agente. Mail personal no se convierte en
+> tool de envío ni en memoria activa por defecto. Estado global vigente en
+> `CURRENT_STATE.md`.
 >
 > **Histórico (2026-05-20, Fases 78-81 — plan de aprendizaje autónomo completo):**
 > skills core en `backend/src/cognitive_os/deepagents/skills/core/`

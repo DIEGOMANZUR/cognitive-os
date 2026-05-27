@@ -131,6 +131,46 @@ async def test_archives_memory() -> None:
 
 
 @pytest.mark.asyncio
+async def test_memory_approval_preserves_literal_evidence_quotes_and_rolls_back() -> None:
+    """Prompt 6 regression: learning must be proposal-gated and reversible.
+
+    The commercial contract allows the agent to learn only with provenance.
+    Approval must carry literal evidence quotes into metadata, and rollback
+    must remove the active memory without mutating the original quote.
+    """
+    service = _service()
+    quote = "Mail debe operar read-only: no drafts, no send."
+    proposal = await service.propose_memory_update(
+        DeepAgentMemoryProposal(
+            proposal_id=str(uuid4()),
+            proposed_by_agent="research",
+            scope="agent",
+            reason="operator-approved lesson with cited evidence",
+            proposed_content=(
+                "Always describe mail as read-only unless the escape hatch is enabled."
+            ),
+            sensitivity="internal",
+            kind="lesson",
+            metadata={"evidence_quotes": [quote], "source_doc_id": "doc-fixture-1"},
+        )
+    )
+
+    assert proposal.requires_approval is True
+    assert await service.list_memory("agent") == []
+
+    item = await service.approve_memory_proposal(proposal.proposal_id, "diego")
+
+    assert item.status == "active"
+    assert item.metadata["approved_by"] == "diego"
+    assert item.metadata["evidence_quotes"] == [quote]
+    assert quote in item.metadata["evidence_quotes"][0]
+
+    await service.archive_memory(item.memory_id)
+
+    assert await service.list_memory("agent") == []
+
+
+@pytest.mark.asyncio
 async def test_proposal_kind_propagates_through_approve() -> None:
     """Fase 78: approving a procedure proposal must materialise kind=procedure.
 

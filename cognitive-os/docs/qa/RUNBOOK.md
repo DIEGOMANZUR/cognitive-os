@@ -1,45 +1,50 @@
 # QA · RUNBOOK — cómo correr la app y la suite Playwright
 
-> **Actualización vigente (2026-05-25 post-activación funcional, base
-> `0f8232a` — APTO COMERCIAL LOCAL-FIRST · FUNCTIONAL WITH WARNINGS):**
-> 16 fases funcionales ejecutadas con stack vivo. Reporte:
-> `tmp/full_functional_activation_20260525_073134/reports/`. Hallazgo P1
-> runtime: F-RUNTIME-001 `browser_preview` Playwright sync/async (no
-> regresión, preexistente). QA oficial del proyecto:
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_START -->
+
+> **Cierre V2.0 absoluto local-first (2026-05-27, Prompt 7):** esta rama `codex/commercial-zero-friction-hardening` en base `8a33475d0502` queda sincronizada para el cierre comercial local-first. La evidencia viva se concentra en `/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/tmp/v2_07_absolute_release_closure_20260527_050231`. Estado de producto verificado durante Prompt 7: backend FastAPI local, frontend Next.js, Docker services, Postgres, Redis, Weaviate, Neo4j, Alembic head, worker, beat, health/readiness, LangGraph/chat, DeepAgents, MCP, RAG/documentos, Document Analysis, Action Plane sandbox, mail read-only, Telegram, Google read-only, GoDaddy dry-run, Kimi WebBridge y Code Director toy/guard rails.
+>
+> **Gates V2.0 ejecutados antes de los dos ciclos verdes finales:** `bash scripts/full-qa.sh` **1221 passed, 1 skipped, 28 deselected**; `bash scripts/stress-qa.sh 5` **5/5 verde x 1221 passed**; `cd frontend && npx playwright test` **44 passed**; `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**; `python3 scripts/sync_doc_counts.py --check` OK; `bash scripts/verify_desktop_launchers.sh` OK; OpenAPI read-only smoke **70 GET / 0 failures**; security read-only scan sin secretos críticos; CDP/Playwright forense **10 ciclos x 20 vistas** sin console/page errors ni 5xx, con un aborto `POST /auth/local-token` adjudicado como cierre de contexto del harness y no defecto de producto; Lighthouse local: accessibility 96, best-practices 100, SEO 100.
+>
+> **Criterio de verdad:** no se declara envio de correo, draft real ni escritura DNS. Mail queda normalizado como read-only: sync/list/classify/digest/proposed replies como texto, sin drafts ni sends. GoDaddy queda preview/dry-run; Action Plane mantiene sandbox/approval/audit/idempotencia segun riesgo. El tunnel publico `cognitive.doctormanzur.com` se valida con `scripts/testsprite_web/deploy_and_verify.sh` cuando Diego vaya a correr TestSprite web; Prompt 7 no lo expone permanentemente porque su propia regla prohibe exponer servicios a internet.
+
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
+
+
+> **Actualización vigente (2026-05-26, HEAD `8a33475`):** además del gate
+> local-first 2026-05-25, el cockpit público/TestSprite web quedó endurecido con
+> hash auth `#cogos_token`, API pública automática, shell sin TopBar,
+> `data-cogos-active-tab`, hotkey `3 DeepAgents`, estados comerciales
+> loading/empty/error, responsive 920px y SW `cogos-v2026-05-26e-status-cards`.
+> Para preparar el portal web de TestSprite se usa un solo comando:
+>
+> ```bash
+> bash scripts/testsprite_web/deploy_and_verify.sh
+> ```
+>
+> Ese script reconstruye producción, levanta backend/worker/beat/frontend/tunnel,
+> valida frontend público, backend `/health`, marker SW y shell antes del rerun
+> humano. No declarar doble verde web hasta recibir reportes/PDFs del portal.
+>
+> QA oficial local del proyecto:
 >
 > - `bash scripts/full-qa.sh` con **1200 passed**, 1 skipped, 28
 >   deselected (1190 base + 2 regresión `test_clean_slate_fixture_covers_all_fks.py`).
 > - `bash scripts/stress-qa.sh 5` -> **5/5 verde × 1200 passed**,
->   flakiness post-fix = 0% (cerró F-P0-001 — root cause: orden FK del
->   fixture `clean_slate`, fix en 3 archivos de test sin tocar producto).
+>   flakiness post-fix = 0%.
 > - Playwright **43 passed** sin necesidad de exportar `COGOS_JWT`: el
 >   `tests/e2e/_global-setup.ts` mintea el JWT via
 >   `POST /auth/local-token` cuando el perfil es `dedicated_local/full`.
->   Incluye `audit-commercial-mail-no-send-button.spec.ts`.
-> - Build frontend dentro de `full-qa.sh` usa `NEXT_DIST_DIR=.next-qa`
->   para no invalidar un frontend vivo.
 > - Carril opt-in `bash scripts/full-qa-live.sh` (`LIVE_TESTS_ENABLED=1`)
->   para smokes read-only contra proveedores reales, último gate
->   documentado **8 passed**.
-> - `/system/mcp` quedó verificado **6/6 servers** y **69 tools** tras
->   el inventario paralelo con timeout 30s (`5953b40`) y el alta local
->   del MCP `time` (`ce72dc2`).
-> - **Audit-commercial hardening matrix:** 16 archivos
->   `test_audit_commercial_*` (15 backend + 1 Playwright) con ~230
->   asserciones cubren los 4 P0-críticos (Mail SMTP gate, GoDaddy DNS
->   gate, Code Director STDIN-only, Mail UI sin botón Enviar) y 12
->   GAPs P1 (eager_defaults full, auth matrix, path-traversal corpus,
->   operational_backlog reactivo, workflow.v1 hardening,
->   calendar/drive directo `dry_run=false`→409, health overall honest,
->   reapers dedicados, DB isolation guard, secrets redaction, fixtures
->   gating, MCP fail-open).
-> - TestSprite MCP re-audit histórico: **10/10 passed** sobre dos
->   batches acotados (TC001/002/003/004/006/007/008/009/010/014).
+>   para smokes read-only contra proveedores reales, último gate documentado
+>   **8 passed**.
+> - `/system/mcp` verificado **6/6 servers** y **69 tools**.
+> - TestSprite local/MCP histórico: **10/10** re-audit acotado y batched local
+>   **28/28 passed**; distinto del rerun web público vigente.
 >
-> El objetivo del QA actual no es seguridad SaaS; es operación local de
-> baja fricción sin fallos silenciosos: arranque reproducible, UI que no
-> engaña, jobs trazables, workers vivos, mail read-only/digest y errores
-> visibles.
+> El objetivo del QA actual no es seguridad SaaS; es operación local de baja
+> fricción sin fallos silenciosos: arranque reproducible, UI que no engaña, jobs
+> trazables, workers vivos, mail read-only/digest y errores visibles.
 
 Auditoría Fase 76. Todo verificado en este host (Linux 6.17,
 `/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/cognitive-os/`).
@@ -83,8 +88,7 @@ JWT=$(curl -sX POST http://127.0.0.1:8000/auth/local-token | \
 echo "$JWT"
 ```
 
-Pegar el output en el campo JWT del panel (`http://localhost:3001` →
-TopBar) o exportarlo como `COGOS_JWT` si se quiere fijar manualmente.
+Pegar el output en la pestaña *Conexión* / *Settings* del panel (`http://localhost:3001`), abrir con `#cogos_token=<JWT_SIN_BEARER>` o exportarlo como `COGOS_JWT` si se quiere fijar manualmente.
 
 **Forma larga (`strict`/`guarded` o entornos sin endpoint de mint).**
 Sólo cuando el perfil bloquea `/auth/local-token`:

@@ -1,73 +1,58 @@
 # Cognitive OS — Guía Maestra
 
-> **Estado canónico actual (2026-05-23, commit `bbaaea8`):**
-> **RELEASE APPROVED** — cuatro pasadas de auditoría independiente
-> cerradas con cero defectos conocidos. Esta guía describe el sistema
-> vivo después de:
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_START -->
+
+> **Cierre V2.0 absoluto local-first (2026-05-27, Prompt 7):** esta rama `codex/commercial-zero-friction-hardening` en base `8a33475d0502` queda sincronizada para el cierre comercial local-first. La evidencia viva se concentra en `/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/tmp/v2_07_absolute_release_closure_20260527_050231`. Estado de producto verificado durante Prompt 7: backend FastAPI local, frontend Next.js, Docker services, Postgres, Redis, Weaviate, Neo4j, Alembic head, worker, beat, health/readiness, LangGraph/chat, DeepAgents, MCP, RAG/documentos, Document Analysis, Action Plane sandbox, mail read-only, Telegram, Google read-only, GoDaddy dry-run, Kimi WebBridge y Code Director toy/guard rails.
 >
-> 1. Ciclos de hardening de frontend, mail, QA aislado y runtime local.
-> 2. Doble auditoría TestSprite del 2026-05-23 que cazó un P1
->    (`MissingGreenlet` en `/actions/*/preview/request`) y eliminó la
->    fricción del Playwright runner con auto-mint JWT.
-> 3. Tercera pasada de endurecimiento (LLM probe timeout específico,
->    race guard `full-qa`, anti-flake Ctrl+K, regression-critical
->    aceptar `degraded`).
-> 4. Cuarta pasada de cierre absoluto: validación de 30 puntos
->    cero-fricción, 25 escenarios de degradación, 25 de idempotencia, 30
->    de UX comercial, drift sweep + bulk-fix, 17 documentos nuevos de
->    evidencia (18-34).
+> **Gates V2.0 ejecutados antes de los dos ciclos verdes finales:** `bash scripts/full-qa.sh` **1221 passed, 1 skipped, 28 deselected**; `bash scripts/stress-qa.sh 5` **5/5 verde x 1221 passed**; `cd frontend && npx playwright test` **44 passed**; `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**; `python3 scripts/sync_doc_counts.py --check` OK; `bash scripts/verify_desktop_launchers.sh` OK; OpenAPI read-only smoke **70 GET / 0 failures**; security read-only scan sin secretos críticos; CDP/Playwright forense **10 ciclos x 20 vistas** sin console/page errors ni 5xx, con un aborto `POST /auth/local-token` adjudicado como cierre de contexto del harness y no defecto de producto; Lighthouse local: accessibility 96, best-practices 100, SEO 100.
+>
+> **Criterio de verdad:** no se declara envio de correo, draft real ni escritura DNS. Mail queda normalizado como read-only: sync/list/classify/digest/proposed replies como texto, sin drafts ni sends. GoDaddy queda preview/dry-run; Action Plane mantiene sandbox/approval/audit/idempotencia segun riesgo. El tunnel publico `cognitive.doctormanzur.com` se valida con `scripts/testsprite_web/deploy_and_verify.sh` cuando Diego vaya a correr TestSprite web; Prompt 7 no lo expone permanentemente porque su propia regla prohibe exponer servicios a internet.
+
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
+
+
+> **Estado canónico actual (2026-05-26, HEAD `8a33475`):**
+> **COMERCIAL LOCAL-FIRST APROBADO + frontend/TestSprite web hardening**. Esta guía
+> describe el sistema vivo después del cierre local-first 2026-05-25 y de la capa
+> pública 2026-05-26: hash auth `#cogos_token`, API pública por host, TopBar
+> retirado, shell estable con `data-cogos-active-tab`, hotkey `3 DeepAgents`,
+> estados comerciales sin datos falsos, responsive 920px y service worker
+> `cogos-v2026-05-26e-status-cards`.
 >
 > Fuente corta: `docs/CURRENT_STATE.md`. Modelo operativo:
-> `docs/ZERO_FRICTION_OPERATING_MODEL.md`. Cierre formal:
-> [`audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md`](audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md).
+> `docs/ZERO_FRICTION_OPERATING_MODEL.md`. Handoff TestSprite web:
+> `bash scripts/testsprite_web/deploy_and_verify.sh`.
 >
-> **Prioridad del producto en este PC dedicado:** fricción casi nula por
-> sobre seguridad estricta. Cognitive OS está diseñado para usar el perfil
-> real del operador, Edge real/Kimi WebBridge, filesystem local y
-> auto-resolución de aprobaciones cuando el perfil `dedicated_local/full`
-> lo permite. La seguridad tipo SaaS no es prioridad en esta instalación.
-> Lo que sí sigue siendo no negociable es trazabilidad, diagnóstico,
-> idempotencia, recuperación y no fallar en silencio.
+> **Prioridad del producto en este PC dedicado:** fricción casi nula por sobre
+> seguridad estricta. Cognitive OS está diseñado para usar el perfil real del
+> operador, Edge real/Kimi WebBridge, filesystem local y auto-resolución de
+> aprobaciones cuando el perfil `dedicated_local/full` lo permite. La seguridad
+> tipo SaaS no es prioridad en esta instalación. Lo que sí sigue siendo no
+> negociable es trazabilidad, diagnóstico, idempotencia, recuperación y no fallar
+> en silencio.
 >
 > **Excepción dura de correo:** el flujo normal de mail **lee y redacta
-> propuestas**, pero no crea drafts ni envía mensajes. Solo puede enviar si
-> Diego lo pide de forma absolutamente explícita y además están activados
-> `ENABLE_EMAIL_SEND=true`, `MAIL_ALLOW_EXPLICIT_SEND=true` y la request
-> incluye `explicit_send_confirmation="SEND_THIS_EMAIL_EXPLICITLY"`.
+> propuestas**, pero no crea drafts ni envía mensajes. Solo puede enviar si Diego
+> lo pide de forma absolutamente explícita y además están activados
+> `ENABLE_EMAIL_SEND=true`, `MAIL_ALLOW_EXPLICIT_SEND=true` y la request incluye
+> `explicit_send_confirmation="SEND_THIS_EMAIL_EXPLICITLY"`.
 >
-> **Snapshot verificado** (conteos generados por
-> `scripts/sync_doc_counts.py`): backend FastAPI con **147 decoradores
-> REST**, **23 tareas Celery** en **5 colas** (`default`, `ingestion`,
-> `agent_longrun`, `maintenance`, `mail`) con hasta **13 jobs beat**, **20
-> migraciones Alembic** (head `202605200003`), frontend Next.js 16.2.6 con
-> **20 vistas**, Telegram con **37 slash commands** (dispatch fail-closed),
-> `/health/dashboard` con **18 componentes** + `POST /health/verify` para
-> probe real. Mail: Gmail `diegomanzurn@gmail.com` `TODOS` + `SPAM`,
-> GoDaddy `diego@doctormanzur.com` `Spam`, clasificación de spam por
-> agente, digest 10:00/20:00 Chile, máximo 50 correos, respuestas sugeridas
-> como campos de texto separados.
+> **Snapshot verificado** (conteos generados por `scripts/sync_doc_counts.py`):
+> backend FastAPI con **150 endpoints REST**, **23 tareas Celery** en **5 colas**
+> (`default`, `ingestion`, `agent_longrun`, `maintenance`, `mail`) con hasta **13
+> jobs beat**, **20 migraciones Alembic** (head `202605200003`), frontend Next.js
+> 16.2.6 con **20 vistas**, Telegram con **37 slash commands**, `/health/dashboard`
+> con **18 componentes** + `POST /health/verify` para probe real. MCP runtime:
+> **6/6 servers** y **69 tools**.
 >
-> **QA más reciente (rama `codex/commercial-zero-friction-hardening`):**
-> `bash scripts/full-qa.sh` verde con **958 passed**, 1 skipped, 28 deselected
-> (944 históricos + 14 nuevos: 3 `eager_defaults`, 3
-> `health_llm_probe_timeout` y 3 guards QA/scripts/docs),
-> ruff/format/mypy/Alembic/lint/build/`sync_doc_counts --check`/`git
-> diff --check` OK; build frontend aislado con `NEXT_DIST_DIR=.next-qa`;
-> Playwright **41 passed** sin exportar `COGOS_JWT` (auto-mint via
-> `_global-setup.ts`); `bash scripts/stress-qa.sh` verde con 3 pasadas
-> de **958 passed**; carril opt-in `tests/live/` verificado con **8
-> passed**; TestSprite completo corregido en batches locales **28/28
-> passed**.
+> **QA más reciente:** `bash scripts/full-qa.sh` **1200 passed**, 1 skipped, 28
+> deselected; `bash scripts/stress-qa.sh 5` **5/5 verde × 1200 passed**;
+> ruff/format/mypy/Alembic/lint/build/`sync_doc_counts --check`/`git diff --check`
+> OK; Playwright **43 passed** sin exportar `COGOS_JWT`; live opt-in **8 passed**;
+> TestSprite local batched histórico **28/28 passed**. TestSprite web público está
+> listo para rerun humano tras `deploy_and_verify.sh`, pero no se declara doble
+> verde web sin reportes del portal.
 >
-> **Ajustes post-gate acumulados:**
-> - `647f103` (re-audit): `eager_defaults=True` en `db.Base` corrige
->   `MissingGreenlet` 500 en endpoints `POST /actions/*/preview/request`;
->   Playwright runner zero-friction.
-> - `5953b40`: `/system/mcp` carga inventario en paralelo con timeout
->   default 30s (`MCP_INVENTORY_TIMEOUT_SECONDS`); runtime verificado
->   inicialmente 5/5 servers y 67 tools. Estado actual tras `time`
->   (2026-05-25): 6/6 servers y 69 tools. `Ctrl/Cmd+K` del cockpit
->   estabilizado desde capture phase.
 > **Para qué es este documento:** la **guía maestra técnica** "desde cero". Complementa la `USER_GUIDE.md` (orientada a operación cotidiana) con arquitectura detallada, mail multicuenta, escritorio, credenciales y troubleshooting profundo. Cada afirmación tiene su archivo o variable de respaldo en el repo.
 
 ---

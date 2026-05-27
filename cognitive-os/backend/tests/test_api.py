@@ -50,6 +50,26 @@ async def test_health_is_public() -> None:
 
 
 @pytest.mark.asyncio
+async def test_documented_root_collection_aliases_are_not_404() -> None:
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        responses = {
+            "/actions": await client.get("/actions", headers=_headers()),
+            "/audit": await client.get("/audit?limit=5", headers=_headers()),
+            "/deepagents": await client.get("/deepagents", headers=_headers()),
+        }
+
+    assert all(response.status_code == 200 for response in responses.values())
+    assert {item["name"] for item in responses["/actions"].json()} >= {
+        "browser",
+        "google_drive",
+        "godaddy",
+    }
+    assert isinstance(responses["/audit"].json(), list)
+    assert isinstance(responses["/deepagents"].json(), list)
+
+
+@pytest.mark.asyncio
 async def test_local_token_bootstrap_requires_dedicated_local_full(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

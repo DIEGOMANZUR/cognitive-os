@@ -1,15 +1,25 @@
 # Action Plane
 
-> **Estado canonico actual (2026-05-23, commit `bbaaea8`):**
-> **RELEASE APPROVED**. En el PC dedicado el Action Plane se
-> interpreta bajo `dedicated_local/full`: **friccion casi nula
-> primero**, seguridad estricta despues. En `strict`,
-> preview/request/approval sigue siendo la postura conservadora. En
-> `dedicated_local/full`, las approvals reversibles auto-resuelven
-> (browser_preview, computer_organize, document_generate,
-> drive_ensure_folder, etc.) y la defensa pasa a audit, idempotencia,
-> reapers y observabilidad. Mail se mantiene fuera del auto-send: solo
-> lectura, digest y propuestas de texto. Ver `CURRENT_STATE.md` y
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_START -->
+
+> **Cierre V2.0 absoluto local-first (2026-05-27, Prompt 7):** esta rama `codex/commercial-zero-friction-hardening` en base `8a33475d0502` queda sincronizada para el cierre comercial local-first. La evidencia viva se concentra en `/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/tmp/v2_07_absolute_release_closure_20260527_050231`. Estado de producto verificado durante Prompt 7: backend FastAPI local, frontend Next.js, Docker services, Postgres, Redis, Weaviate, Neo4j, Alembic head, worker, beat, health/readiness, LangGraph/chat, DeepAgents, MCP, RAG/documentos, Document Analysis, Action Plane sandbox, mail read-only, Telegram, Google read-only, GoDaddy dry-run, Kimi WebBridge y Code Director toy/guard rails.
+>
+> **Gates V2.0 ejecutados antes de los dos ciclos verdes finales:** `bash scripts/full-qa.sh` **1221 passed, 1 skipped, 28 deselected**; `bash scripts/stress-qa.sh 5` **5/5 verde x 1221 passed**; `cd frontend && npx playwright test` **44 passed**; `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**; `python3 scripts/sync_doc_counts.py --check` OK; `bash scripts/verify_desktop_launchers.sh` OK; OpenAPI read-only smoke **70 GET / 0 failures**; security read-only scan sin secretos críticos; CDP/Playwright forense **10 ciclos x 20 vistas** sin console/page errors ni 5xx, con un aborto `POST /auth/local-token` adjudicado como cierre de contexto del harness y no defecto de producto; Lighthouse local: accessibility 96, best-practices 100, SEO 100.
+>
+> **Criterio de verdad:** no se declara envio de correo, draft real ni escritura DNS. Mail queda normalizado como read-only: sync/list/classify/digest/proposed replies como texto, sin drafts ni sends. GoDaddy queda preview/dry-run; Action Plane mantiene sandbox/approval/audit/idempotencia segun riesgo. El tunnel publico `cognitive.doctormanzur.com` se valida con `scripts/testsprite_web/deploy_and_verify.sh` cuando Diego vaya a correr TestSprite web; Prompt 7 no lo expone permanentemente porque su propia regla prohibe exponer servicios a internet.
+
+<!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
+
+
+> **Estado canonico actual (2026-05-26, HEAD `8a33475`):**
+> **COMERCIAL LOCAL-FIRST APROBADO**. En el PC dedicado el Action Plane se
+> interpreta bajo `dedicated_local/full`: friccion casi nula primero, seguridad
+> estricta despues. En `strict`, preview/request/approval sigue siendo la postura
+> conservadora. En `dedicated_local/full`, las approvals reversibles auto-resuelven
+> y la defensa pasa a audit, idempotencia, reapers y observabilidad. Mail se
+> mantiene fuera del auto-send: solo lectura, digest y propuestas de texto. La
+> capa frontend pública vigente usa `#cogos_token`, API pública por host y estados
+> comerciales sin datos falsos; ver `CURRENT_STATE.md`, `USER_GUIDE.md` y
 > `ZERO_FRICTION_OPERATING_MODEL.md`.
 >
 > **Fix `647f103` que afecta directamente el Action Plane:**
