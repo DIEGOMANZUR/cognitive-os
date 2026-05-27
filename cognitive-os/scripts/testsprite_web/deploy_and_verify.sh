@@ -21,8 +21,9 @@ LOG_DIR="${ROOT_DIR}/logs/testsprite_web"
 
 PUBLIC_FRONTEND="https://cognitive.doctormanzur.com"
 PUBLIC_BACKEND="https://cognitive-api.doctormanzur.com"
-CACHE_MARKER="cogos-v2026-05-26b-testsprite-hardening"
+CACHE_MARKER="cogos-v2026-05-26c-triple-hotkey-mutationobserver"
 BOOT_MARKER="data-cogos-viewport"
+VIEW_MARKER="data-cogos-active-view"
 
 # --- pretty output helpers -------------------------------------------------
 say() { printf "\n\033[1;36m▸ %s\033[0m\n" "$*"; }
