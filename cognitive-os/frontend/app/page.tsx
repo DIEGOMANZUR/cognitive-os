@@ -586,10 +586,7 @@ function App() {
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
-        onSelectTab={(t) => {
-          setTab(t);
-          setPaletteOpen(false);
-        }}
+        onSelectTab={(t) => setTab(t)}
         extraActions={extraActions}
       />
       <NotificationCenter

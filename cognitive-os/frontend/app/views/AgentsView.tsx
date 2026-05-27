@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 
 import type { ApiClient } from "../lib/api";
 import { asArray, statusClass } from "../lib/api";
-import { EmptyState, ErrorPanel, Skeleton } from "../components/StatePrimitives";
 import { usePolledFetch } from "../lib/hooks";
 import type { AgentSummary } from "../lib/types";
 
@@ -40,25 +39,14 @@ export function AgentsView({ client }: { client: ApiClient }) {
         </p>
       </section>
 
-      {agents.error && list.length === 0 && (
-        <ErrorPanel error={agents.error} onRetry={() => void agents.refetch()} />
-      )}
-
-      {agents.loading && list.length === 0 && !agents.error && (
-        <section className="section">
-          <Skeleton rows={4} />
-        </section>
-      )}
-
-      {!agents.loading && !agents.error && list.length === 0 && (
-        <EmptyState
-          icon="agents"
-          title="Sin DeepAgents registrados"
-          message="Cuando el backend exponga al menos un agente vía /agents aparecerán aquí."
-        />
-      )}
-
       <div className="grid">
+        {list.length === 0 && (
+          <AgentsStatusCard
+            state={agents.error ? "error" : agents.loading ? "loading" : "empty"}
+            errorMessage={agents.error}
+            onRetry={() => void agents.refetch()}
+          />
+        )}
         {list.map((agent) => {
           const expanded = openName === agent.name;
           return (
@@ -167,6 +155,68 @@ export function AgentsView({ client }: { client: ApiClient }) {
         })}
       </div>
     </div>
+  );
+}
+
+/**
+ * Status card shown when the DeepAgents fleet is empty, loading, or has
+ * errored. Mirrors the structure of a real agent card (article →
+ * section-head → detail button) so the grid layout stays consistent
+ * regardless of state — the same pattern Linear/Notion use for entity
+ * lists. Copy is operator-facing, not debug-flavoured.
+ */
+function AgentsStatusCard({
+  state,
+  errorMessage,
+  onRetry
+}: {
+  state: "error" | "loading" | "empty";
+  errorMessage: string | null;
+  onRetry: () => void;
+}) {
+  const copy = {
+    error: {
+      title: "No se pudo cargar la flota de DeepAgents",
+      detail:
+        errorMessage ??
+        "La API de agentes no respondió. Reintentá para volver a consultarla.",
+      badgeClass: "badge danger",
+      badgeLabel: "error"
+    },
+    loading: {
+      title: "Cargando flota de DeepAgents…",
+      detail:
+        "Consultando /agents para enumerar los agentes registrados y su política runtime.",
+      badgeClass: "badge",
+      badgeLabel: "cargando"
+    },
+    empty: {
+      title: "Sin DeepAgents registrados",
+      detail:
+        "El backend aún no expone agentes vía /agents. Cuando exista al menos uno aparecerá aquí con su política, herramientas y stats.",
+      badgeClass: "badge configured",
+      badgeLabel: "vacío"
+    }
+  }[state];
+  return (
+    <article className="section" aria-label="DeepAgents fleet status">
+      <div className="section-head">
+        <div>
+          <h2 style={{ marginBottom: 4 }}>{copy.title}</h2>
+          <div className="row" style={{ gap: 6 }}>
+            <span className={copy.badgeClass}>{copy.badgeLabel}</span>
+          </div>
+        </div>
+        <button
+          onClick={onRetry}
+          type="button"
+          aria-label="Reintentar carga de DeepAgents"
+        >
+          Detalle
+        </button>
+      </div>
+      <p className="small">{copy.detail}</p>
+    </article>
   );
 }
 

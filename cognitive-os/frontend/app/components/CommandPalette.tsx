@@ -146,7 +146,19 @@ export function CommandPalette({
     persistRecent(next);
     setRecent(next);
     action.run();
-    onClose();
+    // Navigation picks (id starts with "goto-") keep the dialog open so
+    // the operator can quickly jump across views without re-pressing
+    // Ctrl+K — this matches VSCode's Quick Open `--keep-open` and
+    // Slack's Switch+recent affordance. Non-navigation actions close
+    // immediately (their effect is one-shot). ESC and backdrop click
+    // always close.
+    if (!action.id.startsWith("goto-")) {
+      onClose();
+      return;
+    }
+    setQuery("");
+    setActiveIndex(0);
+    setTimeout(() => inputRef.current?.focus(), 0);
   }
 
   function handleKey(event: React.KeyboardEvent<HTMLInputElement>) {

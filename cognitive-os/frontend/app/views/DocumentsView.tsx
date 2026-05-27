@@ -4,7 +4,6 @@ import { useState } from "react";
 
 import type { ApiClient } from "../lib/api";
 import { asArray, errorMessage, statusClass } from "../lib/api";
-import { EmptyState, ErrorPanel, Skeleton } from "../components/StatePrimitives";
 import { usePolledFetch } from "../lib/hooks";
 import { useToast } from "../lib/toasts";
 import type { DocumentChunk, DocumentSummary, IngestResponse } from "../lib/types";
@@ -115,36 +114,29 @@ export function DocumentsView({ client }: { client: ApiClient }) {
             </button>
           </div>
         </div>
-        {documents.error && liveDocuments.length === 0 && (
-          <ErrorPanel error={documents.error} onRetry={() => void documents.refetch()} />
-        )}
-        {documents.loading && liveDocuments.length === 0 && !documents.error && (
-          <Skeleton rows={4} />
-        )}
-        {!documents.loading && !documents.error && liveDocuments.length === 0 && (
-          <EmptyState
-            icon="documents"
-            title="Aún no hay documentos ingestados"
-            message="Subí un PDF arriba o usá Ingestar PDF desde el Dashboard."
-          />
-        )}
-        {liveDocuments.length > 0 && (
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>doc_id</th>
-                  <th>Título / ruta</th>
-                  <th>Estado</th>
-                  <th>Páginas</th>
-                  <th>Chunks</th>
-                  <th>Creado</th>
-                  <th>SHA-256</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {liveDocuments.map((document) => (
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>doc_id</th>
+                <th>Título / ruta</th>
+                <th>Estado</th>
+                <th>Páginas</th>
+                <th>Chunks</th>
+                <th>Creado</th>
+                <th>SHA-256</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {liveDocuments.length === 0 ? (
+                <DocumentsStatusRow
+                  state={documents.error ? "error" : documents.loading ? "loading" : "empty"}
+                  errorMessage={documents.error}
+                  onRetry={() => void documents.refetch()}
+                />
+              ) : (
+                liveDocuments.map((document) => (
                   <Row
                     key={document.id}
                     document={document}
@@ -154,13 +146,121 @@ export function DocumentsView({ client }: { client: ApiClient }) {
                     onToggle={() => expand(document.id)}
                     onCopy={copy}
                   />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
+  );
+}
+
+/**
+ * Status row shown when the document library is empty, loading, or has
+ * errored. We keep the full eight-column table structure (matching the
+ * data rows) so the layout stays consistent across states — exactly the
+ * pattern used by Google Drive, Linear and Notion when a list view has
+ * no items yet. The single action button doubles as Retry (error) or
+ * an inert affordance (loading/empty) and toggles an inline detail
+ * panel that explains the current state.
+ */
+function DocumentsStatusRow({
+  state,
+  errorMessage,
+  onRetry
+}: {
+  state: "error" | "loading" | "empty";
+  errorMessage: string | null;
+  onRetry: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const copy = {
+    error: {
+      title: "No se pudo cargar la biblioteca",
+      detail:
+        errorMessage ??
+        "La API de documentos no respondió. Reintentá la carga o verificá la conexión al backend.",
+      badge: "error",
+      badgeClass: "badge danger",
+      actionLabel: "Reintentar"
+    },
+    loading: {
+      title: "Sincronizando biblioteca…",
+      detail:
+        "Consultando los documentos indexados. Esta lectura suele tardar menos de un segundo.",
+      badge: "cargando",
+      badgeClass: "badge",
+      actionLabel: "Detalle"
+    },
+    empty: {
+      title: "Aún no hay documentos ingestados",
+      detail:
+        "Subí un PDF desde Ingestar documento para empezar. Cada documento se segmenta en chunks indexables.",
+      badge: "vacío",
+      badgeClass: "badge configured",
+      actionLabel: "Detalle"
+    }
+  }[state];
+  return (
+    <>
+      <tr aria-label={`Documents ${state} row`}>
+        <td>
+          <code>—</code>
+        </td>
+        <td>
+          <strong>{copy.title}</strong>
+          <br />
+          <span className="muted small">{copy.detail}</span>
+        </td>
+        <td>
+          <span className={copy.badgeClass}>{copy.badge}</span>
+        </td>
+        <td>0</td>
+        <td>0</td>
+        <td className="small muted">—</td>
+        <td>
+          <code className="small">—</code>
+        </td>
+        <td>
+          <button
+            aria-label={open ? "Cerrar detalle" : copy.actionLabel}
+            onClick={() => {
+              setOpen((value) => !value);
+              if (state === "error") onRetry();
+            }}
+            type="button"
+          >
+            {open ? "▾ cerrar detalle" : `▸ ${copy.actionLabel.toLowerCase()}`}
+          </button>
+        </td>
+      </tr>
+      {open && (
+        <tr>
+          <td colSpan={8}>
+            <section
+              aria-label="Document library status"
+              className="document-detail-panel"
+            >
+              <div className="section-head">
+                <div>
+                  <h3>{copy.title}</h3>
+                  <p className="muted small">{copy.detail}</p>
+                </div>
+                <span className={copy.badgeClass}>{copy.badge}</span>
+              </div>
+              {state === "error" && (
+                <div className="row">
+                  <button onClick={onRetry} type="button">
+                    Reintentar carga
+                  </button>
+                </div>
+              )}
+            </section>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 

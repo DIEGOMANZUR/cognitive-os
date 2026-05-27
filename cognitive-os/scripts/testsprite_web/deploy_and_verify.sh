@@ -21,7 +21,7 @@ LOG_DIR="${ROOT_DIR}/logs/testsprite_web"
 
 PUBLIC_FRONTEND="https://cognitive.doctormanzur.com"
 PUBLIC_BACKEND="https://cognitive-api.doctormanzur.com"
-CACHE_MARKER="cogos-v2026-05-26d-commercial-cleanup"
+CACHE_MARKER="cogos-v2026-05-26e-status-cards"
 
 # --- pretty output helpers -------------------------------------------------
 say() { printf "\n\033[1;36m▸ %s\033[0m\n" "$*"; }
