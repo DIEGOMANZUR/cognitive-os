@@ -146,17 +146,7 @@ export function CommandPalette({
     persistRecent(next);
     setRecent(next);
     action.run();
-    // Navigation actions (id starts with "goto-") keep the palette open so
-    // the operator (and external test harnesses) can issue a follow-up
-    // search or jump without having to re-press Ctrl+K. ESC or backdrop
-    // click still close the palette explicitly.
-    if (!action.id.startsWith("goto-")) {
-      onClose();
-      return;
-    }
-    setQuery("");
-    setActiveIndex(0);
-    setTimeout(() => inputRef.current?.focus(), 0);
+    onClose();
   }
 
   function handleKey(event: React.KeyboardEvent<HTMLInputElement>) {

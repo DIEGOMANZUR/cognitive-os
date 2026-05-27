@@ -59,39 +59,6 @@ export function AgentsView({ client }: { client: ApiClient }) {
       )}
 
       <div className="grid">
-        {list.length === 0 && (
-          <article
-            className="section"
-            aria-label="DeepAgents placeholder"
-            data-testid="agents-placeholder"
-          >
-            <div className="section-head">
-              <div>
-                <h2 style={{ marginBottom: 4 }}>
-                  {agents.loading ? "Cargando agentes…" : agents.error ? "Agentes no disponibles" : "Sin DeepAgents"}
-                </h2>
-                <div className="row" style={{ gap: 6 }}>
-                  <span className="badge info">deepagent</span>
-                  <span className="badge">job: research</span>
-                </div>
-              </div>
-              <button
-                onClick={() => void agents.refetch()}
-                type="button"
-                aria-label="Detalle de DeepAgents"
-              >
-                Detalle
-              </button>
-            </div>
-            <p className="small">
-              {agents.loading
-                ? "Consultando registro de DeepAgents…"
-                : agents.error
-                  ? `Error: ${agents.error}`
-                  : "El backend aún no expone agentes vía /agents. Detalle quedará disponible cuando exista al menos uno registrado."}
-            </p>
-          </article>
-        )}
         {list.map((agent) => {
           const expanded = openName === agent.name;
           return (

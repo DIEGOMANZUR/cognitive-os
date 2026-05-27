@@ -182,29 +182,12 @@ export function useKeyboard(handler: (event: KeyboardEvent) => void): void {
   const ref = useRef(handler);
   ref.current = handler;
   useEffect(() => {
-    // Triple-layer listener so a `keydown` reaches us regardless of
-    // which target the headless harness dispatches it to or whether
-    // some other listener stopPropagation()-s the capture phase.
-    //
-    // We dedupe across listeners by tagging the event with a hidden
-    // marker — that way pressing "3" doesn't fire setTab three times,
-    // but if the capture-phase listener is somehow skipped (some
-    // browsers / extensions / Playwright builds dispatch events
-    // bubble-only) the bubble-phase one still fires.
-    const seen = new WeakSet<KeyboardEvent>();
-    const dispatch = (event: KeyboardEvent) => {
-      if (seen.has(event)) return;
-      seen.add(event);
-      ref.current(event);
-    };
-    window.addEventListener("keydown", dispatch, { capture: true });
-    window.addEventListener("keydown", dispatch);
-    document.addEventListener("keydown", dispatch, { capture: true });
-    return () => {
-      window.removeEventListener("keydown", dispatch, { capture: true });
-      window.removeEventListener("keydown", dispatch);
-      document.removeEventListener("keydown", dispatch, { capture: true });
-    };
+    // Listen during the capture phase on `window` so the cockpit's
+    // global shortcuts (Ctrl+K, numeric hotkeys, Escape) always run
+    // before any descendant component can `stopPropagation` them.
+    const listener = (event: KeyboardEvent) => ref.current(event);
+    window.addEventListener("keydown", listener, { capture: true });
+    return () => window.removeEventListener("keydown", listener, { capture: true });
   }, []);
 }
 

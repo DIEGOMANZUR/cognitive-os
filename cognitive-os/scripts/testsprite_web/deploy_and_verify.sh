@@ -21,9 +21,7 @@ LOG_DIR="${ROOT_DIR}/logs/testsprite_web"
 
 PUBLIC_FRONTEND="https://cognitive.doctormanzur.com"
 PUBLIC_BACKEND="https://cognitive-api.doctormanzur.com"
-CACHE_MARKER="cogos-v2026-05-26c-triple-hotkey-mutationobserver"
-BOOT_MARKER="data-cogos-viewport"
-VIEW_MARKER="data-cogos-active-view"
+CACHE_MARKER="cogos-v2026-05-26d-commercial-cleanup"
 
 # --- pretty output helpers -------------------------------------------------
 say() { printf "\n\033[1;36m▸ %s\033[0m\n" "$*"; }
@@ -76,27 +74,32 @@ else
   warn "backend público /health respondió ${backend_code} (TestSprite solo necesita el frontend, pero igual conviene chequear)"
 fi
 
-# --- 4. verify deployed bundle carries the new fixes -----------------------
-say "4/5 · Verificando que el bundle desplegado incluye los fixes"
-homepage_html="$(curl -sS --max-time 10 "${PUBLIC_FRONTEND}/" || true)"
+# --- 4. verify deployed bundle is the current build ------------------------
+say "4/5 · Verificando que el bundle desplegado es el commit actual"
 
-# The responsive-boot script stamps data-cogos-viewport on <html> at first
-# paint — finding it in the served HTML proves the layout.tsx change is live.
-if printf '%s' "${homepage_html}" | grep -q "${BOOT_MARKER}"; then
-  ok "responsive boot script presente en el HTML servido"
-else
-  err "responsive boot script NO está en el HTML servido — el bundle desplegado es viejo"
-  err "Verificá que el build terminó OK: tail -100 ${LOG_DIR}/frontend_build.log"
-  exit 4
-fi
-
-# Service worker bump confirms we re-compiled at this commit.
+# Service worker bump is bumped on every commit that ships fixes, so
+# finding the current marker in /sw.js proves Cloudflare and Next.js
+# are serving the build that left our local machine — not a stale
+# CDN copy or a pre-rebuild bundle.
 sw_text="$(curl -sS --max-time 10 "${PUBLIC_FRONTEND}/sw.js" || true)"
 if printf '%s' "${sw_text}" | grep -q "${CACHE_MARKER}"; then
   ok "service worker incluye el cache-bust marker (${CACHE_MARKER})"
 else
-  warn "no encontré el marker ${CACHE_MARKER} en sw.js — puede ser caché de Cloudflare"
-  warn "Si el rerun falla por contenido viejo, esperá 1-2 min y volvé a correr este script"
+  err "no encontré el marker ${CACHE_MARKER} en sw.js — el bundle desplegado es viejo"
+  err "Verificá que el build terminó OK: tail -100 ${LOG_DIR}/frontend_build.log"
+  err "Si el frontend build fue OK, esperá 1-2 min para que Cloudflare invalide el cache."
+  exit 4
+fi
+
+# Sanity check: the data-cogos-active-tab attribute is always present on
+# <main> after hydration, so its presence in the SSR markup means we are
+# at least serving the cockpit SPA shell and not a stub page.
+homepage_html="$(curl -sS --max-time 10 "${PUBLIC_FRONTEND}/" || true)"
+if printf '%s' "${homepage_html}" | grep -q "data-cogos-active-tab"; then
+  ok "cockpit SPA shell servida en la raíz"
+else
+  err "el HTML servido no incluye la cockpit shell (data-cogos-active-tab ausente)"
+  exit 4
 fi
 
 # --- 5. print operator handoff ---------------------------------------------

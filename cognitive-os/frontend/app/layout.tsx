@@ -50,60 +50,13 @@ export const viewport: Viewport = {
   viewportFit: "cover"
 };
 
-// Inlined into <head> as a blocking script so the responsive breakpoint
-// is reflected on <html data-cogos-viewport="..."> from the very first
-// paint, before React hydrates. Required so external test harnesses
-// (TestSprite, Playwright CDP) that swap viewport via
-// `Emulation.setDeviceMetricsOverride` immediately see a DOM signal even
-// if the hydration cycle hasn't run yet. The same logic re-runs every
-// 200ms as a safety net and on every resize/orientation/visualViewport
-// event we can observe.
-const RESPONSIVE_BOOT_SCRIPT = `
-(function () {
-  try {
-    var BP = 920;
-    var root = document.documentElement;
-    function measure() {
-      var widths = [
-        window.innerWidth || Infinity,
-        (window.visualViewport && window.visualViewport.width) || Infinity,
-        root.clientWidth || Infinity,
-        (document.body && document.body.clientWidth) || Infinity
-      ];
-      var minW = Math.min.apply(null, widths);
-      var mode = minW <= BP ? "mobile" : "desktop";
-      if (root.getAttribute("data-cogos-viewport") !== mode) {
-        root.setAttribute("data-cogos-viewport", mode);
-      }
-    }
-    measure();
-    window.addEventListener("resize", measure, { passive: true });
-    window.addEventListener("orientationchange", measure, { passive: true });
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener("resize", measure, { passive: true });
-    }
-    setInterval(measure, 200);
-  } catch (e) {
-    /* keep boot resilient: if anything fails we just leave the desktop default */
-  }
-})();
-`;
-
 export default function RootLayout({
   children
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="es"
-      data-theme="dark"
-      data-cogos-viewport="desktop"
-      className={`${inter.variable} ${jetbrainsMono.variable}`}
-    >
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: RESPONSIVE_BOOT_SCRIPT }} />
-      </head>
+    <html lang="es" data-theme="dark" className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <body>
         <ErrorBoundary>{children}</ErrorBoundary>
       </body>

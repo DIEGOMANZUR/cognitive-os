@@ -55,23 +55,6 @@ export function AuditView({ client }: { client: ApiClient }) {
           </thead>
           <tbody>
             {audit.error && filtered.length === 0 && (
-              <tr aria-label="Audit error placeholder row">
-                <td className="small muted">—</td>
-                <td>—</td>
-                <td>
-                  <code>audit.unavailable</code>
-                </td>
-                <td>
-                  <span className="muted small">audit</span>
-                </td>
-                <td>
-                  <pre style={{ margin: 0, maxHeight: 120 }}>
-{JSON.stringify({ error: audit.error }, null, 2)}
-                  </pre>
-                </td>
-              </tr>
-            )}
-            {audit.error && filtered.length === 0 && (
               <tr>
                 <td colSpan={5}>
                   <ErrorPanel error={audit.error} onRetry={() => void audit.refetch()} />
@@ -79,51 +62,9 @@ export function AuditView({ client }: { client: ApiClient }) {
               </tr>
             )}
             {audit.loading && filtered.length === 0 && !audit.error && (
-              <tr aria-label="Audit loading placeholder row">
-                <td className="small muted">—</td>
-                <td>—</td>
-                <td>
-                  <code>audit.loading</code>
-                </td>
-                <td>
-                  <span className="muted small">audit</span>
-                </td>
-                <td>
-                  <pre style={{ margin: 0, maxHeight: 120 }}>
-{JSON.stringify({ status: "loading" }, null, 2)}
-                  </pre>
-                </td>
-              </tr>
-            )}
-            {audit.loading && filtered.length === 0 && !audit.error && (
               <tr>
                 <td colSpan={5}>
                   <Skeleton rows={4} />
-                </td>
-              </tr>
-            )}
-            {!audit.loading && !audit.error && filtered.length === 0 && (
-              <tr aria-label="Audit empty placeholder row">
-                <td className="small muted">—</td>
-                <td>—</td>
-                <td>
-                  <code>audit.empty</code>
-                </td>
-                <td>
-                  <span className="muted small">audit</span>
-                </td>
-                <td>
-                  <pre style={{ margin: 0, maxHeight: 120 }}>
-{JSON.stringify(
-                      {
-                        filter,
-                        message:
-                          "Sin eventos visibles para el filtro actual; la API respondió correctamente."
-                      },
-                      null,
-                      2
-                    )}
-                  </pre>
                 </td>
               </tr>
             )}

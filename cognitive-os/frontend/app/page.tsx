@@ -300,85 +300,24 @@ function App() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    // Two-way sync between the inline boot script (which stamps
-    // `html[data-cogos-viewport]` from the very first paint) and React.
-    // We trust whatever the boot script wrote — it has access to the
-    // freshest viewport metrics on every resize/poll — and just
-    // propagate the resolved breakpoint into React state so the
-    // conditional render of <aside> stays consistent with the attribute.
-    //
-    // A MutationObserver guarantees we react the same frame the boot
-    // script flips the attribute. As a belt-and-suspenders safeguard we
-    // also re-measure on every resize/orientation/visualViewport event
-    // (no React re-render unless the resolved value actually changed)
-    // and re-sync every 200ms in case both the event AND the observer
-    // somehow get throttled by the headless harness.
-    const root = document.documentElement;
+    // Standard responsive breakpoint detection: subscribe to the same
+    // signals the browser uses for @media (matchMedia + resize +
+    // visualViewport for software-keyboard / pinch-zoom corrections),
+    // and trust matchMedia as the source of truth. No polling, no
+    // observer — `<aside>` is conditionally unmounted from React when
+    // the breakpoint flips, matching the @media rules in globals.css.
     const mq = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX}px)`);
-    const measure = (): boolean => {
-      const widths = [
-        mq.matches ? MOBILE_BREAKPOINT_PX : Number.POSITIVE_INFINITY,
-        window.innerWidth || Number.POSITIVE_INFINITY,
-        window.visualViewport?.width ?? Number.POSITIVE_INFINITY,
-        document.documentElement?.clientWidth ?? Number.POSITIVE_INFINITY,
-        document.body?.clientWidth ?? Number.POSITIVE_INFINITY
-      ];
-      return Math.min(...widths) <= MOBILE_BREAKPOINT_PX;
-    };
-    const sync = () => {
-      const next = measure();
-      const desired = next ? "mobile" : "desktop";
-      if (root.getAttribute("data-cogos-viewport") !== desired) {
-        root.setAttribute("data-cogos-viewport", desired);
-      }
-      // React-side state — only triggers a re-render when the resolved
-      // value actually changes thanks to the useState reducer dedupe.
-      setIsMobile(next);
-    };
-    // Pick up whatever the boot script measured BEFORE React hydrated.
-    const initialAttr = root.getAttribute("data-cogos-viewport");
-    if (initialAttr === "mobile") setIsMobile(true);
+    const sync = () => setIsMobile(mq.matches);
     sync();
     mq.addEventListener("change", sync);
-    window.addEventListener("resize", sync);
     window.addEventListener("orientationchange", sync);
     window.visualViewport?.addEventListener("resize", sync);
-    const poll = window.setInterval(sync, 200);
-    let resizeObserver: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== "undefined") {
-      resizeObserver = new ResizeObserver(sync);
-      resizeObserver.observe(document.documentElement);
-      if (document.body) resizeObserver.observe(document.body);
-    }
-    // Observe attribute mutations on <html> so an external script — or
-    // the boot script polling at a different cadence — that flips the
-    // viewport attribute also updates React state.
-    const attrObserver = new MutationObserver(() => {
-      const attr = root.getAttribute("data-cogos-viewport");
-      if (attr === "mobile") setIsMobile(true);
-      else if (attr === "desktop") setIsMobile(false);
-    });
-    attrObserver.observe(root, { attributes: true, attributeFilter: ["data-cogos-viewport"] });
     return () => {
       mq.removeEventListener("change", sync);
-      window.removeEventListener("resize", sync);
       window.removeEventListener("orientationchange", sync);
       window.visualViewport?.removeEventListener("resize", sync);
-      window.clearInterval(poll);
-      resizeObserver?.disconnect();
-      attrObserver.disconnect();
     };
   }, []);
-
-  // Reflect the active tab onto <html> on every change so external
-  // observers (TestSprite, Playwright snapshots) have a synchronously-
-  // readable signal that survives React re-render timing. Sidebar
-  // clicks, command palette picks, hotkeys and PWA deep-links all hit
-  // setTab → this effect → DOM attribute, in that order.
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    document.documentElement.setAttribute("data-cogos-active-view", tab);
-  }, [tab]);
 
   const client = useMemo(() => new ApiClient(apiBase, token), [apiBase, token]);
 
@@ -518,38 +457,29 @@ function App() {
     const targetTab = TAB_HOTKEYS[numericKey];
     if (!targetTab) return;
     event.preventDefault();
-    event.stopPropagation();
     setPaletteOpen(false);
     setDrawerOpen(false);
     setNotifOpen(false);
     setTab(targetTab);
-    // Synchronously mirror the active tab onto <html> so any external
-    // observer (TestSprite, Playwright, Selenium) sees the new view
-    // marker in the same animation frame as the React re-render,
-    // without waiting for layout to settle.
-    document.documentElement.setAttribute("data-cogos-active-view", targetTab);
     window.requestAnimationFrame(() => {
       document.getElementById("cogos-main")?.focus({ preventScroll: true });
     });
   });
 
   const showDrawer = drawerOpen;
-  // On the mobile breakpoint we *unmount* the <aside> (rather than
-  // hiding it with CSS) so external test harnesses that probe the DOM
-  // see a real structural change between desktop and tablet/mobile
-  // viewports. Until React has hydrated we mirror the SSR markup
-  // (desktop) so there is no hydration mismatch — the responsive
-  // useEffect picks up the actual breakpoint within the next paint and
-  // re-renders without the sidebar if the viewport is below 920px.
+  // On the mobile breakpoint the sidebar collapses into a drawer
+  // triggered by the hamburger button. We *unmount* the <aside>
+  // (rather than hiding it with CSS) so the focus order, screen reader
+  // tree, and any automated DOM observer see a real structural change.
+  // SSR renders the desktop sidebar; the responsive useEffect updates
+  // isMobile on hydration and re-renders without it when the viewport
+  // is below 920px.
   const renderSidebarShell = !hydrated || !isMobile || showDrawer;
-  const resolvedViewport = hydrated && isMobile ? "mobile" : "desktop";
 
   return (
     <main
       className={`shell${hydrated && isMobile ? " shell--mobile" : ""}`}
       data-cogos-active-tab={tab}
-      data-cogos-active-view={tab}
-      data-cogos-viewport={resolvedViewport}
     >
       <a href="#cogos-main" className="skip-link">
         Saltar al contenido principal
@@ -656,7 +586,10 @@ function App() {
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
-        onSelectTab={(t) => setTab(t)}
+        onSelectTab={(t) => {
+          setTab(t);
+          setPaletteOpen(false);
+        }}
         extraActions={extraActions}
       />
       <NotificationCenter
