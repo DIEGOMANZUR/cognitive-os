@@ -10,7 +10,7 @@
      or any subscribed event.
 */
 
-const CACHE_VERSION = "cogos-v2026-05-26-testsprite-fixes";
+const CACHE_VERSION = "cogos-v2026-05-26b-testsprite-hardening";
 const SHELL_ASSETS = [
   "/",
   "/manifest.webmanifest",

@@ -102,6 +102,62 @@ type LocalTokenResponse = {
 const AUTO_TOKEN_REFRESH_SKEW_MS = 5 * 60 * 1000;
 const LOCAL_TOKEN_TIMEOUT_MS = 10000;
 const URL_TOKEN_HASH_KEYS = ["cogos_token", "token", "jwt"];
+const MOBILE_BREAKPOINT_PX = 920;
+
+const TAB_HOTKEYS: Record<string, Tab> = {
+  "1": "dashboard",
+  "2": "chat",
+  "3": "agents",
+  "4": "documentAnalysis",
+  "5": "jobs",
+  "6": "approvals",
+  "7": "langsmith",
+  "8": "audit",
+  "9": "health"
+};
+
+/**
+ * Derive a "1"-"9" numeric hotkey from any KeyboardEvent shape.
+ *
+ * Browsers, Playwright, CDP and TestSprite synthesise key events with
+ * slightly different fields populated. Some only fill `key`, others only
+ * `code`, and the deprecated `keyCode` still leaks through some headless
+ * paths. Reading all three guarantees a Numpad/Top-row digit on any
+ * keyboard layout reaches the same dispatcher.
+ */
+function extractNumericHotkey(event: KeyboardEvent): string | null {
+  if (event.key && /^[1-9]$/.test(event.key)) return event.key;
+  const code = event.code ?? "";
+  const codeMatch = /^(?:Digit|Numpad)([1-9])$/.exec(code);
+  if (codeMatch) return codeMatch[1];
+  const legacyKeyCode = (event as KeyboardEvent & { keyCode?: number }).keyCode;
+  if (typeof legacyKeyCode === "number") {
+    if (legacyKeyCode >= 49 && legacyKeyCode <= 57) return String(legacyKeyCode - 48); // top row
+    if (legacyKeyCode >= 97 && legacyKeyCode <= 105) return String(legacyKeyCode - 96); // numpad
+  }
+  return null;
+}
+
+/**
+ * True only for an actively-writable text surface. Buttons, anchors,
+ * sections with `tabIndex=-1` (our SPA shell focus target), and the
+ * sidebar tabs are not considered editable, so a hotkey fired while one
+ * of them holds focus still navigates.
+ */
+function isTypingTarget(node: EventTarget | Element | null): boolean {
+  if (!(node instanceof Element)) return false;
+  const tag = node.tagName.toLowerCase();
+  if (tag === "textarea") return !(node as HTMLTextAreaElement).readOnly;
+  if (tag === "select") return true;
+  if (tag === "input") {
+    const input = node as HTMLInputElement;
+    if (input.readOnly) return false;
+    const type = (input.type || "text").toLowerCase();
+    return ["text", "search", "email", "url", "tel", "number", "password", "date", "datetime-local", "time", "month", "week"].includes(type);
+  }
+  const editable = node.closest("[contenteditable='true']");
+  return Boolean(editable);
+}
 
 export default function Home() {
   return (
@@ -244,21 +300,56 @@ function App() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(max-width: 920px)");
-    const update = () => {
-      const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
-      setIsMobile(mq.matches || viewportWidth <= 920);
+    // Responsive detection is intentionally aggressive: any of
+    // matchMedia, window.innerWidth, document.documentElement.clientWidth,
+    // visualViewport.width can race during a programmatic viewport swap
+    // (CDP setDeviceMetricsOverride, Playwright `page.setViewportSize`).
+    // We sample every 200ms AND subscribe to every resize source so a
+    // viewport change is reflected in <1 frame on any reasonable browser
+    // and in <250ms even on headless emulation paths.
+    const mq = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX}px)`);
+    const measure = (): boolean => {
+      const widths = [
+        mq.matches ? MOBILE_BREAKPOINT_PX : Number.POSITIVE_INFINITY,
+        window.innerWidth || Number.POSITIVE_INFINITY,
+        window.visualViewport?.width ?? Number.POSITIVE_INFINITY,
+        document.documentElement?.clientWidth ?? Number.POSITIVE_INFINITY,
+        document.body?.clientWidth ?? Number.POSITIVE_INFINITY
+      ];
+      const minWidth = Math.min(...widths);
+      return minWidth <= MOBILE_BREAKPOINT_PX;
     };
-    update();
-    mq.addEventListener("change", update);
-    window.addEventListener("resize", update);
-    window.visualViewport?.addEventListener("resize", update);
-    const poll = window.setInterval(update, 750);
+    const apply = () => {
+      const next = measure();
+      setIsMobile(next);
+      // Mirror the resolved breakpoint onto the <html> element so external
+      // harnesses (and CSS rules that need to react before React
+      // re-renders) have a synchronously-readable signal.
+      const root = document.documentElement;
+      const desired = next ? "mobile" : "desktop";
+      if (root.getAttribute("data-cogos-viewport") !== desired) {
+        root.setAttribute("data-cogos-viewport", desired);
+      }
+    };
+    apply();
+    mq.addEventListener("change", apply);
+    window.addEventListener("resize", apply);
+    window.addEventListener("orientationchange", apply);
+    window.visualViewport?.addEventListener("resize", apply);
+    const poll = window.setInterval(apply, 200);
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(apply);
+      observer.observe(document.documentElement);
+      if (document.body) observer.observe(document.body);
+    }
     return () => {
-      mq.removeEventListener("change", update);
-      window.removeEventListener("resize", update);
-      window.visualViewport?.removeEventListener("resize", update);
+      mq.removeEventListener("change", apply);
+      window.removeEventListener("resize", apply);
+      window.removeEventListener("orientationchange", apply);
+      window.visualViewport?.removeEventListener("resize", apply);
       window.clearInterval(poll);
+      observer?.disconnect();
     };
   }, []);
 
@@ -383,47 +474,30 @@ function App() {
       setNotifOpen(false);
       return;
     }
-    // Tab hotkeys: support both event.key ("3") and event.code ("Digit3")
-    // so external test harnesses (Playwright, TestSprite) that synthesise
-    // keystrokes by code, by key, or via keyboard-layout-dependent paths
-    // all reach the same handler. Pressing a numeric hotkey while focus is
-    // inside an editable element should not steal the keystroke — but if
-    // focus is on a button/link/section, the hotkey navigates.
-    const codeDigit = /^Digit([1-9])$/.exec(event.code ?? "")?.[1];
-    const keyDigit = /^([1-9])$/.test(event.key) ? event.key : null;
-    const numericKey = keyDigit ?? codeDigit ?? null;
-    if (!numericKey) return;
-    // Ignore numeric keys with modifiers (Ctrl+1 / Alt+1 / etc.) so we
-    // never collide with browser tab-switching shortcuts.
+    // Tab hotkeys: derive the numeric key from event.key, event.code, and
+    // event.keyCode so any input path (physical keyboard, on-screen
+    // keyboard, CDP `Input.dispatchKeyEvent`, Playwright/TestSprite
+    // synthetic events) reaches the same handler regardless of keyboard
+    // layout. If anything looks like 1-9 unmodified, treat it as a tab
+    // hotkey.
     if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
-    const target = event.target as HTMLElement | null;
-    const active = document.activeElement as HTMLElement | null;
-    const editable =
-      target?.closest("input, textarea, select, [contenteditable='true']") ??
-      active?.closest("input, textarea, select, [contenteditable='true']");
-    if (editable) return;
-    const tabHotkeys: Record<string, Tab> = {
-      "1": "dashboard",
-      "2": "chat",
-      "3": "agents",
-      "4": "documentAnalysis",
-      "5": "jobs",
-      "6": "approvals",
-      "7": "langsmith",
-      "8": "audit",
-      "9": "health"
-    };
-    const targetTab = tabHotkeys[numericKey];
-    if (targetTab) {
-      event.preventDefault();
-      setPaletteOpen(false);
-      setDrawerOpen(false);
-      setNotifOpen(false);
-      setTab(targetTab);
-      window.requestAnimationFrame(() => {
-        document.getElementById("cogos-main")?.focus({ preventScroll: true });
-      });
-    }
+    const numericKey = extractNumericHotkey(event);
+    if (!numericKey) return;
+    // Don't steal the keystroke from a real text input. We only respect
+    // *editable* elements (writable input/textarea/select or
+    // contenteditable surface). Buttons, sections, anchors with tabindex,
+    // and the focus-trap on the SPA shell never block the hotkey.
+    if (isTypingTarget(event.target) || isTypingTarget(document.activeElement)) return;
+    const targetTab = TAB_HOTKEYS[numericKey];
+    if (!targetTab) return;
+    event.preventDefault();
+    setPaletteOpen(false);
+    setDrawerOpen(false);
+    setNotifOpen(false);
+    setTab(targetTab);
+    window.requestAnimationFrame(() => {
+      document.getElementById("cogos-main")?.focus({ preventScroll: true });
+    });
   });
 
   const showDrawer = drawerOpen;
@@ -546,10 +620,7 @@ function App() {
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
-        onSelectTab={(t) => {
-          setTab(t);
-          setPaletteOpen(false);
-        }}
+        onSelectTab={(t) => setTab(t)}
         extraActions={extraActions}
       />
       <NotificationCenter
