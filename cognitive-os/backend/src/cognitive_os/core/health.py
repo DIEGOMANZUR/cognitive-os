@@ -135,7 +135,7 @@ async def check_health_dashboard(*, verify_live: bool = False) -> HealthDashboar
         _safe_check("kimi_webbridge", _check_webbridge()),
         _safe_check("captcha_solver", _check_captcha()),
         _safe_check("mail", _check_mail(verify_live=verify_live)),
-        _safe_check("mcp_client", _check_mcp()),
+        _safe_check("mcp_client", _check_mcp(verify_live=verify_live)),
         _safe_check("operational_backlog", _check_operational_backlog()),
     )
     component_list = list(components)
@@ -509,13 +509,19 @@ def _probe_godaddy_imap() -> bool:
             client.logout()
 
 
-async def _check_mcp() -> ComponentHealth:
-    """Report the MCP client wiring without live RPC calls.
+async def _check_mcp(*, verify_live: bool = False) -> ComponentHealth:
+    """Report the MCP client wiring.
 
-    Live connectivity is exposed by the dedicated `/system/mcp` endpoint
-    (which DOES dial every server). Here we only surface the parsed config
-    so `/health/dashboard` stays fast — matching the `mail` contract.
-    (Fase 74.)
+    Passive (`verify_live=False`): only surface the parsed config so
+    `/health/dashboard` stays fast — matching the `mail` contract. Live
+    connectivity is still exposed by the dedicated `/system/mcp` endpoint.
+
+    Live (`verify_live=True`): dial every declared server via the same
+    `load_mcp_tools_async` path `/system/mcp` uses. This is what
+    `POST /health/verify` invokes so the overall dashboard can honestly
+    reach ``ok`` — previously ``mcp_client`` remained ``configured`` even
+    after a successful verify probe, so the dashboard overall could never
+    roll up to ``ok`` (F-P2-006 V2.0).
     """
     if not settings.enable_mcp_client:
         return ComponentHealth(
@@ -534,12 +540,70 @@ async def _check_mcp() -> ComponentHealth:
             detail="ENABLE_MCP_CLIENT=true but MCP_SERVERS declares no valid server.",
             metadata={"declared_servers": 0},
         )
+    if not verify_live:
+        return ComponentHealth(
+            name="mcp_client",
+            status="configured",
+            detail=(f"{len(specs)} MCP server(s) declared; live status at /system/mcp."),
+            metadata={
+                "declared_servers": len(specs),
+                "server_names": [s.name for s in specs],
+            },
+        )
+    from cognitive_os.integrations.mcp_client import load_mcp_tools_async
+
+    started = _now_ms()
+    try:
+        _tools, statuses = await asyncio.wait_for(
+            load_mcp_tools_async(settings),
+            timeout=settings.mcp_inventory_timeout_seconds,
+        )
+    except TimeoutError:
+        return ComponentHealth(
+            name="mcp_client",
+            status="degraded",
+            detail=(f"MCP live probe timed out after {settings.mcp_inventory_timeout_seconds:g}s."),
+            latency_ms=_elapsed_ms(started),
+            metadata={
+                "declared_servers": len(specs),
+                "server_names": [s.name for s in specs],
+            },
+        )
+    latency = _elapsed_ms(started)
+    connected = [s for s in statuses if s.connected]
+    if not connected:
+        first_error = statuses[0].error if statuses else None
+        return ComponentHealth(
+            name="mcp_client",
+            status="degraded",
+            detail=(
+                f"0/{len(statuses)} MCP server(s) connected — first error: "
+                f"{first_error or 'no probes'}"
+            ),
+            latency_ms=latency,
+            metadata={
+                "declared_servers": len(specs),
+                "connected_servers": 0,
+                "server_names": [s.name for s in specs],
+            },
+        )
+    tools_total = sum(int(s.tools_count or 0) for s in connected)
+    detail = (
+        f"{len(connected)}/{len(statuses)} MCP server(s) connected; {tools_total} tool(s) live."
+    )
+    # `ok` reflects "every declared server connected during this probe"; if
+    # only some connected we keep `configured` and surface the gap so the
+    # overall doesn't claim a clean green when servers silently dropped out.
+    status_value = "ok" if len(connected) == len(statuses) else "configured"
     return ComponentHealth(
         name="mcp_client",
-        status="configured",
-        detail=(f"{len(specs)} MCP server(s) declared; live status at /system/mcp."),
+        status=status_value,
+        detail=detail,
+        latency_ms=latency,
         metadata={
             "declared_servers": len(specs),
+            "connected_servers": len(connected),
+            "tools_total": tools_total,
             "server_names": [s.name for s in specs],
         },
     )
@@ -738,6 +802,13 @@ async def _safe_check(name: str, check: Awaitable[ComponentHealth]) -> Component
     # affect passive polling.
     if name in {"primary_llm", "embeddings"}:
         component_timeout = settings.health_llm_probe_timeout_seconds
+    elif name == "mcp_client":
+        # F-P2-006 V2.0: when /health/verify drives mcp_client live it dials
+        # every declared MCP server in parallel. The inner call already caps
+        # itself at `mcp_inventory_timeout_seconds` (default 30s). The outer
+        # wrapper must give it slightly more headroom so a slow stdio server
+        # doesn't trip a 3s false degraded over the real probe.
+        component_timeout = settings.mcp_inventory_timeout_seconds + 5.0
     else:
         component_timeout = settings.health_component_timeout_seconds
     try:

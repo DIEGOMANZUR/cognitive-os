@@ -41,7 +41,24 @@ async def test_run_endpoint_creates_job(monkeypatch: pytest.MonkeyPatch) -> None
         captured["args"] = args
         captured["kwargs"] = kwargs
 
+    # Regression F-P2-002: under hermetic stress the original test relied on
+    # the implicit `await session.get(Job, job_id)` inside
+    # `_record_celery_dispatch_outcome` short-circuiting on `None` (the fake
+    # `_create_document_analysis_job` returns a UUID without ever inserting a
+    # `Job` row). In `stress-qa.sh 5` we observed an intermittent failure (1/5)
+    # — when another test leaves DB connection pool saturation or transient
+    # backend latency, that session lookup can raise, the dispatch helper
+    # propagates 500 and the assertions never see `captured`. Patching the
+    # outcome recorder to a no-op makes the test deterministic about what it
+    # actually asserts: the API surface routes the request to the right Celery
+    # queue with the right payload. The full `_record_celery_dispatch_outcome`
+    # behaviour is exercised by `test_action_request_workers.py` and
+    # `test_integration_celery_jobs.py`.
+    async def fake_record_outcome(**kwargs: object) -> None:
+        del kwargs
+
     monkeypatch.setattr(api_app, "_create_document_analysis_job", fake_create_job)
+    monkeypatch.setattr(api_app, "_record_celery_dispatch_outcome", fake_record_outcome)
     monkeypatch.setattr(api_app.run_document_analysis_task_async, "apply_async", fake_apply_async)
 
     transport = httpx.ASGITransport(app=app)
@@ -52,7 +69,7 @@ async def test_run_endpoint_creates_job(monkeypatch: pytest.MonkeyPatch) -> None
             headers=_headers(),
         )
 
-    assert response.status_code == 202
+    assert response.status_code == 202, response.text
     assert response.json()["job_id"] == str(job_id)
     assert captured["kwargs"]["queue"] == "agent_longrun"
     assert captured["kwargs"]["args"][0]["task_id"] == "task-1"

@@ -15,7 +15,7 @@ from typing import Any, Literal, Protocol
 
 import httpx
 import structlog
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 from cognitive_os.core.config import Settings, settings
 from cognitive_os.core.google_oauth import (
@@ -64,8 +64,24 @@ class DriveStatus(BaseModel):
 
 
 class DriveSearchRequest(BaseModel):
+    """Body of POST /actions/drive/files.
+
+    F-P2-003 (Prompt 2 V2.0): the historic field name was ``max_results`` but
+    every other list endpoint in the cockpit uses ``limit``. The Prompt 2
+    sweep showed clients passing ``limit`` got the silent default of 20.
+    ``limit`` is now an accepted alias of ``max_results`` so both names work
+    while preserving the existing payloads.
+    """
+
+    model_config = {"populate_by_name": True}
+
     query: str = Field(default="", max_length=2000)
-    max_results: int = Field(default=20, ge=1, le=_MAX_RESULTS)
+    max_results: int = Field(
+        default=20,
+        ge=1,
+        le=_MAX_RESULTS,
+        validation_alias=AliasChoices("max_results", "limit"),
+    )
     search_mode: DriveSearchMode = "name"
     include_folders: bool = True
     mime_type: str | None = Field(default=None, max_length=200)

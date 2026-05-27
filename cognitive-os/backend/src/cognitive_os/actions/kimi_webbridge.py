@@ -82,6 +82,10 @@ class WebBridgeStatus(BaseModel):
     edge_devtools_running: bool = False
     allow_mutations: bool = False
     allowed_domain_count: int = 0
+    # True when KIMI_WEBBRIDGE_ALLOWED_DOMAINS contains '*' — operator opt-out of
+    # domain allow-list. Surfaced so the cockpit/audit can distinguish a single
+    # specific domain from a blanket wildcard.
+    wildcard_allow_all: bool = False
 
 
 class NavigateRequest(BaseModel):
@@ -839,6 +843,9 @@ class KimiWebBridgeService:
         url = self._settings.kimi_webbridge_url
         allow_mut = bool(self._settings.kimi_webbridge_allow_mutations)
         domain_count = len(self._settings.kimi_webbridge_allowed_domains)
+        wildcard_allow_all = any(
+            entry.strip() == "*" for entry in self._settings.kimi_webbridge_allowed_domains
+        )
         if not self._settings.enable_kimi_webbridge:
             devtools_probe = self._devtools_probe()
             if bool(devtools_probe.get("running")):
@@ -857,6 +864,7 @@ class KimiWebBridgeService:
                         edge_devtools_running=True,
                         allow_mutations=allow_mut,
                         allowed_domain_count=domain_count,
+                        wildcard_allow_all=wildcard_allow_all,
                     )
                 return WebBridgeStatus(
                     status="ready",
@@ -869,6 +877,7 @@ class KimiWebBridgeService:
                     edge_devtools_running=True,
                     allow_mutations=allow_mut,
                     allowed_domain_count=domain_count,
+                    wildcard_allow_all=wildcard_allow_all,
                 )
             return WebBridgeStatus(
                 status="disabled",
@@ -876,6 +885,7 @@ class KimiWebBridgeService:
                 daemon_url=url,
                 allow_mutations=allow_mut,
                 allowed_domain_count=domain_count,
+                wildcard_allow_all=wildcard_allow_all,
             )
         provider = self._resolve_provider()
         probe = provider.status_probe()
@@ -899,6 +909,7 @@ class KimiWebBridgeService:
                     edge_devtools_running=True,
                     allow_mutations=allow_mut,
                     allowed_domain_count=domain_count,
+                    wildcard_allow_all=wildcard_allow_all,
                 )
             return WebBridgeStatus(
                 status="ready",
@@ -911,6 +922,7 @@ class KimiWebBridgeService:
                 edge_devtools_running=True,
                 allow_mutations=allow_mut,
                 allowed_domain_count=domain_count,
+                wildcard_allow_all=wildcard_allow_all,
             )
         if running and not extension and self._wake_edge_profile():
             for _ in range(12):
@@ -936,6 +948,7 @@ class KimiWebBridgeService:
                         edge_devtools_running=True,
                         allow_mutations=allow_mut,
                         allowed_domain_count=domain_count,
+                        wildcard_allow_all=wildcard_allow_all,
                     )
                 return WebBridgeStatus(
                     status="ready",
@@ -948,6 +961,7 @@ class KimiWebBridgeService:
                     edge_devtools_running=True,
                     allow_mutations=allow_mut,
                     allowed_domain_count=domain_count,
+                    wildcard_allow_all=wildcard_allow_all,
                 )
             return WebBridgeStatus(
                 status="blocked",
@@ -963,6 +977,7 @@ class KimiWebBridgeService:
                 edge_devtools_running=devtools_running,
                 allow_mutations=allow_mut,
                 allowed_domain_count=domain_count,
+                wildcard_allow_all=wildcard_allow_all,
             )
         if not extension:
             if devtools_running:
@@ -981,6 +996,7 @@ class KimiWebBridgeService:
                         edge_devtools_running=True,
                         allow_mutations=allow_mut,
                         allowed_domain_count=domain_count,
+                        wildcard_allow_all=wildcard_allow_all,
                     )
                 return WebBridgeStatus(
                     status="ready",
@@ -993,6 +1009,7 @@ class KimiWebBridgeService:
                     edge_devtools_running=True,
                     allow_mutations=allow_mut,
                     allowed_domain_count=domain_count,
+                    wildcard_allow_all=wildcard_allow_all,
                 )
             return WebBridgeStatus(
                 status="blocked",
@@ -1009,6 +1026,7 @@ class KimiWebBridgeService:
                 edge_devtools_running=devtools_running,
                 allow_mutations=allow_mut,
                 allowed_domain_count=domain_count,
+                wildcard_allow_all=wildcard_allow_all,
             )
         if domain_count == 0:
             return WebBridgeStatus(
@@ -1025,6 +1043,7 @@ class KimiWebBridgeService:
                 edge_devtools_running=devtools_running,
                 allow_mutations=allow_mut,
                 allowed_domain_count=domain_count,
+                wildcard_allow_all=wildcard_allow_all,
             )
         return WebBridgeStatus(
             status="ready",
@@ -1037,6 +1056,7 @@ class KimiWebBridgeService:
             edge_devtools_running=devtools_running,
             allow_mutations=allow_mut,
             allowed_domain_count=domain_count,
+            wildcard_allow_all=wildcard_allow_all,
         )
 
     def _require_ready(self) -> None:

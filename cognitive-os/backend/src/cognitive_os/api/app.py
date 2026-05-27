@@ -1277,19 +1277,71 @@ def _safe_json(value: Any) -> Any:
     return jsonable_encoder(value)
 
 
+async def _resolve_chat_doc_ids(doc_ids: list[str] | None) -> list[str] | None:
+    """F-P2-004: reject /chat requests whose declared doc_ids are 100% unknown.
+
+    Without this guard the legal-route fallback inside LangGraph produces an
+    empty analysis with ``vacíos:1`` instead of an explicit error, which masks
+    typos and stale links. We only fail when *every* declared id is missing —
+    partial misses still go through so the operator sees the documents that
+    do exist alongside a structured warning in the analysis output.
+    """
+    if not doc_ids:
+        return doc_ids
+
+    requested = [d for d in doc_ids if d]
+    if not requested:
+        return doc_ids
+
+    parsed: list[UUID] = []
+    bad: list[str] = []
+    for raw in requested:
+        try:
+            parsed.append(UUID(raw))
+        except (ValueError, AttributeError):
+            bad.append(raw)
+    if bad and not parsed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "doc_ids contains no valid UUIDs.",
+                "invalid_doc_ids": bad,
+            },
+        )
+
+    if not parsed:
+        return doc_ids
+
+    async with session_scope() as session:
+        result = await session.execute(select(Document.id).where(Document.id.in_(parsed)))
+        found = {str(row[0]) for row in result.all()}
+
+    missing = [d for d in requested if d not in found]
+    if missing and not found:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "message": "None of the requested doc_ids exist in the local corpus.",
+                "missing_doc_ids": missing,
+            },
+        )
+    return doc_ids
+
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
     user: AuthenticatedUser = _auth_dependency,
 ) -> ChatResponse:
     thread_id = request.thread_id or str(uuid4())
+    doc_ids = await _resolve_chat_doc_ids(request.doc_ids)
     raw_result = await asyncio.to_thread(
         _api_graph.invoke,
         initial_state(
             request.message,
             thread_id=thread_id,
             user_id=user.user_id,
-            doc_ids=request.doc_ids,
+            doc_ids=doc_ids,
             case_id=request.case_id,
         ),
         config={"configurable": {"thread_id": thread_id}},
@@ -1493,6 +1545,21 @@ async def get_document_analysis_result(
     task_id: str,
     user: AuthenticatedUser = _auth_dependency,
 ) -> dict[str, Any]:
+    """Return the persisted Document Analysis summary for `task_id`.
+
+    V2-EVAL-001 (Prompt 5/6 V2.0): historically this endpoint returned only
+    `status`/`generated_files`/`warnings`. The frontend then asked for
+    `evidence_matrix.length`, `timeline.length`, `contradictions.length`
+    on the response, which were always absent — Prompt 5 reproduced this and
+    showed that the artifact downloaded via `/download/json` had 2 claims +
+    1 contradiction while this endpoint reported `evidence_matrix_count=0`.
+    That ``falso vacío'' would hide real legal evidence from the operator.
+
+    The response now mirrors what the persisted `DocumentAnalysisResult` row
+    actually carries: full evidence_matrix/timeline/contradictions/missing
+    plus the original metadata fields. Heavy embeddings are NOT included
+    here — chunk content stays in the artifact downloads.
+    """
     del user
     result = await DocumentAnalysisService().get_analysis_result(task_id)
     if result is None:
@@ -1502,8 +1569,18 @@ async def get_document_analysis_result(
         )
     return {
         "task_id": result.task_id,
+        "thread_id": result.thread_id,
         "status": result.status,
+        "executive_summary": result.executive_summary,
+        "evidence_matrix": [row.model_dump() for row in result.evidence_matrix],
+        "timeline": [event.model_dump() for event in result.timeline],
+        "contradictions": [item.model_dump() for item in result.contradictions],
+        "missing_evidence": [item.model_dump() for item in result.missing_evidence],
+        "draft_sections": result.draft_sections,
+        "citations": [citation.model_dump() for citation in result.citations],
+        "uncertainty_notes": result.uncertainty_notes,
         "generated_files": result.generated_files,
+        "available_artifacts": result.generated_files,
         "human_review_required": result.human_review_required,
         "warnings": result.warnings,
     }
@@ -2018,12 +2095,22 @@ async def get_job_events(
 
 @app.get("/approvals", response_model=list[ApprovalResponse])
 async def list_approvals(
+    limit: int = Query(default=100, ge=1, le=500),
     user: AuthenticatedUser = _auth_dependency,
 ) -> list[ApprovalResponse]:
+    """List recent human-approval rows, newest first.
+
+    F-P2-003 (Prompt 2 V2.0): historically this endpoint always returned a
+    hard-coded `LIMIT 100` regardless of the `?limit=` query string the
+    OpenAPI clients sent. The frontend Approvals view and external scripts
+    asking for a small page got 100 anyway. The clamp keeps the default at
+    100 (the prior implicit contract) but honours the parameter within
+    `[1, 500]`.
+    """
     del user
     async with session_scope() as session:
         result = await session.execute(
-            select(HumanApproval).order_by(HumanApproval.created_at.desc()).limit(100)
+            select(HumanApproval).order_by(HumanApproval.created_at.desc()).limit(limit)
         )
         return [_approval_response(approval) for approval in result.scalars().all()]
 

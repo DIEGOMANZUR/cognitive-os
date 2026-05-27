@@ -125,6 +125,45 @@ def test_status_disabled_blocked_ready() -> None:
     ).status()
     assert ready.status == "ready"
     assert ready.allowed_domain_count == 1
+    # Regression F-P2-001: specific-domain status must NOT advertise wildcard.
+    assert ready.wildcard_allow_all is False
+
+
+def test_status_flags_wildcard_allow_all_when_star_is_configured() -> None:
+    """Regression F-P2-001: KIMI_WEBBRIDGE_ALLOWED_DOMAINS='*' is the documented
+    operator opt-out of the per-host allow-list, but the cockpit/audit must be
+    able to distinguish a specific 1-domain configuration from a blanket
+    wildcard. The Prompt 2 sweep showed allowed_domain_count=1 with a wildcard
+    underneath, which was misleading for the operator. wildcard_allow_all=True
+    surfaces the wildcard explicitly without printing the underlying value."""
+    wildcard = KimiWebBridgeService(
+        provider=FakeWebBridgeProvider(),
+        app_settings=_settings(domains=["*"]),
+    ).status()
+    assert wildcard.status == "ready"
+    assert wildcard.allowed_domain_count == 1
+    assert wildcard.wildcard_allow_all is True
+
+    specific = KimiWebBridgeService(
+        provider=FakeWebBridgeProvider(),
+        app_settings=_settings(domains=["doctormanzur.com"]),
+    ).status()
+    assert specific.allowed_domain_count == 1
+    assert specific.wildcard_allow_all is False
+
+    multiple = KimiWebBridgeService(
+        provider=FakeWebBridgeProvider(),
+        app_settings=_settings(domains=["doctormanzur.com", "google.com"]),
+    ).status()
+    assert multiple.allowed_domain_count == 2
+    assert multiple.wildcard_allow_all is False
+
+    mixed = KimiWebBridgeService(
+        provider=FakeWebBridgeProvider(),
+        app_settings=_settings(domains=["doctormanzur.com", "*"]),
+    ).status()
+    assert mixed.allowed_domain_count == 2
+    assert mixed.wildcard_allow_all is True
 
 
 def test_status_uses_edge_devtools_when_kimi_extension_is_disconnected() -> None:

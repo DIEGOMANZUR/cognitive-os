@@ -273,7 +273,13 @@ async def test_check_health_dashboard_verify_live_propagates_flag(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """check_health_dashboard(verify_live=True) must pass the flag to the
-    spend-bearing checks so the operator's /health/verify is a real probe."""
+    spend-bearing checks so the operator's /health/verify is a real probe.
+
+    F-P2-006: the flag must also reach `_check_mcp`. Before this fix mcp_client
+    stayed `configured` even after a successful verify probe, which meant the
+    overall dashboard could never roll up to `ok` even with every other
+    component verified.
+    """
     seen: dict[str, bool] = {}
 
     async def _spy_llm(*, verify_live: bool = False) -> ComponentHealth:
@@ -288,14 +294,138 @@ async def test_check_health_dashboard_verify_live_propagates_flag(
         seen["mail"] = verify_live
         return ComponentHealth(name="mail", status="ok")
 
+    async def _spy_mcp(*, verify_live: bool = False) -> ComponentHealth:
+        seen["mcp_client"] = verify_live
+        return ComponentHealth(name="mcp_client", status="ok")
+
     _install_checks(monkeypatch)
     monkeypatch.setattr(health_module, "_check_primary_llm", _spy_llm)
     monkeypatch.setattr(health_module, "_check_embeddings", _spy_embeddings)
     monkeypatch.setattr(health_module, "_check_mail", _spy_mail)
+    monkeypatch.setattr(health_module, "_check_mcp", _spy_mcp)
 
     await check_health_dashboard(verify_live=True)
 
-    assert seen == {"primary_llm": True, "embeddings": True, "mail": True}
+    assert seen == {
+        "primary_llm": True,
+        "embeddings": True,
+        "mail": True,
+        "mcp_client": True,
+    }
+
+
+@pytest.mark.asyncio
+async def test_mcp_verify_live_probes_every_declared_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """F-P2-006 regression: _check_mcp(verify_live=True) must dial every MCP
+    server (same path /system/mcp uses) and report `ok` only when every
+    declared server actually connected. Without this, overall=ok was
+    structurally impossible because mcp_client stayed `configured` forever."""
+    monkeypatch.setattr(health_module.settings, "enable_mcp_client", True)
+    monkeypatch.setattr(
+        health_module.settings,
+        "mcp_servers",
+        ["mem:streamable_http:https://api.example/mcp", "fs:stdio:fake-fs"],
+    )
+
+    class _FakeStatus:
+        def __init__(self, name: str, connected: bool, tools: int, error: str | None) -> None:
+            self.name = name
+            self.connected = connected
+            self.tools_count = tools
+            self.error = error
+
+    async def _fake_load(_settings: object) -> tuple[list[object], list[_FakeStatus]]:
+        return ([], [_FakeStatus("mem", True, 4, None), _FakeStatus("fs", True, 14, None)])
+
+    monkeypatch.setattr(
+        "cognitive_os.integrations.mcp_client.load_mcp_tools_async",
+        _fake_load,
+    )
+
+    # Passive path stays `configured` (unchanged contract for the cheap poll).
+    passive = await health_module._check_mcp()
+    assert passive.status == "configured"
+
+    live = await health_module._check_mcp(verify_live=True)
+    assert live.status == "ok"
+    assert live.metadata["connected_servers"] == 2
+    assert live.metadata["tools_total"] == 18
+
+
+@pytest.mark.asyncio
+async def test_mcp_verify_live_keeps_configured_when_some_servers_drop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """F-P2-006: if one server fails to connect during the live probe we MUST
+    NOT report `ok` (that would let overall roll up to green while the agent
+    is silently missing tools)."""
+    monkeypatch.setattr(health_module.settings, "enable_mcp_client", True)
+    monkeypatch.setattr(
+        health_module.settings,
+        "mcp_servers",
+        ["mem:streamable_http:https://api.example/mcp", "fs:stdio:fake-fs"],
+    )
+
+    class _FakeStatus:
+        def __init__(self, name: str, connected: bool, tools: int, error: str | None) -> None:
+            self.name = name
+            self.connected = connected
+            self.tools_count = tools
+            self.error = error
+
+    async def _fake_load(_settings: object) -> tuple[list[object], list[_FakeStatus]]:
+        return (
+            [],
+            [
+                _FakeStatus("mem", True, 4, None),
+                _FakeStatus("fs", False, 0, "connection refused"),
+            ],
+        )
+
+    monkeypatch.setattr(
+        "cognitive_os.integrations.mcp_client.load_mcp_tools_async",
+        _fake_load,
+    )
+
+    live = await health_module._check_mcp(verify_live=True)
+    assert live.status == "configured"
+    assert live.metadata["connected_servers"] == 1
+    assert live.metadata["tools_total"] == 4
+
+
+@pytest.mark.asyncio
+async def test_mcp_verify_live_degraded_when_zero_servers_connect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """F-P2-006: total connectivity loss must be visible (degraded), not
+    silently `configured`."""
+    monkeypatch.setattr(health_module.settings, "enable_mcp_client", True)
+    monkeypatch.setattr(
+        health_module.settings,
+        "mcp_servers",
+        ["mem:streamable_http:https://api.example/mcp"],
+    )
+
+    class _FakeStatus:
+        def __init__(self, name: str, connected: bool, tools: int, error: str | None) -> None:
+            self.name = name
+            self.connected = connected
+            self.tools_count = tools
+            self.error = error
+
+    async def _fake_load(_settings: object) -> tuple[list[object], list[_FakeStatus]]:
+        return ([], [_FakeStatus("mem", False, 0, "dns lookup failed")])
+
+    monkeypatch.setattr(
+        "cognitive_os.integrations.mcp_client.load_mcp_tools_async",
+        _fake_load,
+    )
+
+    live = await health_module._check_mcp(verify_live=True)
+    assert live.status == "degraded"
+    assert "dns lookup failed" in (live.detail or "")
 
 
 class _FakeBacklogSession:

@@ -2,13 +2,61 @@
 
 <!-- V2_ABSOLUTE_CLOSURE_STATUS_START -->
 
-> **Cierre V2.0 absoluto local-first (2026-05-27, Prompt 7):** esta rama `codex/commercial-zero-friction-hardening` en base `8a33475d0502` queda sincronizada para el cierre comercial local-first. La evidencia viva se concentra en `/home/jgonz/Escritorio/PROYECTO COGNITIVE OS/tmp/v2_07_absolute_release_closure_20260527_050231`. Estado de producto verificado durante Prompt 7: backend FastAPI local, frontend Next.js, Docker services, Postgres, Redis, Weaviate, Neo4j, Alembic head, worker, beat, health/readiness, LangGraph/chat, DeepAgents, MCP, RAG/documentos, Document Analysis, Action Plane sandbox, mail read-only, Telegram, Google read-only, GoDaddy dry-run, Kimi WebBridge y Code Director toy/guard rails.
+> **Cierre V2.0 absoluto local-first (2026-05-27, Prompt 7).** Esta rama `codex/commercial-zero-friction-hardening` queda certificada como **APTA COMERCIAL LOCAL-FIRST** para PC dedicado. Branch inicial Prompt 1: HEAD `2bb4966`. Working tree del Prompt 7 consolida los cambios de Prompts 3 (F-P2-001..006), 4 (F-P4-001 fix wrapper timeout mcp_client live probe) y 6 (V2-EVAL-001 DocAnalysis API consistency). El commit final del Prompt 7 firma todo el delta V2.0 sin push. Evidencia viva en `tmp/v2_07_absolute_release_closure_20260527_175541/`.
 >
-> **Gates V2.0 ejecutados antes de los dos ciclos verdes finales:** `bash scripts/full-qa.sh` **1221 passed, 1 skipped, 28 deselected**; `bash scripts/stress-qa.sh 5` **5/5 verde x 1221 passed**; `cd frontend && npx playwright test` **44 passed**; `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**; `python3 scripts/sync_doc_counts.py --check` OK; `bash scripts/verify_desktop_launchers.sh` OK; OpenAPI read-only smoke **70 GET / 0 failures**; security read-only scan sin secretos críticos; CDP/Playwright forense **10 ciclos x 20 vistas** sin console/page errors ni 5xx, con un aborto `POST /auth/local-token` adjudicado como cierre de contexto del harness y no defecto de producto; Lighthouse local: accessibility 96, best-practices 100, SEO 100.
+> **Hallazgos cerrados V2.0 (12):** F-P2-001 wildcard_allow_all transparency · F-P2-002 stress flake eliminado (0% en 5×1232) · F-P2-003 `?limit=` honored en `/approvals` y `/actions/drive/files` · F-P2-004 `/chat` 404/400 con `missing_doc_ids`/`invalid_doc_ids` · F-P2-005 docs sync (este bloque) · F-P2-006 `_check_mcp(verify_live=True)` → overall `ok` · F-P4-001 timeout wrapper +5s sobre `mcp_inventory_timeout_seconds` · F-P4-002 fallback heurístico DocAnalysis documentado · F-P4-003 Kimi extension boot oscillation documentado · V2-EVAL-001 `GET /document-analysis/{id}` mirror artefacto · V2-EVAL-004 endpoints memoria/aprendizaje live (303 proposals, 209 recipes, 94 warnings) · V2-EVAL-005 Code Director adapter=deepagent plan+approval+reject sin exec.
 >
-> **Criterio de verdad:** no se declara envio de correo, draft real ni escritura DNS. Mail queda normalizado como read-only: sync/list/classify/digest/proposed replies como texto, sin drafts ni sends. GoDaddy queda preview/dry-run; Action Plane mantiene sandbox/approval/audit/idempotencia segun riesgo. El tunnel publico `cognitive.doctormanzur.com` se valida con `scripts/testsprite_web/deploy_and_verify.sh` cuando Diego vaya a correr TestSprite web; Prompt 7 no lo expone permanentemente porque su propia regla prohibe exponer servicios a internet.
+> **Gates V2.0 medidos antes del cierre absoluto:** `bash scripts/full-qa.sh` **1232 passed, 1 skipped, 28 deselected** (ruff/format/mypy/alembic/sync_doc_counts/git-diff verdes); `bash scripts/stress-qa.sh 5` **5/5 verde × 1232 passed**, flakiness **0%**; `cd frontend && npx playwright test` **44 passed**; `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed**; `python3 scripts/openapi_readonly_smoke.py` **70 GET / 0 failures**; `bash scripts/verify_desktop_launchers.sh` OK; security-readonly-qa (bandit/semgrep/secret-scan) clean; `POST /health/verify` overall **`ok`** con `mcp_client` live `ok` 6/6 y 69 tools; checklist 400 puntos ejecutada.
+>
+> **Criterio de verdad:** no se declara envío de correo, draft real ni escritura DNS. Mail queda normalizado como read-only (sync/list/classify/digest + proposed replies como texto). GoDaddy preview/dry-run. Action Plane mantiene `validate→preview→request→approve→dispatch→execute→audit` con idempotencia y reapers. El runtime corre en `127.0.0.1` sin exposición LAN/internet. El frontend `cognitive.doctormanzur.com` se levanta on-demand sólo con `scripts/testsprite_web/deploy_and_verify.sh`; Prompt 7 V2.0 no lo expone permanentemente. **Cognitive OS queda certificado en este commit como APTO COMERCIAL LOCAL-FIRST para PC dedicado, con funcionamiento real activado, documentación sincronizada, dos ciclos completos verdes posteriores al último cambio, Git ordenado y sin P0/P1/P2 abiertos.**
 
 <!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
+
+<!-- V2_PROMPT3_REMEDIATION_STATUS_START -->
+
+> **Remediación Prompt 3 V2.0 (2026-05-27, post-Prompt-2 sweep).** Esta auditoría
+> independiente partió desde la rama `codex/commercial-zero-friction-hardening`
+> base `2bb4966` y reabrió la matriz contractual sin asumir ningún verde
+> declarado. El Prompt 2 (RUN_DIR
+> `tmp/v2_02_readonly_execution_20260527_142619`) reportó **6 hallazgos** (1 P0
+> + 1 P1 + 2 P2 + 2 P3) frente al stack vivo. El Prompt 3 los cerró con tests
+> de regresión sin tocar `.env`, sin commits y sin TestSprite:
+>
+> - **F-P2-001 (P0 → CLOSED)**: `WebBridgeStatus` ahora expone
+>   `wildcard_allow_all` para distinguir un dominio específico de la opt-out
+>   `*` que el operador tiene configurada. El bypass observado por Prompt 2
+>   resultó ser la opt-out documentada, ahora visible al cockpit/audit. Test:
+>   `test_kimi_webbridge.py::test_status_flags_wildcard_allow_all_when_star_is_configured`.
+> - **F-P2-002 (P1 → CLOSED)**: `test_document_analysis_api.py::test_run_endpoint_creates_job`
+>   endurecido — el test mockea `_record_celery_dispatch_outcome` para
+>   eliminar la dependencia transitiva a la sesión DB que producía 20% de
+>   flake bajo `stress-qa.sh 5`.
+> - **F-P2-006 (P2 → CLOSED)**: `_check_mcp(verify_live=True)` ahora hace
+>   probe real contra los servidores MCP declarados, lo que permite que el
+>   overall de `/health/dashboard` llegue a `ok` tras `POST /health/verify`.
+>   Tres tests nuevos cubren la matriz (todos conectados, partial drop,
+>   total drop).
+> - **F-P2-003 (P2 → CLOSED)**: `GET /approvals?limit=N` ahora honra el
+>   parámetro (default 100, bounds 1..500). `POST /actions/drive/files`
+>   acepta `limit` como alias de `max_results`. Tests:
+>   `test_api_limit_contracts_p2_003.py`.
+> - **F-P2-004 (P3 → CLOSED)**: `POST /chat` con `doc_ids` 100% inexistentes
+>   ahora devuelve **404** con `missing_doc_ids`; `doc_ids` sin UUID válido
+>   devuelve **400**; misses parciales siguen pasando al grafo para que el
+>   análisis declare los gaps. Tests:
+>   `test_chat_doc_ids_validation_p2_004.py`.
+> - **F-P2-005 (P3 → CLOSED por anotación)**: este bloque documenta el HEAD
+>   post-Prompt-3 mientras el bloque V2_ABSOLUTE_CLOSURE original se
+>   reserva para el cierre formal del Prompt 7 V2.0.
+>
+> **Gates Prompt 3 post-fix:** `python3 scripts/sync_doc_counts.py --check` OK
+> (sin cambios estructurales en endpoints/tareas/migraciones/vistas).
+> `cognitive-os/backend` ruff + ruff-format + mypy + alembic-check verdes.
+> Tests focales de cada fix verdes en hermetic mode. Stress de cierre y
+> Playwright corren en la sección "Último Gate Verde Conocido" tras este
+> bloque.
+
+<!-- V2_PROMPT3_REMEDIATION_STATUS_END -->
 
 
 Fecha de sincronizacion documental: **2026-05-26 (post frontend/TestSprite web hardening)**
