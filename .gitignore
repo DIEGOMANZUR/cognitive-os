@@ -1,69 +1,57 @@
+# --- Secrets & environment ---
 .env
 .env.*
 !.env.example
 !.env.local.example
+*.pem
+*.key
+
+# --- Python / Node build & cache artifacts ---
 .venv/
 node_modules/
-.opencode/node_modules/
-.opencode/package-lock.json
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
+
+# --- Runtime data (never source) ---
 data/
 models/
 storage/
 *.sqlite
 *.db
-*.pem
-*.key
+*.bak-*
 
-# OpenCode local overrides and ephemeral state
-opencode.local.json
-# Mantener la configuración real local fuera de commits; si se versiona una
-# plantilla, debe usar {env:VAR} y vivir en un archivo example saneado.
-opencode.json
-opencode.jsonc
-.antigravitycli/
-.opencode/local/
-memory-bank/
+# --- Session work logs (bitácora). Local working files, not product
+#     documentation — kept out of version control per AUDIT-2026-I. ---
 task_plan.local.md
 findings.local.md
 progress.local.md
-.codex-audit/
-*.bak-*
-
-# Session work logs (bitácora). Local working files, not product
-# documentation — kept out of version control per AUDIT-2026-I.
 cognitive-os/task_plan.md
 cognitive-os/findings.md
 cognitive-os/progress.md
-conversacion_recuperada_codex_claude.md
-sesion_14_15_mayo_completa.md
+
+# --- TestSprite generated suites (regenerated on demand) ---
 testsprite_tests/
 cognitive-os/frontend/testsprite_tests/
 
-# Project snapshots/backups are read-only recovery material, never source.
+# --- Project snapshots/backups are read-only recovery material, never source. ---
 cognitive-os-backup-*/
 cognitive-os-snapshot-*/
 
-# Audit/QA evidence is a local artifact tree: full-qa logs, playwright
-# traces/screenshots/videos, TestSprite raw reports, stress-qa runs.
-# The audit docs in docs/audits/testsprite/ reference these paths as
-# evidence-at-commit-time; the artifacts themselves are reproduced by
-# re-running the gates and stay out of version control.
+# --- Audit/QA evidence is a local artifact tree: full-qa logs, Playwright
+#     traces/screenshots/videos, TestSprite raw reports, stress-qa runs.
+#     The audit docs reference these paths as evidence-at-commit-time; the
+#     artifacts themselves are reproduced by re-running the gates. ---
 cognitive-os/test-results/
 
-# Read-only audit sandboxes (e.g. `tmp/commercial_audit_<timestamp>/`).
-# Contain the entregables of read-only audit passes (contract map, test
-# matrix, execution plan, final reports). Useful locally but not source
-# of truth — the canonical conclusions get folded into docs/.
+# --- Read-only audit sandboxes (e.g. `tmp/commercial_audit_<timestamp>/`).
+#     Local entregables of audit passes; canonical conclusions live in docs/. ---
 tmp/
 
-# Local tool settings can include machine-specific permissions or paths.
+# --- Local tool settings (machine-specific permissions or paths) ---
 **/.claude/settings.local.json
 **/.claude/scheduled_tasks.lock
 
-# Recovered transcripts may contain pasted credentials or private context.
+# --- Recovered transcripts may contain pasted credentials or private context. ---
 conversacion_recuperada_codex_claude.md
 sesion_14_15_mayo_completa.md
-.aider*
