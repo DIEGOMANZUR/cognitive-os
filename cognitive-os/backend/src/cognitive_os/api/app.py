@@ -2991,7 +2991,11 @@ def _drive_error_status(exc: DriveError) -> int:
     detail = str(exc).lower()
     if "not found" in detail:
         return status.HTTP_404_NOT_FOUND
-    if "local_path" in detail or "file_id must not be empty" in detail:
+    if (
+        "local_path" in detail
+        or "file_id must not be empty" in detail
+        or "file_id must match" in detail
+    ):
         return status.HTTP_400_BAD_REQUEST
     if "enable_google_drive" in detail or "no drive upload roots" in detail:
         return status.HTTP_409_CONFLICT
@@ -3013,7 +3017,19 @@ async def drive_files(
         ) from exc
 
 
-@app.get("/actions/drive/files/{file_id}", response_model=DriveFile)
+@app.get(
+    "/actions/drive/files/{file_id}",
+    response_model=DriveFile,
+    responses={
+        # F-P2-104: declare the 4xx surface explicitly. drive_get_file raises
+        # DriveError mapped via _drive_error_status() to 400/404/409/502.
+        400: {"description": "Malformed file_id (regex [A-Za-z0-9_.-]{1,200})."},
+        401: {"description": "Missing or invalid JWT."},
+        404: {"description": "File not found in Drive."},
+        409: {"description": "Drive integration disabled by feature flag."},
+        502: {"description": "Upstream Drive API error."},
+    },
+)
 async def drive_get_file(
     file_id: str,
     user: AuthenticatedUser = _auth_dependency,

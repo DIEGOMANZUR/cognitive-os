@@ -65,15 +65,25 @@ def _inspect_workers_snapshot() -> dict[str, Any]:
     worker is healthy. Commercial health only needs two hard facts here:
     expected task registration and consumed queues. Deeper job activity belongs
     in job/worker diagnostics, not in every frontend poll.
+
+    F-P2-105: open a *fresh* broker connection per call instead of reusing the
+    long-lived `celery_app.control` connection pool. The previous code held a
+    cached AMQP/Redis consumer that went stale after the Celery worker process
+    was killed and restarted (e.g., after a Postgres outage took workers down
+    and `dev_worker.sh` brought them back). Stale connections silently
+    swallowed broadcast replies and the dashboard reported `degraded` until
+    uvicorn was bounced. A fresh connection per poll costs a few ms of Redis
+    handshake but eliminates that operational footgun.
     """
-    inspector = celery_app.control.inspect(timeout=1.0)
-    return {
-        "registered": inspector.registered() or {},
-        "active_queues": inspector.active_queues() or {},
-        "active": {},
-        "reserved": {},
-        "scheduled": {},
-    }
+    with celery_app.connection_or_acquire() as conn:
+        inspector = celery_app.control.inspect(timeout=1.0, connection=conn)
+        return {
+            "registered": inspector.registered() or {},
+            "active_queues": inspector.active_queues() or {},
+            "active": {},
+            "reserved": {},
+            "scheduled": {},
+        }
 
 
 def _inspect_item_count(value: Any) -> int:

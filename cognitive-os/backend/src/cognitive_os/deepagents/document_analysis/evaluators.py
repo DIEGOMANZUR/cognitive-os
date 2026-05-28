@@ -82,6 +82,20 @@ def apply_quality_evaluation(
         result.human_review_required = True
         if result.status == "ok":
             result.status = "needs_human_review"
+    # V2-EVAL-202 (P3): reconcile top-level flag with item-level signals.
+    # A high-severity contradiction or any contradiction explicitly flagged
+    # needs_human_review must propagate to the top-level boolean so the
+    # frontend approval banner is shown. Previously the top-level flag only
+    # flipped on quality-score or draft conditions, which could hide
+    # individually severe items in artifacts that otherwise passed the score.
+    has_high_severity_contradiction = any(
+        getattr(c, "severity", "").lower() == "high" for c in result.contradictions
+    )
+    has_item_needs_review = any(
+        getattr(c, "needs_human_review", False) for c in result.contradictions
+    )
+    if has_high_severity_contradiction or has_item_needs_review:
+        result.human_review_required = True
     return result
 
 

@@ -89,6 +89,11 @@ class ComputerActionService:
                 raise ActionPolicyViolation("Computer actions are disabled.")
             roots = allowed_roots(self._settings)
             root = validate_path_inside_roots(Path(request.root_path), roots, label="computer")
+            if _is_sensitive_root(root):
+                # V2-EVAL-200: never plan moves under ~/.ssh, ~/.gnupg, etc.
+                raise ActionPolicyViolation(
+                    "Root path contains a sensitive marker (.ssh/.gnupg/credentials/...)."
+                )
             if not root.exists() or not root.is_dir():
                 raise ActionPolicyViolation("Root path does not exist or is not a directory.")
             operations = self._preview_moves(root, request)
@@ -156,6 +161,13 @@ class ComputerActionService:
         roots = allowed_roots(self._settings)
         try:
             root = validate_path_inside_roots(Path(plan.root_path), roots, label="computer")
+            if _is_sensitive_root(root):
+                # V2-EVAL-200: defense in depth — never execute a plan whose
+                # root resolves under a sensitive marker, even if it slipped
+                # past the planner (e.g. legacy ActionRequest from before fix).
+                raise ActionPolicyViolation(
+                    "Root path contains a sensitive marker (.ssh/.gnupg/credentials/...)."
+                )
         except ActionPolicyViolation as exc:
             return ComputerOrganizeExecutionResult(
                 status="blocked",
@@ -222,6 +234,11 @@ class ComputerActionService:
                 raise ActionPolicyViolation("Computer actions are disabled.")
             roots = allowed_roots(self._settings)
             root = validate_path_inside_roots(Path(request.root_path), roots, label="computer")
+            if _is_sensitive_root(root):
+                # V2-EVAL-200: do not enumerate ~/.ssh, ~/.gnupg, credentials dirs.
+                raise ActionPolicyViolation(
+                    "Root path contains a sensitive marker (.ssh/.gnupg/credentials/...)."
+                )
             if not root.exists() or not root.is_dir():
                 raise ActionPolicyViolation("Root path does not exist or is not a directory.")
             result = self._scan_inventory(root, request)
@@ -362,6 +379,21 @@ def _category_for(path: Path) -> str:
 
 def _is_sensitive_path(relative: Path) -> bool:
     parts = {part.casefold() for part in relative.parts}
+    return any(marker in parts for marker in SENSITIVE_PATH_MARKERS)
+
+
+def _is_sensitive_root(root: Path) -> bool:
+    """Return True if `root` (or any ancestor) is a sensitive directory.
+
+    V2-EVAL-200 (P1): `_is_sensitive_path(relative)` walks the path RELATIVE to
+    root, so passing `root_path=/home/jgonz/.ssh` would yield `id_ed25519` as a
+    relative path with no `.ssh` component and the per-entry check would let it
+    through. Guard the root itself with the same marker set, evaluating the
+    resolved absolute path so symlinks or `..` traversals cannot disguise the
+    leaf directory.
+    """
+    resolved = root.expanduser().resolve(strict=False)
+    parts = {part.casefold() for part in resolved.parts}
     return any(marker in parts for marker in SENSITIVE_PATH_MARKERS)
 
 

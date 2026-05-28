@@ -10,6 +10,7 @@ suite never touches Google.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
@@ -33,6 +34,12 @@ _DRIVE_UPLOAD = "https://www.googleapis.com/upload/drive/v3/files"
 _FILE_FIELDS = "id,name,mimeType,modifiedTime,size,webViewLink,owners(displayName),parents"
 _FOLDER_MIME = "application/vnd.google-apps.folder"
 _MAX_RESULTS = 100
+# Google Drive file/folder IDs are opaque URL-safe base64-like strings, typically
+# 25-44 chars of [A-Za-z0-9_-]. F-P2-103: a Schemathesis fuzz with non-ASCII +
+# control bytes reached httpx and raised httpx.InvalidURL (NOT httpx.HTTPError),
+# escaping our except clause and surfacing a 500. Reject input that cannot be a
+# real Drive ID before the HTTP call.
+_DRIVE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{1,200}$")
 DriveSearchMode = Literal["name", "full_text", "all"]
 DriveCorpus = Literal["user", "all_drives"]
 
@@ -707,6 +714,8 @@ class DriveService:
         cleaned = file_id.strip()
         if not cleaned:
             raise DriveError("file_id must not be empty.")
+        if not _DRIVE_ID_PATTERN.fullmatch(cleaned):
+            raise DriveError("file_id must match [A-Za-z0-9_.-]{1,200}.")
         self._require_ready()
         return self._resolve_provider().get_file(cleaned)
 
