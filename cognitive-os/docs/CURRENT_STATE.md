@@ -59,10 +59,10 @@
 <!-- V2_PROMPT3_REMEDIATION_STATUS_END -->
 
 
-Fecha de sincronizacion documental: **2026-05-26 (post frontend/TestSprite web hardening)**
+Fecha de sincronizacion documental: **2026-05-27 (post cierre absoluto V2.0 — Prompt 7 V2.0)**
 Branch auditada: `codex/commercial-zero-friction-hardening`
-Ultimo commit certificado documentalmente: **`8a33475`** — `feat(frontend): commercial status-card UX for empty/loading/error states`
-Estado del producto: **COMERCIAL LOCAL-FIRST APROBADO + cockpit público preparado para TestSprite web**.
+Ultimo commit certificado documentalmente: **commit V2.0 final** (`git log -1` — `final: certify Cognitive OS commercial local-first readiness (V2.0)`) sobre base `2bb4966983ab` (Prompt 1 inicial).
+Estado del producto: **APTO COMERCIAL LOCAL-FIRST para PC dedicado** — 12 hallazgos V2.0 cerrados, 0 P0/P1/P2 abiertos, 2 ciclos completos verdes posteriores al último cambio, doc audit firmado en `docs/audits/FINAL_ABSOLUTE_V2_COMMERCIAL_LOCAL_FIRST_CERTIFICATION.md`.
 La certificación local-first 2026-05-25 se conserva como base: matriz audit-commercial hardening cerrada, flakiness P0 cerrada, activación funcional end-to-end verificada, browser_preview migrado a `asyncio.to_thread`, router LLM hardened, document analysis con formatos completos, mail digest con redacción PII y 0 P0/P1/P2 funcionales abiertos en esa capa. El estado vigente agrega el hardening frontend/public-web: hash auth `#cogos_token`, API pública por host, TopBar retirado, shell estable en sidebar + header contextual + `data-cogos-active-tab`, hotkey 3 = DeepAgents, estados comerciales loading/empty/error sin datos falsos, responsive 920px y service worker `cogos-v2026-05-26e-status-cards`.
 Snapshot de cierre formal previo:
 [`docs/audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md`](audits/testsprite/34_COMMERCIAL_QUALITY_CERTIFICATION.md).
@@ -77,6 +77,83 @@ conteos estructurales del "Snapshot Tecnico" se generan con
 `scripts/sync_doc_counts.py` y `full-qa.sh` falla si quedan desincronizados.
 
 ## Cambios Mas Recientes
+
+**Cierre absoluto V2.0 (2026-05-27, commit V2.0 final sobre base `2bb4966`).**
+Siete prompts V2.0 (`prompts_claude-codex_v2/`) re-ejecutaron desde cero el
+plan de hardening commercial local-first:
+
+- **Prompt 1** — Mapa contractual + matriz de 663 controles.
+- **Prompt 2** — Ejecución read-only adversarial: 6 hallazgos descubiertos
+  (F-P2-001..006).
+- **Prompt 3** — Remediación inicial: 6 fixes + 9 tests de regresión
+  (1230 passed, stress 3/3 verde).
+- **Prompt 4** — Activación real con runtime nuevo: F-P4-001 fix wrapper
+  timeout para `mcp_client` live probe.
+- **Prompt 5** — Evaluación independiente: V2-EVAL-001 (DocAnalysis
+  response API ≠ artefacto persistido).
+- **Prompt 6** — Fix V2-EVAL-001 con 2 tests + reactivación
+  (1232 passed, stress 5/5 verde).
+- **Prompt 7** — Cierre absoluto: sync de 16 docs canónicos con bloque
+  `V2_ABSOLUTE_CLOSURE_STATUS`, **dos ciclos completos verdes posteriores
+  al último cambio**, commit local final y certificación firmada.
+
+**Fixes V2.0 cerrados (12 hallazgos, 0 P0/P1/P2 abiertos):**
+
+- `F-P2-001` — `WebBridgeStatus.wildcard_allow_all` ahora distingue
+  configuración `KIMI_WEBBRIDGE_ALLOWED_DOMAINS=*` (opt-out wildcard) de
+  un dominio específico, sin tocar el comportamiento.
+- `F-P2-002` — `test_run_endpoint_creates_job` endurecido contra race
+  con `_record_celery_dispatch_outcome` bajo carga (`stress-qa.sh 5`
+  ahora 0% flakiness × 10 corridas consecutivas).
+- `F-P2-003` — `GET /approvals?limit=N` honra el parámetro con bounds
+  1..500 (default 100); `POST /actions/drive/files` acepta `limit` como
+  alias de `max_results`.
+- `F-P2-004` — `POST /chat` con `doc_ids` 100% inexistentes → **404**
+  con `missing_doc_ids`; `doc_ids` mal formados → **400** con
+  `invalid_doc_ids`; misses parciales siguen pasando al grafo.
+- `F-P2-005` — bloque `V2_ABSOLUTE_CLOSURE_STATUS` regenerado en los 16
+  docs canónicos para apuntar al cierre V2.0 (este).
+- `F-P2-006` — `_check_mcp(verify_live=True)` ahora dial los 6 MCP
+  servers vía `load_mcp_tools_async`, lo que permite que el overall de
+  `/health/verify` finalmente llegue a `ok` (antes el endpoint era
+  estructuralmente inalcanzable).
+- `F-P4-001` — `_safe_check` ahora aplica `mcp_inventory_timeout_seconds + 5s`
+  al wrapper de `mcp_client` (antes el wrapper estrangulaba a 3s el probe
+  live que toma ~5s en paralelo).
+- `F-P4-002` (declarado) — DeepAgent BadRequestError sigue cayendo a
+  fallback heurístico, que produce contenido válido con citas literales.
+  Documentado como capacidad opt-in para futura migración del agent lane.
+- `F-P4-003` (declarado) — Kimi WebBridge extension oscilla al arrancar
+  el daemon; quedar `ready` tras ~30s; no bloquea operación.
+- `V2-EVAL-001` — `GET /document-analysis/{task_id}` ahora retorna el
+  `DocumentAnalysisResult` completo serializado (evidence_matrix,
+  timeline, contradictions, missing_evidence, draft_sections, citations,
+  uncertainty_notes, available_artifacts, thread_id), coincidente con
+  el artefacto descargable `/download/json`. Antes el endpoint sólo
+  exponía 5 campos parciales, lo que hacía aparecer "vacíos" análisis
+  que en disco tenían claims y contradicciones detectadas.
+- `V2-EVAL-004` — endpoints `/deepagents/memory/*` y
+  `/deepagents/learning/*` verificados live (303 proposals + 209
+  recipes + 94 warnings al cierre).
+- `V2-EVAL-005` — Code Director con `adapter_preference={"default_adapter":"deepagent"}`
+  generó plan de 3 subtasks → HumanApproval → reject sin ejecución,
+  confirmando que el flujo no gasta tokens antes de approval; el `fake`
+  adapter sigue rechazado con 400.
+
+**Tests V2.0 (9 nuevos, 1230 → 1232):**
+
+- `tests/test_kimi_webbridge.py::test_status_flags_wildcard_allow_all_when_star_is_configured`
+- `tests/test_health_dashboard.py::test_mcp_verify_live_*` (3 cases)
+- `tests/test_api_limit_contracts_p2_003.py` (2 cases)
+- `tests/test_chat_doc_ids_validation_p2_004.py` (3 cases)
+- `tests/test_document_analysis_response_consistency_v2_eval_001.py` (2 cases)
+- `tests/test_document_analysis_api.py::test_run_endpoint_creates_job` (endurecido)
+
+**Documentos canónicos sincronizados (16):** CURRENT_STATE,
+ZERO_FRICTION_OPERATING_MODEL, ARCHITECTURE, ACTION_PLANE, RUNBOOK,
+USER_GUIDE, PROJECT_GUIDE, COGNITIVE_OS_GUIDE, AGENT_LEARNING_PLAN,
+DEEPAGENTS_INTEGRATION, DEEPAGENTS_SKILLS_MEMORY, DOCUMENT_ANALYSIS_AGENT,
+FRONTEND_ARCHITECTURE, OPERATOR_VARIABLE_CHECKLIST, SECURITY, README.
 
 **Frontend/TestSprite web hardening (2026-05-26, commit `8a33475`).** El
 estado activo del cockpit público quedó alineado con el PRD read-only usado en
@@ -555,25 +632,32 @@ Conteos estructurales derivados del codigo (generados por
 
 ## Ultimo Gate Verde Conocido
 
-Gate local más reciente en esta rama (`codex/commercial-zero-friction-hardening`,
-2026-05-26, HEAD `8a33475`; capa frontend/TestSprite web aplicada sobre el gate
-local 2026-05-25):
+**Gate V2.0 final** (commit V2.0 `final: certify Cognitive OS commercial local-first readiness (V2.0)` sobre base `2bb4966`, Prompt 7 V2.0, 2026-05-27):
 
-- `bash scripts/full-qa.sh` -> **1200 passed, 1 skipped, 28 deselected**
-  (1192 base post-remediación FK + 8 regresiones `test_final_functional_hardening.py` del commit `6891d5c`).
-- `bash scripts/stress-qa.sh 5` -> **5/5 corridas × 1200 passed**, flakiness 0%.
-- `npx playwright test` -> **43 passed** sin exportar `COGOS_JWT`.
-- Ruff/format/mypy/Alembic verdes; frontend `npm run lint` + `tsc
-  --noEmit` 0 warnings.
-- CDP sweep 20 vistas -> **0 console.error, 0 page.error, 0 5xx** × 2 rondas.
-- Mail SMTP gate verificado live -> `HTTP 409` con mensaje contrato.
-- `/system/mcp` -> **6/6 servers, 69 tools**. `/system/readiness` -> 14/14, gaps=[].
-- Handoff TestSprite web: `bash scripts/testsprite_web/deploy_and_verify.sh`
-  valida frontend público, backend `/health`, SW marker y shell; el doble verde
-  web queda pendiente de evidencia del portal.
-- Gate previo `0f8232a` (1190 passed) preservado abajo como histórico.
+- `bash scripts/full-qa.sh` → **1232 passed, 1 skipped, 28 deselected**
+  (1230 base post-Prompt-3 + 2 nuevos casos `test_document_analysis_response_consistency_v2_eval_001.py` del fix V2-EVAL-001).
+- `bash scripts/stress-qa.sh 5` × **2 ciclos verdes posteriores al último cambio** → **10/10 corridas × 1232 passed**, flakiness 0%.
+- `npx playwright test` × 2 ciclos verdes → **44 passed** ambos sin exportar `COGOS_JWT`.
+- `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` → **8 passed** (LLM ping + IMAP/SMTP + Telegram getMe + GoDaddy GET + Kimi status + Google OAuth + MCP list_tools).
+- `python3 scripts/openapi_readonly_smoke.py` → **70 GET / 0 failures**.
+- `python3 scripts/sync_doc_counts.py --check` → OK.
+- `bash scripts/verify_desktop_launchers.sh` → OK.
+- Ruff/format/mypy/Alembic/`git diff --check` → todos verdes.
+- `POST /health/verify` → overall **`ok`** con `mcp_client` live `ok` 6/6 conectados, 69 tools (F-P2-006 + F-P4-001 cerrados).
+- `/system/mcp` → 6/6 connected (`mem`, `gh`, `fs`, `cc`, `gem`, `time`), 69 tools.
+- `/system/readiness` → 14/14 unlocked, gaps=[].
+- Mail SMTP gate verificado live → `HTTP 409` con mensaje de contrato.
+- Calendar/Drive direct writes `dry_run=false` → `HTTP 409`.
+- Code Director `fake` adapter → `HTTP 400`.
+- GoDaddy DNS preview → `dry_run_only=true`, sin writes reales.
+- `GET /document-analysis/{id}` mirror persisted result (V2-EVAL-001 cerrado, response API ↔ artefacto JSON 2 claims / 2 events / 1 contradicción).
+- Doc audit firmado: [`audits/FINAL_ABSOLUTE_V2_COMMERCIAL_LOCAL_FIRST_CERTIFICATION.md`](audits/FINAL_ABSOLUTE_V2_COMMERCIAL_LOCAL_FIRST_CERTIFICATION.md).
 
-Gate `0f8232a` (2026-05-25, pre-remediación):
+Gates históricos previos al cierre V2.0 (preservados):
+
+Gate previo histórico (HEAD `8a33475`, 2026-05-26): `full-qa.sh` 1200 passed, `stress-qa.sh 5` 5/5 × 1200, Playwright 43, live 8.
+
+Gate `0f8232a` (2026-05-25, pre-remediación FK): 1190 passed.
 
 Gate inmediatamente anterior (commit `5459ec5`, 2026-05-23):
 

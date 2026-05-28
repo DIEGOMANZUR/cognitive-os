@@ -16,7 +16,7 @@
 Este documento define la postura actual del proyecto para el PC dedicado de
 Diego. Es intencionalmente distinta de una postura SaaS/multiusuario.
 
-> **Estado (2026-05-26, HEAD `8a33475`):** **COMERCIAL LOCAL-FIRST APROBADO +
+> **Estado (2026-05-27, post cierre absoluto V2.0):** **COMERCIAL LOCAL-FIRST APROBADO +
 > frontend/TestSprite web hardening**. El cierre local-first 2026-05-25 sigue
 > vigente y la capa pública actual agrega hash auth `#cogos_token`, API pública
 > automática, TopBar retirado, shell con `data-cogos-active-tab`, hotkey `3

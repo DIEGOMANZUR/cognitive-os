@@ -13,7 +13,7 @@
 <!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
 
 
-> **Estado actual (2026-05-26, HEAD `8a33475`):**
+> **Estado actual (2026-05-27, post cierre absoluto V2.0):**
 > **COMERCIAL LOCAL-FIRST APROBADO + frontend/TestSprite web hardening**. Cognitive
 > OS sigue siendo producto local-first para un PC dedicado del operador, con
 > fricción casi nula por sobre seguridad estricta como decisión de producto.
@@ -36,7 +36,7 @@
 > **QA vigente:** `bash scripts/full-qa.sh` verde con **1200 passed, 1 skipped,
 > 28 deselected**; `bash scripts/stress-qa.sh 5` -> **5/5 verde × 1200 passed**,
 > flakiness 0%; ruff/format/mypy/Alembic/lint/build/`sync_doc_counts --check`/
-> `git diff --check` OK; Playwright **43 passed** sin exportar `COGOS_JWT`
+> `git diff --check` OK; Playwright **44 passed** sin exportar `COGOS_JWT`
 > (auto-mint via `_global-setup.ts`). Live read-only: **8 passed** (último gate
 > documentado). TestSprite local batched histórico: **28/28 passed**. TestSprite
 > web público usa `bash scripts/testsprite_web/deploy_and_verify.sh`; no declarar

@@ -13,7 +13,7 @@
 <!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
 
 
-> **Estado canonico actual (2026-05-26, HEAD `8a33475`):**
+> **Estado canonico actual (2026-05-27, post cierre absoluto V2.0):**
 > **COMERCIAL LOCAL-FIRST APROBADO + frontend/TestSprite web hardening**. La base
 > local-first 2026-05-25 permanece certificada; el estado vigente agrega el
 > cockpit público endurecido para `https://cognitive.doctormanzur.com`: hash auth
@@ -52,7 +52,7 @@
 >   **secondary/fallback `gemini-3.1-pro-low`**, **vision `glm-4.6v`**.
 > - QA: `full-qa.sh` **1200 passed, 1 skipped, 28 deselected** + ruff/format/
 >   mypy/Alembic/lint/build/`sync_doc_counts`/`git diff --check`; `stress-qa.sh 5`
->   **5/5 verde × 1200 passed**; Playwright **43 passed** sin exportar
+>   **5/5 verde × 1200 passed**; Playwright **44 passed** sin exportar
 >   `COGOS_JWT` (auto-mint via `_global-setup.ts`); carril opt-in `tests/live/`
 >   verificado con **8 passed**; TestSprite local batched histórico **28/28
 >   passed**; TestSprite web público se entrega con `deploy_and_verify.sh`.

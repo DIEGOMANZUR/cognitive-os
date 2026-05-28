@@ -13,7 +13,7 @@
 <!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
 
 
-> **Estado canonico actual (2026-05-26, HEAD `8a33475`):** **COMERCIAL LOCAL-FIRST APROBADO + frontend/TestSprite web hardening**. Este documento no debe leerse como
+> **Estado canonico actual (2026-05-27, post cierre absoluto V2.0):** **COMERCIAL LOCAL-FIRST APROBADO + frontend/TestSprite web hardening**. Este documento no debe leerse como
 > promesa de hardening SaaS. En el PC dedicado de Diego la decision de producto
 > sigue siendo **friccion casi nula por sobre seguridad estricta**. `strict`
 > queda documentado para auditorias, maquinas compartidas o un futuro despliegue

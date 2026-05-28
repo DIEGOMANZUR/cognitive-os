@@ -1,6 +1,18 @@
 # ACCEPTANCE CHECKLIST
 
-> **Estado vigente 2026-05-26 (HEAD `8a33475`):** aceptación comercial local-first
+> **Estado V2.0 (2026-05-27, post cierre absoluto Prompt 7 V2.0).**
+> Cognitive OS quedó certificado como **APTO COMERCIAL LOCAL-FIRST** para
+> PC dedicado. Working tree limpio sobre commit V2.0 (`git log -1`). Gates:
+> `full-qa.sh` **1232 passed**, `stress-qa.sh 5` **5/5 verde × 1232 × 2 ciclos**
+> (flakiness 0%), `npx playwright test` **44 passed × 2 ciclos**,
+> `full-qa-live.sh` **8 passed**, `openapi_readonly_smoke.py` **70/70**.
+> `POST /health/verify` overall **`ok`** con `mcp_client` live 6/6 y 69 tools.
+> Doc audit firmado: [`cognitive-os/docs/audits/FINAL_ABSOLUTE_V2_COMMERCIAL_LOCAL_FIRST_CERTIFICATION.md`](cognitive-os/docs/audits/FINAL_ABSOLUTE_V2_COMMERCIAL_LOCAL_FIRST_CERTIFICATION.md).
+> Reglas vigentes: no envío real de mail/DNS/Google writes; runtime ligado
+> a `127.0.0.1`; secrets fuera del repo; sin TestSprite en V2.0.
+
+
+> **Estado vigente 2026-05-27 (cierre absoluto V2.0):** aceptación comercial local-first
 > preservada + cockpit público/TestSprite web preparado. Encima del cierre
 > comercial 2026-05-25, el frontend público quedó endurecido sin hacks de test:
 > `#cogos_token` persiste JWT y limpia URL, API pública se resuelve por host,
@@ -21,7 +33,7 @@
 > default `output_formats` a los 4 formatos prometidos; `mail/service.py`
 > redacta RUT chileno y nombres ALL-CAPS estilo notificación judicial en el
 > digest. 8 tests de regresión nuevos en `test_final_functional_hardening.py`.
-> Gate: `full-qa.sh` **1200 passed**, `stress-qa.sh 5` **5/5 verde**,
+> Gate: `full-qa.sh` **1232 passed (V2.0)**, `stress-qa.sh 5` **5/5 verde**,
 > Playwright **43/43**. Certificación final:
 > `docs/audits/FINAL_LOCAL_FIRST_COMMERCIAL_CERTIFICATION.md`.
 >
@@ -43,7 +55,7 @@
 > + `test_audit_commercial_reapers_dedicated.py` ahora limpian
 > `DeepAgentMemoryProposalRecord` antes de `HumanApproval` (FK a
 > `human_approvals.id`); `test_clean_slate_fixture_covers_all_fks.py`
-> defiende el orden. Gate post-remediación: `full-qa.sh` **1200 passed**,
+> defiende el orden. Gate post-remediación: `full-qa.sh` **1232 passed (V2.0)**,
 > `stress-qa.sh 5` **5/5 verde × 1200 passed** (flakiness 0%), Playwright
 > **43/43**, CDP **0 console.error** × 2 rondas. Reporte:
 > `tmp/full_functional_activation_20260525_073134/archived_remediation/remediation_20260525_065154.tar.gz` (archivado tar.gz).

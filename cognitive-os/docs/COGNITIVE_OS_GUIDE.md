@@ -13,7 +13,7 @@
 <!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
 
 
-> **Estado canónico actual (2026-05-26, HEAD `8a33475`):**
+> **Estado canónico actual (2026-05-27, post cierre absoluto V2.0):**
 > **COMERCIAL LOCAL-FIRST APROBADO + frontend/TestSprite web hardening**. Esta guía
 > describe el sistema vivo después del cierre local-first 2026-05-25 y de la capa
 > pública 2026-05-26: hash auth `#cogos_token`, API pública por host, TopBar
@@ -47,10 +47,10 @@
 > con **18 componentes** + `POST /health/verify` para probe real. MCP runtime:
 > **6/6 servers** y **69 tools**.
 >
-> **QA más reciente:** `bash scripts/full-qa.sh` **1200 passed**, 1 skipped, 28
+> **QA más reciente:** `bash scripts/full-qa.sh` **1232 passed** (V2.0), 1 skipped, 28
 > deselected; `bash scripts/stress-qa.sh 5` **5/5 verde × 1200 passed**;
 > ruff/format/mypy/Alembic/lint/build/`sync_doc_counts --check`/`git diff --check`
-> OK; Playwright **43 passed** sin exportar `COGOS_JWT`; live opt-in **8 passed**;
+> OK; Playwright **44 passed** sin exportar `COGOS_JWT`; live opt-in **8 passed**;
 > TestSprite local batched histórico **28/28 passed**. TestSprite web público está
 > listo para rerun humano tras `deploy_and_verify.sh`, pero no se declara doble
 > verde web sin reportes del portal.

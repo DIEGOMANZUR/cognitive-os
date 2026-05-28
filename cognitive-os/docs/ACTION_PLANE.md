@@ -13,7 +13,7 @@
 <!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
 
 
-> **Estado canonico actual (2026-05-26, HEAD `8a33475`):**
+> **Estado canonico actual (2026-05-27, post cierre absoluto V2.0):**
 > **COMERCIAL LOCAL-FIRST APROBADO**. En el PC dedicado el Action Plane se
 > interpreta bajo `dedicated_local/full`: friccion casi nula primero, seguridad
 > estricta despues. En `strict`, preview/request/approval sigue siendo la postura

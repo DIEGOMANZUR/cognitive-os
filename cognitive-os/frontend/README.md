@@ -11,7 +11,7 @@
 <!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
 
 
-> **Estado actual (2026-05-26, HEAD `8a33475`):** cockpit definitivo Next.js 16.2.6 +
+> **Estado actual (2026-05-27, post cierre absoluto V2.0):** cockpit definitivo Next.js 16.2.6 +
 > React 19 + TypeScript estricto, dark-only glass cockpit, 20 vistas en
 > `app/views/*.tsx`, PWA instalable y API client con JWT persistente. La
 > prioridad sigue siendo fricción casi nula en un PC dedicado

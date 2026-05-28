@@ -13,7 +13,7 @@
 <!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
 
 
-> **Estado canonico actual (2026-05-26, HEAD `8a33475`):**
+> **Estado canonico actual (2026-05-27, post cierre absoluto V2.0):**
 > **COMERCIAL LOCAL-FIRST APROBADO** + hardening frontend/TestSprite web
 > aplicado. Se mantiene la certificación local-first 2026-05-25 (matriz
 > audit-commercial, flakiness P0 cerrada, activación funcional end-to-end y
@@ -43,7 +43,7 @@
 > commands Telegram**, `/health/dashboard` con 18 componentes +
 > `POST /health/verify`. QA post-remediación: `full-qa.sh` **1200 passed**, 1
 > skipped, 28 deselected; `stress-qa.sh 5` -> **5/5 verde × 1200 passed**
-> (flakiness 0%); Playwright **43 passed** sin exportar `COGOS_JWT`
+> (flakiness 0%); Playwright **44 passed** sin exportar `COGOS_JWT`
 > (auto-mint via `_global-setup.ts`). `full-qa.sh` construye Next en `.next-qa`
 > para no invalidar el `.next` que usa un `next start` vivo. Live read-only:
 > `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed** (último gate

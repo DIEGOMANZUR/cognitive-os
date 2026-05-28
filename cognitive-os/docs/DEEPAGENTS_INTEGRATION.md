@@ -13,7 +13,7 @@
 <!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
 
 
-> **Estado actual (2026-05-26, HEAD `8a33475`):** DeepAgents sigue siendo el
+> **Estado actual (2026-05-27, post cierre absoluto V2.0):** DeepAgents sigue siendo el
 > worker cognitivo productivo para `research` y `document_analysis`. En el perfil
 > local dedicado se prioriza baja fricción: las tools permitidas por la policy
 > pueden usar contexto real del operador, Kimi WebBridge y workspace local cuando

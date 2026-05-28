@@ -13,7 +13,7 @@
 <!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
 
 
-> **Actualización vigente (2026-05-26, HEAD `8a33475`):** el plan de
+> **Actualización vigente (2026-05-27, post cierre absoluto V2.0):** el plan de
 > aprendizaje autónomo está implementado y convive con el modelo **COMERCIAL
 > LOCAL-FIRST APROBADO + frontend/TestSprite web hardening**. La prioridad del
 > sistema en este PC dedicado es reducir fricción por sobre seguridad estricta,

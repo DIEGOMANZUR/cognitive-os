@@ -13,7 +13,7 @@
 <!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
 
 
-> **Estado actual (2026-05-26, HEAD `8a33475`):** subagente legal estable dentro del
+> **Estado actual (2026-05-27, post cierre absoluto V2.0):** subagente legal estable dentro del
 > modelo **COMERCIAL LOCAL-FIRST APROBADO + frontend/TestSprite web hardening**.
 > La prioridad general del producto es baja fricción en el PC dedicado, pero esta
 > ruta sigue siendo evidence-first: citas, scope de `doc_ids`, quality score y

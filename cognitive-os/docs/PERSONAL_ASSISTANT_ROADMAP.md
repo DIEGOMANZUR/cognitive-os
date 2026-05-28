@@ -1,5 +1,17 @@
 # Roadmap: Cognitive OS como asistente personal
 
+> **Estado V2.0 (2026-05-27, post cierre absoluto Prompt 7 V2.0).**
+> Cognitive OS quedó certificado como **APTO COMERCIAL LOCAL-FIRST** para
+> PC dedicado. Working tree limpio sobre commit V2.0 (`git log -1`). Gates:
+> `full-qa.sh` **1232 passed**, `stress-qa.sh 5` **5/5 verde × 1232 × 2 ciclos**
+> (flakiness 0%), `npx playwright test` **44 passed × 2 ciclos**,
+> `full-qa-live.sh` **8 passed**, `openapi_readonly_smoke.py` **70/70**.
+> `POST /health/verify` overall **`ok`** con `mcp_client` live 6/6 y 69 tools.
+> Doc audit firmado: [`cognitive-os/docs/audits/FINAL_ABSOLUTE_V2_COMMERCIAL_LOCAL_FIRST_CERTIFICATION.md`](cognitive-os/docs/audits/FINAL_ABSOLUTE_V2_COMMERCIAL_LOCAL_FIRST_CERTIFICATION.md).
+> Reglas vigentes: no envío real de mail/DNS/Google writes; runtime ligado
+> a `127.0.0.1`; secrets fuera del repo; sin TestSprite en V2.0.
+
+
 > **Estado actual (2026-05-26, HEAD `8a33475`):** roadmap vivo, mayormente
 > ejecutado para una instalación local dedicada. Producto certificado como
 > **COMERCIAL LOCAL-FIRST APROBADO** y con frontend/TestSprite web endurecido sin

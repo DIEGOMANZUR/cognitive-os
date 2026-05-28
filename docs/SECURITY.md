@@ -1,5 +1,14 @@
 # Seguridad
 
+> **Estado V2.0 (2026-05-27, post cierre absoluto Prompt 7 V2.0).**
+> Cognitive OS quedó certificado como **APTO COMERCIAL LOCAL-FIRST** para
+> PC dedicado. Working tree limpio sobre commit V2.0 (`git log -1`). Gates V2.0:
+> `full-qa.sh` **1232 passed**, `stress-qa.sh 5` **5/5 verde × 1232 × 2 ciclos**
+> (flakiness 0%), `npx playwright test` **44 passed × 2 ciclos**,
+> `full-qa-live.sh` **8 passed**, `openapi_readonly_smoke.py` **70/70**.
+> Doc audit firmado: [`cognitive-os/docs/audits/FINAL_ABSOLUTE_V2_COMMERCIAL_LOCAL_FIRST_CERTIFICATION.md`](../audits/FINAL_ABSOLUTE_V2_COMMERCIAL_LOCAL_FIRST_CERTIFICATION.md).
+
+
 > **Estado actual (2026-05-22):** estas reglas raíz siguen protegiendo
 > secretos y repositorio, pero no describen el objetivo operativo principal
 > de Cognitive OS en este PC dedicado. Diego priorizó fricción casi nula por

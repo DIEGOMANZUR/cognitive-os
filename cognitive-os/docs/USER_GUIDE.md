@@ -13,7 +13,7 @@
 <!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
 
 
-> **Estado canonico actual (2026-05-26, HEAD `8a33475`):**
+> **Estado canonico actual (2026-05-27, post cierre absoluto V2.0):**
 > **COMERCIAL LOCAL-FIRST APROBADO** con hardening frontend/TestSprite web
 > aplicado encima del cierre comercial 2026-05-25. La base local-first sigue
 > cubierta por matriz audit-commercial (~230 asserciones), flakiness P0 cerrada,
@@ -38,7 +38,7 @@
 > migraciones Alembic** head `202605200003`, **20 vistas frontend**, **37 comandos
 > Telegram**, **18 componentes** en `/health/dashboard` + `POST /health/verify`.
 > QA local post-remediación: `full-qa` **1200 passed**, 1 skipped, 28 deselected;
-> `stress-qa.sh 5` -> **5/5 verde × 1200 passed**; Playwright **43 passed** sin
+> `stress-qa.sh 5` -> **5/5 verde × 1200 passed**; Playwright **44 passed** sin
 > exportar `COGOS_JWT`; carril opt-in `tests/live/` verificado **8 passed**.
 > TestSprite histórico local en batches: **28/28 passed**. TestSprite web público
 > debe re-ejecutarse con el stack desplegado por

@@ -13,7 +13,7 @@
 <!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
 
 
-> **Estado actual (2026-05-26, HEAD `8a33475`):** skills y memoria siguen activos
+> **Estado actual (2026-05-27, post cierre absoluto V2.0):** skills y memoria siguen activos
 > como capa de aprendizaje operativo. Aunque el producto prioriza baja fricción en
 > este PC dedicado, las promociones de memoria/skills se mantienen por proposal
 > para preservar calidad y rollback: no son un mecanismo de seguridad perimetral,

@@ -11,7 +11,7 @@
 <!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
 
 
-> **Estado canonico (2026-05-26, HEAD `8a33475`):**
+> **Estado canonico (2026-05-27, post cierre absoluto V2.0):**
 > **COMERCIAL LOCAL-FIRST APROBADO + frontend/TestSprite web hardening**. La
 > base comercial local-first 2026-05-25 sigue certificada: matriz
 > audit-commercial cerrada, flakiness P0 corregida, activación funcional de 16
@@ -61,11 +61,11 @@ falla si quedan desincronizados):
   PWA dark-only glassmorphism, sin Tailwind/shadcn.
 - **LLM** — primary+agent `gpt-5.5` (Responses API + prompt caching 24h),
   secondary/fallback `gemini-3.1-pro-low`, vision `glm-4.6v`.
-- **QA** — `full-qa.sh` **1200 passed** post-remediación 2026-05-25 (1190
+- **QA** — `full-qa.sh` **1232 passed (V2.0)** post-remediación 2026-05-25 (1190
   base + 2 regresión FK order), `stress-qa.sh 5` -> **5/5 verde**
   (flakiness 0% tras cerrar F-P0-001) +
   ruff/format/mypy/Alembic/lint/build/`sync_doc_counts`/`git diff --check`;
-  Playwright **43 passed** (sin necesidad de exportar `COGOS_JWT` — auto-mint
+  Playwright **44 passed** (sin necesidad de exportar `COGOS_JWT` — auto-mint
   via `POST /auth/local-token`); carril opt-in `tests/live/` verificado con
   **8 passed** contra proveedores reales. TestSprite local batched histórico:
   **28/28 passed**; TestSprite web público se prepara con
@@ -147,8 +147,8 @@ de producto**):
 - `backend/tests/test_clean_slate_fixture_covers_all_fks.py` (nuevo) — test
   de regresión que detecta futura adición de FKs sin actualizar fixtures.
 
-Gate post-remediación: `full-qa.sh` -> **1200 passed**, `stress-qa.sh 5` ->
-**5/5 verde × 1200 passed**, Playwright **43 passed**, CDP **0 console.error**.
+Gate post-remediación: `full-qa.sh` -> **1232 passed (V2.0)**, `stress-qa.sh 5` ->
+**5/5 verde × 1200 passed**, Playwright **44 passed**, CDP **0 console.error**.
 **2 ciclos completos verdes** tras el último cambio. Flakiness post-fix: **0%**.
 Reporte completo en
 `tmp/full_functional_activation_20260525_073134/archived_remediation/remediation_20260525_065154.tar.gz` (archivado tar.gz).
@@ -174,7 +174,7 @@ Tambien resuelve 2 tests historicos rojos en HEAD `5459ec5`
 y `test_drive_organize_auto_approves_in_full_dedicated_local`) que no
 stubeaban `DriveService`; ahora usan `_FakeReadyDriveService`.
 
-Gate post-fix: `bash scripts/full-qa.sh` -> **1190 passed**, 1 skipped,
+Gate post-fix: `bash scripts/full-qa.sh` -> **1232 passed (V2.0; 1190 base histórico)**, 1 skipped,
 28 deselected (958 historicos + 227 audit-commercial + 4 time_mcp_server
 + 1 dispatch guard). Playwright -> **43 passed**.
 *Tras remediación 2026-05-25 ese gate subió a `1200 passed` por +2 tests
@@ -308,7 +308,7 @@ rsync -a --exclude node_modules --exclude .next --exclude .venv --exclude '__pyc
 - Python ≥ 3.12 y [uv](https://docs.astral.sh/uv/)
 - Node.js ≥ 22 y npm
 - Verificación reproducible: `bash scripts/full-qa.sh` (`uv sync --extra openharness` + `pytest` + `ruff check` + `ruff format --check` + `mypy` + `npm ci` + `npm run lint` + `npm run build` + `sync_doc_counts.py --check` + `git diff --check`). Estrés: `bash scripts/stress-qa.sh` (3 pasadas de pytest por defecto). Smokes en vivo opt-in: `bash scripts/full-qa-live.sh`.
-- Snapshot QA actual (2026-05-26, HEAD `8a33475`): `bash scripts/full-qa.sh` **1200 passed, 1 skipped, 28 deselected** (1190 base + 2 regresión FK order); `bash scripts/stress-qa.sh 5` -> **5/5 verde** (flakiness 0%); ruff/ruff format/mypy, frontend lint/build aislado con `.next-qa`, Alembic head `202605200003` y `git diff --check` verdes. Playwright frontend: **43 passed** sin exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`). Live read-only: `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed** (último gate documentado). TestSprite local batched histórico: **28/28 passed**; TestSprite web público se entrega con `bash scripts/testsprite_web/deploy_and_verify.sh` y queda pendiente de confirmar por reportes del portal, sin afirmar dos corridas web verdes hasta recibirlos.
+- Snapshot QA actual (2026-05-27, post cierre absoluto V2.0): `bash scripts/full-qa.sh` **1200 passed, 1 skipped, 28 deselected** (1190 base + 2 regresión FK order); `bash scripts/stress-qa.sh 5` -> **5/5 verde** (flakiness 0%); ruff/ruff format/mypy, frontend lint/build aislado con `.next-qa`, Alembic head `202605200003` y `git diff --check` verdes. Playwright frontend: **43 passed** sin exportar `COGOS_JWT` (auto-mint via `_global-setup.ts`). Live read-only: `LIVE_TESTS_ENABLED=1 bash scripts/full-qa-live.sh` **8 passed** (último gate documentado). TestSprite local batched histórico: **28/28 passed**; TestSprite web público se entrega con `bash scripts/testsprite_web/deploy_and_verify.sh` y queda pendiente de confirmar por reportes del portal, sin afirmar dos corridas web verdes hasta recibirlos.
 
 ## Backend
 

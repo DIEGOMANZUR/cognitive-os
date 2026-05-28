@@ -1,32 +1,44 @@
 # corregir_cognitive.md — Pendientes Operativos (vivo)
 
-> **Última actualización:** 2026-05-25 post-CIERRE ABSOLUTO (Prompt 7).
-> **Estado de release:** **COMERCIAL LOCAL-FIRST APROBADO — CIERRE ABSOLUTO** —
-> sin P0/P1/P2 funcionales abiertos. Sistema operativo cognitivo local-first con
-> todos los contratos críticos verificados en runtime real, 2 ciclos verdes
-> consecutivos post-cierre, runtime confirmado servir HEAD `6891d5c` (backend
-> reiniciado en Prompt 7 para alinear el proceso vivo con el código commiteado).
+> **Última actualización:** 2026-05-27 post-CIERRE ABSOLUTO V2.0 (Prompt 7 V2.0).
+> **Estado de release:** **APTO COMERCIAL LOCAL-FIRST — CIERRE ABSOLUTO V2.0** —
+> sin P0/P1/P2 funcionales abiertos. 7 prompts V2.0 ejecutados, 12 hallazgos
+> cerrados (F-P2-001..006 + F-P4-001..003 + V2-EVAL-001/004/005), commit local
+> final con working tree limpio. Runtime sirve el HEAD del commit V2.0 (último
+> `git log -1 --format=%H`).
 >
-> **Reportes vigentes (orden cronológico):**
-> - Activación funcional inicial (Prompt 4):
->   `tmp/full_functional_activation_20260525_073134/reports/FULL_FUNCTIONAL_ACTIVATION_REPORT.md`
-> - Evaluación independiente (Prompt 5):
->   `tmp/full_functional_activation_20260525_073134/reports/FULL_FUNCTIONAL_EVALUATION.md`
-> - Certificación final P6:
+> **Reportes V2.0 vigentes:**
+> - Prompt 1 — Mapa contractual + matriz 663 controles:
+>   `tmp/v2_01_contract_plan_20260527_133821/`
+> - Prompt 2 — Ejecución read-only + 6 hallazgos:
+>   `tmp/v2_02_readonly_execution_20260527_142619/`
+> - Prompt 3 — Remediación inicial + 9 tests + 1230 passed:
+>   `tmp/v2_03_initial_remediation_20260527_151927/`
+> - Prompt 4 — Activación real FULLY_ACTIVE + F-P4-001 fix:
+>   `tmp/v2_04_real_activation_20260527_162134/`
+> - Prompt 5 — Evaluación independiente + V2-EVAL-001:
+>   `tmp/v2_05_independent_evaluation_20260527_163911/`
+> - Prompt 6 — Fix V2-EVAL-001 + 1232 passed + 5/5 stress:
+>   `tmp/v2_06_final_remediation_20260527_172958/`
+> - **Cierre absoluto Prompt 7 V2.0 (este ciclo):**
+>   `tmp/v2_07_absolute_release_closure_20260527_175541/` + certificación firmada
+>   `cognitive-os/docs/audits/FINAL_ABSOLUTE_V2_COMMERCIAL_LOCAL_FIRST_CERTIFICATION.md`
+>
+> **Reportes históricos (auditorías previas a V2.0, preservados):**
+> - Activación funcional inicial 2026-05-25:
+>   `tmp/full_functional_activation_20260525_073134/`
+> - Certificación final P6 histórica:
 >   `cognitive-os/docs/audits/FINAL_LOCAL_FIRST_COMMERCIAL_CERTIFICATION.md`
-> - **Certificación absoluta P7 (este ciclo):**
+> - Cierre absoluto V1.x 2026-05-25:
 >   `cognitive-os/docs/audits/FINAL_ABSOLUTE_COMMERCIAL_LOCAL_FIRST_CERTIFICATION.md`
-> - Sandbox P7 con evidencia (305 controles, 2 ciclos verdes, 10 hostiles):
->   `tmp/final_absolute_closure_20260525_182445/`
-> - Remediación P0 flakiness (archivada tar.gz):
->   `tmp/full_functional_activation_20260525_073134/archived_remediation/remediation_20260525_065154.tar.gz`
 >
-> **Conteo vigente:**
+> **Conteo vigente post-V2.0:**
 > - P0: **0**
-> - P1: **0** (los 2 abiertos del Prompt 5 cerrados en P6, sostenidos en P7)
-> - P2 funcionales: **0** (los 6 abiertos cerrados o documentados)
-> - P2 operativos no-código: 2 (operador) + 2 nuevos OBS no-bloqueantes detectados en P7 (OBS-2, OBS-3)
-> - P3 pulido: 2 + 1 nuevo OBS no-bloqueante detectado en P7 (OBS-1)
+> - P1: **0**
+> - P2 funcionales: **0** (V2-EVAL-001 último cerrado en Prompt 6)
+> - P2 declarado: 1 (F-P4-002 DeepAgent BadRequestError → fallback heurístico funcional, documentado)
+> - P3 cosméticos / smokes opcionales: V2-EVAL-002/003 (beat schedule y thread cross-restart smokes pytest-cubiertos), Lighthouse + axe-core no ejecutados, Schemathesis live opcional. Ninguno bloquea.
+> - P2 operativos no-código: 2 (operador: refresh Google OAuth, triage de approvals viejos)
 
 Este documento solo lista lo **abierto o pendiente**. Lo cerrado vive en la
 certificación final + en este histórico.

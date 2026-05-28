@@ -13,7 +13,7 @@
 <!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
 
 
-> **Estado actual (2026-05-26, HEAD `8a33475`):** vigente para una instalación
+> **Estado actual (2026-05-27, post cierre absoluto V2.0):** vigente para una instalación
 > local dedicada con **COMERCIAL LOCAL-FIRST APROBADO + frontend/TestSprite web
 > hardening**. La postura preferida es `OPERATOR_PROFILE=dedicated_local` con
 > fricción casi nula por sobre seguridad estricta; `strict` queda como perfil

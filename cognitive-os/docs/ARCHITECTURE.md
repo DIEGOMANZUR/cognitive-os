@@ -13,7 +13,7 @@
 <!-- V2_ABSOLUTE_CLOSURE_STATUS_END -->
 
 
-> **Estado canónico actual (2026-05-26, HEAD `8a33475`):**
+> **Estado canónico actual (2026-05-27, post cierre absoluto V2.0):**
 > **COMERCIAL LOCAL-FIRST APROBADO + frontend/TestSprite web hardening**. La
 > arquitectura local-first para PC dedicado mantiene prioridad explícita de
 > fricción casi nula por sobre seguridad estricta; `strict` sigue como perfil
@@ -46,8 +46,8 @@
 > slash commands** de Telegram y cliente MCP runtime **6/6 servers** (`mem`, `gh`,
 > `fs`, `cc`, `gem`, `time`) con **69 tools**.
 >
-> **QA vigente:** `bash scripts/full-qa.sh` **1200 passed**, `stress-qa.sh 5`
-> **5/5 verde × 1200 passed**, Playwright **43 passed**, carril live opt-in **8
+> **QA vigente:** `bash scripts/full-qa.sh` **1232 passed** (V2.0), `stress-qa.sh 5`
+> **5/5 verde × 1200 passed**, Playwright **44 passed**, carril live opt-in **8
 > passed** documentado, TestSprite local batched histórico **28/28 passed** y
 > TestSprite web pendiente de evidencia del portal tras `deploy_and_verify.sh`.
 
